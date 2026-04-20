@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800;900&display=swap");
+
+:root {
+  color-scheme: dark;
+  --brand-yellow: #fbbf24;
+  --brand-yellow-dark: #f59e0b;
+  --space-black: #0a0a0a;
+}
+
+html,
+body {
+  background: #0a0a0a;
+  color: #fafafa;
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: "Poppins", "Inter", system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--brand-yellow);
+  color: #0a0a0a;
+}
+
+/* Scrollbar — dark */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e2e2e;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+/* Hide scrollbar for horizontal tab rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Default focus ring — yellow on dark */
+*:focus-visible {
+  outline: 2px solid var(--brand-yellow);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Auto-fill input fix for dark */
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #1f1f1f inset;
+  -webkit-text-fill-color: #fafafa;
+  caret-color: #fafafa;
+}

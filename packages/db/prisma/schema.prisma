@@ -1,0 +1,401 @@
+// METU Digital Marketplace — Prisma Schema
+// Derived from: Database ER diagram (crow's foot).pdf
+// All 19 entities. snake_case in DB, camelCase in JS via @map.
+// Cascading deletes are applied where child rows depend on the parent.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+//  ENUMS
+// ============================================================================
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum UserRole {
+  buyer
+  seller
+  admin
+}
+
+enum CartStatus {
+  active
+  checked_out
+  expired
+}
+
+enum OrderStatus {
+  pending
+  paid
+  fulfilled
+  cancelled
+  refunded
+}
+
+enum TransactionType {
+  purchase
+  payout
+  refund
+}
+
+enum DeliveryMethod {
+  download
+  email
+  license_key
+  streaming
+}
+
+enum DiscountType {
+  percent
+  fixed
+}
+
+// ============================================================================
+//  CORE IDENTITY
+// ============================================================================
+
+model Country {
+  countryId   Int    @id @default(autoincrement()) @map("country_id")
+  countryCode Int    @map("country_code")
+  name        String @db.VarChar(60)
+
+  users User[]
+
+  @@map("country")
+}
+
+model User {
+  userId        Int       @id @default(autoincrement()) @map("user_id")
+  countryId     Int?      @map("country_id")
+  password      String    @db.Text
+  username      String    @unique @db.VarChar(20)
+  firstName     String    @map("first_name") @db.VarChar(40)
+  lastName      String    @map("last_name") @db.VarChar(40)
+  email         String    @unique @db.VarChar(80)
+  gender        Gender?
+  profileImage  String?   @map("profile_image") @db.Text
+  dateOfBirth   DateTime? @map("date_of_birth")
+  createdDate   DateTime  @default(now()) @map("created_date")
+
+  country      Country?        @relation(fields: [countryId], references: [countryId])
+  stats        UserStats?
+  store        Store?
+  carts        Cart[]
+  transactions Transaction[]
+  reviews      ProductReview[]
+  couponUsages CouponUsage[]
+
+  @@index([countryId])
+  @@index([createdDate])
+  @@map("users")
+}
+
+model UserStats {
+  userId      Int      @id @map("user_id")
+  buyerLevel  Int      @default(1) @map("buyer_level")
+  sellerLevel Int      @default(0) @map("seller_level")
+  role        UserRole @default(buyer)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([role])
+  @@map("user_stats")
+}
+
+// ============================================================================
+//  STORE
+// ============================================================================
+
+model BusinessType {
+  typeId      Int    @id @default(autoincrement()) @map("type_id")
+  name        String @db.VarChar(30)
+  description String @db.VarChar(150)
+
+  stores Store[]
+
+  @@map("business_type")
+}
+
+model Store {
+  storeId        Int      @id @default(autoincrement()) @map("store_id")
+  ownerId        Int      @unique @map("owner_id")
+  businessTypeId Int      @map("business_type_id")
+  name           String   @db.VarChar(60)
+  description    String   @db.VarChar(255)
+  profileImage   String?  @map("profile_image") @db.Text
+  coverImage     String?  @map("cover_image") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
+  businessType BusinessType @relation(fields: [businessTypeId], references: [typeId])
+  products     Product[]
+  coupons      Coupon[]
+  stats        StoreStats?
+
+  @@index([businessTypeId])
+  @@index([createdAt])
+  @@map("store")
+}
+
+model StoreStats {
+  statId       Int      @id @default(autoincrement()) @map("stat_id")
+  storeId      Int      @unique @map("store_id")
+  ctr          Int      @default(0) @map("ctr") // basis points (0..10000)
+  rating       Int      @default(0) // avg rating × 10 (e.g. 48 = 4.8★)
+  responseTime Int      @default(0) @map("response_time") // minutes
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
+
+  @@map("store_stats")
+}
+
+// ============================================================================
+//  CATALOG
+// ============================================================================
+
+model Category {
+  categoryId   Int    @id @default(autoincrement()) @map("category_id")
+  categoryName String @map("category_name") @db.VarChar(40)
+  description  String @db.VarChar(150)
+
+  products Product[]
+
+  @@map("category")
+}
+
+model ProductTag {
+  tagId          Int    @id @default(autoincrement()) @map("tag_id")
+  tagName        String @unique @map("tag_name") @db.VarChar(30)
+  tagDescription String @map("tag_description") @db.VarChar(150)
+
+  productNTags ProductNTag[]
+
+  @@map("product_tag")
+}
+
+model Product {
+  productId   Int    @id @default(autoincrement()) @map("product_id")
+  storeId     Int    @map("store_id")
+  categoryId  Int    @map("category_id")
+  name        String @db.VarChar(100)
+  description String @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  store        Store           @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
+  category     Category        @relation(fields: [categoryId], references: [categoryId])
+  items        ProductItem[]
+  images       ProductImage[]
+  reviews      ProductReview[]
+  productNTags ProductNTag[]
+
+  @@index([storeId])
+  @@index([categoryId])
+  @@map("product")
+}
+
+model ProductItem {
+  productItemId   Int            @id @default(autoincrement()) @map("product_item_id")
+  productId       Int            @map("product_id")
+  deliveryMethod  DeliveryMethod @map("delivery_method")
+  quantity        Int            @default(0)
+  price           Decimal        @db.Decimal(10, 2)
+  discountPercent Int            @default(0) @map("discount_percent")
+  discountAmount  Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  createdDate     DateTime       @default(now()) @map("created_date")
+
+  product    Product     @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+
+  @@index([productId])
+  @@map("product_item")
+}
+
+// NOTE: ER diagram models one image per product; we expand to many for realistic demo.
+// Surrogate PK (product_image_id) added while keeping product_id + product_image from the ER.
+model ProductImage {
+  productImageId Int    @id @default(autoincrement()) @map("product_image_id")
+  productId      Int    @map("product_id")
+  productImage   String @map("product_image") @db.Text
+  sortOrder      Int    @default(0) @map("sort_order")
+
+  product Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_image")
+}
+
+model ProductReview {
+  reviewId  Int      @id @default(autoincrement()) @map("review_id")
+  productId Int      @map("product_id")
+  userId    Int      @map("user_id")
+  rating    Int
+  comment   String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([userId])
+  @@map("product_review")
+}
+
+model ProductNTag {
+  junctionId Int @id @default(autoincrement()) @map("junction_id")
+  productId  Int @map("product_id")
+  tagId      Int @map("tag_id")
+
+  product Product    @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  tag     ProductTag @relation(fields: [tagId], references: [tagId], onDelete: Cascade)
+
+  @@unique([productId, tagId])
+  @@index([tagId])
+  @@map("product_n_tag")
+}
+
+// ============================================================================
+//  CART / ORDER / TRANSACTION
+// ============================================================================
+
+model Cart {
+  cartId    Int        @id @default(autoincrement()) @map("cart_id")
+  userId    Int        @map("user_id")
+  status    CartStatus @default(active)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  expiredAt DateTime?  @map("expired_at")
+  sessionId Int?       @map("session_id")
+
+  user  User       @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  order Order?
+  items CartItem[]
+
+  // A user has many carts over time; at most one should have status=active at a time
+  // (enforced at the application layer for simplicity).
+  @@index([userId, status])
+  @@index([status])
+  @@map("cart")
+}
+
+// Extension beyond the original ER diagram: explicitly model cart lines so we can
+// demonstrate the classic "items-in-cart-before-checkout" flow in the demo.
+model CartItem {
+  cartItemId    Int      @id @default(autoincrement()) @map("cart_item_id")
+  cartId        Int      @map("cart_id")
+  productItemId Int      @map("product_item_id")
+  quantity      Int      @default(1)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  cart        Cart        @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
+  productItem ProductItem @relation(fields: [productItemId], references: [productItemId], onDelete: Cascade)
+
+  @@unique([cartId, productItemId])
+  @@index([cartId])
+  @@map("cart_item")
+}
+
+model Transaction {
+  transactionId   Int             @id @default(autoincrement()) @map("transaction_id")
+  transactionType TransactionType @map("transaction_type")
+  userId          Int             @map("user_id")
+  totalAmount     Decimal         @map("total_amount") @db.Decimal(12, 2)
+  date            DateTime        @default(now())
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+  @@index([transactionType])
+  @@map("transactions")
+}
+
+model Order {
+  orderId       Int         @id @default(autoincrement()) @map("order_id")
+  cartId        Int         @unique @map("cart_id")
+  totalPrice    Decimal     @map("total_price") @db.Decimal(12, 2)
+  status        OrderStatus @default(pending)
+  transactionId Int?        @map("transaction_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  expiredAt     DateTime?   @map("expired_at")
+
+  cart        Cart         @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
+  items       OrderItem[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  orderItemId     Int     @id @default(autoincrement()) @map("order_item_id")
+  orderId         Int     @map("order_id")
+  productItemId   Int     @map("product_item_id")
+  couponId        Int?    @map("coupon_id")
+  quantity        Int
+  priceAtPurchase Decimal @map("price_at_purchase") @db.Decimal(10, 2)
+
+  order       Order       @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+  productItem ProductItem @relation(fields: [productItemId], references: [productItemId])
+  coupon      Coupon?     @relation(fields: [couponId], references: [couponId])
+
+  @@index([orderId])
+  @@index([productItemId])
+  @@map("order_item")
+}
+
+// ============================================================================
+//  COUPONS
+// ============================================================================
+
+model Coupon {
+  couponId      Int          @id @default(autoincrement()) @map("coupon_id")
+  storeId       Int          @map("store_id")
+  code          String       @db.VarChar(50)
+  startDate     DateTime     @map("start_date")
+  endDate       DateTime     @map("end_date")
+  usageLimit    Int          @map("usage_limit")
+  discountType  DiscountType @map("discount_type")
+  discountValue Int          @map("discount_value")
+  isActive      Boolean      @default(true) @map("is_active")
+
+  store      Store         @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
+  usages     CouponUsage[]
+  orderItems OrderItem[]
+
+  @@unique([storeId, code])
+  @@index([code])
+  @@index([isActive])
+  @@map("coupon")
+}
+
+model CouponUsage {
+  usageId   Int      @id @default(autoincrement()) @map("usage_id")
+  couponId  Int      @map("coupon_id")
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  coupon Coupon @relation(fields: [couponId], references: [couponId], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([userId])
+  @@map("coupon_usage")
+}
