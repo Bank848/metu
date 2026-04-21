@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
+import { OrderStatusActions } from "@/components/seller/OrderStatusActions";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -64,6 +65,7 @@ export default async function SellerOrders() {
                 </span>
               ))}
             </div>
+            <OrderStatusActions orderId={o.orderId} currentStatus={o.status} />
           </li>
         ))}
       </ul>
