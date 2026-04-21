@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Store as StoreIcon, ImageIcon } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
+import { isDataUrl } from "@/lib/utils";
 
 type BusinessType = { typeId: number; name: string };
 
@@ -79,7 +80,7 @@ export function EditStoreForm({
       <section className="rounded-2xl glass-morphism overflow-hidden">
         <div className="relative aspect-[5/2] bg-surface-2 overflow-hidden">
           {form.coverImage ? (
-            <Image src={form.coverImage} alt="" fill sizes="100vw" className="object-cover" unoptimized />
+            <Image src={form.coverImage} alt="" fill sizes="100vw" className="object-cover" unoptimized={isDataUrl(form.coverImage)} />
           ) : (
             <div className="absolute inset-0 vibrant-mesh" />
           )}
@@ -88,7 +89,7 @@ export function EditStoreForm({
         <div className="p-5 flex items-start gap-4">
           <div className="relative h-16 w-16 shrink-0 rounded-2xl bg-metu-yellow overflow-hidden ring-2 ring-surface-1 -mt-12 shadow-pop">
             {form.profileImage ? (
-              <Image src={form.profileImage} alt="" fill sizes="64px" className="object-cover" unoptimized />
+              <Image src={form.profileImage} alt="" fill sizes="64px" className="object-cover" unoptimized={isDataUrl(form.profileImage)} />
             ) : (
               <StoreIcon className="h-6 w-6 m-5 text-surface-1" />
             )}

@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
+import { isDataUrl } from "@/lib/utils";
 
 type Order = {
   orderId: number;
@@ -36,7 +37,7 @@ export default async function SellerOrders() {
               <div className="flex items-center gap-3">
                 <div className="relative h-10 w-10 rounded-full bg-brand-yellow overflow-hidden shrink-0">
                   {o.cart.user.profileImage && (
-                    <Image src={o.cart.user.profileImage} alt="" fill sizes="40px" className="object-cover" unoptimized />
+                    <Image src={o.cart.user.profileImage} alt="" fill sizes="40px" className="object-cover" unoptimized={isDataUrl(o.cart.user.profileImage)} />
                   )}
                 </div>
                 <div>
@@ -57,7 +58,7 @@ export default async function SellerOrders() {
               {o.items.map((it) => (
                 <span key={it.orderItemId} className="inline-flex items-center gap-1.5 rounded-full bg-space-800 border border-line px-3 py-1">
                   {it.productItem.product.images[0] && (
-                    <Image src={it.productItem.product.images[0].productImage} alt="" width={16} height={16} className="rounded" unoptimized />
+                    <Image src={it.productItem.product.images[0].productImage} alt="" width={16} height={16} className="rounded" unoptimized={isDataUrl(it.productItem.product.images[0].productImage)} />
                   )}
                   {it.productItem.product.name} · ×{it.quantity}
                 </span>

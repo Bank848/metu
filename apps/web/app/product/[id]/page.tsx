@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Reviews } from "@/components/Reviews";
 import { getProduct } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
+import { isDataUrl } from "@/lib/utils";
 import { AddToCart } from "./AddToCart";
 import { Gallery } from "./Gallery";
 
@@ -90,7 +91,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
             >
               <div className="relative h-12 w-12 shrink-0 rounded-full bg-metu-yellow overflow-hidden">
                 {product.store.profileImage && (
-                  <Image src={product.store.profileImage} alt={product.store.name} fill sizes="48px" className="object-cover" unoptimized />
+                  <Image src={product.store.profileImage} alt={product.store.name} fill sizes="48px" className="object-cover" unoptimized={isDataUrl(product.store.profileImage)} />
                 )}
               </div>
               <div className="min-w-0">

@@ -2,6 +2,7 @@ import Image from "next/image";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { apiAuth } from "@/lib/session";
+import { isDataUrl } from "@/lib/utils";
 
 type UsersResp = {
   items: Array<{
@@ -68,7 +69,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: { q?:
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
                     <div className="relative h-9 w-9 rounded-full bg-brand-yellow overflow-hidden shrink-0">
-                      {u.profileImage && <Image src={u.profileImage} alt="" fill sizes="36px" className="object-cover" unoptimized />}
+                      {u.profileImage && <Image src={u.profileImage} alt="" fill sizes="36px" className="object-cover" unoptimized={isDataUrl(u.profileImage)} />}
                     </div>
                     <div>
                       <div className="text-sm font-semibold text-white">{u.firstName} {u.lastName}</div>

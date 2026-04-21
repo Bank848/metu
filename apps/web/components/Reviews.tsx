@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Star, Pencil, MessageSquare } from "lucide-react";
 import { GlassButton } from "./visual/GlassButton";
 import { WriteReviewDialog } from "./WriteReviewDialog";
-import { cn } from "@/lib/utils";
+import { cn, isDataUrl } from "@/lib/utils";
 
 type Review = {
   reviewId: number;
@@ -167,7 +167,7 @@ export function Reviews({
                       fill
                       sizes="36px"
                       className="object-cover"
-                      unoptimized
+                      unoptimized={isDataUrl(r.user.profileImage)}
                     />
                   )}
                 </div>

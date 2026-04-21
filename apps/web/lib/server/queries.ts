@@ -4,6 +4,7 @@
  * protection, and is generally faster).
  */
 import { Prisma } from "@prisma/client";
+import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 
 const VALID_DELIVERY = ["download", "email", "license_key", "streaming"] as const;
@@ -60,9 +61,14 @@ export async function getFeaturedStores(take = 4) {
   return prisma.store.findMany({
     take,
     orderBy: { createdAt: "desc" },
-    include: {
-      businessType: true,
-      stats: true,
+    select: {
+      storeId: true,
+      name: true,
+      profileImage: true,
+      coverImage: true,
+      description: true,
+      createdAt: true,
+      businessType: { select: { name: true } },
       _count: { select: { products: true } },
     },
   });
@@ -70,26 +76,29 @@ export async function getFeaturedStores(take = 4) {
 
 /** Public store page: store + owner + products grid + aggregate ratings. */
 export async function getStore(storeId: number) {
-  const store = await prisma.store.findUnique({
-    where: { storeId },
-    include: {
-      owner: { select: { firstName: true, lastName: true, profileImage: true, username: true, createdDate: true } },
-      businessType: true,
-      stats: true,
-    },
-  });
+  // Both queries depend only on storeId — run them in parallel to halve
+  // round-trip latency to Neon.
+  const [store, products] = await Promise.all([
+    prisma.store.findUnique({
+      where: { storeId },
+      include: {
+        owner: { select: { firstName: true, lastName: true, profileImage: true, username: true, createdDate: true } },
+        businessType: true,
+        stats: true,
+      },
+    }),
+    prisma.product.findMany({
+      where: { storeId },
+      orderBy: { productId: "desc" },
+      include: {
+        items: { select: { price: true, discountPercent: true } },
+        images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
+        productNTags: { include: { tag: { select: { tagName: true } } } },
+        reviews: { select: { rating: true } },
+      },
+    }),
+  ]);
   if (!store) return null;
-
-  const products = await prisma.product.findMany({
-    where: { storeId },
-    orderBy: { productId: "desc" },
-    include: {
-      items: { select: { price: true, discountPercent: true } },
-      images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
-      productNTags: { include: { tag: { select: { tagName: true } } } },
-      reviews: { select: { rating: true } },
-    },
-  });
 
   const items = products.map((p) => {
     const prices = p.items.map((i) => Number(i.price));
@@ -194,17 +203,25 @@ export async function getReviewsForStore(storeId: number) {
   });
 }
 
-export async function getCategories() {
-  return prisma.category.findMany({ orderBy: { categoryName: "asc" } });
-}
+// Reference data that ~never changes within a session. Cached for 1 hour so
+// `/` and `/browse` stop hitting Neon on every render.
+export const getCategories = unstable_cache(
+  async () => prisma.category.findMany({ orderBy: { categoryName: "asc" } }),
+  ["categories"],
+  { revalidate: 3600, tags: ["categories"] },
+);
 
-export async function getTags() {
-  return prisma.productTag.findMany({ orderBy: { tagName: "asc" } });
-}
+export const getTags = unstable_cache(
+  async () => prisma.productTag.findMany({ orderBy: { tagName: "asc" } }),
+  ["tags"],
+  { revalidate: 3600, tags: ["tags"] },
+);
 
-export async function getBusinessTypes() {
-  return prisma.businessType.findMany({ orderBy: { name: "asc" } });
-}
+export const getBusinessTypes = unstable_cache(
+  async () => prisma.businessType.findMany({ orderBy: { name: "asc" } }),
+  ["business-types"],
+  { revalidate: 3600, tags: ["business-types"] },
+);
 
 export async function browseProducts(params: {
   category?: number;
@@ -302,14 +319,22 @@ export async function getProduct(id: number) {
   const product = await prisma.product.findUnique({
     where: { productId: id },
     include: {
-      store: { include: { stats: true, businessType: true } },
+      store: {
+        select: {
+          storeId: true,
+          name: true,
+          profileImage: true,
+          businessType: { select: { name: true } },
+          stats: { select: { responseTime: true } },
+        },
+      },
       category: true,
       items: { orderBy: { price: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
       reviews: {
         orderBy: { createdAt: "desc" },
-        take: 20,
+        take: 5,
         include: {
           user: { select: { firstName: true, lastName: true, profileImage: true, username: true } },
         },

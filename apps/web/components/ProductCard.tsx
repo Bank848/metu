@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Star, Package, BadgeCheck } from "lucide-react";
 import { Badge } from "./ui/Badge";
-import { cn } from "@/lib/utils";
+import { cn, isDataUrl } from "@/lib/utils";
 import { money } from "@/lib/format";
 
 /**
@@ -57,7 +57,7 @@ export function ProductCard({
           fill
           sizes="(max-width: 768px) 100vw, 25vw"
           className="object-cover group-hover:scale-105 transition-transform duration-300"
-          unoptimized
+          unoptimized={isDataUrl(product.image)}
         />
         {/* discount chip top-left */}
         {product.discountPercent && product.discountPercent > 0 && (

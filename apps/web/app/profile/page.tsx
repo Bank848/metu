@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { apiAuth, getMe } from "@/lib/session";
 import { money } from "@/lib/format";
+import { isDataUrl } from "@/lib/utils";
 import { LogoutButton } from "./LogoutButton";
 
 type Order = { orderId: number; status: string; totalPrice: string | number; createdAt: string };
@@ -36,7 +37,7 @@ export default async function ProfilePage() {
           <aside className="rounded-2xl border border-line bg-space-850 p-6 text-center">
             <div className="relative h-24 w-24 rounded-full bg-brand-yellow overflow-hidden mx-auto ring-4 ring-brand-yellow/20">
               {me.user.profileImage && (
-                <Image src={me.user.profileImage} alt="" fill sizes="96px" className="object-cover" unoptimized />
+                <Image src={me.user.profileImage} alt="" fill sizes="96px" className="object-cover" unoptimized={isDataUrl(me.user.profileImage)} />
               )}
             </div>
             <h2 className="mt-4 font-display text-lg font-bold text-white">

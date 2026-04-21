@@ -13,7 +13,7 @@ import {
   ChevronDown,
   Star,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isDataUrl } from "@/lib/utils";
 
 type AuthMenuUser = {
   userId: number;
@@ -98,7 +98,7 @@ export function AuthMenu({
               fill
               sizes="32px"
               className="object-cover"
-              unoptimized
+              unoptimized={isDataUrl(user.profileImage)}
             />
           ) : (
             <UserIcon className="h-4 w-4 m-2 text-ink-dim" />

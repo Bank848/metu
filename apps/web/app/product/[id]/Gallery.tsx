@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Package } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isDataUrl } from "@/lib/utils";
 
 export function Gallery({ images, alt }: { images: string[]; alt: string }) {
   const [active, setActive] = useState(0);
@@ -21,9 +21,9 @@ export function Gallery({ images, alt }: { images: string[]; alt: string }) {
             src={main}
             alt={alt}
             fill
-            sizes="60vw"
+            sizes="(max-width: 768px) 100vw, 60vw"
             className="object-cover animate-fade-in-up"
-            unoptimized
+            unoptimized={isDataUrl(main)}
             priority
           />
         )}
@@ -47,7 +47,7 @@ export function Gallery({ images, alt }: { images: string[]; alt: string }) {
               )}
               aria-label={`View image ${i + 1}`}
             >
-              <Image src={img} alt="" fill sizes="12vw" className="object-cover" unoptimized />
+              <Image src={img} alt="" fill sizes="(max-width: 768px) 25vw, 12vw" className="object-cover" unoptimized={isDataUrl(img)} />
             </button>
           ))}
         </div>

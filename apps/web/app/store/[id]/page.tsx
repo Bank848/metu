@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { StarField } from "@/components/DotGrid";
 import { getStore } from "@/lib/server/queries";
+import { isDataUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export default async function StorePage({ params }: { params: { id: string } }) 
               priority
               sizes="100vw"
               className="object-cover"
-              unoptimized
+              unoptimized={isDataUrl(store.coverImage)}
             />
           ) : (
             <div className="absolute inset-0 vibrant-mesh" />
@@ -51,7 +52,7 @@ export default async function StorePage({ params }: { params: { id: string } }) 
           <header className="flex flex-col md:flex-row md:items-end gap-6 mb-10">
             <div className="relative h-32 w-32 shrink-0 rounded-2xl bg-metu-yellow overflow-hidden ring-4 ring-surface-1 shadow-pop">
               {store.profileImage && (
-                <Image src={store.profileImage} alt={store.name} fill sizes="128px" className="object-cover" unoptimized />
+                <Image src={store.profileImage} alt={store.name} fill sizes="128px" className="object-cover" unoptimized={isDataUrl(store.profileImage)} />
               )}
             </div>
             <div className="flex-1 min-w-0">

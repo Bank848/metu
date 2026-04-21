@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { money } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, isDataUrl } from "@/lib/utils";
 
 type Line = {
   cartItemId: number;
@@ -130,7 +130,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
               {lines.map((l) => (
                 <li key={l.cartItemId} className="flex items-center gap-4 p-4">
                   <div className="relative h-20 w-20 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8">
-                    {l.image && <Image src={l.image} alt="" fill sizes="80px" className="object-cover" unoptimized />}
+                    {l.image && <Image src={l.image} alt="" fill sizes="80px" className="object-cover" unoptimized={isDataUrl(l.image)} />}
                   </div>
 
                   <div className="min-w-0 flex-1">
