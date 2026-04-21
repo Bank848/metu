@@ -16,9 +16,11 @@ type Cart = {
     productItemId: number;
     productId: number;
     productName: string;
+    storeId: number;
     storeName: string;
     image: string | null;
     deliveryMethod: string;
+    stock: number;
     unitPrice: number;
     basePrice: number;
     discountPercent: number;
