@@ -37,13 +37,16 @@ export function LoginForm({ next }: { next?: string }) {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.error === "InvalidCredentials" ? "Invalid email or password" : "Login failed");
+        setBusy(false);
         return;
       }
+      // Drop the spinner immediately — Next.js router.push triggers the navigation,
+      // which itself revalidates the new route. router.refresh() afterwards is a
+      // no-op cost on the same destination.
+      setBusy(false);
       router.push(next ?? "/");
-      router.refresh();
     } catch {
       setError("Network error");
-    } finally {
       setBusy(false);
     }
   }

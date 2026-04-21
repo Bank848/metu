@@ -17,9 +17,109 @@ const prisma = new PrismaClient();
 const AVATAR = (seed: string) =>
   `https://api.dicebear.com/7.x/notionists-neutral/svg?seed=${encodeURIComponent(seed)}`;
 
-// Picsum is reliable but Western-stock; pair with seed terms that hint at the product theme.
+// Picsum is reliable but returns RANDOM photos by seed — fine for store covers but
+// terrible for product cards (a "Thai-Pop Instrumental" card might show an American
+// flag). Reserve IMG() for decorative placement; for products use pickImage() below.
 const IMG = (seed: string, w = 800, h = 600) =>
   `https://picsum.photos/seed/${encodeURIComponent(seed)}/${w}/${h}`;
+
+// Curated Unsplash photo IDs, pooled by product category. Each pool has 5+ themed
+// images; pickImage() rotates through them deterministically based on the seed name
+// so the same seed always returns the same photo (stable across re-seeds).
+const IMAGE_POOLS: Record<string, string[]> = {
+  Templates: [
+    "1551288049-bebda4e38f71", // dashboard mockup
+    "1460925895917-afdab827c52f", // analytics chart
+    "1517245386807-bb43f82c33c4", // tablet design
+    "1432888622747-4eb9a8f2c293", // notebook plan
+    "1467232004584-a241de8bcf5d", // laptop chart
+    "1559028012-481c04fa702d", // ui design
+  ],
+  Fonts: [
+    "1453928582365-b6ad33cbcf64", // typewriter
+    "1455390582262-044cdead277a", // vintage letters
+    "1517059224940-d4af9eec41b7", // typography poster
+    "1505682499293-233fb141754c", // handwriting
+    "1471107340929-a87cd0f5b5f3", // wood-block type
+    "1561637246-3ddbb95f8e0b", // letterpress
+  ],
+  Illustrations: [
+    "1513364776144-60967b0f800f", // paint brushes
+    "1460661419201-fd4cecdf8a8b", // artist palette
+    "1491637639811-60e2756cc1c7", // sketching hands
+    "1452860606245-08befc0ff44b", // watercolour swatches
+    "1513475382585-d06e58bcb0e0", // illustration desk
+    "1502691876148-a84978e59af8", // botanical art
+  ],
+  "Stock Music": [
+    "1470225620780-dba8ba36b745", // headphones
+    "1493225457124-a3eb161ffa5f", // mixing board
+    "1511671782779-c97d3d27a1d4", // vinyl records
+    "1514525253161-7a46d19cd819", // DJ session
+    "1518609878373-06d740f60d8b", // music studio
+    "1459749411175-04bf5292ceea", // headphones overhead
+  ],
+  "Game Assets": [
+    "1493711662062-fa541adb3fc8", // game controller
+    "1538481199705-c710c4e965fc", // arcade neon
+    "1542751371-adc38448a05e", // gaming pc
+    "1550745165-9bc0b252726f", // retro game cart
+    "1511512578047-dfb367046420", // pixel art screen
+    "1556438064-2d7646166914", // pixel art landscape
+  ],
+  "Online Courses": [
+    "1503676260728-1c00da094a0b", // laptop study
+    "1456513080510-7bf3a84b82f8", // notebook learning
+    "1454165804606-c3d57bc86b40", // online learning
+    "1434030216411-0b793f4b4173", // class lecture
+    "1571260899304-425eee4c7efc", // e-learning
+    "1488190211105-8b0e65b80b4e", // student workspace
+  ],
+  "3D Models": [
+    "1581291518857-4e27b48ff24e", // 3D render abstract
+    "1620712943543-bcc4688e7485", // low poly mesh
+    "1633899306328-c5e70574aaa2", // 3d sculpt
+    "1633265486064-086b219458ec", // geometric render
+    "1535378917042-10a22c95931a", // 3d composition
+    "1639762681485-074b7f938ba0", // blender scene
+  ],
+  "E-books": [
+    "1481627834876-b7833e8f5570", // open book
+    "1524995997946-a1c2e315a42f", // e-reader
+    "1495446815901-a7297e633e8d", // books stack
+    "1550399105-c4db5fb85c18", // reading
+    "1532012197267-da84d127e765", // book pages
+    "1456513080510-7bf3a84b82f8", // notebook
+  ],
+  Photography: [
+    "1500051638674-ff996a0ec29e", // camera
+    "1452587925148-ce544e77e70d", // lens
+    "1542038784456-1ea8e935640e", // dslr body
+    "1606144042614-b2417e99c4e3", // photographer
+    "1496440737103-cd596325d314", // film camera
+  ],
+  "Plug-ins": [
+    "1487014679447-9f8336841d58", // code editor
+    "1555066931-4365d14bab8c", // programming
+    "1517694712202-14dd9538aa97", // laptop code
+    "1542831371-29b0f74f9713", // coding hands
+    "1593720213428-28a5b9e94613", // IDE dark
+  ],
+};
+
+// Tiny stable hash so the same seed always picks the same photo from its pool.
+function hashSeed(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function pickImage(category: string, seed: string, index = 0, w = 1200, h = 800): string {
+  const pool = IMAGE_POOLS[category];
+  if (!pool || pool.length === 0) return IMG(seed, w, h); // fall back to picsum
+  const id = pool[(hashSeed(seed) + index) % pool.length];
+  return `https://images.unsplash.com/photo-${id}?w=${w}&h=${h}&fit=crop&q=80&auto=format`;
+}
 
 // THB pricing (≈ x35 of USD for plausible Thai marketplace prices).
 const baht = (n: number) => new Prisma.Decimal(n);
@@ -570,7 +670,7 @@ async function seedProducts(
         await prisma.productImage.create({
           data: {
             productId: product.productId,
-            productImage: IMG(def.imageSeeds[i], 1200, 800),
+            productImage: pickImage(def.category, def.imageSeeds[i], i, 1200, 800),
             sortOrder: i,
           },
         });
