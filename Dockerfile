@@ -55,9 +55,10 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# Fly expects the server to bind 0.0.0.0:$PORT — fly.toml maps 3000
-# internally to the public edge, so keep these consistent.
-ENV PORT=3000
+# Fly expects the server to bind 0.0.0.0:$PORT. The Fly UI launch flow
+# stored internal_port=8080 in the app's config — match that here so we
+# don't have to override the live config from the dashboard.
+ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
 
 # 3a. Next.js standalone bundle — includes the minimal server, production
@@ -82,7 +83,7 @@ RUN addgroup --system --gid 1001 nodejs \
  && chown -R nextjs:nodejs /app
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 8080
 
 # The standalone entry is emitted at apps/web/server.js because our
 # workspace layout places the app there.
