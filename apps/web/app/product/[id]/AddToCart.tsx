@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2 } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { money } from "@/lib/format";
+import { play } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 type Item = {
@@ -61,10 +62,12 @@ export function AddToCart({ items }: { items: Item[] }) {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setMessage(data?.message ?? "Failed to add to cart");
+        play("error");
         return;
       }
       setMessage("Added to cart ✓");
       setJustAdded(true);
+      play("cart");
       setTimeout(() => setJustAdded(false), 900);
       // Ask the layout to re-read the cart count so the TopNav badge
       // increments without a page navigation.
@@ -179,7 +182,17 @@ export function AddToCart({ items }: { items: Item[] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="relative grid grid-cols-2 gap-3">
+        {/* Floating +QTY indicator — rises above the Add button when an
+            add succeeds, paired with the atc-pulse shadow ring. */}
+        {justAdded && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute left-1/4 top-0 -translate-x-1/2 z-10 rounded-full bg-metu-yellow text-surface-1 text-xs font-bold px-2.5 py-1 shadow-lg animate-[atc-float_0.9s_ease-out_forwards]"
+          >
+            +{quantity} added
+          </span>
+        )}
         <GlassButton
           tone="glass"
           size="lg"

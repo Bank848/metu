@@ -208,3 +208,13 @@ input:-webkit-autofill {
   40%  { transform: scale(1.04); box-shadow: 0 0 0 14px rgba(255, 204, 0, 0); }
   100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(255, 204, 0, 0); }
 }
+
+/* ───────────── Add-to-cart float ─────────────
+   A tiny "+1" label that rises and fades above the Add button, like a
+   damage-number in a game — gives the user an unmistakable "it landed"
+   cue. Paired with the atc-pulse above. */
+@keyframes atc-float {
+  0%   { transform: translate(-50%, 0);    opacity: 0; }
+  18%  { transform: translate(-50%, -12px); opacity: 1; }
+  100% { transform: translate(-50%, -58px); opacity: 0; }
+}

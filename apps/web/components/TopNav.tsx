@@ -18,6 +18,7 @@ import {
 import { Logo } from "./Logo";
 import { SearchPill } from "./SearchPill";
 import { AuthMenu } from "./AuthMenu";
+import { SoundToggle } from "./SoundToggle";
 import { getMe } from "@/lib/session";
 
 type Tab = { label: string; icon: any; href: string };
@@ -70,6 +71,7 @@ export async function TopNav({ q }: { q?: string } = {}) {
           >
             <ShoppingBag className="h-5 w-5" />
           </Link>
+          <SoundToggle />
           <AddStoreButton loggedIn={Boolean(me)} hasStore={hasStore} />
         </div>
 

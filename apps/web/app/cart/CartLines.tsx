@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag, AlertTriangle } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { money } from "@/lib/format";
+import { play } from "@/lib/sound";
 import { cn, isDataUrl } from "@/lib/utils";
 
 type Line = {
@@ -168,12 +169,15 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         credentials: "include",
       });
       if (!res.ok) {
+        play("error");
         setBusy(false);
         return;
       }
       const data = await res.json();
+      play("success");
       router.push(`/orders/${data.orderId}?new=1`);
     } catch {
+      play("error");
       setBusy(false);
     }
   }
