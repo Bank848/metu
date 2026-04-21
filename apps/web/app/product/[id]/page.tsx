@@ -10,6 +10,7 @@ import { getProduct, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { ExpandableText } from "@/components/ExpandableText";
 import { AddToCart } from "./AddToCart";
 import { Gallery } from "./Gallery";
 
@@ -93,7 +94,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 </div>
               )}
             </div>
-            <p className="text-ink-secondary leading-relaxed mb-6">{product.description}</p>
+            <ExpandableText text={product.description} className="mb-6" />
 
             <Link
               href={`/store/${product.store.storeId}`}
