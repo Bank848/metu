@@ -148,6 +148,28 @@ with other common setups.
 **Windows file-lock on Prisma generate:** stop the api server first, then run
 `npm run db:generate`. Windows holds the native DLL open.
 
+## Neon + Vercel environment
+
+Neon serves two connection strings per database:
+
+- **Pooled** (default `DATABASE_URL`): hostname includes `-pooler`. Used at
+  runtime — pgbouncer handles the serverless connection bursts cleanly.
+- **Direct** (set as `DATABASE_URL_UNPOOLED`): hostname without `-pooler`.
+  Used only by `prisma migrate deploy` during the build step because the
+  pooled endpoint strips features Prisma Migrate needs (advisory locks,
+  prepared statements).
+
+Set both variables on Vercel. The build wrapper
+(`apps/web/scripts/build.mjs`) automatically prefers the unpooled URL for
+the migration step. Runtime reads via `lib/server/prisma.ts` keep using
+the default pooled URL.
+
+Neon scales compute to zero after ~5 min of inactivity. A Vercel Cron in
+`apps/web/vercel.json` pings `/api/health` every 4 minutes to keep it
+warm during demo hours — if Hobby-tier crons are unavailable, wiring an
+external uptime service (UptimeRobot free tier) to the same URL works
+equivalently.
+
 ## Credits
 
 Built by Group 8 for CPE241 Database Systems at KMUTT. Brand direction from
