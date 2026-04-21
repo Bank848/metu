@@ -9,7 +9,8 @@ import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
 import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { LightSweepText } from "@/components/visual/LightSweepText";
-import { getStats, getFeaturedProducts, getFeaturedStores, getCategories } from "@/lib/server/queries";
+import { getStats, getFeaturedProducts, getFeaturedStores, getCategories, getFavoriteSet } from "@/lib/server/queries";
+import { getMe } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
 
 type Stats = { sellers: number; products: number; orders: number; reviews: number };
@@ -19,11 +20,13 @@ type Category = Awaited<ReturnType<typeof getCategories>>[number];
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [stats, products, stores, categories] = await Promise.all([
+  const me = await getMe();
+  const [stats, products, stores, categories, favSet] = await Promise.all([
     getStats(),
     getFeaturedProducts(8),
     getFeaturedStores(4),
     getCategories(),
+    getFavoriteSet(me?.user.userId),
   ]);
 
   return (
@@ -31,7 +34,7 @@ export default async function Home() {
       <TopNav />
       <main>
         <Hero stats={stats} />
-        <TrendingProducts products={products} />
+        <TrendingProducts products={products} favSet={favSet} />
         <FeaturedStores stores={stores} />
         <CategoryTiles categories={categories} />
         <WhyMetu />
@@ -103,7 +106,7 @@ function Hero({ stats }: { stats: Stats }) {
   );
 }
 
-function TrendingProducts({ products }: { products: ProductCardProduct[] }) {
+function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]; favSet: Set<number> }) {
   if (!products.length) return null;
   return (
     <section className="mx-auto max-w-[1440px] px-6 md:px-10 py-16">
@@ -122,7 +125,7 @@ function TrendingProducts({ products }: { products: ProductCardProduct[] }) {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
         {products.map((p) => (
-          <ProductCard key={p.productId} product={p} />
+          <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
         ))}
       </div>
     </section>

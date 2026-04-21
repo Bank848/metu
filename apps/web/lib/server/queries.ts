@@ -24,6 +24,56 @@ export async function getStats() {
   return { sellers, products, orders, reviews };
 }
 
+/** Set of productIds the user has favourited — cheap lookup for hydrating
+ *  FavoriteButton initial state on the browse / product detail / store pages. */
+export async function getFavoriteSet(userId: number | null | undefined): Promise<Set<number>> {
+  if (!userId) return new Set();
+  const rows = await prisma.productFavorite.findMany({
+    where: { userId },
+    select: { productId: true },
+  });
+  return new Set(rows.map((r) => r.productId));
+}
+
+/** Full product cards for the /favorites page. Reuses the ProductCard
+ *  shape so the existing <ProductCard> component renders it unchanged. */
+export async function getFavoriteProducts(userId: number) {
+  const faves = await prisma.productFavorite.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      product: {
+        include: {
+          store: { select: { name: true, storeId: true } },
+          items: { select: { price: true, discountPercent: true } },
+          images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
+          productNTags: { include: { tag: { select: { tagName: true } } } },
+          reviews: { select: { rating: true } },
+        },
+      },
+    },
+  });
+  return faves.map(({ product: p }) => {
+    const prices = p.items.map((i) => Number(i.price));
+    const ratings = p.reviews.map((r) => r.rating);
+    const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
+    return {
+      productId: p.productId,
+      name: p.name,
+      description: p.description,
+      image: p.images[0]?.productImage ?? `https://picsum.photos/seed/p${p.productId}/800/600`,
+      minPrice: prices.length ? Math.min(...prices) : 0,
+      maxPrice: prices.length ? Math.max(...prices) : 0,
+      storeName: p.store.name,
+      storeId: p.store.storeId,
+      avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
+      reviewCount: ratings.length,
+      discountPercent: maxDiscount || undefined,
+      tags: p.productNTags.map((nt) => nt.tag.tagName),
+    };
+  });
+}
+
 export async function getFeaturedProducts(take = 8) {
   const products = await prisma.product.findMany({
     orderBy: { reviews: { _count: "desc" } },

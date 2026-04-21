@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Star, Package, BadgeCheck } from "lucide-react";
 import { Badge } from "./ui/Badge";
+import { FavoriteButton } from "./FavoriteButton";
 import { cn, isDataUrl } from "@/lib/utils";
 import { money } from "@/lib/format";
 
@@ -32,9 +33,13 @@ export type ProductCardProduct = {
 export function ProductCard({
   product,
   className,
+  isFavorited = false,
 }: {
   product: ProductCardProduct;
   className?: string;
+  // Hydrated by the server for the logged-in user — drives the heart's
+  // initial fill state. Guests default to false and get a redirect on click.
+  isFavorited?: boolean;
 }) {
   const hasRange = product.maxPrice && product.maxPrice !== product.minPrice;
   return (
@@ -65,10 +70,13 @@ export function ProductCard({
             −{product.discountPercent}%
           </span>
         )}
-        {/* THB currency badge top-right */}
-        <span className="absolute top-3 right-3 rounded-full glass-morphism-strong px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-metu-yellow uppercase border border-metu-yellow/30">
-          THB
-        </span>
+        {/* Favourite heart + THB currency badge top-right */}
+        <div className="absolute top-3 right-3 flex items-center gap-2">
+          <FavoriteButton productId={product.productId} initial={isFavorited} />
+          <span className="rounded-full glass-morphism-strong px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-metu-yellow uppercase border border-metu-yellow/30">
+            THB
+          </span>
+        </div>
         {/* gold accent bar at the bottom of the image — friend's signature */}
         <div className="absolute bottom-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-80 group-hover:opacity-100 group-hover:h-1 transition-all" />
       </div>
