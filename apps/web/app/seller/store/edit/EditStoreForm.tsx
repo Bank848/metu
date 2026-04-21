@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Store as StoreIcon, ImageIcon } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
+import { FileImageInput } from "@/components/FileImageInput";
 
 type BusinessType = { typeId: number; name: string };
 
@@ -149,32 +150,28 @@ export function EditStoreForm({
       </section>
 
       {/* Imagery */}
-      <section className="rounded-2xl glass-morphism p-6 space-y-4">
+      <section className="rounded-2xl glass-morphism p-6 space-y-5">
         <h2 className="font-display font-bold text-white flex items-center gap-2">
           <ImageIcon className="h-4 w-4 text-metu-yellow" />
           Imagery
         </h2>
         <p className="text-xs text-ink-dim">
-          Paste public image URLs. Preview at the top updates as you type.
+          Upload from your device or paste a public image URL — preview at the top updates instantly.
         </p>
-        <label className="block">
-          <span className="text-sm font-semibold text-white">Profile image URL</span>
-          <input
-            value={form.profileImage}
-            onChange={(e) => setForm({ ...form, profileImage: e.target.value })}
-            placeholder="https://images.unsplash.com/photo-…"
-            className={`mt-1 ${inputCls}`}
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm font-semibold text-white">Cover image URL</span>
-          <input
-            value={form.coverImage}
-            onChange={(e) => setForm({ ...form, coverImage: e.target.value })}
-            placeholder="https://images.unsplash.com/photo-…"
-            className={`mt-1 ${inputCls}`}
-          />
-        </label>
+        <FileImageInput
+          label="Profile image"
+          value={form.profileImage}
+          onChange={(v) => setForm({ ...form, profileImage: v })}
+          recommended={{ w: 400, h: 400, note: "square avatar" }}
+          aspect="square"
+        />
+        <FileImageInput
+          label="Cover image"
+          value={form.coverImage}
+          onChange={(v) => setForm({ ...form, coverImage: v })}
+          recommended={{ w: 1600, h: 600, note: "5:2 banner" }}
+          aspect="wide"
+        />
       </section>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

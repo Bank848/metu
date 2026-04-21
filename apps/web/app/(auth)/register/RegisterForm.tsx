@@ -34,6 +34,7 @@ export function RegisterForm() {
       }
       setBusy(false);
       router.push("/");
+      router.refresh();
     } catch {
       setError("Network error");
       setBusy(false);

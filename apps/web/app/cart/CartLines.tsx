@@ -192,7 +192,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                 onChange={(e) => setCoupon(e.target.value.toUpperCase())}
                 onFocus={() => setCouponFocused(true)}
                 onBlur={() => setCouponFocused(false)}
-                placeholder="e.g. METU10"
+                placeholder="Have a code? Paste it here"
                 className="flex-1 rounded-pill bg-transparent px-4 py-1.5 text-sm text-white placeholder:text-ink-dim focus:outline-none"
               />
               <button

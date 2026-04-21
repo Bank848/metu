@@ -90,8 +90,14 @@ body {
   -webkit-mask-composite: xor;
           mask-composite: exclude;
   pointer-events: none;
-  animation: border-spin 6s linear infinite;
   z-index: -1;
+}
+/* Only animate the conic spin while the element is interactive
+   (focus or hover). Constant spinning was a measurable CPU drain on
+   Chromium with multiple instances on screen. */
+.gradient-border:focus-within::before,
+.gradient-border:hover::before {
+  animation: border-spin 6s linear infinite;
 }
 
 /* ───────────── Light-sweep text shimmer (hero) ───────────── */

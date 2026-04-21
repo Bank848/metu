@@ -117,6 +117,47 @@ export async function getStore(storeId: number) {
   return { store, products: items, productCount: products.length, reviewCount: allRatings.length, avgRating };
 }
 
+/**
+ * Products the user purchased (paid/fulfilled orders) but has NOT reviewed
+ * yet — drives the "Things to review" section on /my-reviews (buyer view).
+ */
+export async function getPendingReviewProducts(userId: number) {
+  const orderItems = await prisma.orderItem.findMany({
+    where: {
+      order: {
+        cart: { userId },
+        status: { in: ["paid", "fulfilled"] },
+      },
+    },
+    select: {
+      productItem: {
+        select: {
+          product: {
+            select: {
+              productId: true,
+              name: true,
+              images: { select: { productImage: true }, take: 1, orderBy: { sortOrder: "asc" } },
+              store: { select: { name: true, storeId: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const byId = new Map<number, (typeof orderItems)[number]["productItem"]["product"]>();
+  for (const oi of orderItems) byId.set(oi.productItem.product.productId, oi.productItem.product);
+  const productIds = [...byId.keys()];
+  if (productIds.length === 0) return [];
+
+  const reviewed = await prisma.productReview.findMany({
+    where: { userId, productId: { in: productIds } },
+    select: { productId: true },
+  });
+  const reviewedSet = new Set(reviewed.map((r) => r.productId));
+  return [...byId.values()].filter((p) => !reviewedSet.has(p.productId));
+}
+
 /** Reviews the current user authored — for /my-reviews (buyer view). */
 export async function getReviewsByUser(userId: number) {
   return prisma.productReview.findMany({

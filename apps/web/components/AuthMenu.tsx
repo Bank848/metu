@@ -61,6 +61,7 @@ export function AuthMenu({
       credentials: "include",
     }).catch(() => {});
     router.push("/");
+    router.refresh();
   }
 
   // ───── Logged out ─────
