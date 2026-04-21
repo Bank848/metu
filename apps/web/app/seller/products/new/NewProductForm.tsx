@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Plus, Trash2, Image as ImageIcon, Tag as TagIcon } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
+import { FileImageInput } from "@/components/FileImageInput";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -69,7 +70,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
     setError(null);
     const cleanImages = images.map((u) => u.trim()).filter(Boolean);
     if (cleanImages.length === 0) {
-      setError("Add at least one image URL.");
+      setError("Add at least one image.");
       return;
     }
     setBusy(true);
@@ -154,19 +155,22 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
           Images <span className="text-xs text-ink-dim font-normal">({images.length}/5)</span>
         </h2>
         <p className="text-xs text-ink-dim">
-          Paste public image URLs (e.g. unsplash.com or your own host). The first one becomes the cover.
+          Upload a file or paste a public URL. The first image becomes the cover.
         </p>
         {images.map((url, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <span className="font-mono text-[10px] text-ink-dim w-4">{i + 1}</span>
-            <input
-              value={url}
-              onChange={(e) => updateImage(i, e.target.value)}
-              placeholder="https://images.unsplash.com/photo-…"
-              className={inputCls}
-            />
+          <div key={i} className="flex gap-2 items-start">
+            <span className="font-mono text-[10px] text-ink-dim w-4 pt-2 shrink-0">{i + 1}</span>
+            <div className="flex-1 min-w-0">
+              <FileImageInput
+                label={`Image ${i + 1}${i === 0 ? " · cover" : ""}`}
+                value={url}
+                onChange={(v) => updateImage(i, v)}
+                recommended={{ w: 1200, h: 800, note: "landscape product shot" }}
+                aspect="wide"
+              />
+            </div>
             {images.length > 1 && (
-              <button type="button" onClick={() => removeImage(i)} className="text-ink-dim hover:text-metu-red p-2" aria-label="Remove image">
+              <button type="button" onClick={() => removeImage(i)} className="text-ink-dim hover:text-metu-red p-2 shrink-0" aria-label="Remove image slot">
                 <Trash2 className="h-4 w-4" />
               </button>
             )}
