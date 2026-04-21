@@ -3,21 +3,23 @@
 # Pairs with the repo-root Dockerfile. App name + URL get assigned the
 # first time `fly launch` runs; rename via `fly apps rename` if needed.
 
-app = "metu-web"
+app = "metu"
 primary_region = "sin"
 
 [build]
   dockerfile = "Dockerfile"
 
 [env]
-  PORT = "3000"
+  PORT = "8080"
   NODE_ENV = "production"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HTTP service — Fly's edge terminates HTTPS and forwards to the container.
+# Internal port matches what Fly's launch wizard set (8080) — easier than
+# overriding the live config from the dashboard.
 # ─────────────────────────────────────────────────────────────────────────────
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
   # Keep the machine running 24/7 — Neon already cold-starts on its own;
   # we don't want Fly to add another scale-to-zero pause on top.
