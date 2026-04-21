@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 export function LogoutButton() {
   const router = useRouter();
   async function logout() {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/auth/logout`, {
+    await fetch(`/api/auth/logout`, {
       method: "POST",
       credentials: "include",
     });

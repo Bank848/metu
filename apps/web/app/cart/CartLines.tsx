@@ -24,7 +24,7 @@ type Line = {
 
 type Cart = { cartId: number; subtotal: number; items: Line[] };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API = "/api";
 
 export function CartLines({ cart: initial }: { cart: Cart }) {
   const router = useRouter();

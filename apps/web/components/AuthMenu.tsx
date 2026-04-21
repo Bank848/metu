@@ -54,18 +54,10 @@ export function AuthMenu({
   }, [open]);
 
   async function logout() {
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
-    } catch {
-      /* ignore — fall back to Express path */
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      }).catch(() => {});
-    }
+    await fetch(`/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
     setOpen(false);
     router.push("/");
     router.refresh();
