@@ -1,0 +1,143 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
+import { productInputSchema } from "@metu/shared";
+import { prisma } from "@/lib/server/prisma";
+import { withStore } from "@/lib/server/seller";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Helper: confirm the product exists and belongs to the authed store.
+async function assertOwnership(productId: number, storeId: number) {
+  const product = await prisma.product.findUnique({ where: { productId } });
+  if (!product) return { ok: false as const, status: 404, error: "NotFound" };
+  if (product.storeId !== storeId) return { ok: false as const, status: 403, error: "Forbidden" };
+  return { ok: true as const, product };
+}
+
+/** GET: fetch one of the seller's own products with all editable fields. */
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const r = await withStore(req);
+  if (!r.ok) return r.response;
+  const productId = Number(params.id);
+  if (!Number.isFinite(productId)) return NextResponse.json({ error: "BadId" }, { status: 400 });
+
+  const own = await assertOwnership(productId, r.store.storeId);
+  if (!own.ok) return NextResponse.json({ error: own.error }, { status: own.status });
+
+  const product = await prisma.product.findUnique({
+    where: { productId },
+    include: {
+      category: true,
+      items: { orderBy: { productItemId: "asc" } },
+      images: { orderBy: { sortOrder: "asc" } },
+      productNTags: { include: { tag: true } },
+    },
+  });
+  return NextResponse.json(product);
+}
+
+/** PATCH: update name/description/category, replace images + variants + tags in one go. */
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const r = await withStore(req);
+  if (!r.ok) return r.response;
+  const productId = Number(params.id);
+  if (!Number.isFinite(productId)) return NextResponse.json({ error: "BadId" }, { status: 400 });
+
+  const own = await assertOwnership(productId, r.store.storeId);
+  if (!own.ok) return NextResponse.json({ error: own.error }, { status: own.status });
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = productInputSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });
+  }
+  const { name, description, categoryId, images, tagIds, items } = parsed.data;
+
+  // Replace the related rows (images, variants, tags) in a single
+  // transaction. This is simpler than computing a diff and is safe for the
+  // demo — no other tables FK into ProductImage or ProductNTag.
+  //
+  // ProductItem is trickier: OrderItem and CartItem FK into it. We can't
+  // blindly delete variants that have sales history. For now we only
+  // create new ones and keep existing ones as-is (this mirrors what the
+  // create form does). Sellers who need to fully replace variants can
+  // delete the product and re-create.
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { productId },
+      data: { name, description, categoryId },
+    });
+    // Images — safe to wipe and re-create.
+    await tx.productImage.deleteMany({ where: { productId } });
+    await tx.productImage.createMany({
+      data: images.map((url, i) => ({ productId, productImage: url, sortOrder: i })),
+    });
+    // Tags — junction table is safe to wipe.
+    await tx.productNTag.deleteMany({ where: { productId } });
+    if (tagIds.length) {
+      await tx.productNTag.createMany({
+        data: tagIds.map((tagId) => ({ productId, tagId })),
+      });
+    }
+    // Variants — update existing rows that still exist, and create any
+    // new ones the seller added. Deletion of existing variants is not
+    // supported here because OrderItem / CartItem FK into ProductItem.
+    const existing = await tx.productItem.findMany({ where: { productId }, orderBy: { productItemId: "asc" } });
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const target = existing[i];
+      if (target) {
+        await tx.productItem.update({
+          where: { productItemId: target.productItemId },
+          data: {
+            deliveryMethod: it.deliveryMethod,
+            quantity: it.quantity,
+            price: new Prisma.Decimal(it.price),
+            discountPercent: it.discountPercent,
+            discountAmount: new Prisma.Decimal(it.discountAmount),
+          },
+        });
+      } else {
+        await tx.productItem.create({
+          data: {
+            productId,
+            deliveryMethod: it.deliveryMethod,
+            quantity: it.quantity,
+            price: new Prisma.Decimal(it.price),
+            discountPercent: it.discountPercent,
+            discountAmount: new Prisma.Decimal(it.discountAmount),
+          },
+        });
+      }
+    }
+  });
+
+  return NextResponse.json({ ok: true });
+}
+
+/** DELETE: remove the product (cascades to items, images, reviews, tags). */
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const r = await withStore(req);
+  if (!r.ok) return r.response;
+  const productId = Number(params.id);
+  if (!Number.isFinite(productId)) return NextResponse.json({ error: "BadId" }, { status: 400 });
+
+  const own = await assertOwnership(productId, r.store.storeId);
+  if (!own.ok) return NextResponse.json({ error: own.error }, { status: own.status });
+
+  // ProductItem deletes are blocked by OrderItem FK (preserves order history).
+  // If we can't delete cleanly, surface a friendly error.
+  try {
+    await prisma.product.delete({ where: { productId } });
+  } catch (e: any) {
+    if (e?.code === "P2003") {
+      return NextResponse.json(
+        { error: "HasSales", message: "This product has past sales and can't be deleted. Unlist instead." },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
+  return NextResponse.json({ ok: true });
+}
