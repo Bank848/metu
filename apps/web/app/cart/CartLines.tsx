@@ -96,9 +96,9 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       });
       if (!res.ok) return;
       const data = await res.json();
+      setBusy(false);
       router.push(`/orders/${data.orderId}?new=1`);
-      router.refresh();
-    } finally {
+    } catch {
       setBusy(false);
     }
   }

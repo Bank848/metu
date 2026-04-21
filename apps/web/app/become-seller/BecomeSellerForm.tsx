@@ -35,13 +35,13 @@ export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessTyp
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.message ?? "Failed to create store");
+        setBusy(false);
         return;
       }
+      setBusy(false);
       router.push("/seller");
-      router.refresh();
     } catch {
       setError("Network error");
-    } finally {
       setBusy(false);
     }
   }

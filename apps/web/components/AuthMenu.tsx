@@ -54,13 +54,12 @@ export function AuthMenu({
   }, [open]);
 
   async function logout() {
+    setOpen(false);
     await fetch(`/api/auth/logout`, {
       method: "POST",
       credentials: "include",
     }).catch(() => {});
-    setOpen(false);
     router.push("/");
-    router.refresh();
   }
 
   // ───── Logged out ─────

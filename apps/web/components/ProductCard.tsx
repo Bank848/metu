@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Star } from "lucide-react";
+import { Star, Package } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
@@ -36,13 +36,18 @@ export function ProductCard({
         className,
       )}
     >
-      <div className="relative aspect-[4/3] bg-space-900 overflow-hidden">
+      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-space-800 via-space-900 to-space-950">
+        {/* Branded placeholder visible until/if the image loads */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-brand-yellow/30">
+          <Package className="h-10 w-10" strokeWidth={1.5} />
+        </div>
         <Image
           src={product.image}
           alt={product.name}
           fill
           sizes="(max-width: 768px) 100vw, 25vw"
           className="object-cover group-hover:scale-105 transition-transform duration-300"
+          unoptimized
         />
         {product.discountPercent && product.discountPercent > 0 && (
           <span className="absolute top-3 left-3 rounded-full bg-brand-yellow px-2.5 py-0.5 text-xs font-bold text-space-black">

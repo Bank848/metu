@@ -11,6 +11,8 @@ import { Filter, Package, SearchX } from "lucide-react";
 type Category = { categoryId: number; categoryName: string };
 type Tag = { tagId: number; tagName: string };
 
+const SAFE_SORT = ["newest", "price_asc", "price_desc", "rating"] as const;
+
 export const dynamic = "force-dynamic";
 
 export default async function BrowsePage({
@@ -26,8 +28,10 @@ export default async function BrowsePage({
       maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
       delivery: searchParams.delivery,
       q: searchParams.q,
-      sort: (searchParams.sort as any) ?? "newest",
-      page: searchParams.page ? Number(searchParams.page) : 1,
+      sort: SAFE_SORT.includes(searchParams.sort as any)
+        ? (searchParams.sort as any)
+        : "newest",
+      page: searchParams.page ? Math.max(1, Number(searchParams.page)) : 1,
       pageSize: 16,
     }),
     getCategories(),

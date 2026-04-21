@@ -29,13 +29,13 @@ export function RegisterForm() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.field ? `That ${data.field} is taken` : "Registration failed");
+        setBusy(false);
         return;
       }
+      setBusy(false);
       router.push("/");
-      router.refresh();
     } catch {
       setError("Network error");
-    } finally {
       setBusy(false);
     }
   }
