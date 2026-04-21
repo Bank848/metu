@@ -1,0 +1,51 @@
+# Keep the Docker build context small + safe.
+# Never ship secrets, local state, or build artefacts — they're regenerated
+# inside the builder stage.
+
+node_modules
+**/node_modules
+
+# Next.js
+.next
+**/.next
+out
+**/out
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Git + editor
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Logs & OS junk
+*.log
+npm-debug.log*
+yarn-debug.log*
+.DS_Store
+Thumbs.db
+
+# Docker / Fly build artefacts
+Dockerfile
+.dockerignore
+fly.toml
+DEPLOY_FLY.md
+
+# Test / docs / misc we don't need in the image
+BRIEF.html
+ER_REVIEW.html
+PRESENTATION.md
+AUDIT.md
+DEPLOY.md
+PLAN.md
+coverage
+playwright-report
+test-results
