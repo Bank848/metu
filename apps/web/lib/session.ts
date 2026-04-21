@@ -1,31 +1,32 @@
 import { cookies } from "next/headers";
+import { readAuth, loadUser } from "./server/auth";
 
 /**
- * Server-side authenticated fetch. Uses the internal /api/* handlers by default.
- * In dev, if NEXT_PUBLIC_API_URL is set, routes to the external Express server.
+ * Server-side auth — read JWT cookie, load user from Prisma directly.
+ * No HTTP roundtrip, works the same on Vercel and local dev.
+ */
+export async function getMe() {
+  const auth = readAuth();
+  if (!auth) return null;
+  const user = await loadUser(auth.uid);
+  if (!user) return null;
+  const { password: _, ...safe } = user as any;
+  return { user: safe, role: auth.role };
+}
+
+/**
+ * Authenticated server-side fetch — forwards the user cookie when calling
+ * an internal /api endpoint. Falls back gracefully on errors.
+ *
+ * NOTE: prefer importing from `lib/server/queries` for catalog reads where
+ * possible — direct Prisma is faster and avoids URL-base detection. This
+ * helper is kept for cart/orders/seller/admin endpoints that have richer
+ * auth/business logic still living in the route handlers.
  */
 export async function apiAuth<T = unknown>(path: string, init?: RequestInit): Promise<T | null> {
   const cookie = cookies().toString();
-  const external = process.env.NEXT_PUBLIC_API_URL;
-  const isDevExternal = !!external && process.env.NODE_ENV !== "production";
-
-  // Internal same-origin: build absolute URL from request context isn't available here,
-  // so for SSR we hit the external API only when the env var is present,
-  // otherwise we must use absolute origin via VERCEL_URL / NEXTAUTH_URL or fall back to
-  // the /api path which Next.js serves internally.
-  const base =
-    isDevExternal
-      ? external
-      : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXTAUTH_URL ||
-        process.env.NEXT_PUBLIC_SITE_URL ||
-        "http://localhost:3000";
-
-  const url = isDevExternal
-    ? `${base}${path}` // legacy Express — no /api prefix
-    : `${base}${path.startsWith("/api/") ? path : "/api" + (path.startsWith("/") ? path : "/" + path)}`;
-
+  const base = absoluteBase();
+  const url = `${base}${path.startsWith("/api/") ? path : "/api" + (path.startsWith("/") ? path : "/" + path)}`;
   try {
     const res = await fetch(url, {
       ...init,
@@ -44,7 +45,8 @@ export async function apiAuth<T = unknown>(path: string, init?: RequestInit): Pr
   }
 }
 
-export async function getMe() {
-  const data = await apiAuth<{ user: any; role: string }>("/auth/me");
-  return data;
+function absoluteBase(): string {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
 }

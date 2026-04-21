@@ -1,20 +1,13 @@
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
-import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
+import { ProductCard } from "@/components/ProductCard";
 import { EmptyState } from "@/components/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { api } from "@/lib/utils";
+import { browseProducts, getCategories, getTags } from "@/lib/server/queries";
 import { Filter, Package, SearchX } from "lucide-react";
 
-type Page = {
-  items: ProductCardProduct[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-};
 type Category = { categoryId: number; categoryName: string };
 type Tag = { tagId: number; tagName: string };
 
@@ -25,14 +18,20 @@ export default async function BrowsePage({
 }: {
   searchParams: Record<string, string | undefined>;
 }) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(searchParams)) if (v) qs.set(k, v);
-  if (!qs.has("pageSize")) qs.set("pageSize", "16");
-
   const [result, categories, tags] = await Promise.all([
-    safe<Page>(`/products?${qs.toString()}`, { items: [], page: 1, pageSize: 16, total: 0, totalPages: 1 }),
-    safe<Category[]>("/categories", []),
-    safe<Tag[]>("/tags", []),
+    browseProducts({
+      category: searchParams.category ? Number(searchParams.category) : undefined,
+      tags: searchParams.tags,
+      minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
+      maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
+      delivery: searchParams.delivery,
+      q: searchParams.q,
+      sort: (searchParams.sort as any) ?? "newest",
+      page: searchParams.page ? Number(searchParams.page) : 1,
+      pageSize: 16,
+    }),
+    getCategories(),
+    getTags(),
   ]);
 
   const activeSort = searchParams.sort ?? "newest";
@@ -110,14 +109,6 @@ export default async function BrowsePage({
       <Footer />
     </>
   );
-}
-
-async function safe<T>(path: string, fallback: T): Promise<T> {
-  try {
-    return await api<T>(path);
-  } catch {
-    return fallback;
-  }
 }
 
 function FilterPanel({
