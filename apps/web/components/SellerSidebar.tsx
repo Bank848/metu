@@ -1,15 +1,16 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Package, Ticket, ShoppingBag, Store } from "lucide-react";
+import { LayoutDashboard, Package, Ticket, ShoppingBag, Store, BarChart3 } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { href: "/seller",          label: "Overview",  icon: LayoutDashboard },
-  { href: "/seller/products", label: "Products",  icon: Package },
-  { href: "/seller/coupons",  label: "Coupons",   icon: Ticket },
-  { href: "/seller/orders",   label: "Orders",    icon: ShoppingBag },
+  { href: "/seller",           label: "Overview",   icon: LayoutDashboard },
+  { href: "/seller/analytics", label: "Analytics",  icon: BarChart3 },
+  { href: "/seller/products",  label: "Products",   icon: Package },
+  { href: "/seller/coupons",   label: "Coupons",    icon: Ticket },
+  { href: "/seller/orders",    label: "Orders",     icon: ShoppingBag },
 ];
 
 export function SellerSidebar({ storeName }: { storeName?: string }) {
