@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { RevenueChart } from "@/components/admin/RevenueChart";
+import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -71,6 +72,11 @@ export default async function AdminOverview() {
                 {tx.transactionType}
               </Badge>
               <div className="font-display font-bold text-brand-yellow">{money(Number(tx.totalAmount))}</div>
+              <TransactionActions
+                transactionId={tx.transactionId}
+                type={tx.transactionType}
+                buyerName={`${tx.user.firstName} ${tx.user.lastName}`}
+              />
             </li>
           ))}
         </ul>
