@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { getReviewsByUser, getReviewsForStore, getPendingReviewProducts } from "@/lib/server/queries";
-import { cn } from "@/lib/utils";
+import { cn, isDataUrl } from "@/lib/utils";
 import { PendingReviewCard } from "./PendingReviewCard";
 
 export const dynamic = "force-dynamic";
@@ -159,7 +159,7 @@ function BuyerReviewsList({ reviews }: { reviews: Awaited<ReturnType<typeof getR
                   fill
                   sizes="80px"
                   className="object-cover"
-                  unoptimized
+                  unoptimized={isDataUrl(r.product.images[0].productImage)}
                 />
               )}
             </Link>
@@ -227,7 +227,7 @@ async function SellerReviews({ storeId, storeName }: { storeId: number; storeNam
             <div className="flex items-start gap-4">
               <div className="relative h-10 w-10 shrink-0 rounded-full bg-metu-yellow overflow-hidden">
                 {r.user.profileImage && (
-                  <Image src={r.user.profileImage} alt={r.user.username} fill sizes="40px" className="object-cover" unoptimized />
+                  <Image src={r.user.profileImage} alt={r.user.username} fill sizes="40px" className="object-cover" unoptimized={isDataUrl(r.user.profileImage)} />
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -246,7 +246,7 @@ async function SellerReviews({ storeId, storeName }: { storeId: number; storeNam
                   className="mt-2 inline-flex items-center gap-2 rounded-lg bg-white/5 border border-white/8 px-2 py-1 text-xs text-white hover:border-metu-yellow/40"
                 >
                   {r.product.images[0]?.productImage && (
-                    <Image src={r.product.images[0].productImage} alt="" width={20} height={20} className="rounded" unoptimized />
+                    <Image src={r.product.images[0].productImage} alt="" width={20} height={20} className="rounded" unoptimized={isDataUrl(r.product.images[0].productImage)} />
                   )}
                   <span className="truncate max-w-[200px]">{r.product.name}</span>
                 </Link>

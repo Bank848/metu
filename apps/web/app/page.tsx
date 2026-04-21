@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { LightSweepText } from "@/components/visual/LightSweepText";
 import { getStats, getFeaturedProducts, getFeaturedStores, getCategories } from "@/lib/server/queries";
+import { isDataUrl } from "@/lib/utils";
 
 type Stats = { sellers: number; products: number; orders: number; reviews: number };
 type Store = Awaited<ReturnType<typeof getFeaturedStores>>[number];
@@ -156,7 +157,7 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
                     fill
                     sizes="(max-width: 768px) 100vw, 25vw"
                     className="object-cover group-hover:scale-105 transition-transform"
-                    unoptimized
+                    unoptimized={isDataUrl(s.coverImage)}
                   />
                 )}
                 {/* gold accent bar */}
@@ -165,7 +166,7 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
               <div className="p-5 flex items-start gap-3">
                 <div className="relative h-12 w-12 shrink-0 rounded-full bg-metu-yellow overflow-hidden ring-2 ring-surface-2 -mt-8">
                   {s.profileImage && (
-                    <Image src={s.profileImage} alt={s.name} fill sizes="48px" className="object-cover" unoptimized />
+                    <Image src={s.profileImage} alt={s.name} fill sizes="48px" className="object-cover" unoptimized={isDataUrl(s.profileImage)} />
                   )}
                 </div>
                 <div className="min-w-0">

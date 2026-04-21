@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
+import { isDataUrl } from "@/lib/utils";
 
 type Product = {
   productId: number;
@@ -64,7 +65,7 @@ export default async function SellerProducts() {
                     <td className="px-5 py-3">
                       <Link href={`/product/${p.productId}`} className="flex items-center gap-3">
                         <div className="relative h-12 w-12 rounded-lg bg-space-900 overflow-hidden shrink-0 border border-line">
-                          {p.images[0] && <Image src={p.images[0].productImage} alt="" fill sizes="48px" className="object-cover" unoptimized />}
+                          {p.images[0] && <Image src={p.images[0].productImage} alt="" fill sizes="48px" className="object-cover" unoptimized={isDataUrl(p.images[0].productImage)} />}
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-white truncate max-w-[280px]">{p.name}</div>

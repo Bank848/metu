@@ -2,6 +2,7 @@ import Image from "next/image";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { apiAuth } from "@/lib/session";
+import { isDataUrl } from "@/lib/utils";
 
 type Store = {
   storeId: number;
@@ -28,12 +29,12 @@ export default async function AdminStores() {
         {stores.map((s) => (
           <div key={s.storeId} className="rounded-2xl border border-line bg-space-850 overflow-hidden">
             <div className="relative aspect-[5/2] bg-space-900">
-              {s.coverImage && <Image src={s.coverImage} alt="" fill sizes="50vw" className="object-cover" unoptimized />}
+              {s.coverImage && <Image src={s.coverImage} alt="" fill sizes="(max-width: 768px) 100vw, 50vw" className="object-cover" unoptimized={isDataUrl(s.coverImage)} />}
             </div>
             <div className="p-5">
               <div className="flex items-start gap-3">
                 <div className="relative h-12 w-12 shrink-0 rounded-full bg-brand-yellow overflow-hidden ring-4 ring-space-900 -mt-10">
-                  {s.profileImage && <Image src={s.profileImage} alt="" fill sizes="48px" className="object-cover" unoptimized />}
+                  {s.profileImage && <Image src={s.profileImage} alt="" fill sizes="48px" className="object-cover" unoptimized={isDataUrl(s.profileImage)} />}
                 </div>
                 <div className="min-w-0">
                   <Badge variant="mist" className="mb-1">{s.businessType.name}</Badge>

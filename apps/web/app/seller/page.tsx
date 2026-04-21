@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { apiAuth } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
 import { money } from "@/lib/format";
+import { isDataUrl } from "@/lib/utils";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { Pencil, ExternalLink } from "lucide-react";
 
@@ -95,7 +96,7 @@ export default async function SellerOverview() {
               {stats.recentReviews.map((r) => (
                 <li key={r.reviewId} className="flex items-start gap-3 pb-3 border-b border-line last:border-none">
                   <div className="relative h-9 w-9 rounded-full bg-brand-yellow overflow-hidden shrink-0">
-                    {r.user.profileImage && <Image src={r.user.profileImage} alt="" fill sizes="36px" className="object-cover" unoptimized />}
+                    {r.user.profileImage && <Image src={r.user.profileImage} alt="" fill sizes="36px" className="object-cover" unoptimized={isDataUrl(r.user.profileImage)} />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-white">

@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
 import { money } from "@/lib/format";
+import { isDataUrl } from "@/lib/utils";
 
 type Order = {
   orderId: number;
@@ -88,7 +89,7 @@ export default async function OrdersPage() {
                     {o.items.slice(0, 4).map((it) => (
                       <div key={it.orderItemId} className="relative h-14 w-14 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8">
                         {it.productItem.product.images[0]?.productImage && (
-                          <Image src={it.productItem.product.images[0].productImage} alt="" fill sizes="56px" className="object-cover" unoptimized />
+                          <Image src={it.productItem.product.images[0].productImage} alt="" fill sizes="56px" className="object-cover" unoptimized={isDataUrl(it.productItem.product.images[0].productImage)} />
                         )}
                       </div>
                     ))}

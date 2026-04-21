@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
 import { money } from "@/lib/format";
+import { isDataUrl } from "@/lib/utils";
 import { prisma } from "@/lib/server/prisma";
 import { Confetti } from "./Confetti";
 import { ReviewItemButton } from "./ReviewItemButton";
@@ -171,7 +172,7 @@ export default async function OrderDetail({
                           fill
                           sizes="64px"
                           className="object-cover"
-                          unoptimized
+                          unoptimized={isDataUrl(it.productItem.product.images[0].productImage)}
                         />
                       )}
                     </div>

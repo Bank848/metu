@@ -6,6 +6,13 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * True for base64 data URLs from seller uploads. Vercel's image optimiser
+ * can't handle these, so we have to bypass it. Pass to `<Image unoptimized={…}>`.
+ */
+export const isDataUrl = (s: string | null | undefined): boolean =>
+  typeof s === "string" && s.startsWith("data:");
+
+/**
  * Resolve the absolute base URL.
  *  - On the browser: empty string → fetch hits the same origin.
  *  - On the server: derive from VERCEL_URL (auto-set by Vercel) or env override.
