@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>METU — Project Brief · CPE241 G.8</title>
+  <meta name="description" content="A summary of what's built in the METU digital marketplace, the tech stack, and how to run it." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            metu:    { yellow: '#FFCC00', yellowDim: '#ECB200', gold: '#B26800', goldDeep: '#3D2B00', red: '#FF2C2C' },
+            surface: { 1: '#0E0E0E', 2: '#1A1919', 3: '#201F1F', 4: '#262626' },
+            ink:     { primary: '#FAFAFA', secondary: 'rgba(255,255,255,0.72)', dim: 'rgba(255,255,255,0.48)' },
+          },
+          fontFamily: {
+            display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            body:    ['"Manrope"', 'system-ui', 'sans-serif'],
+            mono:    ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body { font-family: 'Manrope', system-ui, sans-serif; background: #0E0E0E; color: #FAFAFA; }
+    .font-display { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .font-mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+    .glass        { background: rgba(26,25,25,0.55); backdrop-filter: blur(14px) saturate(135%); border: 1px solid rgba(255,255,255,0.06); }
+    .glass-strong { background: rgba(14,14,14,0.75); backdrop-filter: blur(20px) saturate(140%); border: 1px solid rgba(255,255,255,0.08); }
+    .button-gradient {
+      background: linear-gradient(180deg, #FFCC00 0%, #B26800 100%);
+      color: #1a0f00; font-weight: 700;
+      transition: filter .18s ease, transform .18s ease, box-shadow .18s ease;
+      box-shadow: 0 6px 24px -8px rgba(178,104,0,.55);
+    }
+    .button-gradient:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+    .text-gold-gradient {
+      background: linear-gradient(180deg, #FFCC00 0%, #B26800 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+    }
+    .text-light-sweep {
+      background: linear-gradient(100deg, #FFCC00 0%, #FFCC00 38%, #FFF7C8 50%, #FFCC00 62%, #FFCC00 100%);
+      background-size: 200% 100%;
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      animation: shimmer 3.2s linear infinite;
+    }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+    .stars {
+      background-image:
+        radial-gradient(1.2px 1.2px at 12% 18%, rgba(255,255,255,0.5) 0, transparent 50%),
+        radial-gradient(1px 1px at 64% 38%, rgba(255,255,255,0.4) 0, transparent 50%),
+        radial-gradient(1.4px 1.4px at 33% 72%, rgba(255,255,255,0.55) 0, transparent 50%),
+        radial-gradient(1px 1px at 88% 84%, rgba(255,255,255,0.35) 0, transparent 50%),
+        radial-gradient(1.2px 1.2px at 52% 12%, rgba(255,255,255,0.45) 0, transparent 50%);
+    }
+    .vibrant-mesh {
+      background:
+        radial-gradient(60% 80% at 30% 20%, rgba(255,204,0,0.18) 0, transparent 60%),
+        radial-gradient(50% 70% at 80% 70%, rgba(178,104,0,0.22) 0, transparent 60%),
+        linear-gradient(180deg, #0E0E0E 0%, #1A1919 100%);
+    }
+    .hero-radial { background: linear-gradient(109.38deg, #161616 8.65%, #6D581D 79.46%); }
+
+    /* Section divider */
+    .gold-rule {
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(255,204,0,0.5), transparent);
+    }
+
+    /* Selection */
+    ::selection { background: #FFCC00; color: #0E0E0E; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ─────────────── HERO ─────────────── -->
+<section class="relative overflow-hidden hero-radial">
+  <!-- CSS Jupiter -->
+  <div aria-hidden class="pointer-events-none absolute -right-40 -bottom-32 md:-right-24 md:bottom-[-180px] h-[700px] w-[700px] rounded-full opacity-95 mix-blend-screen"
+       style="background:
+         radial-gradient(circle at 32% 38%, #ffd166 0%, #e09a2f 18%, #b26800 38%, #6d4310 58%, transparent 78%),
+         radial-gradient(ellipse at 35% 45%, transparent 30%, rgba(178,104,0,0.4) 32%, transparent 36%),
+         radial-gradient(ellipse at 35% 55%, transparent 35%, rgba(110,67,16,0.5) 37%, transparent 40%);"></div>
+  <!-- Stars -->
+  <div aria-hidden class="absolute inset-0 stars opacity-90"></div>
+
+  <div class="relative max-w-[1280px] mx-auto px-6 md:px-10 pt-16 pb-20">
+    <!-- Top nav-ish -->
+    <div class="flex items-center justify-between">
+      <div class="font-display text-2xl font-extrabold">METU</div>
+      <div class="flex items-center gap-3 text-xs">
+        <a href="https://metu-web-phi.vercel.app/" target="_blank" rel="noopener"
+           class="rounded-full button-gradient px-4 py-2">Open live demo →</a>
+        <a href="https://github.com/Bank848/metu" target="_blank" rel="noopener"
+           class="rounded-full glass px-4 py-2 text-white hover:bg-white/10">GitHub repo</a>
+      </div>
+    </div>
+
+    <div class="mt-12 max-w-2xl">
+      <span class="inline-block rounded-full bg-metu-yellow/20 text-metu-yellow border border-metu-yellow/30 px-3 py-1 text-xs font-bold tracking-wider">
+        CPE241 · KMUTT · Group 8 · Project brief
+      </span>
+      <h1 class="font-display text-5xl md:text-7xl font-black leading-[0.95] mt-5">
+        <span class="block text-white">DIGITAL</span>
+        <span class="block text-light-sweep">MARKETPLACE</span>
+      </h1>
+      <p class="mt-5 text-lg text-ink-secondary leading-relaxed">
+        A full-stack marketplace for Thai digital creators — templates, music, courses, art —
+        built end-to-end on Postgres + Prisma + Next.js, deployed on Vercel + Neon.
+        This page is a one-glance brief of what's built and how to run it.
+      </p>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="mt-10 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl">
+      <div class="glass rounded-2xl p-4">
+        <div class="text-[10px] uppercase tracking-wider text-ink-dim">Sellers</div>
+        <div class="font-display text-3xl font-extrabold text-white mt-1">4</div>
+      </div>
+      <div class="glass rounded-2xl p-4">
+        <div class="text-[10px] uppercase tracking-wider text-ink-dim">Products</div>
+        <div class="font-display text-3xl font-extrabold text-white mt-1">26</div>
+      </div>
+      <div class="glass rounded-2xl p-4">
+        <div class="text-[10px] uppercase tracking-wider text-ink-dim">Orders</div>
+        <div class="font-display text-3xl font-extrabold text-white mt-1">15</div>
+      </div>
+      <div class="glass rounded-2xl p-4">
+        <div class="text-[10px] uppercase tracking-wider text-ink-dim">Reviews</div>
+        <div class="font-display text-3xl font-extrabold text-white mt-1">148</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── DEMO LINKS + ACCOUNTS ─────────────── -->
+<section class="max-w-[1280px] mx-auto px-6 md:px-10 py-16">
+  <h2 class="font-display text-3xl font-extrabold">Try it</h2>
+  <div class="gold-rule mt-4 mb-6"></div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="glass rounded-2xl p-6">
+      <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold">Live demo</div>
+      <a href="https://metu-web-phi.vercel.app/" target="_blank" rel="noopener"
+         class="font-display text-xl font-bold text-white block mt-1 hover:text-metu-yellow break-all">
+        metu-web-phi.vercel.app
+      </a>
+      <p class="mt-2 text-sm text-ink-secondary">
+        Hosted on Vercel. Cold start ~2s on free tier — refresh once if the first
+        page hangs. Database is Neon Postgres in Singapore.
+      </p>
+      <div class="mt-4 grid grid-cols-3 gap-2 text-[11px] font-mono">
+        <a href="https://metu-web-phi.vercel.app/api/health" target="_blank" rel="noopener"
+           class="rounded-lg bg-white/5 border border-white/8 px-2 py-1.5 text-center hover:border-metu-yellow/40">
+          /api/health
+        </a>
+        <a href="https://metu-web-phi.vercel.app/browse" target="_blank" rel="noopener"
+           class="rounded-lg bg-white/5 border border-white/8 px-2 py-1.5 text-center hover:border-metu-yellow/40">
+          /browse
+        </a>
+        <a href="https://metu-web-phi.vercel.app/admin" target="_blank" rel="noopener"
+           class="rounded-lg bg-white/5 border border-white/8 px-2 py-1.5 text-center hover:border-metu-yellow/40">
+          /admin
+        </a>
+      </div>
+    </div>
+
+    <div class="glass rounded-2xl p-6 relative overflow-hidden">
+      <div class="absolute right-0 top-0 h-full w-1/3 vibrant-mesh opacity-50 pointer-events-none"></div>
+      <div class="relative">
+        <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold">Source</div>
+        <a href="https://github.com/Bank848/metu" target="_blank" rel="noopener"
+           class="font-display text-xl font-bold text-white block mt-1 hover:text-metu-yellow break-all">
+          github.com/Bank848/metu
+        </a>
+        <p class="mt-2 text-sm text-ink-secondary">
+          Public monorepo. Push to <span class="font-mono text-metu-yellow">main</span> auto-deploys to Vercel.
+          Neon connection + JWT secret are set in Vercel env, not in the repo.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="font-display text-xl font-bold mt-10 mb-4">Demo accounts</h3>
+  <div class="glass rounded-2xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-surface-3 text-[10px] uppercase tracking-wider text-ink-dim">
+        <tr>
+          <th class="text-left px-5 py-3">Role</th>
+          <th class="text-left px-5 py-3">Email</th>
+          <th class="text-left px-5 py-3">Password</th>
+          <th class="text-left px-5 py-3">Story</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-white/8">
+        <tr>
+          <td class="px-5 py-3"><span class="rounded-full bg-white/10 text-white text-xs font-bold px-2 py-0.5">ADMIN</span></td>
+          <td class="px-5 py-3 font-mono">admin@metu.dev</td>
+          <td class="px-5 py-3 font-mono">Admin#123</td>
+          <td class="px-5 py-3 text-ink-secondary">Marketplace-wide reports + user/store management</td>
+        </tr>
+        <tr>
+          <td class="px-5 py-3"><span class="rounded-full bg-metu-yellow/20 text-metu-yellow border border-metu-yellow/30 text-xs font-bold px-2 py-0.5">SELLER</span></td>
+          <td class="px-5 py-3 font-mono">seller@metu.dev</td>
+          <td class="px-5 py-3 font-mono">Seller#123</td>
+          <td class="px-5 py-3 text-ink-secondary">Owns Kluay Studio · 9 products · 8 orders · METU10 coupon</td>
+        </tr>
+        <tr>
+          <td class="px-5 py-3"><span class="rounded-full bg-white/5 text-ink-secondary text-xs font-bold px-2 py-0.5">BUYER</span></td>
+          <td class="px-5 py-3 font-mono">buyer@metu.dev</td>
+          <td class="px-5 py-3 font-mono">Buyer#123</td>
+          <td class="px-5 py-3 text-ink-secondary">Has past orders + 2 items pre-loaded in cart</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="text-xs text-ink-dim mt-3">
+    On the <a href="https://metu-web-phi.vercel.app/login" target="_blank" rel="noopener" class="text-metu-yellow hover:underline">/login</a>
+    page each row is a chip — click it to pre-fill the form.
+  </p>
+</section>
+
+<!-- ─────────────── TECH STACK ─────────────── -->
+<section class="bg-surface-2/50 border-y border-white/6">
+  <div class="max-w-[1280px] mx-auto px-6 md:px-10 py-16">
+    <h2 class="font-display text-3xl font-extrabold">Tech stack</h2>
+    <div class="gold-rule mt-4 mb-6"></div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="glass rounded-2xl p-5">
+        <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-2">Frontend</div>
+        <ul class="space-y-1 text-sm">
+          <li>Next.js <span class="font-mono text-metu-yellow">14.2.35</span> · App Router</li>
+          <li>React 18 · TypeScript</li>
+          <li>Tailwind CSS v3</li>
+          <li>lucide-react · framer-motion</li>
+          <li>Plus Jakarta Sans + Manrope</li>
+        </ul>
+      </div>
+      <div class="glass rounded-2xl p-5">
+        <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-2">Backend</div>
+        <ul class="space-y-1 text-sm">
+          <li>Next.js API route handlers</li>
+          <li>27 endpoints (single-origin)</li>
+          <li>JWT (httpOnly cookie)</li>
+          <li>bcrypt password hash</li>
+          <li>Zod validation</li>
+        </ul>
+      </div>
+      <div class="glass rounded-2xl p-5">
+        <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-2">Database</div>
+        <ul class="space-y-1 text-sm">
+          <li>Postgres 16 (Neon)</li>
+          <li>Prisma 5 ORM</li>
+          <li>20 entities · 3 migrations</li>
+          <li>Singapore region</li>
+          <li>Pooled + unpooled connections</li>
+        </ul>
+      </div>
+      <div class="glass rounded-2xl p-5">
+        <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-2">Infra · Tooling</div>
+        <ul class="space-y-1 text-sm">
+          <li>Vercel (auto-deploy on <span class="font-mono">main</span>)</li>
+          <li>npm workspaces (monorepo)</li>
+          <li>Docker Compose (local dev)</li>
+          <li>GitHub CLI</li>
+          <li>Sentry-style error.tsx + 404</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-6 text-xs text-ink-dim">
+      Note: Tailwind v3 + Next 14 deliberately chosen over the friend repo's Next 16 + Tailwind v4
+      to keep the demo deploy stable for the deadline. Schema is custom (no <code class="font-mono">better-auth</code>) — Neon prod is untouched.
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── WHAT'S BUILT ─────────────── -->
+<section class="max-w-[1280px] mx-auto px-6 md:px-10 py-16">
+  <h2 class="font-display text-3xl font-extrabold">What's built</h2>
+  <div class="gold-rule mt-4 mb-6"></div>
+
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+    <!-- Buyer flow -->
+    <div class="glass rounded-2xl p-6 relative overflow-hidden">
+      <div class="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-70"></div>
+      <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-3">Buyer flow</div>
+      <ul class="space-y-2 text-sm text-ink-secondary">
+        <li>• Landing hero (DIGITAL MARKETPLACE)</li>
+        <li>• Browse with category / tag / sort / search</li>
+        <li>• Product detail with variant selector + Buy now</li>
+        <li>• Reviews tab (with star distribution + sort)</li>
+        <li>• Cart grouped by store + coupon validate</li>
+        <li>• Checkout (atomic Order + Transaction in $transaction)</li>
+        <li>• Confetti on success · Order receipt page</li>
+      </ul>
+    </div>
+
+    <!-- Seller dashboard -->
+    <div class="glass rounded-2xl p-6 relative overflow-hidden">
+      <div class="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-70"></div>
+      <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-3">Seller dashboard</div>
+      <ul class="space-y-2 text-sm text-ink-secondary">
+        <li>• Overview: GMV / paid orders / rating / response time</li>
+        <li>• Daily orders line chart (raw SQL)</li>
+        <li>• Top 5 products by revenue</li>
+        <li>• Recent reviews feed</li>
+        <li>• Products table (CRUD)</li>
+        <li>• Coupons table with active / expired badges</li>
+        <li>• Orders inbox scoped to your store</li>
+      </ul>
+    </div>
+
+    <!-- Admin panel -->
+    <div class="glass rounded-2xl p-6 relative overflow-hidden">
+      <div class="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-70"></div>
+      <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-3">Admin panel</div>
+      <ul class="space-y-2 text-sm text-ink-secondary">
+        <li>• Marketplace KPIs (Users / Stores / GMV / Pending)</li>
+        <li>• Recent transactions feed</li>
+        <li>• Searchable users table (filter by role)</li>
+        <li>• Store cards grid</li>
+        <li>• <strong class="text-white">5 SQL reports with "View SQL" toggle</strong>
+              — revenue-by-category, top-stores, orders-by-status, signups-per-day, coupon-usage</li>
+      </ul>
+    </div>
+
+    <!-- Auth -->
+    <div class="glass rounded-2xl p-6 relative overflow-hidden">
+      <div class="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-70"></div>
+      <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-3">Auth + profile</div>
+      <ul class="space-y-2 text-sm text-ink-secondary">
+        <li>• Login + Register (Zod validated)</li>
+        <li>• JWT in httpOnly cookie · bcrypt password</li>
+        <li>• Avatar dropdown (role-aware menu)</li>
+        <li>• Profile w/ recent orders</li>
+        <li>• "Become a seller" → creates Store + flips role</li>
+        <li>• Demo-account chips on /login pre-fill the form</li>
+      </ul>
+    </div>
+
+    <!-- Database design -->
+    <div class="glass rounded-2xl p-6 relative overflow-hidden">
+      <div class="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-70"></div>
+      <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-3">Database design</div>
+      <ul class="space-y-2 text-sm text-ink-secondary">
+        <li>• 20 entities derived from crow's-foot ER diagram</li>
+        <li>• Cascading deletes where appropriate</li>
+        <li>• Indexed on hot query paths (storeId, productId, status, createdAt)</li>
+        <li>• 7 enums (UserRole, OrderStatus, DeliveryMethod, …)</li>
+        <li>• <span class="font-mono">cart_item</span> extension to model in-cart state cleanly</li>
+        <li>• Rich seed: 12 users · 4 stores · 26 products · 148 reviews · 8 coupons · 15 orders</li>
+      </ul>
+    </div>
+
+    <!-- Visual / brand -->
+    <div class="glass rounded-2xl p-6 relative overflow-hidden">
+      <div class="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-70"></div>
+      <div class="text-xs uppercase tracking-wider text-metu-yellow font-bold mb-3">Visual / brand</div>
+      <ul class="space-y-2 text-sm text-ink-secondary">
+        <li>• Aligned with friend's neo-luxury palette (#FFCC00 + #B26800)</li>
+        <li>• Glassmorphism + gradient borders + light-sweep hero</li>
+        <li>• CSS-painted Jupiter + high-density starfield</li>
+        <li>• Curated Unsplash photos themed per category</li>
+        <li>• THB currency formatter throughout</li>
+        <li>• DiceBear abstract avatars (no Western stock photos)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── BUILD HISTORY ─────────────── -->
+<section class="bg-surface-2/40 border-y border-white/6">
+  <div class="max-w-[1280px] mx-auto px-6 md:px-10 py-16">
+    <h2 class="font-display text-3xl font-extrabold">Build history</h2>
+    <p class="text-ink-secondary mt-2">Roughly the order things shipped, so you can scan what each commit added.</p>
+    <div class="gold-rule mt-4 mb-6"></div>
+
+    <ol class="space-y-3">
+      <li class="glass rounded-xl p-4 flex gap-4 items-start">
+        <span class="font-mono text-xs text-metu-yellow shrink-0 w-16">v1 · A</span>
+        <div>
+          <div class="font-bold text-white">Scaffold</div>
+          <div class="text-sm text-ink-secondary">Monorepo, Docker Postgres, Prisma schema (20 entities), health endpoint</div>
+        </div>
+      </li>
+      <li class="glass rounded-xl p-4 flex gap-4 items-start">
+        <span class="font-mono text-xs text-metu-yellow shrink-0 w-16">v1 · B</span>
+        <div>
+          <div class="font-bold text-white">Rich seed</div>
+          <div class="text-sm text-ink-secondary">12 users / 4 stores / 26 products / 148 reviews / 15 orders / 8 coupons — narrative-driven for demo</div>
+        </div>
+      </li>
+      <li class="glass rounded-xl p-4 flex gap-4 items-start">
+        <span class="font-mono text-xs text-metu-yellow shrink-0 w-16">v1 · C</span>
+        <div>
+          <div class="font-bold text-white">All flows</div>
+          <div class="text-sm text-ink-secondary">Buyer (browse → cart → checkout → orders) · Seller dashboard · Admin panel + 5 SQL reports · Auth + profile</div>
+        </div>
+      </li>
+      <li class="glass rounded-xl p-4 flex gap-4 items-start">
+        <span class="font-mono text-xs text-metu-yellow shrink-0 w-16">v2 · A</span>
+        <div>
+          <div class="font-bold text-white">Single-origin Vercel deploy</div>
+          <div class="text-sm text-ink-secondary">Migrated Express routes into Next.js route handlers · Neon Postgres · github auto-deploy</div>
+        </div>
+      </li>
+      <li class="glass rounded-xl p-4 flex gap-4 items-start">
+        <span class="font-mono text-xs text-metu-yellow shrink-0 w-16">v2 · B</span>
+        <div>
+          <div class="font-bold text-white">Pre-presentation polish</div>
+          <div class="text-sm text-ink-secondary">Faster auth (collapsed DB calls + dropped redundant <span class="font-mono">router.refresh</span>) · themed Unsplash images per category · custom 404/error pages · sort/delivery validation · Next.js bumped to 14.2.35 for security patches</div>
+        </div>
+      </li>
+      <li class="glass rounded-xl p-4 flex gap-4 items-start">
+        <span class="font-mono text-xs text-metu-yellow shrink-0 w-16">v2 · C</span>
+        <div>
+          <div class="font-bold text-white">Theme port to friend's neo-luxury</div>
+          <div class="text-sm text-ink-secondary">New tokens (#FFCC00 + #B26800 + surface tiers) · Plus Jakarta Sans + Manrope · GlassButton, GradientBorder, LightSweepText primitives · hero with Jupiter + light-sweep · ProductCard with gold accent bar · cart redesigned · order receipt redesigned · Reviews tab + WriteReviewDialog (with new POST /api/products/[id]/reviews)</div>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ─────────────── REPO LAYOUT ─────────────── -->
+<section class="max-w-[1280px] mx-auto px-6 md:px-10 py-16">
+  <h2 class="font-display text-3xl font-extrabold">Repo layout</h2>
+  <div class="gold-rule mt-4 mb-6"></div>
+
+  <pre class="glass-strong rounded-2xl p-5 text-xs md:text-sm font-mono text-ink-secondary overflow-x-auto leading-relaxed">
+metu/
+├── apps/
+│   ├── web/                          # Next.js 14 App Router (deployed)
+│   │   ├── app/
+│   │   │   ├── (auth)/login | register
+│   │   │   ├── api/                  # 27 route handlers (single-origin)
+│   │   │   │   ├── auth/{login,logout,me,register}
+│   │   │   │   ├── products/[id]/reviews
+│   │   │   │   ├── cart/items[/id]
+│   │   │   │   ├── orders[/id]
+│   │   │   │   ├── seller/{stats,products,coupons,orders,become-seller}
+│   │   │   │   └── admin/{stats,users,stores,reports/[name]}
+│   │   │   ├── browse | product/[id] | cart | orders | profile
+│   │   │   ├── seller/{products,coupons,orders}
+│   │   │   ├── admin/{users,stores,reports}
+│   │   │   ├── error.tsx | not-found.tsx
+│   │   │   └── globals.css
+│   │   ├── components/
+│   │   │   ├── visual/{GlassButton,GradientBorder,LightSweepText}
+│   │   │   ├── ui/{Button,Card,Badge}
+│   │   │   ├── TopNav · AuthMenu · SearchPill · Logo · Footer
+│   │   │   ├── ProductCard · StatCard · EmptyState
+│   │   │   ├── Reviews · WriteReviewDialog
+│   │   │   └── SellerSidebar · AdminSidebar
+│   │   ├── lib/
+│   │   │   ├── server/{prisma,auth,queries,seller}
+│   │   │   ├── session.ts · format.ts (THB) · utils.ts
+│   │   │   └── ...
+│   │   └── tailwind.config.ts        # metu palette + utilities
+│   └── api/                          # legacy Express (kept; not deployed)
+├── packages/
+│   ├── db/                           # Prisma schema + seed
+│   │   ├── prisma/schema.prisma
+│   │   ├── prisma/migrations/        # 3 migrations
+│   │   └── seed.ts                   # 12 users · 26 products · 148 reviews
+│   └── shared/                       # Zod schemas + enums
+├── docker-compose.yml                # Postgres + Adminer
+├── PLAN.md · PRESENTATION.md · AUDIT.md · DEPLOY.md · README.md
+└── BRIEF.html                        # ← you are here
+  </pre>
+</section>
+
+<!-- ─────────────── QUICK START ─────────────── -->
+<section class="bg-surface-2/40 border-y border-white/6">
+  <div class="max-w-[1280px] mx-auto px-6 md:px-10 py-16">
+    <h2 class="font-display text-3xl font-extrabold">Run it locally</h2>
+    <div class="gold-rule mt-4 mb-6"></div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+      <div>
+        <h3 class="font-display font-bold text-white mb-3">1. Clone + install</h3>
+        <pre class="glass rounded-xl p-4 text-xs font-mono text-ink-primary overflow-x-auto"><code>git clone https://github.com/Bank848/metu.git
+cd metu
+npm install</code></pre>
+
+        <h3 class="font-display font-bold text-white mt-6 mb-3">2. Boot local Postgres</h3>
+        <pre class="glass rounded-xl p-4 text-xs font-mono text-ink-primary overflow-x-auto"><code>docker compose up -d
+npm run db:generate
+npm run db:migrate
+npm run db:seed</code></pre>
+      </div>
+
+      <div>
+        <h3 class="font-display font-bold text-white mb-3">3. Start the dev server</h3>
+        <pre class="glass rounded-xl p-4 text-xs font-mono text-ink-primary overflow-x-auto"><code>npm run dev -w @metu/web
+# → http://localhost:3000</code></pre>
+
+        <h3 class="font-display font-bold text-white mt-6 mb-3">4. Useful URLs</h3>
+        <ul class="text-sm space-y-1 text-ink-secondary">
+          <li>• <span class="font-mono text-metu-yellow">localhost:3000</span> — the app</li>
+          <li>• <span class="font-mono text-metu-yellow">localhost:3000/api/health</span> — sanity check</li>
+          <li>• <span class="font-mono text-metu-yellow">localhost:8081</span> — Adminer to inspect DB live during demo</li>
+        </ul>
+
+        <p class="mt-6 text-xs text-ink-dim">
+          On Windows PowerShell, <span class="font-mono">$env:DATABASE_URL = "..."</span>
+          to point at Neon if you'd rather seed the production DB instead of local Postgres.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── DECISIONS ─────────────── -->
+<section class="max-w-[1280px] mx-auto px-6 md:px-10 py-16">
+  <h2 class="font-display text-3xl font-extrabold">Why these choices</h2>
+  <div class="gold-rule mt-4 mb-6"></div>
+
+  <div class="grid md:grid-cols-2 gap-5 text-sm">
+    <div class="glass rounded-2xl p-5">
+      <div class="font-bold text-white mb-1">Next.js 14 (not 16) · Tailwind v3 (not v4) · React 18 (not 19)</div>
+      <p class="text-ink-secondary">The friend repo runs on the new majors. We deliberately stayed one version behind because every breaking change risks a Vercel deploy regression days before the in-class demo. Bumped to <span class="font-mono">14.2.35</span> for security patches; held off on the major jump.</p>
+    </div>
+    <div class="glass rounded-2xl p-5">
+      <div class="font-bold text-white mb-1">JWT in httpOnly cookie (not better-auth)</div>
+      <p class="text-ink-secondary">Three lines of <span class="font-mono">jsonwebtoken</span> + bcrypt covers our entire auth surface for a class demo. better-auth is a great library but adds a migration, OAuth provider config, and four more tables we don't need.</p>
+    </div>
+    <div class="glass rounded-2xl p-5">
+      <div class="font-bold text-white mb-1">Neon (not Supabase) for production Postgres</div>
+      <p class="text-ink-secondary">Neon's Vercel integration auto-injects <span class="font-mono">DATABASE_URL</span> into all environments and serverless-friendly pooling means cold starts don't exhaust connections. Free tier (0.5 GB) is plenty for the demo.</p>
+    </div>
+    <div class="glass rounded-2xl p-5">
+      <div class="font-bold text-white mb-1">Server components call Prisma directly (not /api)</div>
+      <p class="text-ink-secondary">Earlier the home page tried to <span class="font-mono">fetch('https://VERCEL_URL/api/stats')</span> from inside a server component, which hit Vercel's deployment-protection wall and returned 0s. Moved server-side reads into <span class="font-mono">lib/server/queries.ts</span> — direct Prisma, no HTTP roundtrip, no auth wall.</p>
+    </div>
+    <div class="glass rounded-2xl p-5">
+      <div class="font-bold text-white mb-1">Curated Unsplash photo pools by category</div>
+      <p class="text-ink-secondary">The first seed used <span class="font-mono">picsum.photos</span> which returns random images per seed — so "Thai-Pop Instrumental" sometimes showed an American flag. Switched to per-category Unsplash pools with a deterministic hash so themed images stay stable across re-seeds.</p>
+    </div>
+    <div class="glass rounded-2xl p-5">
+      <div class="font-bold text-white mb-1">Visual port without a stack rewrite</div>
+      <p class="text-ink-secondary">Adopted the friend repo's neo-luxury palette + glassmorphism + light-sweep + gold gradient + ProductCard pattern by porting tokens, fonts, and 3 new visual primitives — without changing Next, Tailwind, auth, or schema. The look is theirs; the engine is ours.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── FOOTER ─────────────── -->
+<footer class="relative bg-surface-2 mt-8">
+  <div class="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-metu-yellow to-transparent"></div>
+  <div class="max-w-[1280px] mx-auto px-6 md:px-10 py-10">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="font-mono text-xs text-ink-dim">
+        © 2026 METU · Built in Bangkok · CPE241 · KMUTT · Group 8
+      </div>
+      <div class="flex flex-wrap gap-3 text-xs">
+        <a href="https://metu-web-phi.vercel.app/" target="_blank" rel="noopener"
+           class="rounded-full button-gradient px-4 py-2">Live demo</a>
+        <a href="https://github.com/Bank848/metu" target="_blank" rel="noopener"
+           class="rounded-full glass px-4 py-2 text-white hover:bg-white/10">GitHub</a>
+        <a href="https://github.com/N0M3KM/metu-platform" target="_blank" rel="noopener"
+           class="rounded-full glass px-4 py-2 text-white hover:bg-white/10">Friend repo (visual ref)</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

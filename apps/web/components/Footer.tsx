@@ -25,34 +25,23 @@ export function Footer() {
               CPE241 · KMUTT · Group 8
             </p>
           </div>
-          <div>
-            <h4 className="font-semibold mb-3 text-xs uppercase tracking-wider text-ink-dim">
-              Marketplace
-            </h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/browse" className="text-ink-secondary hover:text-metu-yellow">Browse</Link></li>
-              <li><Link href="/browse?sort=rating" className="text-ink-secondary hover:text-metu-yellow">Top rated</Link></li>
-              <li><Link href="/browse?sort=newest" className="text-ink-secondary hover:text-metu-yellow">New releases</Link></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-3 text-xs uppercase tracking-wider text-ink-dim">
-              Sellers
-            </h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/seller" className="text-ink-secondary hover:text-metu-yellow">Seller dashboard</Link></li>
-              <li><Link href="/become-seller" className="text-ink-secondary hover:text-metu-yellow">Start selling</Link></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-3 text-xs uppercase tracking-wider text-ink-dim">
-              Demo
-            </h4>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/login" className="text-ink-secondary hover:text-metu-yellow">Demo accounts</Link></li>
-              <li><Link href="/admin" className="text-ink-secondary hover:text-metu-yellow">Admin panel</Link></li>
-            </ul>
-          </div>
+
+          <FooterColumn title="Marketplace" titleHref="/browse">
+            <FooterLink href="/browse">Browse</FooterLink>
+            <FooterLink href="/browse?sort=rating">Top rated</FooterLink>
+            <FooterLink href="/browse?sort=newest">New releases</FooterLink>
+          </FooterColumn>
+
+          <FooterColumn title="Sellers" titleHref="/seller">
+            <FooterLink href="/seller">Seller dashboard</FooterLink>
+            <FooterLink href="/become-seller">Start selling</FooterLink>
+          </FooterColumn>
+
+          <FooterColumn title="Demo" titleHref="/login">
+            <FooterLink href="/login">Demo accounts</FooterLink>
+            <FooterLink href="/admin">Admin panel</FooterLink>
+            <FooterLink href="/my-reviews">My reviews</FooterLink>
+          </FooterColumn>
         </div>
         <div className="mt-10 pt-6 border-t border-white/8 text-xs text-ink-dim flex items-center justify-between">
           <span>© 2026 METU · Built in Bangkok · CPE241 · KMUTT · Group 8</span>
@@ -60,5 +49,43 @@ export function Footer() {
         </div>
       </div>
     </footer>
+  );
+}
+
+function FooterColumn({
+  title,
+  titleHref,
+  children,
+}: {
+  title: string;
+  titleHref?: string;
+  children: React.ReactNode;
+}) {
+  // Header is itself a link (so the "section label" actually goes somewhere
+  // when clicked — solves the "looks clickable but isn't" UX nit).
+  const heading = (
+    <h4 className="font-display font-bold mb-3 text-xs uppercase tracking-wider text-metu-yellow">
+      {title}
+    </h4>
+  );
+  return (
+    <div>
+      {titleHref ? (
+        <Link href={titleHref} className="block hover:opacity-80 transition">
+          {heading}
+        </Link>
+      ) : heading}
+      <ul className="space-y-2 text-sm">{children}</ul>
+    </div>
+  );
+}
+
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <li>
+      <Link href={href} className="text-ink-secondary hover:text-metu-yellow inline-flex items-center gap-1 transition">
+        {children}
+      </Link>
+    </li>
   );
 }

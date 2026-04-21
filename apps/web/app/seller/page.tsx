@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { apiAuth } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
 import { money } from "@/lib/format";
+import { GlassButton } from "@/components/visual/GlassButton";
+import { Pencil, ExternalLink } from "lucide-react";
 
 type Stats = {
   store: { storeId: number; name: string; description: string; coverImage: string | null; stats: { rating: number; ctr: number; responseTime: number } | null };
@@ -30,7 +32,22 @@ export default async function SellerOverview() {
 
   return (
     <>
-      <PageHeader title={stats.store.name} subtitle={stats.store.description} />
+      <PageHeader
+        title={stats.store.name}
+        subtitle={stats.store.description}
+        action={
+          <div className="flex gap-2">
+            <GlassButton tone="glass" size="sm" href={`/store/${stats.store.storeId}`}>
+              <ExternalLink className="h-3.5 w-3.5" />
+              View storefront
+            </GlassButton>
+            <GlassButton tone="gold" size="sm" href="/seller/store/edit">
+              <Pencil className="h-3.5 w-3.5" />
+              Edit store
+            </GlassButton>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard icon={DollarSign} label="Total revenue" value={money(stats.kpi.totalRevenue)} accent="yellow" />

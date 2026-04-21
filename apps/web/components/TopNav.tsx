@@ -47,8 +47,9 @@ export async function TopNav({ q }: { q?: string } = {}) {
 
         <div className="hidden md:flex items-center gap-2 shrink-0">
           <Link
-            href="/browse?sort=rating"
-            aria-label="Favourites"
+            href={me ? "/my-reviews" : "/browse?sort=rating"}
+            aria-label={me ? "My reviews" : "Top rated"}
+            title={me ? "My reviews" : "Top rated"}
             className="flex h-10 w-10 items-center justify-center rounded-full text-ink-secondary hover:text-metu-yellow hover:bg-white/5 transition"
           >
             <Star className="h-5 w-5" />
