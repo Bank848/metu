@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { FileImageInput } from "@/components/FileImageInput";
 
 type BusinessType = { typeId: number; name: string; description: string };
 
@@ -58,7 +59,7 @@ export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessTyp
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           maxLength={60}
           required
-          placeholder="e.g. Kluay Studio"
+          placeholder="Your store name…"
           className={inputCls}
         />
       </label>
@@ -69,7 +70,7 @@ export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessTyp
           onChange={(e) => setForm({ ...form, description: e.target.value })}
           maxLength={255}
           required
-          placeholder="What do you sell?"
+          placeholder="Tell shoppers what makes your store unique"
           rows={3}
           className={inputCls}
         />
@@ -86,26 +87,20 @@ export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessTyp
           ))}
         </select>
       </label>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block">
-          <span className="text-sm font-semibold text-white">Profile image URL</span>
-          <input
-            value={form.profileImage}
-            onChange={(e) => setForm({ ...form, profileImage: e.target.value })}
-            placeholder="https://…"
-            className={inputCls}
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm font-semibold text-white">Cover image URL</span>
-          <input
-            value={form.coverImage}
-            onChange={(e) => setForm({ ...form, coverImage: e.target.value })}
-            placeholder="https://…"
-            className={inputCls}
-          />
-        </label>
-      </div>
+      <FileImageInput
+        label="Profile image"
+        value={form.profileImage}
+        onChange={(v) => setForm({ ...form, profileImage: v })}
+        recommended={{ w: 400, h: 400, note: "square avatar" }}
+        aspect="square"
+      />
+      <FileImageInput
+        label="Cover image"
+        value={form.coverImage}
+        onChange={(v) => setForm({ ...form, coverImage: v })}
+        recommended={{ w: 1600, h: 600, note: "5:2 banner" }}
+        aspect="wide"
+      />
       {error && <p className="text-sm text-red-400">{error}</p>}
       <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy}>
         {busy ? "Creating store…" : "Open my store →"}

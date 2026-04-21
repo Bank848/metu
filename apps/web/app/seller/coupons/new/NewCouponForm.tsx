@@ -75,7 +75,7 @@ export function NewCouponForm() {
             required
             minLength={3}
             maxLength={50}
-            placeholder="e.g. SUMMER25"
+            placeholder="Pick a memorable code"
             pattern="[A-Z0-9_-]+"
             className={`mt-1 ${inputCls} font-mono`}
           />

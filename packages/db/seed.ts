@@ -31,7 +31,7 @@ const IMAGE_POOLS: Record<string, string[]> = {
     "1551288049-bebda4e38f71", // dashboard mockup
     "1460925895917-afdab827c52f", // analytics chart
     "1517245386807-bb43f82c33c4", // tablet design
-    "1432888622747-4eb9a8f2c293", // notebook plan
+    "1505330622279-bf7d7fc918f4", // notebook plan (replaced 404 1432888622747)
     "1467232004584-a241de8bcf5d", // laptop chart
     "1559028012-481c04fa702d", // ui design
   ],

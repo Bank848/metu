@@ -9,8 +9,9 @@ import { EmptyState } from "@/components/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
-import { getReviewsByUser, getReviewsForStore } from "@/lib/server/queries";
+import { getReviewsByUser, getReviewsForStore, getPendingReviewProducts } from "@/lib/server/queries";
 import { cn } from "@/lib/utils";
+import { PendingReviewCard } from "./PendingReviewCard";
 
 export const dynamic = "force-dynamic";
 
@@ -78,17 +79,70 @@ export default async function MyReviewsPage({
 }
 
 async function BuyerReviews({ userId }: { userId: number }) {
-  const reviews = await getReviewsByUser(userId);
-  if (reviews.length === 0) {
+  const [reviews, pending] = await Promise.all([
+    getReviewsByUser(userId),
+    getPendingReviewProducts(userId),
+  ]);
+
+  if (reviews.length === 0 && pending.length === 0) {
     return (
       <EmptyState
         title="No reviews yet"
-        description="Once you write a review on a product detail page, it'll show up here."
+        description="Buy something from the marketplace and you'll be able to review it here."
         icon={<Pencil className="h-8 w-8" />}
-        action={<GlassButton tone="gold" href="/orders">View my orders →</GlassButton>}
+        action={<GlassButton tone="gold" href="/browse">Browse marketplace →</GlassButton>}
       />
     );
   }
+
+  return (
+    <div className="space-y-10">
+      {/* Pending — products you can still review */}
+      {pending.length > 0 && (
+        <section>
+          <h2 className="font-display text-lg font-bold text-white mb-3 flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-metu-yellow" />
+            Things to review
+            <span className="text-ink-dim text-sm font-normal">({pending.length})</span>
+          </h2>
+          <p className="text-sm text-ink-secondary mb-4">
+            Products you've bought but haven't reviewed yet — share what you think.
+          </p>
+          <div className="grid md:grid-cols-2 gap-3">
+            {pending.map((p) => (
+              <PendingReviewCard
+                key={p.productId}
+                productId={p.productId}
+                name={p.name}
+                image={p.images[0]?.productImage ?? null}
+                storeName={p.store.name}
+                storeId={p.store.storeId}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Authored */}
+      {reviews.length > 0 ? (
+        <section>
+          <h2 className="font-display text-lg font-bold text-white mb-3 flex items-center gap-2">
+            <Star className="h-4 w-4 fill-metu-yellow stroke-metu-yellow" />
+            Your reviews
+            <span className="text-ink-dim text-sm font-normal">({reviews.length})</span>
+          </h2>
+          <BuyerReviewsList reviews={reviews} />
+        </section>
+      ) : (
+        <p className="text-sm text-ink-dim text-center py-6">
+          You haven't written any reviews yet.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function BuyerReviewsList({ reviews }: { reviews: Awaited<ReturnType<typeof getReviewsByUser>> }) {
   return (
     <ul className="space-y-4">
       {reviews.map((r) => (
