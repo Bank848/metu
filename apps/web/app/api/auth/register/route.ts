@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });
   }
-  const { username, email, password, firstName, lastName, countryId, gender } = parsed.data;
+  const { username, email, password, firstName, lastName, countryId, gender, dateOfBirth } = parsed.data;
 
   const [dupUsername, dupEmail] = await Promise.all([
     prisma.user.findUnique({ where: { username } }),
@@ -26,6 +26,9 @@ export async function POST(req: NextRequest) {
   const user = await prisma.user.create({
     data: {
       username, email, firstName, lastName, countryId, gender,
+      // dateOfBirth comes in as YYYY-MM-DD; pin to UTC midnight so it
+      // doesn't shift across timezones in the DB.
+      dateOfBirth: dateOfBirth ? new Date(`${dateOfBirth}T00:00:00.000Z`) : undefined,
       password: hash,
       stats: { create: { role: "buyer" } },
       carts: { create: { status: "active" } },

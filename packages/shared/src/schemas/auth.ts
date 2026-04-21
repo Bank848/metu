@@ -13,6 +13,8 @@ export const registerSchema = z.object({
   lastName: z.string().min(1).max(40),
   countryId: z.number().int().positive().optional(),
   gender: z.enum(["male", "female", "other"]).optional(),
+  // ISO date string from <input type="date"> — converted to Date in the API.
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export const updateProfileSchema = z.object({

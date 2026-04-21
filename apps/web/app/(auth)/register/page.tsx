@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { StarField } from "@/components/DotGrid";
+import { prisma } from "@/lib/server/prisma";
 import { RegisterForm } from "./RegisterForm";
 
 export const metadata = { title: "Sign up — METU" };
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  // Country list is reference data; load it once at request time.
+  const countries = await prisma.country.findMany({
+    select: { countryId: true, name: true },
+    orderBy: { name: "asc" },
+  });
   return (
     <main className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
@@ -22,7 +28,7 @@ export default function RegisterPage() {
         <p className="text-ink-secondary mb-6">
           It takes less than a minute. You can start selling later from your profile.
         </p>
-        <RegisterForm />
+        <RegisterForm countries={countries} />
         <p className="mt-4 text-sm text-ink-secondary">
           Already have an account?{" "}
           <Link href="/login" className="font-semibold text-brand-yellow hover:underline">

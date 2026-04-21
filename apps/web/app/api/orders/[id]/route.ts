@@ -20,6 +20,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
                 include: {
                   images: { take: 1, orderBy: { sortOrder: "asc" } },
                   store: { select: { name: true, storeId: true } },
+                  // Pull tags so the receipt can chip them next to the product name.
+                  productNTags: {
+                    include: { tag: { select: { tagId: true, tagName: true } } },
+                  },
                 },
               },
             },

@@ -33,6 +33,7 @@ type Order = {
         name: string;
         images: Array<{ productImage: string }>;
         store: { name: string; storeId: number };
+        productNTags?: Array<{ tag: { tagId: number; tagName: string } }>;
       };
     };
   }>;
@@ -187,7 +188,19 @@ export default async function OrderDetail({
                         {it.productItem.deliveryMethod.replace("_", " ")} ·{" "}
                         {it.productItem.product.store.name}
                       </div>
-                      <div className="text-xs text-ink-dim">
+                      {(it.productItem.product.productNTags?.length ?? 0) > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {it.productItem.product.productNTags!.slice(0, 4).map((nt) => (
+                            <span
+                              key={nt.tag.tagId}
+                              className="inline-flex items-center rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-ink-secondary"
+                            >
+                              {nt.tag.tagName}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-xs text-ink-dim mt-1.5">
                         Qty {it.quantity} · {money(Number(it.priceAtPurchase))} each
                       </div>
                       {canReview && (
