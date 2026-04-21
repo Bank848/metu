@@ -1,0 +1,53 @@
+# fly.toml — METU on Fly.io (Singapore region)
+#
+# Pairs with the repo-root Dockerfile. App name + URL get assigned the
+# first time `fly launch` runs; rename via `fly apps rename` if needed.
+
+app = "metu-web"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HTTP service — Fly's edge terminates HTTPS and forwards to the container.
+# ─────────────────────────────────────────────────────────────────────────────
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Keep the machine running 24/7 — Neon already cold-starts on its own;
+  # we don't want Fly to add another scale-to-zero pause on top.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VM size — Next 14 wants ~300-400 MB resident; 512 MB stays under the
+# Fly free credit ($5/mo) at ~$3.88/mo for one shared-cpu-1x machine.
+# Bump to 1 GB (~$5.70/mo) if you start seeing OOM kills under load.
+# ─────────────────────────────────────────────────────────────────────────────
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Release phase — runs once per deploy in a temporary VM with the same
+# image + secrets, before the new release goes live. We use it to apply
+# pending Prisma migrations against the *direct* (unpooled) Neon URL,
+# because pgbouncer on the pooled endpoint blocks features Migrate
+# needs (advisory locks, prepared statements).
+# ─────────────────────────────────────────────────────────────────────────────
+[deploy]
+  release_command = "sh -c 'DATABASE_URL=\"$DATABASE_URL_UNPOOLED\" node_modules/.bin/prisma migrate deploy --schema=packages/db/prisma/schema.prisma'"
