@@ -1,7 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Users, Package, ShoppingBag, Star, Sparkles, ShieldCheck, Zap } from "lucide-react";
-import { api } from "@/lib/utils";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { StarField } from "@/components/DotGrid";
@@ -9,35 +8,20 @@ import { StatCard } from "@/components/StatCard";
 import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { getStats, getFeaturedProducts, getFeaturedStores, getCategories } from "@/lib/server/queries";
 
 type Stats = { sellers: number; products: number; orders: number; reviews: number };
-type Store = {
-  storeId: number;
-  name: string;
-  description: string;
-  coverImage?: string | null;
-  profileImage?: string | null;
-  businessType?: { name: string } | null;
-  stats?: { rating: number } | null;
-};
-type Category = { categoryId: number; categoryName: string; description: string };
-
-async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
-  try {
-    return await p;
-  } catch {
-    return fallback;
-  }
-}
+type Store = Awaited<ReturnType<typeof getFeaturedStores>>[number];
+type Category = Awaited<ReturnType<typeof getCategories>>[number];
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const [stats, products, stores, categories] = await Promise.all([
-    safe(api<Stats>("/stats"), { sellers: 0, products: 0, orders: 0, reviews: 0 }),
-    safe(api<ProductCardProduct[]>("/products/featured"), []),
-    safe(api<Store[]>("/stores?limit=4"), []),
-    safe(api<Category[]>("/categories"), []),
+    getStats(),
+    getFeaturedProducts(8),
+    getFeaturedStores(4),
+    getCategories(),
   ]);
 
   return (

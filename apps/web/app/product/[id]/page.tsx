@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
-import { api } from "@/lib/utils";
+import { getProduct } from "@/lib/server/queries";
 import { AddToCart } from "./AddToCart";
 
 type Product = {
@@ -25,12 +25,10 @@ type Product = {
 export const dynamic = "force-dynamic";
 
 export default async function ProductPage({ params }: { params: { id: string } }) {
-  let product: Product;
-  try {
-    product = await api<Product>(`/products/${params.id}`);
-  } catch {
-    return notFound();
-  }
+  const id = Number(params.id);
+  if (!Number.isFinite(id)) return notFound();
+  const product = (await getProduct(id)) as Product | null;
+  if (!product) return notFound();
 
   const items = product.items.map((it) => ({
     ...it,
