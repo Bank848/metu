@@ -5,6 +5,16 @@ import { Badge } from "./ui/Badge";
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 
+/**
+ * Cards render at ~300×225 on desktop and 200×150 on mobile — request a
+ * smaller Unsplash variant (instead of the gallery's 1200×800) so /browse
+ * doesn't try to decode 30+ MB of pixels into memory at once.
+ */
+function cardImage(url: string): string {
+  if (!url.includes("images.unsplash.com")) return url;
+  return url.replace("w=1200", "w=600").replace("h=800", "h=400");
+}
+
 export type ProductCardProduct = {
   productId: number;
   name: string;
@@ -42,7 +52,7 @@ export function ProductCard({
           <Package className="h-10 w-10" strokeWidth={1.5} />
         </div>
         <Image
-          src={product.image}
+          src={cardImage(product.image)}
           alt={product.name}
           fill
           sizes="(max-width: 768px) 100vw, 25vw"

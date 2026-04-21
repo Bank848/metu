@@ -117,7 +117,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
             required
             minLength={2}
             maxLength={100}
-            placeholder="e.g. Songkran Social Media Kit 2026"
+            placeholder="What's the name of your product?"
             className={`mt-1 ${inputCls}`}
           />
         </label>
@@ -128,7 +128,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
             onChange={(e) => setDescription(e.target.value.slice(0, 255))}
             required
             rows={3}
-            placeholder="A short pitch of what's in the pack."
+            placeholder="Describe what's included and who it's for"
             className={`mt-1 ${inputCls} resize-none`}
           />
           <div className="text-[10px] text-ink-dim text-right mt-1">{description.length} / 255</div>

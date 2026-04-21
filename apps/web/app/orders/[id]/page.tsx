@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
 import { money } from "@/lib/format";
+import { prisma } from "@/lib/server/prisma";
 import { Confetti } from "./Confetti";
+import { ReviewItemButton } from "./ReviewItemButton";
 
 type Order = {
   orderId: number;
@@ -56,6 +58,20 @@ export default async function OrderDetail({
   if (!me) redirect(`/login?next=/orders/${params.id}`);
   const order = await apiAuth<Order>(`/orders/${params.id}`);
   if (!order) return notFound();
+
+  // Which products in this order has the buyer already reviewed?
+  const productIds = Array.from(
+    new Set(order.items.map((i) => i.productItem.product.productId)),
+  );
+  const existing =
+    productIds.length > 0
+      ? await prisma.productReview.findMany({
+          where: { userId: me.user.userId, productId: { in: productIds } },
+          select: { productId: true },
+        })
+      : [];
+  const reviewedSet = new Set(existing.map((r) => r.productId));
+  const canReview = order.status === "paid" || order.status === "fulfilled";
 
   const isNew = Boolean(searchParams.new);
   const subtotal = order.items.reduce(
@@ -173,6 +189,14 @@ export default async function OrderDetail({
                       <div className="text-xs text-ink-dim">
                         Qty {it.quantity} · {money(Number(it.priceAtPurchase))} each
                       </div>
+                      {canReview && (
+                        <div className="mt-2">
+                          <ReviewItemButton
+                            productId={it.productItem.product.productId}
+                            alreadyReviewed={reviewedSet.has(it.productItem.product.productId)}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="text-right font-display text-lg font-bold text-gold-gradient">
                       {money(Number(it.priceAtPurchase) * it.quantity)}

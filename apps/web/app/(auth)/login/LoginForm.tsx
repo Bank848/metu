@@ -23,15 +23,24 @@ export function LoginForm({ next }: { next?: string }) {
     return () => nodes.forEach((n) => n.removeEventListener("click", handler));
   }, []);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    // Read directly from the form so chip-click → submit races never see
+    // stale React state. Falls back to controlled state if refs are missing.
+    const fd = new FormData(e.currentTarget);
+    const submittedEmail = String(fd.get("email") ?? email).trim();
+    const submittedPassword = String(fd.get("password") ?? password);
+    if (!submittedEmail || !submittedPassword) {
+      setError("Please fill in both fields");
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch(`/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: submittedEmail, password: submittedPassword }),
         credentials: "include",
       });
       if (!res.ok) {
@@ -40,11 +49,12 @@ export function LoginForm({ next }: { next?: string }) {
         setBusy(false);
         return;
       }
-      // Drop the spinner immediately — Next.js router.push triggers the navigation,
-      // which itself revalidates the new route. router.refresh() afterwards is a
-      // no-op cost on the same destination.
       setBusy(false);
       router.push(next ?? "/");
+      // Force the destination's server components to re-read the freshly-set
+      // auth cookie — without this, TopNav still renders the logged-out state
+      // until the user manually refreshes.
+      router.refresh();
     } catch {
       setError("Network error");
       setBusy(false);
@@ -55,7 +65,7 @@ export function LoginForm({ next }: { next?: string }) {
     <form
       ref={formRef}
       onSubmit={onSubmit}
-      className="rounded-2xl bg-space-850 border border-line p-6 max-w-md"
+      className="rounded-2xl bg-surface-2 border border-white/8 p-6 max-w-md"
     >
       <label className="block text-sm font-semibold text-white mb-1">Email</label>
       <input
@@ -63,7 +73,7 @@ export function LoginForm({ next }: { next?: string }) {
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="w-full rounded-xl border border-line bg-space-900 px-4 py-2.5 mb-4 text-white placeholder:text-ink-dim focus:border-brand-yellow outline-none"
+        className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-4 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
         required
         autoComplete="email"
       />
@@ -73,7 +83,7 @@ export function LoginForm({ next }: { next?: string }) {
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="w-full rounded-xl border border-line bg-space-900 px-4 py-2.5 mb-2 text-white focus:border-brand-yellow outline-none"
+        className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-2 text-white focus:border-metu-yellow outline-none"
         required
         autoComplete="current-password"
       />
