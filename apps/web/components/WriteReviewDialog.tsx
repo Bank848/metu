@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Star, X } from "lucide-react";
 import { GlassButton } from "./visual/GlassButton";
+import { play } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 type Review = {
@@ -61,12 +62,15 @@ export function WriteReviewDialog({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setErr(data?.error === "Unauthorized" ? "Please log in to write a review" : "Failed to post review");
+        play("error");
         return;
       }
       const data = await res.json();
+      play("review");
       onSubmitted(data.review as Review);
     } catch {
       setErr("Network error");
+      play("error");
     } finally {
       setBusy(false);
     }
