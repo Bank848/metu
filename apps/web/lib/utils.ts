@@ -6,19 +6,20 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Resolve an API path. In development without NEXT_PUBLIC_API_URL set, falls back
- * to the local Express server on :4000 for backward compatibility. In production,
- * all calls go through /api/* handlers in this Next.js app (single-origin).
+ * Resolve the absolute base URL.
+ *  - On the browser: empty string → fetch hits the same origin.
+ *  - On the server: derive from VERCEL_URL (auto-set by Vercel) or env override.
  */
+function baseUrl(): string {
+  if (typeof window !== "undefined") return "";
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
+
 export function apiUrl(path: string): string {
   const withApi = path.startsWith("/api/") ? path : "/api" + (path.startsWith("/") ? path : "/" + path);
-  const external = process.env.NEXT_PUBLIC_API_URL;
-  if (external && process.env.NODE_ENV !== "production") {
-    // Dev override: let users point at an external Express server
-    const legacy = path.startsWith("/api/") ? path.slice(4) : path.startsWith("/") ? path : "/" + path;
-    return `${external}${legacy}`;
-  }
-  return withApi;
+  return `${baseUrl()}${withApi}`;
 }
 
 export async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {

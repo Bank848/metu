@@ -22,7 +22,7 @@ export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessTyp
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/seller/become-seller`, {
+      const res = await fetch(`/api/seller/become-seller`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
