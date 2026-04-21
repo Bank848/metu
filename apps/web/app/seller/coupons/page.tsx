@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
+import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
 
@@ -22,7 +23,11 @@ export default async function SellerCoupons() {
 
   return (
     <>
-      <PageHeader title="Coupons" subtitle={`${coupons.length} coupons · manage promotions and discounts`} />
+      <PageHeader
+        title="Coupons"
+        subtitle={`${coupons.length} coupons · manage promotions and discounts`}
+        action={<GlassButton tone="gold" href="/seller/coupons/new">+ New coupon</GlassButton>}
+      />
 
       <div className="rounded-2xl border border-line bg-space-850 overflow-hidden">
         <table className="w-full">

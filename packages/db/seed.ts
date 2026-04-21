@@ -41,7 +41,7 @@ const IMAGE_POOLS: Record<string, string[]> = {
     "1517059224940-d4af9eec41b7", // typography poster
     "1505682499293-233fb141754c", // handwriting
     "1471107340929-a87cd0f5b5f3", // wood-block type
-    "1561637246-3ddbb95f8e0b", // letterpress
+    "1607706189992-eae578626c86", // letterpress (replaced 404)
   ],
   Illustrations: [
     "1513364776144-60967b0f800f", // paint brushes

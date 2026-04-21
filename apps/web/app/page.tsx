@@ -200,15 +200,19 @@ function CategoryTiles({ categories }: { categories: Category[] }) {
           <Link
             key={c.categoryId}
             href={`/browse?category=${c.categoryId}`}
-            className={`relative overflow-hidden rounded-2xl p-5 font-display font-semibold transition-all hover:-translate-y-0.5 ${
+            className={`group relative overflow-hidden rounded-2xl p-5 font-display font-semibold cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-pop hover:border-metu-yellow/60 hover:bg-white/[0.05] ${
               i % 3 === 0
-                ? "glass-morphism text-metu-yellow border-metu-yellow/25 hover:border-metu-yellow/50"
+                ? "glass-morphism text-metu-yellow border-metu-yellow/25"
                 : "glass-morphism text-white"
             }`}
           >
             <div className="text-[10px] uppercase tracking-wider opacity-60">Category</div>
             <div className="mt-1 text-lg">{c.categoryName}</div>
-            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-metu-yellow/40 to-transparent" />
+            {/* visible explore affordance on hover */}
+            <div className="mt-3 text-xs font-normal text-ink-dim opacity-0 group-hover:opacity-100 group-hover:text-metu-yellow transition-all">
+              Explore →
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-metu-yellow/40 to-transparent group-hover:via-metu-yellow group-hover:h-[2px] transition-all" />
           </Link>
         ))}
       </div>

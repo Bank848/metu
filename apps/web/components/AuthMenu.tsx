@@ -11,6 +11,7 @@ import {
   LogOut,
   LogIn,
   ChevronDown,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -127,6 +128,9 @@ export function AuthMenu({
           </MenuItem>
           <MenuItem href="/orders" icon={Package} onClose={() => setOpen(false)}>
             My orders
+          </MenuItem>
+          <MenuItem href="/my-reviews" icon={Star} onClose={() => setOpen(false)}>
+            My reviews
           </MenuItem>
           {(role === "seller" || hasStore) && (
             <MenuItem href="/seller" icon={StoreIcon} onClose={() => setOpen(false)}>
