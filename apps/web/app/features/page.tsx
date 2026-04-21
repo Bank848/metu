@@ -398,6 +398,16 @@ export default function FeaturesPage() {
             <GlassButton tone="glass" href="/admin">Admin panel</GlassButton>
           </div>
         </section>
+
+        {/* Perf note — sets expectations for the first-request slowness
+            caused by Neon's serverless compute cold-starting. */}
+        <p className="mt-8 text-center text-xs text-ink-dim max-w-2xl mx-auto">
+          First request after an idle period may take a second or two — Neon
+          (our managed Postgres) scales compute to zero to save resources
+          and needs a moment to wake. A Vercel cron hits{" "}
+          <code className="font-mono text-ink-secondary">/api/health</code>{" "}
+          every few minutes during demo hours to keep it warm.
+        </p>
       </main>
       <Footer />
     </>
