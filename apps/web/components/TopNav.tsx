@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Star,
+  Heart,
   ShoppingBag,
   Store,
   LayoutGrid,
@@ -53,6 +54,14 @@ export async function TopNav({ q }: { q?: string } = {}) {
             className="flex h-10 w-10 items-center justify-center rounded-full text-ink-secondary hover:text-metu-yellow hover:bg-white/5 transition"
           >
             <Star className="h-5 w-5" />
+          </Link>
+          <Link
+            href={me ? "/favorites" : "/login?next=/favorites"}
+            aria-label="Favourites"
+            title="Favourites"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-ink-secondary hover:text-metu-red hover:bg-white/5 transition"
+          >
+            <Heart className="h-5 w-5" />
           </Link>
           <Link
             href="/cart"

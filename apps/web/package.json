@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "node scripts/build.mjs",
     "start": "next start -p 3000",
     "lint": "next lint",
     "postinstall": "prisma generate --schema=../../packages/db/prisma/schema.prisma"
