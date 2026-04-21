@@ -2,10 +2,9 @@ import { redirect } from "next/navigation";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
-import { apiAuth, getMe } from "@/lib/session";
+import { getMe } from "@/lib/session";
+import { getBusinessTypes } from "@/lib/server/queries";
 import { BecomeSellerForm } from "./BecomeSellerForm";
-
-type BusinessType = { typeId: number; name: string; description: string };
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +13,7 @@ export default async function BecomeSellerPage() {
   if (!me) redirect("/login?next=/become-seller");
   if (me.user?.store) redirect("/seller");
 
-  const businessTypes = (await apiAuth<BusinessType[]>("/business-types")) ?? [];
+  const businessTypes = await getBusinessTypes();
 
   return (
     <>
