@@ -33,14 +33,15 @@ export const dynamic = "force-dynamic";
 export default async function ProductPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   if (!Number.isFinite(id)) return notFound();
-  const [product, me] = await Promise.all([
+  // Resolve the session first (cheap cookie decode) so both remaining DB
+  // reads can fan out in the same Promise.all — eliminates the serial
+  // getFavoriteSet await that was adding one extra Neon roundtrip.
+  const me = await getMe();
+  const [product, favSet] = await Promise.all([
     getProduct(id) as Promise<Product | null>,
-    getMe(),
+    getFavoriteSet(me?.user.userId),
   ]);
   if (!product) return notFound();
-
-  // Drives the heart's initial state on the title row.
-  const favSet = await getFavoriteSet(me?.user.userId);
   const isFavorited = favSet.has(product.productId);
 
   const items = product.items.map((it) => ({

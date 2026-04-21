@@ -7,20 +7,32 @@
 // serving requests. Locally — where DATABASE_URL may not be configured for
 // the web workspace — we silently skip the migrate step so type-checking /
 // `next build` still succeeds.
+//
+// Neon specifics: migrations must run against the *direct* (non-pooled)
+// endpoint because pgbouncer on the pooled endpoint strips features Prisma
+// Migrate needs (advisory locks, prepared statements). We prefer
+// `DATABASE_URL_UNPOOLED` when present and fall back to `DATABASE_URL`.
 import { execSync } from "node:child_process";
 
-const hasDb = Boolean(process.env.DATABASE_URL);
+const migrateUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+const hasDb = Boolean(migrateUrl);
 
 if (hasDb) {
   try {
     execSync(
       "prisma migrate deploy --schema=../../packages/db/prisma/schema.prisma",
-      { stdio: "inherit" },
+      {
+        stdio: "inherit",
+        // Point Prisma at the direct URL for migrations only. Runtime
+        // traffic still uses the regular DATABASE_URL (pooled) via
+        // lib/server/prisma.ts.
+        env: { ...process.env, DATABASE_URL: migrateUrl },
+      },
     );
   } catch (err) {
     console.warn(
       "[build] prisma migrate deploy failed — continuing to next build. " +
-        "Verify DATABASE_URL is correct and the migration file is well-formed.",
+        "Verify DATABASE_URL(_UNPOOLED) is correct and the migration file is well-formed.",
     );
     // Don't throw — pre-existing builds shouldn't break if a migration is
     // malformed; we'd rather see the type-check error from `next build`.

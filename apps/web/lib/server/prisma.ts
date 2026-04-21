@@ -11,6 +11,9 @@ export const prisma: PrismaClient =
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__metuPrisma = prisma;
-}
+// Stash the client on globalThis in every environment (not just dev). On
+// Vercel each cold lambda is isolated, but several modules import this
+// file within a single invocation; caching on globalThis avoids spinning
+// up a second PrismaClient per invocation and the extra connection it
+// would open against Neon.
+globalThis.__metuPrisma = prisma;
