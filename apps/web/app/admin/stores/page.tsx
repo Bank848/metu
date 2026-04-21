@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
+import { StoreActions } from "@/components/admin/StoreActions";
 import { apiAuth } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
 
@@ -49,6 +50,9 @@ export default async function AdminStores() {
                 <Kpi label="Products" value={s._count.products} />
                 <Kpi label="Rating" value={s.stats ? (s.stats.rating / 10).toFixed(1) + "★" : "—"} />
                 <Kpi label="CTR" value={s.stats ? (s.stats.ctr / 100).toFixed(1) + "%" : "—"} />
+              </div>
+              <div className="mt-4 pt-4 border-t border-line flex items-center justify-end">
+                <StoreActions storeId={s.storeId} name={s.name} />
               </div>
             </div>
           </div>

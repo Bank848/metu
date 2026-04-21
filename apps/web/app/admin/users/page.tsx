@@ -1,7 +1,8 @@
 import Image from "next/image";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
-import { apiAuth } from "@/lib/session";
+import { UserRowActions } from "@/components/admin/UserRowActions";
+import { apiAuth, getMe } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
 
 type UsersResp = {
@@ -29,7 +30,11 @@ export default async function AdminUsers({ searchParams }: { searchParams: { q?:
   if (searchParams.q) qs.set("q", searchParams.q);
   if (searchParams.role) qs.set("role", searchParams.role);
   if (searchParams.page) qs.set("page", searchParams.page);
-  const data = (await apiAuth<UsersResp>(`/admin/users?${qs.toString()}`)) ?? { items: [], total: 0, page: 1, totalPages: 1 };
+  const [data, me] = await Promise.all([
+    apiAuth<UsersResp>(`/admin/users?${qs.toString()}`).then((d) => d ?? { items: [], total: 0, page: 1, totalPages: 1 }),
+    getMe(),
+  ]);
+  const myUserId = me?.user?.userId as number | undefined;
 
   return (
     <>
@@ -61,6 +66,7 @@ export default async function AdminUsers({ searchParams }: { searchParams: { q?:
               <th className="text-left px-5 py-3">Role</th>
               <th className="text-left px-5 py-3">Store</th>
               <th className="text-left px-5 py-3">Joined</th>
+              <th className="text-right px-5 py-3">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -86,6 +92,14 @@ export default async function AdminUsers({ searchParams }: { searchParams: { q?:
                 </td>
                 <td className="px-5 py-3 text-sm text-ink-secondary">{u.store?.name ?? "—"}</td>
                 <td className="px-5 py-3 text-xs text-ink-dim">{new Date(u.createdDate).toLocaleDateString()}</td>
+                <td className="px-5 py-3">
+                  <UserRowActions
+                    userId={u.userId}
+                    currentRole={u.stats?.role ?? "buyer"}
+                    username={u.username}
+                    isSelf={u.userId === myUserId}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
