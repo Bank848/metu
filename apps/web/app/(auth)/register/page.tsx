@@ -6,6 +6,10 @@ import { RegisterForm } from "./RegisterForm";
 
 export const metadata = { title: "Sign up — METU" };
 
+// The page hits Prisma at request time to populate the country dropdown,
+// so it can't be statically prerendered (no DATABASE_URL during build).
+export const dynamic = "force-dynamic";
+
 export default async function RegisterPage() {
   // Country list is reference data; load it once at request time.
   const countries = await prisma.country.findMany({

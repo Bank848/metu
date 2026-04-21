@@ -12,8 +12,12 @@ const nextConfig = {
   // we COPY that from the builder stage.
   output: "standalone",
   // Monorepo hint: include files from the repo root so workspace packages
-  // (`@metu/shared`, `@metu/db`) land in the standalone bundle.
-  outputFileTracingRoot: path.join(__dirname, "../../"),
+  // (`@metu/shared`, `@metu/db`) land in the standalone bundle. In
+  // Next 14.x this option lives under `experimental.` (it's promoted to
+  // a top-level key starting Next 15).
+  experimental: {
+    outputFileTracingRoot: path.join(__dirname, "../../"),
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
