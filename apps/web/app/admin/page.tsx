@@ -3,6 +3,7 @@ import { Users, Store, Package, ShoppingBag, DollarSign, Clock } from "lucide-re
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
+import { RevenueChart } from "@/components/admin/RevenueChart";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -17,6 +18,7 @@ type Stats = {
     date: string;
     user: { username: string; firstName: string; lastName: string; profileImage: string | null };
   }>;
+  daily: Array<{ day: string; revenue: number; orderCount: number }>;
 };
 
 export const dynamic = "force-dynamic";
@@ -32,7 +34,7 @@ export default async function AdminOverview() {
         subtitle="A bird's-eye view of activity across the platform."
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard icon={DollarSign} label="GMV (paid)" value={money(stats.gmv)} accent="yellow" />
         <StatCard icon={Users} label="Users" value={stats.users} />
         <StatCard icon={Store} label="Stores" value={stats.stores} />
@@ -41,11 +43,16 @@ export default async function AdminOverview() {
         <StatCard icon={Clock} label="Pending orders" value={stats.pendingOrders} />
       </div>
 
+      <div className="mb-6">
+        <RevenueChart data={stats.daily} />
+      </div>
+
       <section className="rounded-2xl border border-line bg-space-850">
-        <div className="px-6 py-4 border-b border-line">
+        <div className="px-6 py-4 border-b border-line flex items-center justify-between">
           <h2 className="font-display font-bold text-white">Recent transactions</h2>
+          <span className="text-xs text-ink-dim font-mono">{stats.recentTransactions.length} most recent</span>
         </div>
-        <ul className="divide-y divide-line">
+        <ul className="divide-y divide-line max-h-[640px] overflow-y-auto">
           {stats.recentTransactions.map((tx) => (
             <li key={tx.transactionId} className="px-6 py-4 flex items-center gap-4">
               <div className="relative h-9 w-9 rounded-full bg-brand-yellow overflow-hidden shrink-0">
