@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>METU — ER Diagram Review · CPE241 G.8</title>
+  <meta name="description" content="Review of the crow's-foot ER diagram: bugs, missing constraints, and corrections applied in the actual Prisma schema." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            metu:    { yellow: '#FFCC00', yellowDim: '#ECB200', gold: '#B26800', goldDeep: '#3D2B00', red: '#FF2C2C' },
+            surface: { 1: '#0E0E0E', 2: '#1A1919', 3: '#201F1F', 4: '#262626' },
+            ink:     { primary: '#FAFAFA', secondary: 'rgba(255,255,255,0.72)', dim: 'rgba(255,255,255,0.48)' },
+          },
+          fontFamily: {
+            display: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            body:    ['"Manrope"', 'system-ui', 'sans-serif'],
+            mono:    ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body { font-family: 'Manrope', system-ui, sans-serif; background: #0E0E0E; color: #FAFAFA; }
+    .font-display { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .font-mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+    .glass        { background: rgba(26,25,25,0.55); backdrop-filter: blur(14px) saturate(135%); border: 1px solid rgba(255,255,255,0.06); }
+    .glass-strong { background: rgba(14,14,14,0.75); backdrop-filter: blur(20px) saturate(140%); border: 1px solid rgba(255,255,255,0.08); }
+
+    .text-gold-gradient {
+      background: linear-gradient(180deg, #FFCC00 0%, #B26800 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+    }
+
+    .hero-radial { background: linear-gradient(109.38deg, #161616 8.65%, #4a3a14 79.46%); }
+
+    .stars {
+      background-image:
+        radial-gradient(1.2px 1.2px at 12% 18%, rgba(255,255,255,0.5) 0, transparent 50%),
+        radial-gradient(1px 1px at 64% 38%, rgba(255,255,255,0.4) 0, transparent 50%),
+        radial-gradient(1.4px 1.4px at 33% 72%, rgba(255,255,255,0.55) 0, transparent 50%),
+        radial-gradient(1px 1px at 88% 84%, rgba(255,255,255,0.35) 0, transparent 50%),
+        radial-gradient(1.2px 1.2px at 52% 12%, rgba(255,255,255,0.45) 0, transparent 50%);
+    }
+
+    .gold-rule { height: 1px; background: linear-gradient(to right, transparent, rgba(255,204,0,0.5), transparent); }
+
+    /* Severity pills */
+    .sev-red    { background: rgba(255,44,44,0.12);   color: #ff8a8a; border: 1px solid rgba(255,44,44,0.35); }
+    .sev-orange { background: rgba(255,150,30,0.12);  color: #ffbb77; border: 1px solid rgba(255,150,30,0.35); }
+    .sev-yellow { background: rgba(255,204,0,0.12);   color: #ffd84d; border: 1px solid rgba(255,204,0,0.35); }
+    .sev-green  { background: rgba(46,213,115,0.12);  color: #7dd89e; border: 1px solid rgba(46,213,115,0.35); }
+    .sev-blue   { background: rgba(100,170,255,0.12); color: #96c2ff; border: 1px solid rgba(100,170,255,0.35); }
+    .sev-purple { background: rgba(180,120,255,0.12); color: #c9a7ff; border: 1px solid rgba(180,120,255,0.35); }
+
+    /* Tables */
+    table.er-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table.er-table th, table.er-table td { text-align: left; padding: 0.7rem 0.9rem; vertical-align: top; }
+    table.er-table thead th {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      border-bottom: 1px solid rgba(255,204,0,0.25);
+    }
+    table.er-table tbody tr { border-bottom: 1px solid rgba(255,255,255,0.06); }
+    table.er-table tbody tr:last-child { border-bottom: none; }
+    table.er-table code {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+      background: rgba(255,204,0,0.08); color: #ffd84d;
+      padding: 0.1rem 0.35rem; border-radius: 4px;
+    }
+    table.er-table .arrow { color: rgba(255,204,0,0.6); margin: 0 0.35rem; }
+
+    ::selection { background: #FFCC00; color: #0E0E0E; }
+
+    /* Print: letter-sized, keep each section on its page */
+    @media print {
+      body { background: white !important; color: #111 !important; }
+      .no-print { display: none !important; }
+      .glass, .glass-strong {
+        background: #fafafa !important; border-color: #ddd !important; backdrop-filter: none !important;
+      }
+      .text-gold-gradient, .text-light-sweep { color: #b26800 !important; -webkit-text-fill-color: initial !important; background: none !important; }
+      section { page-break-inside: avoid; }
+      table.er-table code { background: #fff3cc !important; color: #8a5b00 !important; }
+      .hero-radial { background: linear-gradient(100deg, #f7eecc, white) !important; }
+      .stars { display: none !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ─────────────── HERO ─────────────── -->
+<section class="relative overflow-hidden hero-radial">
+  <div aria-hidden class="absolute inset-0 stars opacity-90"></div>
+
+  <div class="relative max-w-[1200px] mx-auto px-6 md:px-10 pt-14 pb-16">
+    <div class="flex items-center justify-between no-print">
+      <div class="font-display text-2xl font-extrabold">METU</div>
+      <div class="flex items-center gap-3 text-xs">
+        <a href="https://metu-web-phi.vercel.app/" target="_blank" rel="noopener"
+           class="rounded-full bg-metu-yellow text-surface-1 font-bold px-4 py-2 hover:brightness-110">Open live demo →</a>
+        <a href="https://github.com/Bank848/metu" target="_blank" rel="noopener"
+           class="rounded-full glass px-4 py-2 text-white hover:bg-white/10">GitHub repo</a>
+      </div>
+    </div>
+
+    <div class="mt-10 max-w-3xl">
+      <span class="inline-block rounded-full bg-metu-yellow/20 text-metu-yellow border border-metu-yellow/30 px-3 py-1 text-xs font-bold tracking-wider">
+        CPE241 · KMUTT · Group 8 · ER Review
+      </span>
+      <h1 class="font-display text-4xl md:text-6xl font-black leading-[1.0] mt-5">
+        <span class="block text-white">ER DIAGRAM</span>
+        <span class="block text-gold-gradient">REVIEW &amp; FIXES</span>
+      </h1>
+      <p class="mt-5 text-base md:text-lg text-ink-secondary leading-relaxed">
+        เทียบ crow's-foot diagram (v1) กับ Prisma schema จริง แล้วจด bugs, missing constraints, และการแก้ไขที่ใช้จริงใน production.
+        ใช้เป็นเอกสารประกอบตอน defend โปรเจกต์กับอาจารย์ได้เลย.
+      </p>
+
+      <div class="mt-6 flex flex-wrap gap-2 text-[11px] font-mono">
+        <span class="rounded-full sev-red px-3 py-1">4 bugs ผิดชัด</span>
+        <span class="rounded-full sev-orange px-3 py-1">4 PK/Cardinality</span>
+        <span class="rounded-full sev-yellow px-3 py-1">5 UNIQUE หาย</span>
+        <span class="rounded-full sev-green px-3 py-1">1 entity หาย</span>
+        <span class="rounded-full sev-blue px-3 py-1">3 timestamps หาย</span>
+        <span class="rounded-full sev-purple px-3 py-1">3 nullable FK</span>
+      </div>
+    </div>
+  </div>
+  <div class="gold-rule"></div>
+</section>
+
+<!-- ─────────────── BUGS ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-red font-bold">1</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Bugs ใน diagram ที่ผิดชัด</h2>
+      <p class="text-sm text-ink-secondary mt-1">ผิดกฎของ ER / ประเภทข้อมูล / สะกดผิด — ต้องแก้ก่อนนำเสนอ.</p>
+    </div>
+  </div>
+
+  <div class="rounded-2xl glass p-2">
+    <table class="er-table">
+      <thead>
+        <tr>
+          <th style="width: 18%;">Entity.Field</th>
+          <th style="width: 42%;">ปัญหา</th>
+          <th style="width: 40%;">แก้เป็น</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>USER_STATS.buyer_level</code><br/><code>USER_STATS.seller_level</code></td>
+          <td>มาร์ค <strong>FK</strong> ทั้งคู่ แต่เป็นเลขเลเวลเฉย ๆ — ไม่ได้อ้างอิงตารางไหน</td>
+          <td>เอา FK ออก ให้เป็น <code>int</code> ธรรมดา (default 1 / 0)</td>
+        </tr>
+        <tr>
+          <td><code>TRANSACTION.transaction_type</code></td>
+          <td>มาร์ค <strong>FK</strong> แต่ไม่มีตาราง <code>TRANSACTION_TYPE</code> อยู่จริง</td>
+          <td>เปลี่ยนเป็น <code>Enum {purchase, payout, refund}</code></td>
+        </tr>
+        <tr>
+          <td><code>COUPON_USAGE.user_id</code></td>
+          <td>type <code>string</code> — ไม่ match <code>USER.user_id (int)</code> → JOIN ไม่ได้</td>
+          <td>เปลี่ยนเป็น <code>int</code></td>
+        </tr>
+        <tr>
+          <td><code>PRODUCT_ITEM.quntity</code></td>
+          <td>สะกดผิด</td>
+          <td><code>quantity</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────── CARDINALITY ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-orange font-bold">2</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Cardinality / PK ที่ไม่ถูกหลัก</h2>
+      <p class="text-sm text-ink-secondary mt-1">PK เลือกผิด หรือไม่สะท้อนความสัมพันธ์ที่ต้องการ.</p>
+    </div>
+  </div>
+
+  <div class="rounded-2xl glass p-2">
+    <table class="er-table">
+      <thead>
+        <tr>
+          <th style="width: 22%;">Entity</th>
+          <th style="width: 40%;">ปัญหา</th>
+          <th style="width: 38%;">วิธีแก้</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>PRODUCT_IMAGE</code></td>
+          <td>ใช้ <code>product_id</code> เป็น PK → สินค้า 1 ชิ้นมีรูปได้แค่ใบเดียว (demo ต้องการ 3-5 ใบ)</td>
+          <td>เพิ่ม surrogate PK <code>product_image_id</code> + field <code>sort_order int</code> เพื่อจัดเรียงรูป</td>
+        </tr>
+        <tr>
+          <td><code>STORE_STATS</code></td>
+          <td>มี <code>stat_id</code> PK แยก — อาจเกิด stats หลายแถวต่อ store</td>
+          <td>ทำ <code>UNIQUE(store_id)</code> หรือใช้ <code>store_id</code> เป็น PK ตรง ๆ (1:1 กับ STORE)</td>
+        </tr>
+        <tr>
+          <td><code>STORE.owner_id</code></td>
+          <td>ไม่มี UNIQUE → user 1 คนเปิดได้หลายร้าน (ขัด business rule)</td>
+          <td>ใส่ <code>UNIQUE(owner_id)</code></td>
+        </tr>
+        <tr>
+          <td><code>ORDER.cart_id</code></td>
+          <td>ไม่มี UNIQUE → cart 1 ใบอาจกลายเป็น order หลายใบ</td>
+          <td>ใส่ <code>UNIQUE(cart_id)</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────── UNIQUE ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-yellow font-bold">3</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Missing UNIQUE constraints</h2>
+      <p class="text-sm text-ink-secondary mt-1">ข้อจำกัดที่ต้องเขียนใน diagram เพื่อกันข้อมูลซ้ำ.</p>
+    </div>
+  </div>
+
+  <div class="rounded-2xl glass p-2">
+    <table class="er-table">
+      <thead>
+        <tr>
+          <th style="width: 22%;">Entity</th>
+          <th style="width: 32%;">Columns</th>
+          <th style="width: 46%;">เหตุผล</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>USER</code></td>
+          <td><code>username</code> · <code>email</code></td>
+          <td>log-in ซ้ำไม่ได้</td>
+        </tr>
+        <tr>
+          <td><code>PRODUCT_REVIEW</code></td>
+          <td><code>(product_id, user_id)</code></td>
+          <td>รีวิวสินค้าเดียวกันได้แค่ครั้งเดียวต่อคน</td>
+        </tr>
+        <tr>
+          <td><code>PRODUCT_N_TAG</code></td>
+          <td><code>(product_id, tag_id)</code></td>
+          <td>tag ซ้ำบนสินค้าเดียวกันไม่ได้</td>
+        </tr>
+        <tr>
+          <td><code>COUPON</code></td>
+          <td><code>(store_id, code)</code></td>
+          <td>code ซ้ำในร้านเดียวกันไม่ได้ (ต่างร้านซ้ำได้)</td>
+        </tr>
+        <tr>
+          <td><code>PRODUCT_TAG</code></td>
+          <td><code>tag_name</code></td>
+          <td>ชื่อ tag ซ้ำไม่ได้ใน catalogue</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────── MISSING ENTITY ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-green font-bold">4</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Entity ที่หายไป — <code>CART_ITEM</code></h2>
+      <p class="text-sm text-ink-secondary mt-1">Diagram v1 เชื่อม CART ↔ ORDER ตรง ๆ แต่ขาดตารางเก็บของในตะกร้า "ก่อน" checkout.</p>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-5">
+    <div class="rounded-2xl glass p-6">
+      <div class="text-xs font-mono text-metu-yellow/80 uppercase tracking-wider mb-2">เพิ่มตาราง</div>
+      <div class="font-display font-bold text-xl mb-3">CART_ITEM</div>
+      <pre class="text-xs font-mono text-ink-secondary bg-surface-2 rounded-xl p-4 overflow-x-auto leading-relaxed">CART_ITEM
+├─ cart_item_id      PK  int
+├─ cart_id           FK  → CART
+├─ product_item_id   FK  → PRODUCT_ITEM
+├─ quantity              int
+└─ created_at            timestamp
+
+UNIQUE (cart_id, product_item_id)</pre>
+    </div>
+    <div class="rounded-2xl glass p-6">
+      <div class="text-xs font-mono text-metu-yellow/80 uppercase tracking-wider mb-2">Relationship ใหม่</div>
+      <div class="font-display font-bold text-xl mb-3">CART ↔ CART_ITEM ↔ PRODUCT_ITEM</div>
+      <ul class="text-sm text-ink-secondary space-y-2 leading-relaxed">
+        <li>• <code>CART</code> <span class="arrow">—crow's-foot—</span> <code>CART_ITEM</code> (1:N)</li>
+        <li>• <code>CART_ITEM</code> <span class="arrow">—crow's-foot—</span> <code>PRODUCT_ITEM</code> (N:1)</li>
+        <li>• ทำให้ตะกร้าหนึ่งใบเก็บหลายรายการได้ (ไม่งั้นต้องสร้าง cart ใหม่ทุกครั้งที่เพิ่มของ)</li>
+        <li>• ตอน checkout: <code>CART.status → checked_out</code>, สร้าง <code>ORDER</code> + copy cart_items → <code>ORDER_ITEM</code></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── COLUMNS ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-blue font-bold">5</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Columns ที่ขาด</h2>
+      <p class="text-sm text-ink-secondary mt-1">Timestamps สำหรับ sort / audit และ type ที่ต้อง correct.</p>
+    </div>
+  </div>
+
+  <div class="rounded-2xl glass p-2">
+    <table class="er-table">
+      <thead>
+        <tr>
+          <th style="width: 22%;">Entity</th>
+          <th style="width: 34%;">ต้องเพิ่ม / แก้</th>
+          <th style="width: 44%;">เหตุผล</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>PRODUCT</code></td>
+          <td>+ <code>created_at</code> timestamp<br/>+ <code>updated_at</code> timestamp</td>
+          <td>sort by "newest", audit trail, ดูว่าใครแก้ล่าสุดเมื่อไหร่</td>
+        </tr>
+        <tr>
+          <td><code>PRODUCT_REVIEW</code></td>
+          <td>+ <code>created_at</code> timestamp</td>
+          <td>แสดง "รีวิว 2 วันที่แล้ว", sort ตามล่าสุด</td>
+        </tr>
+        <tr>
+          <td><code>CART.session_id</code></td>
+          <td>type <code>int</code> → <code>varchar</code> (หรือลบทิ้ง)</td>
+          <td>session token เป็น string ไม่ใช่ int</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────── NULLABLE FK ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-purple font-bold">6</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Nullable FK ที่ไม่ได้มาร์ค</h2>
+      <p class="text-sm text-ink-secondary mt-1">ใน crow's-foot ต้อง <strong>วงกลมกลวง ◯</strong> ฝั่ง FK เพื่อบอกว่าเป็น NULL-able.</p>
+    </div>
+  </div>
+
+  <div class="rounded-2xl glass p-2">
+    <table class="er-table">
+      <thead>
+        <tr>
+          <th style="width: 28%;">FK</th>
+          <th style="width: 72%;">ทำไมต้อง nullable</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>ORDER.transaction_id</code></td>
+          <td>Order ที่ <code>status=pending</code> ยังไม่มี transaction (ยังไม่จ่าย)</td>
+        </tr>
+        <tr>
+          <td><code>ORDER_ITEM.coupon_id</code></td>
+          <td>ไม่ใช่ทุก line ใช้ coupon</td>
+        </tr>
+        <tr>
+          <td><code>USER.country_id</code></td>
+          <td>user อาจไม่ระบุประเทศตอนสมัคร</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────── ENUMS ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-yellow font-bold">7</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Enum values — ต้องเขียนข้าง diagram</h2>
+      <p class="text-sm text-ink-secondary mt-1">ฟิลด์ที่มาร์คว่า Enum ต้องบอกค่าที่เป็นไปได้ ไม่งั้น reader เดาไม่ถูก.</p>
+    </div>
+  </div>
+
+  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="rounded-2xl glass p-5">
+      <div class="font-display font-bold text-white mb-2">Gender</div>
+      <div class="font-mono text-sm text-ink-secondary">male · female · other</div>
+    </div>
+    <div class="rounded-2xl glass p-5">
+      <div class="font-display font-bold text-white mb-2">UserRole</div>
+      <div class="font-mono text-sm text-ink-secondary">buyer · seller · admin</div>
+    </div>
+    <div class="rounded-2xl glass p-5">
+      <div class="font-display font-bold text-white mb-2">CartStatus</div>
+      <div class="font-mono text-sm text-ink-secondary">active · checked_out · expired</div>
+    </div>
+    <div class="rounded-2xl glass p-5">
+      <div class="font-display font-bold text-white mb-2">OrderStatus</div>
+      <div class="font-mono text-sm text-ink-secondary">pending · paid · fulfilled · cancelled · refunded</div>
+    </div>
+    <div class="rounded-2xl glass p-5">
+      <div class="font-display font-bold text-white mb-2">TransactionType</div>
+      <div class="font-mono text-sm text-ink-secondary">purchase · payout · refund</div>
+    </div>
+    <div class="rounded-2xl glass p-5">
+      <div class="font-display font-bold text-white mb-2">DeliveryMethod</div>
+      <div class="font-mono text-sm text-ink-secondary">download · email · license_key · streaming</div>
+    </div>
+    <div class="rounded-2xl glass p-5">
+      <div class="font-display font-bold text-white mb-2">DiscountType</div>
+      <div class="font-mono text-sm text-ink-secondary">percent · fixed</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── CASCADE ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-red font-bold">8</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Cascade rules — ต้องเขียนไว้ในหมายเหตุ</h2>
+      <p class="text-sm text-ink-secondary mt-1">ลบ parent แล้ว children ต้องถูกลบตาม (ON DELETE CASCADE).</p>
+    </div>
+  </div>
+
+  <div class="rounded-2xl glass p-2">
+    <table class="er-table">
+      <thead>
+        <tr>
+          <th style="width: 20%;">ลบ parent</th>
+          <th style="width: 80%;">cascades → children</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>USER</code></td>
+          <td><code>USER_STATS</code> · <code>STORE</code> · <code>CART</code> · <code>TRANSACTION</code> · <code>PRODUCT_REVIEW</code> · <code>COUPON_USAGE</code></td>
+        </tr>
+        <tr>
+          <td><code>STORE</code></td>
+          <td><code>PRODUCT</code> · <code>COUPON</code> · <code>STORE_STATS</code></td>
+        </tr>
+        <tr>
+          <td><code>PRODUCT</code></td>
+          <td><code>PRODUCT_ITEM</code> · <code>PRODUCT_IMAGE</code> · <code>PRODUCT_REVIEW</code> · <code>PRODUCT_N_TAG</code></td>
+        </tr>
+        <tr>
+          <td><code>CART</code></td>
+          <td><code>CART_ITEM</code> · <code>ORDER</code></td>
+        </tr>
+        <tr>
+          <td><code>ORDER</code></td>
+          <td><code>ORDER_ITEM</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─────────────── CHECKLIST ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="gold-rule mb-12"></div>
+  <div class="flex items-center gap-3 mb-6">
+    <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-green font-bold">✓</span>
+    <div>
+      <h2 class="font-display text-2xl md:text-3xl font-extrabold">Checklist — ลำดับการแก้</h2>
+      <p class="text-sm text-ink-secondary mt-1">ทำตามนี้แล้ว diagram จะตรงกับ schema จริงใน Prisma.</p>
+    </div>
+  </div>
+
+  <ol class="space-y-3 text-sm md:text-base">
+    <li class="rounded-xl glass p-4 flex gap-3">
+      <span class="font-mono text-metu-yellow font-bold">1.</span>
+      <span>แก้ bugs 4 ข้อในตาราง <strong>Bugs</strong> (เอา FK ผิดออก, แก้ type, แก้ typo <code>quntity</code>)</span>
+    </li>
+    <li class="rounded-xl glass p-4 flex gap-3">
+      <span class="font-mono text-metu-yellow font-bold">2.</span>
+      <span>แก้ <code>PRODUCT_IMAGE</code> ให้มี surrogate PK <code>product_image_id</code> + <code>sort_order</code></span>
+    </li>
+    <li class="rounded-xl glass p-4 flex gap-3">
+      <span class="font-mono text-metu-yellow font-bold">3.</span>
+      <span>เพิ่มตาราง <code>CART_ITEM</code> + โยง <code>CART → CART_ITEM → PRODUCT_ITEM</code></span>
+    </li>
+    <li class="rounded-xl glass p-4 flex gap-3">
+      <span class="font-mono text-metu-yellow font-bold">4.</span>
+      <span>ใส่ <code>UNIQUE</code> บน <code>username</code>, <code>email</code>, <code>owner_id</code>, <code>cart_id</code>, <code>(product_id, user_id)</code>, <code>(product_id, tag_id)</code>, <code>(store_id, code)</code></span>
+    </li>
+    <li class="rounded-xl glass p-4 flex gap-3">
+      <span class="font-mono text-metu-yellow font-bold">5.</span>
+      <span>มาร์ค nullable ◯ บน 3 FK: <code>transaction_id</code>, <code>coupon_id</code>, <code>country_id</code></span>
+    </li>
+    <li class="rounded-xl glass p-4 flex gap-3">
+      <span class="font-mono text-metu-yellow font-bold">6.</span>
+      <span>เพิ่ม timestamps บน <code>PRODUCT</code> (created_at, updated_at) และ <code>PRODUCT_REVIEW</code> (created_at)</span>
+    </li>
+    <li class="rounded-xl glass p-4 flex gap-3">
+      <span class="font-mono text-metu-yellow font-bold">7.</span>
+      <span>เพิ่ม box ข้าง diagram เขียน <strong>Enum values</strong> ของทั้ง 7 enum ให้ครบ</span>
+    </li>
+    <li class="rounded-xl glass p-4 flex gap-3">
+      <span class="font-mono text-metu-yellow font-bold">8.</span>
+      <span>เขียน <strong>Cascade rules</strong> ในหมายเหตุใต้ diagram</span>
+    </li>
+  </ol>
+</section>
+
+<!-- ─────────────── ALREADY FIXED ─────────────── -->
+<section class="max-w-[1200px] mx-auto px-6 md:px-10 py-12">
+  <div class="rounded-2xl glass-strong p-8 border-metu-yellow/20">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="inline-flex items-center justify-center h-9 w-9 rounded-full sev-green font-bold">✓</span>
+      <h2 class="font-display text-2xl font-extrabold text-white">สถานะใน code จริง</h2>
+    </div>
+    <p class="text-sm md:text-base text-ink-secondary leading-relaxed">
+      ทั้งหมดข้างบนนี้ <strong class="text-metu-yellow">แก้เรียบร้อยแล้วใน Prisma schema</strong>
+      (<code>packages/db/prisma/schema.prisma</code>).
+      ไฟล์ที่ยังไม่ได้ sync คือ <strong>ตัว ER diagram ใน PDF/Canva</strong>.
+      ตอน defend ให้พูดได้เลยว่า:
+    </p>
+    <blockquote class="mt-4 pl-4 border-l-2 border-metu-yellow/50 text-base italic text-white/90">
+      "Diagram v1 มีจุดบกพร่องหลายจุด ทีมตรวจพบตอน implementation และแก้ไขใน Prisma schema + migration
+       ได้แก่ <span class="text-metu-yellow">(1)</span> FK annotation ผิด
+       <span class="text-metu-yellow">(2)</span> PK ของ PRODUCT_IMAGE ทำให้สินค้ามีรูปได้ใบเดียว
+       <span class="text-metu-yellow">(3)</span> ขาดตาราง CART_ITEM
+       <span class="text-metu-yellow">(4)</span> ขาด UNIQUE constraints หลายจุด.
+       Schema ปัจจุบัน migrate ขึ้น Neon Postgres Singapore เรียบร้อยพร้อม seed 200+ rows."
+    </blockquote>
+
+    <div class="mt-6 grid sm:grid-cols-3 gap-3 text-xs font-mono">
+      <a href="https://github.com/Bank848/metu/blob/main/packages/db/prisma/schema.prisma" target="_blank" rel="noopener"
+         class="rounded-xl glass px-4 py-3 text-white hover:bg-white/10 text-center">View schema.prisma →</a>
+      <a href="https://metu-web-phi.vercel.app/features" target="_blank" rel="noopener"
+         class="rounded-xl glass px-4 py-3 text-white hover:bg-white/10 text-center">Live demo · /features</a>
+      <a href="https://github.com/Bank848/metu" target="_blank" rel="noopener"
+         class="rounded-xl glass px-4 py-3 text-white hover:bg-white/10 text-center">GitHub repo</a>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── FOOTER ─────────────── -->
+<footer class="relative mt-8">
+  <div class="gold-rule"></div>
+  <div class="max-w-[1200px] mx-auto px-6 md:px-10 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-dim">
+    <span>© 2026 METU · Built in Bangkok · CPE241 · KMUTT · Group 8</span>
+    <span class="font-mono">ER Review · Next.js · Prisma · Postgres</span>
+  </div>
+</footer>
+
+</body>
+</html>

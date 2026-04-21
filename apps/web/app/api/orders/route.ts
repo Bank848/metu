@@ -13,13 +13,28 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const parsed = checkoutSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "ValidationError" }, { status: 400 });
-  const { couponCode } = parsed.data;
+  const { couponCode, selectedCartItemIds } = parsed.data;
 
   const cart = await prisma.cart.findFirst({
     where: { userId: r.auth.uid, status: "active" },
     include: { items: { include: { productItem: { include: { product: true } } } } },
   });
   if (!cart || cart.items.length === 0) return NextResponse.json({ error: "EmptyCart" }, { status: 400 });
+
+  // Partial checkout: only the checked items become an order; unchecked
+  // items get re-parented to the user's new active cart at the end.
+  const selectedSet = selectedCartItemIds && selectedCartItemIds.length
+    ? new Set(selectedCartItemIds)
+    : null;
+  const selectedItems = selectedSet
+    ? cart.items.filter((ci) => selectedSet.has(ci.cartItemId))
+    : cart.items;
+  const unselectedItems = selectedSet
+    ? cart.items.filter((ci) => !selectedSet.has(ci.cartItemId))
+    : [];
+  if (selectedItems.length === 0) {
+    return NextResponse.json({ error: "EmptyCart", message: "No items selected for checkout." }, { status: 400 });
+  }
 
   let resolvedCoupon: Awaited<ReturnType<typeof prisma.coupon.findFirst>> | null = null;
   if (couponCode) {
@@ -31,21 +46,31 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  let subtotal = new Prisma.Decimal(0);
-  for (const ci of cart.items) {
-    const unit = new Prisma.Decimal(ci.productItem.price).mul(
+  // Pre-compute each selected line's unit price and the subtotal scoped to
+  // the coupon's store so the discount only applies to matching products.
+  const unitPrice = (ci: (typeof selectedItems)[number]) =>
+    new Prisma.Decimal(ci.productItem.price).mul(
       new Prisma.Decimal(100 - (ci.productItem.discountPercent ?? 0)).div(100),
     );
-    subtotal = subtotal.add(unit.mul(ci.quantity));
+
+  let subtotal = new Prisma.Decimal(0);
+  let couponEligibleSubtotal = new Prisma.Decimal(0);
+  for (const ci of selectedItems) {
+    const line = unitPrice(ci).mul(ci.quantity);
+    subtotal = subtotal.add(line);
+    if (resolvedCoupon && ci.productItem.product.storeId === resolvedCoupon.storeId) {
+      couponEligibleSubtotal = couponEligibleSubtotal.add(line);
+    }
   }
+
   let couponDiscount = new Prisma.Decimal(0);
-  if (resolvedCoupon) {
+  if (resolvedCoupon && couponEligibleSubtotal.gt(0)) {
     if (resolvedCoupon.discountType === "percent") {
-      couponDiscount = subtotal.mul(resolvedCoupon.discountValue).div(100);
+      couponDiscount = couponEligibleSubtotal.mul(resolvedCoupon.discountValue).div(100);
     } else {
       couponDiscount = new Prisma.Decimal(resolvedCoupon.discountValue);
     }
-    if (couponDiscount.gt(subtotal)) couponDiscount = subtotal;
+    if (couponDiscount.gt(couponEligibleSubtotal)) couponDiscount = couponEligibleSubtotal;
   }
   const total = subtotal.sub(couponDiscount);
 
@@ -60,19 +85,30 @@ export async function POST(req: NextRequest) {
         status: "paid",
         transactionId: txn.transactionId,
         items: {
-          create: cart.items.map((ci) => ({
+          create: selectedItems.map((ci) => ({
             productItemId: ci.productItemId,
             quantity: ci.quantity,
-            priceAtPurchase: new Prisma.Decimal(ci.productItem.price).mul(
-              new Prisma.Decimal(100 - (ci.productItem.discountPercent ?? 0)).div(100),
-            ),
-            couponId: resolvedCoupon ? resolvedCoupon.couponId : null,
+            priceAtPurchase: unitPrice(ci),
+            // Stamp the coupon only on lines from the coupon's store so the
+            // order receipt shows which lines were actually discounted.
+            couponId:
+              resolvedCoupon && ci.productItem.product.storeId === resolvedCoupon.storeId
+                ? resolvedCoupon.couponId
+                : null,
           })),
         },
       },
     });
     await tx.cart.update({ where: { cartId: cart.cartId }, data: { status: "checked_out" } });
-    await tx.cart.create({ data: { userId: r.auth.uid, status: "active" } });
+    const newCart = await tx.cart.create({ data: { userId: r.auth.uid, status: "active" } });
+    // Re-parent unchecked cart items into the new active cart so they
+    // survive the checkout. The unique (cartId, productItemId) holds.
+    if (unselectedItems.length > 0) {
+      await tx.cartItem.updateMany({
+        where: { cartItemId: { in: unselectedItems.map((ci) => ci.cartItemId) } },
+        data: { cartId: newCart.cartId },
+      });
+    }
     if (resolvedCoupon) {
       await tx.couponUsage.create({ data: { couponId: resolvedCoupon.couponId, userId: r.auth.uid } });
     }
@@ -85,6 +121,7 @@ export async function POST(req: NextRequest) {
     total: Number(total),
     subtotal: Number(subtotal),
     discount: Number(couponDiscount),
+    couponStoreId: resolvedCoupon ? resolvedCoupon.storeId : null,
   });
 }
 

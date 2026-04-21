@@ -44,6 +44,9 @@ export async function GET(req: NextRequest) {
       storeName: ci.productItem.product.store.name,
       image: ci.productItem.product.images[0]?.productImage ?? null,
       deliveryMethod: ci.productItem.deliveryMethod,
+      // Stock snapshot so the cart UI can cap the quantity input. Digital
+      // delivery methods are always capped at 1 client-side regardless.
+      stock: ci.productItem.quantity,
       unitPrice: unit,
       basePrice: price,
       discountPercent: ci.productItem.discountPercent,
