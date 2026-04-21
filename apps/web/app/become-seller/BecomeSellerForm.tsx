@@ -41,6 +41,7 @@ export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessTyp
       }
       setBusy(false);
       router.push("/seller");
+      router.refresh();
     } catch {
       setError("Network error");
       setBusy(false);
