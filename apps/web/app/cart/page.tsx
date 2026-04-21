@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, Sparkles } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
+import { ProductCard } from "@/components/ProductCard";
 import { apiAuth, getMe } from "@/lib/session";
+import { getFeaturedProducts, getFavoriteSet } from "@/lib/server/queries";
 import { CartLines } from "./CartLines";
 
 type Cart = {
@@ -36,6 +38,15 @@ export default async function CartPage() {
   if (!me) redirect("/login?next=/cart");
 
   const cart = await apiAuth<Cart>("/cart");
+  const isEmpty = !cart || cart.items.length === 0;
+
+  // Empty carts: surface a handful of trending products + any the buyer
+  // already favourited (marked with a filled heart) so there's always
+  // something to click. Cheap extra Promise.all only when the cart is
+  // empty — full carts skip these queries entirely.
+  const [recommended, favSet] = isEmpty
+    ? await Promise.all([getFeaturedProducts(8), getFavoriteSet(me.user.userId)])
+    : [[] as Awaited<ReturnType<typeof getFeaturedProducts>>, new Set<number>()];
 
   return (
     <>
@@ -49,13 +60,41 @@ export default async function CartPage() {
             subtitle="Review your items and apply a coupon before checking out."
           />
 
-          {!cart || cart.items.length === 0 ? (
-            <EmptyState
-              title="Your cart is empty"
-              description="Explore the marketplace and add digital products you love."
-              icon={<ShoppingCart className="h-8 w-8" />}
-              action={<GlassButton tone="gold" href="/browse">Browse marketplace →</GlassButton>}
-            />
+          {isEmpty ? (
+            <>
+              <EmptyState
+                title="Your cart is empty"
+                description="Explore the marketplace and add digital products you love."
+                icon={<ShoppingCart className="h-8 w-8" />}
+                action={<GlassButton tone="gold" href="/browse">Browse marketplace →</GlassButton>}
+              />
+
+              {/* Inline recommendations so the user can fill the cart
+                  without leaving the page. */}
+              {recommended.length > 0 && (
+                <section className="mt-12">
+                  <div className="flex items-end justify-between mb-5">
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-metu-yellow">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        You might like
+                      </div>
+                      <h2 className="mt-1 font-display text-2xl font-extrabold text-white">
+                        Popular right now
+                      </h2>
+                    </div>
+                    <GlassButton tone="glass" size="sm" href="/browse">
+                      See all →
+                    </GlassButton>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                    {recommended.map((p) => (
+                      <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
           ) : (
             <CartLines cart={cart} />
           )}
