@@ -6,6 +6,13 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
+const VALID_DELIVERY = ["download", "email", "license_key", "streaming"] as const;
+type DeliveryMethod = (typeof VALID_DELIVERY)[number];
+
+function safeDelivery(v: string | undefined): DeliveryMethod | undefined {
+  return VALID_DELIVERY.includes(v as DeliveryMethod) ? (v as DeliveryMethod) : undefined;
+}
+
 export async function getStats() {
   const [sellers, products, orders, reviews] = await Promise.all([
     prisma.userStats.count({ where: { role: "seller" } }),
@@ -102,12 +109,13 @@ export async function browseProducts(params: {
     const tagIds = params.tags.split(",").map((s) => Number(s)).filter(Boolean);
     if (tagIds.length) where.productNTags = { some: { tagId: { in: tagIds } } };
   }
-  if (params.minPrice !== undefined || params.maxPrice !== undefined || params.delivery) {
+  const delivery = safeDelivery(params.delivery);
+  if (params.minPrice !== undefined || params.maxPrice !== undefined || delivery) {
     where.items = {
       some: {
         ...(params.minPrice !== undefined ? { price: { gte: params.minPrice } } : {}),
         ...(params.maxPrice !== undefined ? { price: { lte: params.maxPrice } } : {}),
-        ...(params.delivery ? { deliveryMethod: params.delivery as any } : {}),
+        ...(delivery ? { deliveryMethod: delivery } : {}),
       },
     };
   }

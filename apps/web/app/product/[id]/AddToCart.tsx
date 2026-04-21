@@ -48,7 +48,6 @@ export function AddToCart({ items }: { items: Item[] }) {
         return;
       }
       setMessage("Added to cart ✓");
-      router.refresh();
     } catch {
       setMessage("Network error");
     } finally {

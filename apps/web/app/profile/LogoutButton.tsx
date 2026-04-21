@@ -9,9 +9,8 @@ export function LogoutButton() {
     await fetch(`/api/auth/logout`, {
       method: "POST",
       credentials: "include",
-    });
+    }).catch(() => {});
     router.push("/");
-    router.refresh();
   }
   return (
     <Button onClick={logout} variant="danger" size="sm">

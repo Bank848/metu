@@ -14,15 +14,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });
   }
   const { email, password } = parsed.data;
-  const user = await prisma.user.findUnique({ where: { email }, include: { stats: true } });
+
+  // Single DB roundtrip — fetch user + stats + active cart together.
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: {
+      stats: true,
+      carts: { where: { status: "active" }, take: 1, select: { cartId: true } },
+    },
+  });
   if (!user) return NextResponse.json({ error: "InvalidCredentials" }, { status: 401 });
+
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return NextResponse.json({ error: "InvalidCredentials" }, { status: 401 });
 
-  const activeCart = await prisma.cart.findFirst({ where: { userId: user.userId, status: "active" } });
-  if (!activeCart) await prisma.cart.create({ data: { userId: user.userId, status: "active" } });
+  // Background-create active cart if missing — doesn't block the response.
+  if (user.carts.length === 0) {
+    void prisma.cart.create({ data: { userId: user.userId, status: "active" } }).catch(() => {});
+  }
 
-  const { password: _, ...safe } = user;
+  const { password: _, carts: __, ...safe } = user;
   const res = NextResponse.json({ user: safe });
   setAuthCookie(res, { uid: user.userId, role: user.stats?.role ?? "buyer" });
   return res;
