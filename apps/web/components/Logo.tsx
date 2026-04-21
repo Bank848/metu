@@ -19,12 +19,12 @@ export function Logo({
   const inner = (
     <span
       className={cn(
-        "inline-flex items-baseline font-display font-extrabold tracking-tight text-white select-none",
+        "group inline-flex items-baseline font-display font-extrabold tracking-tight text-white select-none transition",
         sizes,
         className,
       )}
     >
-      METU
+      <span className="group-hover:text-light-sweep transition-all">METU</span>
     </span>
   );
 

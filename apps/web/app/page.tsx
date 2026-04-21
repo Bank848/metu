@@ -1,13 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Package, ShoppingBag, Star, Sparkles, ShieldCheck, Zap } from "lucide-react";
+import { Users, Package, ShoppingBag, Star, Sparkles, ShieldCheck, Zap, ArrowRight } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { StarField } from "@/components/DotGrid";
 import { StatCard } from "@/components/StatCard";
 import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
-import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { GlassButton } from "@/components/visual/GlassButton";
+import { LightSweepText } from "@/components/visual/LightSweepText";
 import { getStats, getFeaturedProducts, getFeaturedStores, getCategories } from "@/lib/server/queries";
 
 type Stats = { sellers: number; products: number; orders: number; reviews: number };
@@ -27,7 +28,6 @@ export default async function Home() {
   return (
     <>
       <TopNav />
-      {/* TopNav is an async server component (Next 14 App Router supports this natively) */}
       <main>
         <Hero stats={stats} />
         <TrendingProducts products={products} />
@@ -42,60 +42,56 @@ export default async function Home() {
 
 function Hero({ stats }: { stats: Stats }) {
   return (
-    <section className="relative overflow-hidden bg-space-black min-h-[640px]">
-      {/* Jupiter-esque planet bottom-right */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-32 -bottom-24 md:-right-20 md:bottom-[-120px] h-[720px] w-[720px] rounded-full opacity-80"
+    <section className="relative overflow-hidden bg-hero-radial min-h-[680px]">
+      {/* Layered Jupiter — pure CSS, four radial gradients to fake atmospheric bands */}
+      <div aria-hidden className="pointer-events-none absolute -right-40 -bottom-32 md:-right-24 md:bottom-[-180px] h-[820px] w-[820px] rounded-full opacity-95 mix-blend-screen"
         style={{
-          background:
-            "radial-gradient(circle at 32% 40%, #d4a84b 0%, #8b6914 25%, #4a3a10 55%, transparent 75%)",
-          filter: "blur(1px)",
-          mixBlendMode: "screen",
+          background: `
+            radial-gradient(circle at 32% 38%, #ffd166 0%, #e09a2f 18%, #b26800 38%, #6d4310 58%, transparent 78%),
+            radial-gradient(ellipse at 35% 45%, transparent 30%, rgba(178,104,0,0.4) 32%, transparent 36%),
+            radial-gradient(ellipse at 35% 55%, transparent 35%, rgba(110,67,16,0.5) 37%, transparent 40%),
+            radial-gradient(ellipse at 35% 35%, transparent 25%, rgba(255,209,102,0.4) 27%, transparent 30%)
+          `,
+          filter: "blur(0.4px)",
         }}
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-20 -bottom-24 md:-right-10 md:bottom-[-110px] h-[680px] w-[680px] rounded-full"
-        style={{
-          background:
-            "radial-gradient(circle at 38% 38%, #b9823c 0%, #7a4f1e 30%, transparent 60%)",
-        }}
+      {/* Outer glow */}
+      <div aria-hidden className="pointer-events-none absolute -right-40 -bottom-32 md:-right-24 md:bottom-[-180px] h-[820px] w-[820px] rounded-full opacity-50"
+        style={{ background: "radial-gradient(circle, rgba(255,204,0,0.18), transparent 60%)" }}
       />
-      {/* Subtle tungsten glow from top-right */}
-      <div aria-hidden className="absolute inset-0 bg-tungsten-fade" />
-      {/* Starfield */}
-      <StarField />
 
-      <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pt-16 md:pt-24 pb-20 grid md:grid-cols-2 gap-10 items-center min-h-[560px]">
-        <div>
-          <Badge variant="yellow" className="mb-5 !px-3 !py-1">
+      {/* Stars */}
+      <StarField density="high" />
+
+      <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pt-20 md:pt-28 pb-24 grid md:grid-cols-2 gap-10 items-center min-h-[600px]">
+        <div className="animate-fade-in-up">
+          <Badge variant="yellow" className="mb-6 !px-3 !py-1">
             CPE241 · Group 8 · Live Demo
           </Badge>
-          <h1 className="font-display text-6xl md:text-8xl font-black tracking-tighter leading-[0.95] mb-4">
+          <h1 className="font-display text-6xl md:text-8xl font-black tracking-tighter leading-[0.92] mb-6">
             <span className="block text-white">DIGITAL</span>
-            <span className="block text-brand-yellow">MARKETPLACE</span>
+            <LightSweepText className="block">MARKETPLACE</LightSweepText>
           </h1>
-          <p className="text-base md:text-lg text-ink-secondary max-w-lg mb-8 leading-relaxed">
+          <p className="text-base md:text-lg text-ink-secondary max-w-lg mb-10 leading-relaxed">
             The marketplace for Thai digital creators. Templates, music, courses, art —
             sell and buy without ever shipping a thing.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button href="/browse" variant="primary" size="lg">
-              Explore Now →
-            </Button>
-            <Button href="/become-seller" variant="ghost" size="lg">
+            <GlassButton href="/browse" tone="gold" size="lg">
+              Explore Now
+              <ArrowRight className="h-4 w-4" />
+            </GlassButton>
+            <GlassButton href="/become-seller" tone="glass" size="lg">
               Sell your work
-            </Button>
+            </GlassButton>
           </div>
         </div>
-
         <div className="hidden md:block" />
       </div>
 
-      {/* Stats strip floating above the hero bottom */}
-      <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pb-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 backdrop-blur">
+      {/* Stats strip (sits at the bottom of the hero, glassmorphic) */}
+      <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pb-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard label="Sellers"  value={stats.sellers}  icon={Users}       accent="yellow" />
           <StatCard label="Products" value={stats.products} icon={Package} />
           <StatCard label="Orders"   value={stats.orders}   icon={ShoppingBag} />
@@ -119,7 +115,7 @@ function TrendingProducts({ products }: { products: ProductCardProduct[] }) {
             The digital products creators are loving this week.
           </p>
         </div>
-        <Link href="/browse" className="text-sm font-semibold text-brand-yellow hover:underline">
+        <Link href="/browse" className="text-sm font-semibold text-metu-yellow hover:underline">
           See all →
         </Link>
       </div>
@@ -135,7 +131,7 @@ function TrendingProducts({ products }: { products: ProductCardProduct[] }) {
 function FeaturedStores({ stores }: { stores: Store[] }) {
   if (!stores.length) return null;
   return (
-    <section className="bg-space-950/60 py-16 border-y border-line">
+    <section className="bg-surface-2/60 py-16 border-y border-white/6">
       <div className="mx-auto max-w-[1440px] px-6 md:px-10">
         <div className="mb-8">
           <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white">
@@ -150,9 +146,9 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
             <Link
               key={s.storeId}
               href={`/store/${s.storeId}`}
-              className="group rounded-2xl bg-space-850 border border-line overflow-hidden transition-all hover:border-brand-yellow/50 hover:-translate-y-1"
+              className="group glass-morphism rounded-2xl overflow-hidden transition-all hover:border-metu-yellow/40 hover:-translate-y-1"
             >
-              <div className="relative aspect-[5/2] bg-space-900 overflow-hidden">
+              <div className="relative aspect-[5/2] bg-surface-2 overflow-hidden">
                 {s.coverImage && (
                   <Image
                     src={s.coverImage}
@@ -163,9 +159,11 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
                     unoptimized
                   />
                 )}
+                {/* gold accent bar */}
+                <div className="absolute bottom-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-70" />
               </div>
               <div className="p-5 flex items-start gap-3">
-                <div className="relative h-12 w-12 shrink-0 rounded-full bg-brand-yellow overflow-hidden ring-2 ring-space-900 -mt-8">
+                <div className="relative h-12 w-12 shrink-0 rounded-full bg-metu-yellow overflow-hidden ring-2 ring-surface-2 -mt-8">
                   {s.profileImage && (
                     <Image src={s.profileImage} alt={s.name} fill sizes="48px" className="object-cover" unoptimized />
                   )}
@@ -192,12 +190,6 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
 
 function CategoryTiles({ categories }: { categories: Category[] }) {
   if (!categories.length) return null;
-  const accents = [
-    "bg-brand-yellow/10 text-brand-yellow border-brand-yellow/30",
-    "bg-white/5 text-white border-line",
-    "bg-brand-yellow/5 text-brand-yellow border-brand-yellow/20",
-    "bg-white/5 text-white border-line",
-  ];
   return (
     <section className="mx-auto max-w-[1440px] px-6 md:px-10 py-16">
       <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-8">
@@ -208,10 +200,15 @@ function CategoryTiles({ categories }: { categories: Category[] }) {
           <Link
             key={c.categoryId}
             href={`/browse?category=${c.categoryId}`}
-            className={`rounded-2xl p-5 font-display font-semibold transition-all hover:-translate-y-0.5 border ${accents[i % accents.length]}`}
+            className={`relative overflow-hidden rounded-2xl p-5 font-display font-semibold transition-all hover:-translate-y-0.5 ${
+              i % 3 === 0
+                ? "glass-morphism text-metu-yellow border-metu-yellow/25 hover:border-metu-yellow/50"
+                : "glass-morphism text-white"
+            }`}
           >
             <div className="text-[10px] uppercase tracking-wider opacity-60">Category</div>
             <div className="mt-1 text-lg">{c.categoryName}</div>
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-metu-yellow/40 to-transparent" />
           </Link>
         ))}
       </div>
@@ -231,9 +228,9 @@ function WhyMetu() {
         {items.map((it) => (
           <div
             key={it.title}
-            className="rounded-2xl border border-line bg-space-850 p-8"
+            className="glass-morphism rounded-2xl p-8"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-yellow/15 text-brand-yellow">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-metu-yellow/15 text-metu-yellow">
               <it.icon className="h-6 w-6" strokeWidth={2.25} />
             </div>
             <h3 className="mt-5 font-display text-xl font-bold text-white">

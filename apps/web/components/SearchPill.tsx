@@ -6,14 +6,13 @@ import { useRouter } from "next/navigation";
 export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
   const router = useRouter();
   const [q, setQ] = useState(defaultValue);
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Keep in sync when route changes (e.g. nav from another page with ?q=)
   useEffect(() => {
     setQ(defaultValue);
   }, [defaultValue]);
 
-  // Keyboard shortcut: "/" focuses the search pill (ignore when typing elsewhere)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "/") return;
@@ -43,7 +42,13 @@ export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
       className="flex-1 min-w-0 max-w-[640px] relative"
       role="search"
     >
-      <label className="relative flex items-center rounded-full bg-space-800 border border-line hover:border-line-bright focus-within:border-brand-yellow focus-within:ring-2 focus-within:ring-brand-yellow/30 transition">
+      <label
+        className={`relative flex items-center rounded-pill bg-surface-3/80 backdrop-blur transition border ${
+          focused
+            ? "border-metu-yellow/60 ring-2 ring-metu-yellow/30"
+            : "border-white/8 hover:border-white/15"
+        }`}
+      >
         <span className="pl-4 text-ink-dim">
           <Search className="h-4 w-4" aria-hidden />
         </span>
@@ -53,6 +58,8 @@ export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
           name="q"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           placeholder="Search templates, courses, music, creators…"
           className="flex-1 bg-transparent px-3 py-2.5 text-sm text-white placeholder:text-ink-dim focus:outline-none"
           autoComplete="off"
@@ -67,7 +74,7 @@ export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
             <X className="h-3.5 w-3.5" />
           </button>
         )}
-        <kbd className="mr-3 hidden md:inline-flex items-center rounded border border-line bg-space-900 px-1.5 py-0.5 text-[10px] font-mono text-ink-dim">
+        <kbd className="mr-3 hidden md:inline-flex items-center rounded border border-white/10 bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-ink-dim">
           /
         </kbd>
       </label>
