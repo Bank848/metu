@@ -38,6 +38,7 @@ export function Footer() {
           </FooterColumn>
 
           <FooterColumn title="Demo" titleHref="/login">
+            <FooterLink href="/features">Feature tour</FooterLink>
             <FooterLink href="/login">Demo accounts</FooterLink>
             <FooterLink href="/admin">Admin panel</FooterLink>
             <FooterLink href="/my-reviews">My reviews</FooterLink>
