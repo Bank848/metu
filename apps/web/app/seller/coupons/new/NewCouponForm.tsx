@@ -53,6 +53,7 @@ export function NewCouponForm() {
       }
       setBusy(false);
       router.push("/seller/coupons");
+      router.refresh();
     } catch {
       setError("Network error");
       setBusy(false);

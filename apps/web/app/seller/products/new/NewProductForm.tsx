@@ -99,6 +99,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
       }
       setBusy(false);
       router.push("/seller/products");
+      router.refresh();
     } catch {
       setError("Network error");
       setBusy(false);
