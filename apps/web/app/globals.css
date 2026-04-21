@@ -199,3 +199,12 @@ input:-webkit-autofill {
   -webkit-text-fill-color: #fafafa;
   caret-color: #fafafa;
 }
+
+/* ───────────── Add-to-cart pulse ─────────────
+   One-shot glow that fires when a product is successfully added to the
+   cart. Used by `animate-[atc-pulse_0.9s_ease-out]` in AddToCart.tsx. */
+@keyframes atc-pulse {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(255, 204, 0, 0.55); }
+  40%  { transform: scale(1.04); box-shadow: 0 0 0 14px rgba(255, 204, 0, 0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(255, 204, 0, 0); }
+}
