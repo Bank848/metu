@@ -7,7 +7,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl bg-space-850 border border-line shadow-card overflow-hidden",
+        "rounded-2xl glass-morphism shadow-card overflow-hidden",
         className,
       )}
       {...props}
@@ -19,7 +19,7 @@ export function CardHeader({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("px-6 py-4 border-b border-line", className)} {...props} />;
+  return <div className={cn("px-6 py-4 border-b border-white/8", className)} {...props} />;
 }
 
 export function CardTitle({

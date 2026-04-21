@@ -17,15 +17,15 @@ export function StatCard({
   className?: string;
 }) {
   const accentClass = {
-    yellow: "bg-brand-yellow/10 border-brand-yellow/30",
-    charcoal: "bg-space-900 border-line",
-    none: "bg-space-850 border-line",
+    yellow: "border-metu-yellow/35 bg-gradient-to-br from-metu-yellow/12 to-metu-gold/5",
+    charcoal: "glass-morphism",
+    none: "glass-morphism",
   }[accent ?? "none"];
 
   return (
     <div
       className={cn(
-        "rounded-2xl border shadow-card p-5 flex flex-col gap-2 transition-all hover:border-brand-yellow/50 hover:shadow-pop",
+        "rounded-2xl border p-5 flex flex-col gap-2 transition-all hover:border-metu-yellow/50 hover:shadow-pop",
         accentClass,
         className,
       )}
@@ -34,7 +34,7 @@ export function StatCard({
         <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
           {label}
         </span>
-        {Icon && <Icon className={cn("h-4 w-4", accent === "yellow" ? "text-brand-yellow" : "text-ink-dim")} strokeWidth={2} />}
+        {Icon && <Icon className={cn("h-4 w-4", accent === "yellow" ? "text-metu-yellow" : "text-ink-dim")} strokeWidth={2} />}
       </div>
       <div className="font-display text-3xl md:text-4xl font-extrabold text-white">
         {typeof value === "number" ? value.toLocaleString() : value}
