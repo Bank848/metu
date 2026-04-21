@@ -41,6 +41,8 @@ export default async function ProductPage({ params }: { params: { id: string } }
     ...it,
     price: Number(it.price),
     finalPrice: Number(it.price) * (1 - (it.discountPercent ?? 0) / 100),
+    // Expose stock to AddToCart so it can cap the typed input correctly.
+    stock: it.quantity,
   }));
 
   return (

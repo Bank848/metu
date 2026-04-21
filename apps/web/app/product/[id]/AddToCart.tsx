@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Download, Mail, Key, Play, ShoppingBag, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2 } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ type Item = {
   price: number;
   finalPrice: number;
   discountPercent: number;
+  stock: number;
 };
 
 const deliveryIcon: Record<string, React.ElementType> = {
@@ -21,14 +22,26 @@ const deliveryIcon: Record<string, React.ElementType> = {
   streaming: Play,
 };
 
+const DIGITAL = new Set(["download", "email", "license_key", "streaming"]);
+
 export function AddToCart({ items }: { items: Item[] }) {
   const router = useRouter();
   const [selected, setSelected] = useState<number>(items[0]?.productItemId);
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Used to trigger a one-shot pulse animation on the Add-to-cart button
+  // when the add succeeds — visual confirmation beyond the toast text.
+  const [justAdded, setJustAdded] = useState(false);
 
   const active = items.find((i) => i.productItemId === selected)!;
+  const isDigital = active && DIGITAL.has(active.deliveryMethod);
+  const maxQty = isDigital ? 1 : Math.max(1, active?.stock ?? 1);
+
+  // Snap quantity back into the valid range whenever the variant changes.
+  useEffect(() => {
+    setQuantity((q) => Math.min(Math.max(1, q), maxQty));
+  }, [maxQty]);
 
   async function addToCart(buyNow = false) {
     setBusy(true);
@@ -46,10 +59,16 @@ export function AddToCart({ items }: { items: Item[] }) {
         return;
       }
       if (!res.ok) {
-        setMessage("Failed to add to cart");
+        const data = await res.json().catch(() => ({}));
+        setMessage(data?.message ?? "Failed to add to cart");
         return;
       }
       setMessage("Added to cart ✓");
+      setJustAdded(true);
+      setTimeout(() => setJustAdded(false), 900);
+      // Ask the layout to re-read the cart count so the TopNav badge
+      // increments without a page navigation.
+      router.refresh();
       if (buyNow) {
         router.push("/cart");
       }
@@ -86,7 +105,18 @@ export function AddToCart({ items }: { items: Item[] }) {
               )}
               <div className="flex items-center gap-3">
                 <Icon className={cn("h-5 w-5", isActive ? "text-metu-yellow" : "text-ink-secondary")} strokeWidth={2} />
-                <span className="text-sm font-semibold capitalize text-white">{it.deliveryMethod.replace("_", " ")}</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold capitalize text-white">{it.deliveryMethod.replace("_", " ")}</div>
+                  <div className="text-[10px] text-ink-dim mt-0.5">
+                    {DIGITAL.has(it.deliveryMethod)
+                      ? "Digital · single-use"
+                      : it.stock <= 0
+                        ? "Out of stock"
+                        : it.stock <= 5
+                          ? `Only ${it.stock} left`
+                          : `${it.stock} in stock`}
+                  </div>
+                </div>
               </div>
               <div className="flex items-baseline gap-2">
                 {it.discountPercent > 0 && (
@@ -101,25 +131,46 @@ export function AddToCart({ items }: { items: Item[] }) {
 
       <div className="flex items-center gap-3 mb-5">
         <label className="text-sm font-semibold text-white">Qty</label>
-        <div className="flex items-center border border-white/10 rounded-full overflow-hidden bg-surface-2">
+        <div className={cn(
+          "flex items-center border rounded-full overflow-hidden bg-surface-2",
+          isDigital ? "border-white/5 opacity-70" : "border-white/10",
+        )}>
           <button
             type="button"
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
-            className="px-3 py-1.5 text-white hover:bg-white/5"
+            disabled={isDigital || quantity <= 1}
+            className="px-3 py-1.5 text-white hover:bg-white/5 disabled:opacity-30"
             aria-label="Decrease"
           >
             −
           </button>
-          <span className="px-4 font-semibold text-white">{quantity}</span>
+          <input
+            type="number"
+            min={1}
+            max={maxQty}
+            value={quantity}
+            disabled={isDigital}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (!Number.isFinite(n)) return;
+              setQuantity(Math.min(maxQty, Math.max(1, Math.floor(n))));
+            }}
+            className="w-12 bg-transparent text-center font-semibold text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:text-ink-dim"
+            aria-label="Quantity"
+          />
           <button
             type="button"
-            onClick={() => setQuantity(Math.min(99, quantity + 1))}
-            className="px-3 py-1.5 text-white hover:bg-white/5"
+            onClick={() => setQuantity(Math.min(maxQty, quantity + 1))}
+            disabled={isDigital || quantity >= maxQty}
+            className="px-3 py-1.5 text-white hover:bg-white/5 disabled:opacity-30"
             aria-label="Increase"
           >
             +
           </button>
         </div>
+        {isDigital && (
+          <span className="text-[11px] text-ink-dim">Digital · 1 per order</span>
+        )}
         <div className="ml-auto text-right">
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">Total</div>
           <div className="font-display text-2xl font-extrabold text-gold-gradient">
@@ -129,16 +180,29 @@ export function AddToCart({ items }: { items: Item[] }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <GlassButton tone="glass" size="lg" onClick={() => addToCart(false)} disabled={busy}>
-          <ShoppingBag className="h-4 w-4" />
-          Add to cart
+        <GlassButton
+          tone="glass"
+          size="lg"
+          onClick={() => addToCart(false)}
+          disabled={busy || active?.stock === 0 && !isDigital}
+          className={cn(justAdded && "animate-[atc-pulse_0.9s_ease-out]")}
+        >
+          {justAdded ? <CheckCircle2 className="h-4 w-4 text-green-400" /> : <ShoppingBag className="h-4 w-4" />}
+          {justAdded ? "Added" : "Add to cart"}
         </GlassButton>
-        <GlassButton tone="gold" size="lg" onClick={() => addToCart(true)} disabled={busy}>
+        <GlassButton tone="gold" size="lg" onClick={() => addToCart(true)} disabled={busy || active?.stock === 0 && !isDigital}>
           <Zap className="h-4 w-4" />
           Buy now
         </GlassButton>
       </div>
-      {message && <p className="mt-3 text-sm text-center text-ink-secondary">{message}</p>}
+      {message && (
+        <p className={cn(
+          "mt-3 text-sm text-center transition",
+          message.startsWith("Added") ? "text-green-400" : "text-ink-secondary",
+        )}>
+          {message}
+        </p>
+      )}
     </div>
   );
 }
