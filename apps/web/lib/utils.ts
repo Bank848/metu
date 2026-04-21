@@ -6,11 +6,20 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * True for base64 data URLs from seller uploads. Vercel's image optimiser
- * can't handle these, so we have to bypass it. Pass to `<Image unoptimized={…}>`.
+ * True for image sources that Vercel's image optimiser refuses to handle:
+ *  - base64 data URLs from seller uploads
+ *  - SVGs (Next blocks SVG optimisation by default for XSS reasons)
+ *  - the DiceBear endpoint we use for seeded avatars (returns SVG without
+ *    a .svg extension, so the URL pattern catch is needed)
+ * Pass to `<Image unoptimized={…}>` so these still render as raw <img>.
  */
-export const isDataUrl = (s: string | null | undefined): boolean =>
-  typeof s === "string" && s.startsWith("data:");
+export const isDataUrl = (s: string | null | undefined): boolean => {
+  if (typeof s !== "string") return false;
+  if (s.startsWith("data:")) return true;
+  if (s.includes("api.dicebear.com")) return true;
+  if (/\.svg($|\?)/i.test(s)) return true;
+  return false;
+};
 
 /**
  * Resolve the absolute base URL.
