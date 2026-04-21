@@ -2,7 +2,7 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
 import { Upload, Link as LinkIcon, X, ImageIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isDataUrl } from "@/lib/utils";
 
 const MAX_BYTES = 1_000_000; // 1 MB safeguard — DB stores as TEXT (data URL)
 
@@ -94,7 +94,7 @@ export function FileImageInput({
         >
           {value ? (
             <>
-              <Image src={value} alt="" fill sizes="200px" className="object-cover" unoptimized />
+              <Image src={value} alt="" fill sizes="200px" className="object-cover" unoptimized={isDataUrl(value)} />
               <button
                 type="button"
                 onClick={() => onChange("")}

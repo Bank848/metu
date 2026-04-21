@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { Package, Pencil, Check } from "lucide-react";
 import { WriteReviewDialog } from "@/components/WriteReviewDialog";
-import { cn } from "@/lib/utils";
+import { cn, isDataUrl } from "@/lib/utils";
 
 export function PendingReviewCard({
   productId,
@@ -36,7 +36,7 @@ export function PendingReviewCard({
         >
           <Package className="h-5 w-5 text-metu-yellow/30 absolute" />
           {image && (
-            <Image src={image} alt="" fill sizes="64px" className="object-cover relative" unoptimized />
+            <Image src={image} alt="" fill sizes="64px" className="object-cover relative" unoptimized={isDataUrl(image)} />
           )}
         </Link>
         <div className="flex-1 min-w-0">

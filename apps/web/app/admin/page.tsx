@@ -5,6 +5,7 @@ import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
+import { isDataUrl } from "@/lib/utils";
 
 type Stats = {
   users: number; stores: number; products: number; reviews: number; orders: number;
@@ -48,7 +49,7 @@ export default async function AdminOverview() {
           {stats.recentTransactions.map((tx) => (
             <li key={tx.transactionId} className="px-6 py-4 flex items-center gap-4">
               <div className="relative h-9 w-9 rounded-full bg-brand-yellow overflow-hidden shrink-0">
-                {tx.user.profileImage && <Image src={tx.user.profileImage} alt="" fill sizes="36px" className="object-cover" unoptimized />}
+                {tx.user.profileImage && <Image src={tx.user.profileImage} alt="" fill sizes="36px" className="object-cover" unoptimized={isDataUrl(tx.user.profileImage)} />}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-white">
