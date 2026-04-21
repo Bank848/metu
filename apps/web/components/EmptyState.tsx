@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { DotGrid } from "./DotGrid";
 
 export function EmptyState({
   title,
@@ -18,14 +17,13 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border-2 border-dashed border-line bg-space-900/60 p-12 text-center",
+        "relative overflow-hidden rounded-2xl border-2 border-dashed border-white/10 vibrant-mesh p-12 text-center",
         className,
       )}
     >
-      <DotGrid opacity={10} />
       <div className="relative flex flex-col items-center gap-4">
         {icon && (
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-brand-yellow/15 text-brand-yellow">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-metu-yellow/15 text-metu-yellow">
             {icon}
           </div>
         )}

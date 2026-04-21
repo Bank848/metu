@@ -1,10 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect, notFound } from "next/navigation";
+import { ArrowLeft, CheckCircle2, Receipt, Sparkles, Tag as TagIcon } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
 import { money } from "@/lib/format";
 import { Confetti } from "./Confetti";
@@ -14,7 +15,7 @@ type Order = {
   totalPrice: string | number;
   status: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
   createdAt: string;
-  transaction?: { transactionId: number; totalAmount: string | number; date: string } | null;
+  transaction?: { transactionId: number; totalAmount: string | number; date: string; transactionType: string } | null;
   items: Array<{
     orderItemId: number;
     quantity: number;
@@ -36,6 +37,14 @@ type Order = {
 
 export const dynamic = "force-dynamic";
 
+const statusBadge: Record<Order["status"], "success" | "info" | "warning" | "danger" | "purple"> = {
+  paid: "success",
+  fulfilled: "info",
+  pending: "warning",
+  cancelled: "danger",
+  refunded: "purple",
+};
+
 export default async function OrderDetail({
   params,
   searchParams,
@@ -48,90 +57,214 @@ export default async function OrderDetail({
   const order = await apiAuth<Order>(`/orders/${params.id}`);
   if (!order) return notFound();
 
+  const isNew = Boolean(searchParams.new);
+  const subtotal = order.items.reduce(
+    (a, it) => a + Number(it.priceAtPurchase) * it.quantity,
+    0,
+  );
+  const total = Number(order.totalPrice);
+  const discount = Math.max(0, subtotal - total);
+  const couponCode = order.items.find((i) => i.coupon?.code)?.coupon?.code;
+
   return (
     <>
       <TopNav />
-      {searchParams.new && <Confetti />}
-      <main className="mx-auto max-w-4xl px-6 md:px-8 py-10">
-        <Link href="/orders" className="text-sm text-ink-dim hover:text-brand-yellow">
-          ← All orders
-        </Link>
+      {isNew && <Confetti />}
+      <main className="relative">
+        {/* radial gold glow background, dim */}
+        <div aria-hidden className="absolute inset-x-0 top-0 h-[640px] vibrant-mesh opacity-60 pointer-events-none" />
 
-        <div className="mt-4 rounded-2xl border border-line bg-space-850 overflow-hidden">
-          <header className="flex items-start justify-between gap-4 p-6 border-b border-line bg-gradient-to-br from-brand-yellow/10 to-transparent">
-            <div>
-              <div className="text-xs font-mono text-ink-dim">ORDER #{order.orderId}</div>
-              <h1 className="font-display text-3xl font-extrabold tracking-tight text-white mt-1">
-                {searchParams.new ? "Thanks — your order is confirmed! 🎉" : `Order #${order.orderId}`}
-              </h1>
-              <p className="text-sm text-ink-secondary mt-1">
-                Placed {new Date(order.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
-              </p>
-            </div>
-            <Badge
-              className="uppercase"
-              variant={
-                order.status === "paid" ? "success" :
-                order.status === "fulfilled" ? "info" :
-                order.status === "pending" ? "warning" :
-                order.status === "refunded" ? "purple" : "danger"
-              }
-            >
-              {order.status}
-            </Badge>
-          </header>
+        <div className="relative mx-auto max-w-4xl px-6 md:px-8 py-10">
+          <Link href="/orders" className="inline-flex items-center gap-1.5 text-sm text-ink-dim hover:text-metu-yellow mb-4">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            All orders
+          </Link>
 
-          <div className="p-6">
-            <h2 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
-              Items
-            </h2>
-            <ul className="divide-y divide-line">
-              {order.items.map((it) => (
-                <li key={it.orderItemId} className="flex items-center gap-4 py-4">
-                  <div className="relative h-16 w-16 rounded-xl bg-space-900 overflow-hidden shrink-0 border border-line">
-                    {it.productItem.product.images[0]?.productImage && (
-                      <Image src={it.productItem.product.images[0].productImage} alt="" fill sizes="64px" className="object-cover" unoptimized />
-                    )}
+          {/* Receipt card */}
+          <div className="rounded-3xl glass-morphism-strong overflow-hidden">
+            {/* Hero / status header */}
+            <header className="relative px-7 py-8 border-b border-white/8">
+              <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent" />
+
+              {isNew ? (
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500/15 text-green-400 mb-3">
+                    <CheckCircle2 className="h-8 w-8" strokeWidth={2} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <Link href={`/product/${it.productItem.product.productId}`} className="font-semibold text-white hover:text-brand-yellow">
-                      {it.productItem.product.name}
-                    </Link>
-                    <div className="text-xs text-ink-dim capitalize">
-                      {it.productItem.deliveryMethod.replace("_", " ")} · {it.productItem.product.store.name}
+                  <Badge variant="gold" className="mb-3 !px-3 !py-1">Order confirmed</Badge>
+                  <h1 className="font-display text-3xl md:text-4xl font-extrabold text-white">
+                    Thanks — your order is on the way!
+                  </h1>
+                  <p className="text-ink-secondary mt-2 max-w-md">
+                    We've recorded your payment. Digital downloads are available immediately
+                    from your{" "}
+                    <Link href="/orders" className="text-metu-yellow hover:underline">orders dashboard</Link>.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-xs font-mono text-ink-dim flex items-center gap-1.5">
+                      <Receipt className="h-3 w-3" />
+                      ORDER #{order.orderId}
                     </div>
-                    <div className="text-xs text-ink-dim">
-                      Qty {it.quantity} · {money(Number(it.priceAtPurchase))} each
-                    </div>
+                    <h1 className="font-display text-3xl font-extrabold text-white mt-1">
+                      Order receipt
+                    </h1>
+                    <p className="text-sm text-ink-secondary mt-1">
+                      Placed{" "}
+                      {new Date(order.createdAt).toLocaleString("en-US", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
                   </div>
-                  <div className="text-right font-display text-lg font-bold text-brand-yellow">
-                    {money(Number(it.priceAtPurchase) * it.quantity)}
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  <Badge className="uppercase" variant={statusBadge[order.status]}>
+                    {order.status}
+                  </Badge>
+                </div>
+              )}
+            </header>
 
-            <div className="mt-6 pt-4 border-t border-line flex justify-between items-center">
-              <div>
-                {order.transaction && (
-                  <div className="text-xs text-ink-dim font-mono">
-                    Transaction #{order.transaction.transactionId} · recorded {new Date(order.transaction.date).toLocaleDateString()}
-                  </div>
+            {/* Order # mono row (small) for the new state — replaces the duplicated block above */}
+            {isNew && (
+              <div className="px-7 py-3 border-b border-white/8 flex items-center justify-between bg-surface-2/40">
+                <div className="text-xs font-mono text-ink-dim flex items-center gap-1.5">
+                  <Receipt className="h-3 w-3" />
+                  ORDER #{order.orderId}
+                </div>
+                <Badge className="uppercase" variant={statusBadge[order.status]}>
+                  {order.status}
+                </Badge>
+              </div>
+            )}
+
+            {/* Items */}
+            <section className="px-7 py-6">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
+                Items ({order.items.length})
+              </h2>
+              <ul className="divide-y divide-white/6">
+                {order.items.map((it) => (
+                  <li key={it.orderItemId} className="flex items-center gap-4 py-4">
+                    <div className="relative h-16 w-16 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8">
+                      {it.productItem.product.images[0]?.productImage && (
+                        <Image
+                          src={it.productItem.product.images[0].productImage}
+                          alt=""
+                          fill
+                          sizes="64px"
+                          className="object-cover"
+                          unoptimized
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Link
+                        href={`/product/${it.productItem.product.productId}`}
+                        className="font-semibold text-white hover:text-metu-yellow line-clamp-1"
+                      >
+                        {it.productItem.product.name}
+                      </Link>
+                      <div className="text-xs text-ink-dim capitalize mt-0.5">
+                        {it.productItem.deliveryMethod.replace("_", " ")} ·{" "}
+                        {it.productItem.product.store.name}
+                      </div>
+                      <div className="text-xs text-ink-dim">
+                        Qty {it.quantity} · {money(Number(it.priceAtPurchase))} each
+                      </div>
+                    </div>
+                    <div className="text-right font-display text-lg font-bold text-gold-gradient">
+                      {money(Number(it.priceAtPurchase) * it.quantity)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* Totals */}
+            <section className="px-7 py-5 border-t border-white/8 bg-surface-2/30">
+              <div className="space-y-1.5 text-sm">
+                <Row label="Subtotal" value={subtotal} />
+                {discount > 0 && (
+                  <Row
+                    label={
+                      couponCode
+                        ? `Discount (${couponCode})`
+                        : "Discount"
+                    }
+                    value={-discount}
+                    accent="green"
+                  />
                 )}
+                <div className="border-t border-white/8 my-3" />
+                <div className="flex justify-between items-baseline">
+                  <span className="text-white font-semibold">Total</span>
+                  <span className="font-display text-3xl font-extrabold text-gold-gradient">
+                    {money(total)}
+                  </span>
+                </div>
               </div>
-              <div className="font-display text-2xl font-extrabold text-brand-yellow">
-                Total {money(Number(order.totalPrice))}
-              </div>
-            </div>
-          </div>
-        </div>
+            </section>
 
-        <div className="mt-6 flex gap-3">
-          <Button href="/orders" variant="outline">Back to orders</Button>
-          <Button href="/browse" variant="primary">Browse more →</Button>
+            {/* Transaction sub-card */}
+            {order.transaction && (
+              <section className="px-7 py-5 border-t border-white/8">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-ink-dim mb-3 flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-metu-yellow" />
+                  Transaction
+                </h2>
+                <div className="rounded-xl border border-white/10 bg-surface-2 p-4 grid grid-cols-3 gap-4 font-mono text-xs">
+                  <div>
+                    <div className="text-ink-dim">Tx ID</div>
+                    <div className="text-white mt-0.5">#{order.transaction.transactionId}</div>
+                  </div>
+                  <div>
+                    <div className="text-ink-dim">Type</div>
+                    <div className="text-white mt-0.5 capitalize">{order.transaction.transactionType}</div>
+                  </div>
+                  <div>
+                    <div className="text-ink-dim">Recorded</div>
+                    <div className="text-white mt-0.5">
+                      {new Date(order.transaction.date).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* CTA row */}
+          <div className="mt-6 flex gap-3">
+            <GlassButton tone="glass" href="/orders">Back to orders</GlassButton>
+            <GlassButton tone="gold" href="/browse">Browse more →</GlassButton>
+          </div>
         </div>
       </main>
       <Footer />
     </>
+  );
+}
+
+function Row({
+  label,
+  value,
+  accent = "default",
+}: {
+  label: string;
+  value: number;
+  accent?: "default" | "green";
+}) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-ink-secondary">{label}</span>
+      <span className={accent === "green" ? "text-green-400 font-semibold" : "text-white font-semibold"}>
+        {money(value)}
+      </span>
+    </div>
   );
 }

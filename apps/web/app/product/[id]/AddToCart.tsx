@@ -1,9 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Download, Mail, Key, Play, ShoppingBag } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Download, Mail, Key, Play, ShoppingBag, Zap } from "lucide-react";
+import { GlassButton } from "@/components/visual/GlassButton";
 import { money } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 type Item = {
   productItemId: number;
@@ -29,7 +30,7 @@ export function AddToCart({ items }: { items: Item[] }) {
 
   const active = items.find((i) => i.productItemId === selected)!;
 
-  async function addToCart() {
+  async function addToCart(buyNow = false) {
     setBusy(true);
     setMessage(null);
     try {
@@ -40,7 +41,8 @@ export function AddToCart({ items }: { items: Item[] }) {
         credentials: "include",
       });
       if (res.status === 401) {
-        router.push(`/login?next=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`);
+        const next = buyNow ? "/cart" : (typeof window !== "undefined" ? window.location.pathname : "/");
+        router.push(`/login?next=${encodeURIComponent(next)}`);
         return;
       }
       if (!res.ok) {
@@ -48,6 +50,9 @@ export function AddToCart({ items }: { items: Item[] }) {
         return;
       }
       setMessage("Added to cart ✓");
+      if (buyNow) {
+        router.push("/cart");
+      }
     } catch {
       setMessage("Network error");
     } finally {
@@ -56,7 +61,7 @@ export function AddToCart({ items }: { items: Item[] }) {
   }
 
   return (
-    <div className="rounded-2xl border border-line bg-space-850 p-6">
+    <div className="rounded-2xl glass-morphism p-6">
       <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim mb-3">
         Choose a variant
       </div>
@@ -69,19 +74,25 @@ export function AddToCart({ items }: { items: Item[] }) {
               key={it.productItemId}
               type="button"
               onClick={() => setSelected(it.productItemId)}
-              className={`w-full flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${
-                isActive ? "border-brand-yellow bg-brand-yellow/10" : "border-line hover:border-brand-yellow/40"
-              }`}
+              className={cn(
+                "w-full flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition relative overflow-hidden",
+                isActive
+                  ? "bg-gradient-to-r from-metu-yellow/15 to-metu-yellow/5 border border-metu-yellow/50"
+                  : "bg-white/[0.02] border border-white/8 hover:border-metu-yellow/30",
+              )}
             >
+              {isActive && (
+                <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-metu-yellow to-metu-gold" />
+              )}
               <div className="flex items-center gap-3">
-                <Icon className={`h-5 w-5 ${isActive ? "text-brand-yellow" : "text-ink-secondary"}`} strokeWidth={2} />
+                <Icon className={cn("h-5 w-5", isActive ? "text-metu-yellow" : "text-ink-secondary")} strokeWidth={2} />
                 <span className="text-sm font-semibold capitalize text-white">{it.deliveryMethod.replace("_", " ")}</span>
               </div>
               <div className="flex items-baseline gap-2">
                 {it.discountPercent > 0 && (
                   <span className="text-xs line-through text-ink-dim">{money(it.price)}</span>
                 )}
-                <span className="font-display font-bold text-brand-yellow">{money(it.finalPrice)}</span>
+                <span className="font-display font-bold text-gold-gradient">{money(it.finalPrice)}</span>
               </div>
             </button>
           );
@@ -90,11 +101,12 @@ export function AddToCart({ items }: { items: Item[] }) {
 
       <div className="flex items-center gap-3 mb-5">
         <label className="text-sm font-semibold text-white">Qty</label>
-        <div className="flex items-center border border-line rounded-full overflow-hidden bg-space-900">
+        <div className="flex items-center border border-white/10 rounded-full overflow-hidden bg-surface-2">
           <button
             type="button"
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
-            className="px-3 py-2 text-white hover:bg-white/5"
+            className="px-3 py-1.5 text-white hover:bg-white/5"
+            aria-label="Decrease"
           >
             −
           </button>
@@ -102,21 +114,30 @@ export function AddToCart({ items }: { items: Item[] }) {
           <button
             type="button"
             onClick={() => setQuantity(Math.min(99, quantity + 1))}
-            className="px-3 py-2 text-white hover:bg-white/5"
+            className="px-3 py-1.5 text-white hover:bg-white/5"
+            aria-label="Increase"
           >
             +
           </button>
         </div>
         <div className="ml-auto text-right">
-          <div className="text-xs text-ink-dim">Total</div>
-          <div className="font-display text-2xl font-extrabold text-brand-yellow">{money(active.finalPrice * quantity)}</div>
+          <div className="text-[10px] uppercase tracking-wider text-ink-dim">Total</div>
+          <div className="font-display text-2xl font-extrabold text-gold-gradient">
+            {money(active.finalPrice * quantity)}
+          </div>
         </div>
       </div>
 
-      <Button variant="primary" size="lg" className="w-full" onClick={addToCart} disabled={busy}>
-        <ShoppingBag className="h-4 w-4" />
-        {busy ? "Adding…" : "Add to cart"}
-      </Button>
+      <div className="grid grid-cols-2 gap-3">
+        <GlassButton tone="glass" size="lg" onClick={() => addToCart(false)} disabled={busy}>
+          <ShoppingBag className="h-4 w-4" />
+          Add to cart
+        </GlassButton>
+        <GlassButton tone="gold" size="lg" onClick={() => addToCart(true)} disabled={busy}>
+          <Zap className="h-4 w-4" />
+          Buy now
+        </GlassButton>
+      </div>
       {message && <p className="mt-3 text-sm text-center text-ink-secondary">{message}</p>}
     </div>
   );
