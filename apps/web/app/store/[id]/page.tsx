@@ -9,7 +9,8 @@ import { ProductCard } from "@/components/ProductCard";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { StarField } from "@/components/DotGrid";
-import { getStore } from "@/lib/server/queries";
+import { getStore, getFavoriteSet } from "@/lib/server/queries";
+import { getMe } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ export const dynamic = "force-dynamic";
 export default async function StorePage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   if (!Number.isFinite(id)) return notFound();
-  const data = await getStore(id);
+  const me = await getMe();
+  const [data, favSet] = await Promise.all([getStore(id), getFavoriteSet(me?.user.userId)]);
   if (!data) return notFound();
   const { store, products, productCount, reviewCount, avgRating } = data;
 
@@ -118,7 +120,7 @@ export default async function StorePage({ params }: { params: { id: string } }) 
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                 {products.map((p) => (
-                  <ProductCard key={p.productId} product={p} />
+                  <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
                 ))}
               </div>
             )}

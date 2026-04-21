@@ -5,7 +5,8 @@ import { ProductCard } from "@/components/ProductCard";
 import { EmptyState } from "@/components/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { browseProducts, getCategories, getTags } from "@/lib/server/queries";
+import { browseProducts, getCategories, getTags, getFavoriteSet } from "@/lib/server/queries";
+import { getMe } from "@/lib/session";
 import { Filter, Package, SearchX } from "lucide-react";
 
 type Category = { categoryId: number; categoryName: string };
@@ -20,7 +21,8 @@ export default async function BrowsePage({
 }: {
   searchParams: Record<string, string | undefined>;
 }) {
-  const [result, categories, tags] = await Promise.all([
+  const me = await getMe();
+  const [result, categories, tags, favSet] = await Promise.all([
     browseProducts({
       category: searchParams.category ? Number(searchParams.category) : undefined,
       tags: searchParams.tags,
@@ -36,6 +38,7 @@ export default async function BrowsePage({
     }),
     getCategories(),
     getTags(),
+    getFavoriteSet(me?.user.userId),
   ]);
 
   const activeSort = searchParams.sort ?? "newest";
@@ -99,7 +102,7 @@ export default async function BrowsePage({
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                 {result.items.map((p) => (
-                  <ProductCard key={p.productId} product={p} />
+                  <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
                 ))}
               </div>
             )}

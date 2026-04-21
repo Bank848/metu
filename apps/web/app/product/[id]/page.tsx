@@ -6,9 +6,10 @@ import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
 import { Reviews } from "@/components/Reviews";
-import { getProduct } from "@/lib/server/queries";
+import { getProduct, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { AddToCart } from "./AddToCart";
 import { Gallery } from "./Gallery";
 
@@ -36,6 +37,10 @@ export default async function ProductPage({ params }: { params: { id: string } }
     getMe(),
   ]);
   if (!product) return notFound();
+
+  // Drives the heart's initial state on the title row.
+  const favSet = await getFavoriteSet(me?.user.userId);
+  const isFavorited = favSet.has(product.productId);
 
   const items = product.items.map((it) => ({
     ...it,
@@ -67,9 +72,12 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 <Badge key={nt.tag.tagId} variant="mist">{nt.tag.tagName}</Badge>
               ))}
             </div>
-            <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-3">
-              {product.name}
-            </h1>
+            <div className="flex items-start gap-3 mb-3">
+              <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white flex-1">
+                {product.name}
+              </h1>
+              <FavoriteButton productId={product.productId} initial={isFavorited} size="md" />
+            </div>
             <div className="flex items-center gap-4 mb-4 text-sm">
               {product.avgRating !== undefined && (
                 <div className="flex items-center gap-1">
