@@ -68,6 +68,91 @@ export async function getFeaturedStores(take = 4) {
   });
 }
 
+/** Public store page: store + owner + products grid + aggregate ratings. */
+export async function getStore(storeId: number) {
+  const store = await prisma.store.findUnique({
+    where: { storeId },
+    include: {
+      owner: { select: { firstName: true, lastName: true, profileImage: true, username: true, createdDate: true } },
+      businessType: true,
+      stats: true,
+    },
+  });
+  if (!store) return null;
+
+  const products = await prisma.product.findMany({
+    where: { storeId },
+    orderBy: { productId: "desc" },
+    include: {
+      items: { select: { price: true, discountPercent: true } },
+      images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
+      productNTags: { include: { tag: { select: { tagName: true } } } },
+      reviews: { select: { rating: true } },
+    },
+  });
+
+  const items = products.map((p) => {
+    const prices = p.items.map((i) => Number(i.price));
+    const ratings = p.reviews.map((r) => r.rating);
+    const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
+    return {
+      productId: p.productId,
+      name: p.name,
+      description: p.description,
+      image: p.images[0]?.productImage ?? `https://picsum.photos/seed/p${p.productId}/800/600`,
+      minPrice: prices.length ? Math.min(...prices) : 0,
+      maxPrice: prices.length ? Math.max(...prices) : 0,
+      storeName: store.name,
+      storeId: store.storeId,
+      avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
+      reviewCount: ratings.length,
+      discountPercent: maxDiscount || undefined,
+      tags: p.productNTags.map((nt) => nt.tag.tagName),
+    };
+  });
+
+  const allRatings = products.flatMap((p) => p.reviews.map((r) => r.rating));
+  const avgRating = allRatings.length ? allRatings.reduce((a, b) => a + b, 0) / allRatings.length : undefined;
+
+  return { store, products: items, productCount: products.length, reviewCount: allRatings.length, avgRating };
+}
+
+/** Reviews the current user authored — for /my-reviews (buyer view). */
+export async function getReviewsByUser(userId: number) {
+  return prisma.productReview.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      product: {
+        select: {
+          productId: true,
+          name: true,
+          images: { select: { productImage: true }, take: 1, orderBy: { sortOrder: "asc" } },
+          store: { select: { name: true, storeId: true } },
+        },
+      },
+    },
+  });
+}
+
+/** Reviews on the seller's own products — for /my-reviews (seller view). */
+export async function getReviewsForStore(storeId: number) {
+  return prisma.productReview.findMany({
+    where: { product: { storeId } },
+    orderBy: { createdAt: "desc" },
+    include: {
+      user: { select: { firstName: true, lastName: true, profileImage: true, username: true } },
+      product: {
+        select: {
+          productId: true,
+          name: true,
+          images: { select: { productImage: true }, take: 1, orderBy: { sortOrder: "asc" } },
+        },
+      },
+    },
+  });
+}
+
 export async function getCategories() {
   return prisma.category.findMany({ orderBy: { categoryName: "asc" } });
 }
