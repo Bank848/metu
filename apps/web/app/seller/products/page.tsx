@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/EmptyState";
+import { ProductRowActions } from "@/components/seller/ProductRowActions";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -53,6 +54,7 @@ export default async function SellerProducts() {
                 <th className="text-left px-5 py-3">Variants</th>
                 <th className="text-left px-5 py-3">Price range</th>
                 <th className="text-left px-5 py-3">Reviews</th>
+                <th className="text-right px-5 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -81,6 +83,9 @@ export default async function SellerProducts() {
                       {money(min)}{min !== max && ` – ${money(max)}`}
                     </td>
                     <td className="px-5 py-3 text-sm text-ink-secondary">{p._count.reviews}</td>
+                    <td className="px-5 py-3">
+                      <ProductRowActions productId={p.productId} productName={p.name} />
+                    </td>
                   </tr>
                 );
               })}
