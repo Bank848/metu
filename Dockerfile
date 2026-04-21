@@ -24,7 +24,11 @@ COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/db/package.json ./packages/db/
 
-RUN npm ci --include=dev
+# `--ignore-scripts` skips apps/web's `postinstall: prisma generate ...` —
+# the schema file isn't in this stage yet (we only copied package.json
+# files for layer-cache friendliness). The builder stage runs
+# `prisma generate` explicitly once the full source is in place.
+RUN npm ci --include=dev --ignore-scripts
 
 # ───── Stage 2: builder ─────
 FROM node:20-alpine AS builder
