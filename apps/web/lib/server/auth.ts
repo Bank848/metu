@@ -65,9 +65,6 @@ export async function requireAuth(
 ): Promise<{ ok: true; auth: TokenPayload; user: AuthUser } | { ok: false; response: NextResponse }> {
   const auth = readAuthFromRequest(req);
   if (!auth) return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  if (roles && !roles.includes(auth.role)) {
-    return { ok: false, response: NextResponse.json({ error: "Forbidden", need: roles }, { status: 403 }) };
-  }
   const user = await loadUser(auth.uid);
   // Soft-deleted users still hold their JWT cookie until it expires —
   // explicitly bounce them as Unauthorized so old sessions can't be
@@ -75,7 +72,16 @@ export async function requireAuth(
   if (!user || user.deletedAt) {
     return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  return { ok: true, auth, user };
+  // Role check uses the **DB** role, not the role baked into the JWT —
+  // otherwise a promotion/demotion forces the user to log out + back in
+  // before the change takes effect (and an admin demoted to seller can't
+  // even reach /admin to undo their mistake). Returns the live role to
+  // callers via `auth.role`.
+  const liveRole = (user.stats?.role ?? "buyer") as UserRole;
+  if (roles && !roles.includes(liveRole)) {
+    return { ok: false, response: NextResponse.json({ error: "Forbidden", need: roles }, { status: 403 }) };
+  }
+  return { ok: true, auth: { uid: auth.uid, role: liveRole }, user };
 }
 
 export function json<T>(data: T, status = 200) {

@@ -13,7 +13,11 @@ export async function getMe() {
   // public/anonymous variant rather than a half-broken authed state.
   if (!user || (user as any).deletedAt) return null;
   const { password: _, ...safe } = user as any;
-  return { user: safe, role: auth.role };
+  // Prefer the DB role (always current) over the JWT role (stale until
+  // re-login). If for some reason stats are missing, fall back to JWT
+  // and finally to "buyer" so the type is still narrow.
+  const role = ((safe.stats?.role as string | undefined) ?? auth.role ?? "buyer") as typeof auth.role;
+  return { user: safe, role };
 }
 
 /**
