@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const items = [
   { href: "/admin/users",   label: "Users",    icon: Users },
   { href: "/admin/stores",  label: "Stores",   icon: Store },
   { href: "/admin/reports", label: "Reports",  icon: FileBarChart },
+  { href: "/admin/audit",   label: "Audit log", icon: History },
 ];
 
 export function AdminSidebar() {

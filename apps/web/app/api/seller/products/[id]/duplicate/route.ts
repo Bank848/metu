@@ -21,8 +21,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const sourceId = Number(params.id);
   if (!Number.isFinite(sourceId)) return NextResponse.json({ error: "BadId" }, { status: 400 });
 
-  const source = await prisma.product.findUnique({
-    where: { productId: sourceId },
+  const source = await prisma.product.findFirst({
+    where: { productId: sourceId, deletedAt: null },
     include: {
       items: true,
       images: { orderBy: { sortOrder: "asc" } },

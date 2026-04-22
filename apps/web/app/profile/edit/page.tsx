@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -45,6 +45,26 @@ export default async function EditProfilePage() {
               : "",
           }}
         />
+
+        {/* GDPR-style data export — separate card so it's visually distinct
+            from profile edit fields. The endpoint forces a JSON download. */}
+        <section className="mt-8 rounded-2xl bg-space-850 border border-line p-6">
+          <h2 className="font-display text-base font-bold text-white mb-1">
+            Your data
+          </h2>
+          <p className="text-sm text-ink-dim mb-4">
+            Download a JSON copy of everything METU has stored about you —
+            profile, orders, reviews, favourites, messages, and more.
+            Right to data portability, no questions asked.
+          </p>
+          <a
+            href="/api/profile/export"
+            className="inline-flex items-center gap-2 rounded-full border border-line bg-space-900 px-4 py-2 text-sm font-semibold text-white hover:border-brand-yellow/50 hover:text-brand-yellow transition"
+          >
+            <Download className="h-4 w-4" />
+            Download your data (JSON)
+          </a>
+        </section>
       </main>
       <Footer />
     </>

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const [store, productCount, recentReviews, totals] = await Promise.all([
     prisma.store.findUnique({ where: { storeId }, include: { stats: true, businessType: true } }),
-    prisma.product.count({ where: { storeId } }),
+    prisma.product.count({ where: { storeId, deletedAt: null } }),
     prisma.productReview.findMany({
       where: { product: { storeId } },
       orderBy: { createdAt: "desc" },

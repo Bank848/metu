@@ -23,7 +23,11 @@ export async function POST(req: NextRequest) {
       carts: { where: { status: "active" }, take: 1, select: { cartId: true } },
     },
   });
-  if (!user) return NextResponse.json({ error: "InvalidCredentials" }, { status: 401 });
+  // Same generic 401 whether the email isn't registered or the account
+  // was soft-deleted — don't leak account state to attackers.
+  if (!user || user.deletedAt) {
+    return NextResponse.json({ error: "InvalidCredentials" }, { status: 401 });
+  }
 
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return NextResponse.json({ error: "InvalidCredentials" }, { status: 401 });

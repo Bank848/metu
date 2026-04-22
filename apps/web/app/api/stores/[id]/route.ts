@@ -6,13 +6,15 @@ export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
-  const store = await prisma.store.findUnique({
-    where: { storeId: id },
+  // Public — soft-deleted stores 404, soft-deleted products are filtered out.
+  const store = await prisma.store.findFirst({
+    where: { storeId: id, deletedAt: null },
     include: {
       owner: { select: { firstName: true, lastName: true, profileImage: true, username: true } },
       businessType: true,
       stats: true,
       products: {
+        where: { deletedAt: null },
         include: {
           items: { select: { price: true, discountPercent: true } },
           images: { take: 1, orderBy: { sortOrder: "asc" } },

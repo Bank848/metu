@@ -3,12 +3,30 @@ import bcrypt from "bcryptjs";
 import { registerSchema } from "@metu/shared";
 import { prisma } from "@/lib/server/prisma";
 import { setAuthCookie } from "@/lib/server/auth";
+import { verifyTurnstile } from "@/lib/server/turnstile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
+
+  // CAPTCHA — Cloudflare Turnstile. No-op when TURNSTILE_SECRET is unset
+  // (local dev), enforced in prod. Verify before doing any DB work so
+  // bot floods don't waste Neon round-trips.
+  const captchaToken = typeof body?.captchaToken === "string" ? body.captchaToken : undefined;
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    req.headers.get("x-real-ip") ??
+    undefined;
+  const captcha = await verifyTurnstile(captchaToken, ip);
+  if (!captcha.ok) {
+    return NextResponse.json(
+      { error: "CaptchaFailed", message: "Please complete the CAPTCHA and try again." },
+      { status: 400 },
+    );
+  }
+
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });

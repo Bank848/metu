@@ -57,7 +57,12 @@ export async function GET(req: NextRequest) {
   }
   const { category, tags, minPrice, maxPrice, delivery, q, sort, page, pageSize } = parsed.data;
 
-  const where: Prisma.ProductWhereInput = {};
+  // Public listing — exclude paused, soft-deleted, and orphaned products.
+  const where: Prisma.ProductWhereInput = {
+    isActive: true,
+    deletedAt: null,
+    store: { deletedAt: null },
+  };
   if (category) where.categoryId = category;
   if (q) {
     where.OR = [

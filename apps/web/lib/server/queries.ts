@@ -15,9 +15,11 @@ function safeDelivery(v: string | undefined): DeliveryMethod | undefined {
 }
 
 export async function getStats() {
+  // Public counters — exclude soft-deleted rows so the homepage never shows
+  // a number that includes ghosts.
   const [sellers, products, orders, reviews] = await Promise.all([
-    prisma.userStats.count({ where: { role: "seller" } }),
-    prisma.product.count(),
+    prisma.userStats.count({ where: { role: "seller", user: { deletedAt: null } } }),
+    prisma.product.count({ where: { deletedAt: null } }),
     prisma.order.count(),
     prisma.productReview.count(),
   ]);
@@ -76,8 +78,9 @@ export async function getFavoriteProducts(userId: number) {
 
 export async function getFeaturedProducts(take = 8) {
   const products = await prisma.product.findMany({
-    // Public-facing carousel — paused products are excluded.
-    where: { isActive: true },
+    // Public-facing carousel — exclude paused, soft-deleted, and products
+    // belonging to a deleted store.
+    where: { isActive: true, deletedAt: null, store: { deletedAt: null } },
     orderBy: { reviews: { _count: "desc" } },
     take,
     include: {
@@ -111,6 +114,7 @@ export async function getFeaturedProducts(take = 8) {
 
 export async function getFeaturedStores(take = 4) {
   return prisma.store.findMany({
+    where: { deletedAt: null },
     take,
     orderBy: { createdAt: "desc" },
     select: {
@@ -131,8 +135,9 @@ export async function getStore(storeId: number) {
   // Both queries depend only on storeId — run them in parallel to halve
   // round-trip latency to Neon.
   const [store, products] = await Promise.all([
-    prisma.store.findUnique({
-      where: { storeId },
+    prisma.store.findFirst({
+      // Soft-deleted stores are off-limits to the public store page.
+      where: { storeId, deletedAt: null },
       include: {
         owner: { select: { firstName: true, lastName: true, profileImage: true, username: true, createdDate: true } },
         businessType: true,
@@ -140,8 +145,8 @@ export async function getStore(storeId: number) {
       },
     }),
     prisma.product.findMany({
-      // Public store page only shows active (non-paused) products.
-      where: { storeId, isActive: true },
+      // Public store page only shows active, non-deleted products.
+      where: { storeId, isActive: true, deletedAt: null },
       orderBy: { productId: "desc" },
       include: {
         items: { select: { price: true, discountPercent: true } },
@@ -295,8 +300,13 @@ export async function browseProducts(params: {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 16;
 
-  // Public browse — never surface paused products.
-  const where: Prisma.ProductWhereInput = { isActive: true };
+  // Public browse — never surface paused, soft-deleted, or stores that
+  // were soft-deleted (orphan products).
+  const where: Prisma.ProductWhereInput = {
+    isActive: true,
+    deletedAt: null,
+    store: { deletedAt: null },
+  };
   if (params.category) where.categoryId = params.category;
   if (params.q) {
     where.OR = [
@@ -390,8 +400,10 @@ export async function browseProducts(params: {
 }
 
 export async function getProduct(id: number) {
-  const product = await prisma.product.findUnique({
-    where: { productId: id },
+  // Public product detail must hide soft-deleted products and products
+  // whose store was soft-deleted (orphans).
+  const product = await prisma.product.findFirst({
+    where: { productId: id, deletedAt: null, store: { deletedAt: null } },
     include: {
       store: {
         select: {
@@ -440,6 +452,8 @@ export async function getRelatedProducts(productId: number, take = 4) {
   const products = await prisma.product.findMany({
     where: {
       isActive: true,
+      deletedAt: null,
+      store: { deletedAt: null },
       productId: { not: productId },
       OR: [
         { categoryId: source.categoryId },

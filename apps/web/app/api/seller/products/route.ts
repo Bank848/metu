@@ -10,8 +10,10 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const r = await withStore(req);
   if (!r.ok) return r.response;
+  // Sellers manage their live catalog — soft-deleted rows stay out of
+  // their dashboard. (Admin /admin/audit can still surface the deletion.)
   const rows = await prisma.product.findMany({
-    where: { storeId: r.store.storeId },
+    where: { storeId: r.store.storeId, deletedAt: null },
     orderBy: { productId: "desc" },
     include: {
       category: true,
