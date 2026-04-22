@@ -2,12 +2,16 @@ import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalL
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
-export const dynamic = "force-static";
+// Must be dynamic so the parent admin layout's getMe() cookie read
+// runs per-request. If we let this prerender at build time the layout
+// sees no cookie, redirects to /login, and bakes that redirect into a
+// static page that everyone hits.
+export const dynamic = "force-dynamic";
 
 /**
- * Admin-only changelog. Static page — every batch we ship gets a card
- * here so the team has a single place to point at when asked "what
- * actually changed today?". Server-component, no JS shipped.
+ * Admin-only changelog — every batch we ship gets a card here so the
+ * team has a single place to point at when asked "what actually changed
+ * today?". Server-component, no JS shipped to the browser.
  *
  * Sits behind the admin layout's `me.role !== "admin"` redirect, so
  * non-admins never see it even if they guess the URL.
