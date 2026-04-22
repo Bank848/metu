@@ -1,8 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2 } from "lucide-react";
+import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, FileDown } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
+import { StockAlertButton } from "@/components/StockAlertButton";
 import { money } from "@/lib/format";
 import { play } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,8 @@ type Item = {
   finalPrice: number;
   discountPercent: number;
   stock: number;
+  sampleUrl?: string | null;
+  alreadySubscribed?: boolean;
 };
 
 const deliveryIcon: Record<string, React.ElementType> = {
@@ -174,6 +177,18 @@ export function AddToCart({ items }: { items: Item[] }) {
         {isDigital && (
           <span className="text-[11px] text-ink-dim">Digital · 1 per order</span>
         )}
+        {/* Free preview / sample link — only when the seller has set one. */}
+        {active?.sampleUrl && (
+          <a
+            href={active.sampleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-metu-yellow hover:underline"
+          >
+            <FileDown className="h-3 w-3" />
+            Free sample
+          </a>
+        )}
         <div className="ml-auto text-right">
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">Total</div>
           <div className="font-display text-2xl font-extrabold text-gold-gradient">
@@ -181,6 +196,17 @@ export function AddToCart({ items }: { items: Item[] }) {
           </div>
         </div>
       </div>
+
+      {/* Out-of-stock notify-me — only physical variants. */}
+      {!isDigital && active?.stock === 0 && (
+        <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 flex items-center justify-between gap-3">
+          <span className="text-sm text-amber-200">This variant is out of stock.</span>
+          <StockAlertButton
+            productItemId={active.productItemId}
+            initialSubscribed={Boolean(active.alreadySubscribed)}
+          />
+        </div>
+      )}
 
       <div className="relative grid grid-cols-2 gap-3">
         {/* Floating +QTY indicator — rises above the Add button when an

@@ -16,6 +16,7 @@ type Variant = {
   price: number;
   discountPercent: number;
   discountAmount: number;
+  sampleUrl?: string;
 };
 
 const DEFAULT_VARIANT: Variant = {
@@ -88,6 +89,8 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
           items: variants.map((v) => ({
             ...v,
             discountAmount: (v.price * v.discountPercent) / 100,
+            // Send empty string as undefined so Zod's optional URL passes.
+            sampleUrl: v.sampleUrl?.trim() || undefined,
           })),
         }),
       });
@@ -279,6 +282,17 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
                   />
                 </label>
               </div>
+              {/* Optional public link to a free preview / sample. */}
+              <label className="block">
+                <span className="text-[11px] font-semibold text-ink-dim uppercase tracking-wider">Free sample URL <span className="text-ink-dim/70">(optional)</span></span>
+                <input
+                  type="url"
+                  value={v.sampleUrl ?? ""}
+                  onChange={(e) => updateVariant(i, { sampleUrl: e.target.value })}
+                  placeholder="https://… link to a low-res preview / sample"
+                  className={`mt-1 ${inputCls}`}
+                />
+              </label>
               {v.discountPercent > 0 && (
                 <div className="text-xs text-ink-secondary">
                   Buyers see: <span className="line-through text-ink-dim">{money(v.price)}</span>{" "}

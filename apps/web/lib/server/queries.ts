@@ -286,6 +286,10 @@ export async function browseProducts(params: {
   sort?: "newest" | "price_asc" | "price_desc" | "rating";
   page?: number;
   pageSize?: number;
+  // 1..5 — keeps only products whose average review rating is at least this.
+  // Implemented as a post-filter in JS because Prisma can't aggregate
+  // reviews in a single SQL where-clause without a raw query.
+  minRating?: number;
 }) {
   const sort = params.sort ?? "newest";
   const page = params.page ?? 1;
@@ -366,7 +370,23 @@ export async function browseProducts(params: {
   if (sort === "price_asc") items.sort((a, b) => a.minPrice - b.minPrice);
   if (sort === "price_desc") items.sort((a, b) => b.minPrice - a.minPrice);
 
-  return { items, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  // Post-filter: rating threshold. Done in JS so we don't have to drop
+  // into raw SQL just for a HAVING clause. The pagination total counts
+  // before filtering — close enough for the demo. A future iteration
+  // could materialise an avgRating column on Product to push this into
+  // the where-clause.
+  const filtered =
+    params.minRating && params.minRating > 0
+      ? items.filter((p) => (p.avgRating ?? 0) >= params.minRating!)
+      : items;
+
+  return {
+    items: filtered,
+    page,
+    pageSize,
+    total: params.minRating && params.minRating > 0 ? filtered.length : total,
+    totalPages: Math.max(1, Math.ceil((params.minRating ? filtered.length : total) / pageSize)),
+  };
 }
 
 export async function getProduct(id: number) {
@@ -399,6 +419,62 @@ export async function getProduct(id: number) {
   const ratings = product.reviews.map((r) => r.rating);
   const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined;
   return { ...product, avgRating, reviewCount: ratings.length };
+}
+
+/**
+ * "More like this" — same category, ideally sharing at least one tag,
+ * excludes the source product. Returns up to `take` ProductCard rows
+ * suitable for the existing <ProductCard /> component.
+ */
+export async function getRelatedProducts(productId: number, take = 4) {
+  const source = await prisma.product.findUnique({
+    where: { productId },
+    select: {
+      categoryId: true,
+      productNTags: { select: { tagId: true } },
+    },
+  });
+  if (!source) return [];
+  const tagIds = source.productNTags.map((nt) => nt.tagId);
+
+  const products = await prisma.product.findMany({
+    where: {
+      isActive: true,
+      productId: { not: productId },
+      OR: [
+        { categoryId: source.categoryId },
+        ...(tagIds.length ? [{ productNTags: { some: { tagId: { in: tagIds } } } }] : []),
+      ],
+    },
+    orderBy: { reviews: { _count: "desc" } },
+    take,
+    include: {
+      store: { select: { name: true, storeId: true } },
+      items: { select: { price: true, discountPercent: true } },
+      images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
+      productNTags: { include: { tag: { select: { tagName: true } } } },
+      reviews: { select: { rating: true } },
+    },
+  });
+  return products.map((p) => {
+    const prices = p.items.map((i) => Number(i.price));
+    const ratings = p.reviews.map((r) => r.rating);
+    const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
+    return {
+      productId: p.productId,
+      name: p.name,
+      description: p.description,
+      image: p.images[0]?.productImage ?? `https://picsum.photos/seed/p${p.productId}/800/600`,
+      minPrice: prices.length ? Math.min(...prices) : 0,
+      maxPrice: prices.length ? Math.max(...prices) : 0,
+      storeName: p.store.name,
+      storeId: p.store.storeId,
+      avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
+      reviewCount: ratings.length,
+      discountPercent: maxDiscount || undefined,
+      tags: p.productNTags.map((nt) => nt.tag.tagName),
+    };
+  });
 }
 
 /**

@@ -6,13 +6,16 @@ import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
 import { Reviews } from "@/components/Reviews";
-import { getProduct, getFavoriteSet, getRecentPurchaseCount } from "@/lib/server/queries";
+import { getProduct, getFavoriteSet, getRecentPurchaseCount, getRelatedProducts } from "@/lib/server/queries";
+import { ProductCard } from "@/components/ProductCard";
 import { getMe } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { ExpandableText } from "@/components/ExpandableText";
 import { RecentPing } from "@/components/RecentPing";
 import { ShareButton } from "@/components/ShareButton";
+import { ProductQuestions } from "@/components/ProductQuestions";
+import { prisma } from "@/lib/server/prisma";
 import { AddToCart } from "./AddToCart";
 import { Gallery } from "./Gallery";
 
@@ -39,13 +42,42 @@ export default async function ProductPage({ params }: { params: { id: string } }
   // reads can fan out in the same Promise.all — eliminates the serial
   // getFavoriteSet await that was adding one extra Neon roundtrip.
   const me = await getMe();
-  const [product, favSet, recentBuyers] = await Promise.all([
+  const [product, favSet, recentBuyers, questions, related] = await Promise.all([
     getProduct(id) as Promise<Product | null>,
     getFavoriteSet(me?.user.userId),
     getRecentPurchaseCount(id, 7),
+    prisma.productQuestion.findMany({
+      where: { productId: id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        asker:    { select: { userId: true, username: true, firstName: true, lastName: true, profileImage: true } },
+        answerer: { select: { userId: true, username: true, firstName: true, lastName: true, profileImage: true } },
+      },
+    }),
+    getRelatedProducts(id, 4),
   ]);
   if (!product) return notFound();
+  // Seller-or-admin can answer questions on this product.
+  const canAnswer =
+    me?.role === "admin" ||
+    (me?.user.store?.storeId !== undefined && me.user.store.storeId === product.store.storeId);
   const isFavorited = favSet.has(product.productId);
+
+  // Hydrate per-variant restock subscription state so the bell button
+  // shows the right colour without a client round-trip.
+  const alertSet = me
+    ? new Set(
+        (
+          await prisma.stockAlert.findMany({
+            where: {
+              userId: me.user.userId,
+              productItemId: { in: product.items.map((it) => it.productItemId) },
+            },
+            select: { productItemId: true },
+          })
+        ).map((a) => a.productItemId),
+      )
+    : new Set<number>();
 
   const items = product.items.map((it) => ({
     ...it,
@@ -53,6 +85,8 @@ export default async function ProductPage({ params }: { params: { id: string } }
     finalPrice: Number(it.price) * (1 - (it.discountPercent ?? 0) / 100),
     // Expose stock to AddToCart so it can cap the typed input correctly.
     stock: it.quantity,
+    sampleUrl: (it as { sampleUrl?: string | null }).sampleUrl ?? null,
+    alreadySubscribed: alertSet.has(it.productItemId),
   }));
 
   return (
@@ -154,6 +188,36 @@ export default async function ProductPage({ params }: { params: { id: string } }
             canWrite={Boolean(me)}
           />
         </section>
+
+        <ProductQuestions
+          productId={product.productId}
+          initialQuestions={questions.map((q) => ({
+            questionId: q.questionId,
+            body: q.body,
+            answer: q.answer,
+            answeredAt: q.answeredAt ? q.answeredAt.toISOString() : null,
+            createdAt: q.createdAt.toISOString(),
+            asker: q.asker,
+            answerer: q.answerer,
+          }))}
+          canAnswer={canAnswer}
+          isLoggedIn={Boolean(me)}
+        />
+
+        {related.length > 0 && (
+          <section className="mt-16">
+            <div className="flex items-end justify-between mb-6 border-b border-white/8 pb-3">
+              <h2 className="font-display text-2xl font-bold tracking-tight text-white">
+                More like this
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+              {related.map((p) => (
+                <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
       <Footer />
     </>

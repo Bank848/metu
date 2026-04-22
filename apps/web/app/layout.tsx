@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
+import { CompareDrawer } from "@/components/CompareDrawer";
 
 const display = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-surface-1 text-ink-primary font-body antialiased">
         {children}
         <KeyboardShortcuts />
+        <CompareDrawer />
       </body>
     </html>
   );
