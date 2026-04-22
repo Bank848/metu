@@ -4,6 +4,7 @@ import {
   Heart,
   ShoppingBag,
   Store,
+  ShieldCheck,
   LayoutGrid,
   Tag,
   Box,
@@ -38,6 +39,7 @@ const TABS: Tab[] = [
 export async function TopNav({ q }: { q?: string } = {}) {
   const me = await getMe();
   const hasStore = Boolean(me?.user?.store);
+  const isAdmin = me?.role === "admin";
 
   return (
     <header className="sticky top-0 z-40 glass-morphism-strong border-b border-white/6">
@@ -72,6 +74,7 @@ export async function TopNav({ q }: { q?: string } = {}) {
             <ShoppingBag className="h-5 w-5" />
           </Link>
           <SoundToggle />
+          {isAdmin && <AdminButton />}
           <AddStoreButton loggedIn={Boolean(me)} hasStore={hasStore} />
         </div>
 
@@ -100,6 +103,21 @@ export async function TopNav({ q }: { q?: string } = {}) {
         </div>
       </nav>
     </header>
+  );
+}
+
+/** Admin-only quick-launch button. Sits to the left of "Add Store /
+ *  Dashboard" so admins always have a one-click path to /admin. */
+function AdminButton() {
+  return (
+    <Link
+      href="/admin"
+      title="Admin panel"
+      className="inline-flex items-center gap-1.5 rounded-pill border border-purple-400/40 bg-purple-400/15 hover:bg-purple-400/25 hover:border-purple-400/60 px-3 py-2 text-sm font-semibold text-purple-200 transition"
+    >
+      <ShieldCheck className="h-4 w-4" />
+      Admin
+    </Link>
   );
 }
 

@@ -88,6 +88,11 @@ model User {
   dateOfBirth   DateTime? @map("date_of_birth")
   createdDate   DateTime  @default(now()) @map("created_date")
 
+  // Soft-delete: when set, public surfaces hide the user but admin /
+  // audit queries can still see them. Used by /api/admin/users/[id]
+  // DELETE so order history and reviews don't FK-cascade away.
+  deletedAt          DateTime?         @map("deleted_at")
+
   country            Country?          @relation(fields: [countryId], references: [countryId])
   stats              UserStats?
   store              Store?
@@ -101,9 +106,12 @@ model User {
   questionsAsked     ProductQuestion[] @relation("QuestionAsker")
   questionsAnswered  ProductQuestion[] @relation("QuestionAnswerer")
   stockAlerts        StockAlert[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs          AuditLog[]
 
   @@index([countryId])
   @@index([createdDate])
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -135,14 +143,17 @@ model BusinessType {
 }
 
 model Store {
-  storeId        Int      @id @default(autoincrement()) @map("store_id")
-  ownerId        Int      @unique @map("owner_id")
-  businessTypeId Int      @map("business_type_id")
-  name           String   @db.VarChar(60)
-  description    String   @db.VarChar(255)
-  profileImage   String?  @map("profile_image") @db.Text
-  coverImage     String?  @map("cover_image") @db.Text
-  createdAt      DateTime @default(now()) @map("created_at")
+  storeId        Int       @id @default(autoincrement()) @map("store_id")
+  ownerId        Int       @unique @map("owner_id")
+  businessTypeId Int       @map("business_type_id")
+  name           String    @db.VarChar(60)
+  description    String    @db.VarChar(255)
+  profileImage   String?   @map("profile_image") @db.Text
+  coverImage     String?   @map("cover_image") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  // Soft-delete — hides from public catalogue + storefronts but keeps
+  // historical orders / reviews intact.
+  deletedAt      DateTime? @map("deleted_at")
 
   owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
   businessType BusinessType @relation(fields: [businessTypeId], references: [typeId])
@@ -152,6 +163,7 @@ model Store {
 
   @@index([businessTypeId])
   @@index([createdAt])
+  @@index([deletedAt])
   @@map("store")
 }
 

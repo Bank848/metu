@@ -30,10 +30,15 @@ export async function POST(req: NextRequest) {
       },
       include: { stats: true },
     });
+    // Promote buyer → seller, but never demote admin → seller. Admins are
+    // allowed to own a store (e.g. for testing) without losing their
+    // admin powers.
+    const existingStats = await tx.userStats.findUnique({ where: { userId: r.auth.uid } });
+    const nextRole = existingStats?.role === "admin" ? "admin" : "seller";
     await tx.userStats.upsert({
       where: { userId: r.auth.uid },
-      update: { role: "seller" },
-      create: { userId: r.auth.uid, role: "seller" },
+      update: { role: nextRole },
+      create: { userId: r.auth.uid, role: nextRole },
     });
     return store;
   });

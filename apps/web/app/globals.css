@@ -22,6 +22,38 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  /* Smooth scrolling for anchor jumps + JS scroll-into-view + the
+     keyboard-shortcut Home key. The browser still uses native fast wheel
+     scrolling — this only animates programmatic scrolls. */
+  scroll-behavior: smooth;
+  /* Anchor jumps (and ?tab= focus changes) shouldn't land under the
+     sticky TopNav. Pad the scroll target down by the nav height. */
+  scroll-padding-top: 88px;
+}
+
+/* Respect users who set 'Reduce motion' in their OS — scroll snaps back
+   to instant for them. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Stop the rubber-band overscroll bounce from leaking into the parent
+   page when scrolling inside modals / horizontal scrollers. */
+.no-scrollbar,
+.snap-x {
+  overscroll-behavior-x: contain;
+}
+
 .font-display {
   font-family: var(--font-display), "Plus Jakarta Sans", system-ui, sans-serif;
 }
