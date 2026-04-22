@@ -88,16 +88,19 @@ model User {
   dateOfBirth   DateTime? @map("date_of_birth")
   createdDate   DateTime  @default(now()) @map("created_date")
 
-  country           Country?         @relation(fields: [countryId], references: [countryId])
-  stats             UserStats?
-  store             Store?
-  carts             Cart[]
-  transactions      Transaction[]
-  reviews           ProductReview[]
-  couponUsages      CouponUsage[]
-  favorites         ProductFavorite[]
-  messagesSent      Message[]        @relation("MessageSender")
-  messagesReceived  Message[]        @relation("MessageRecipient")
+  country            Country?          @relation(fields: [countryId], references: [countryId])
+  stats              UserStats?
+  store              Store?
+  carts              Cart[]
+  transactions       Transaction[]
+  reviews            ProductReview[]
+  couponUsages       CouponUsage[]
+  favorites          ProductFavorite[]
+  messagesSent       Message[]         @relation("MessageSender")
+  messagesReceived   Message[]         @relation("MessageRecipient")
+  questionsAsked     ProductQuestion[] @relation("QuestionAsker")
+  questionsAnswered  ProductQuestion[] @relation("QuestionAnswerer")
+  stockAlerts        StockAlert[]
 
   @@index([countryId])
   @@index([createdDate])
@@ -210,6 +213,7 @@ model Product {
   productNTags ProductNTag[]
   favorites    ProductFavorite[]
   messages     Message[]
+  questions    ProductQuestion[]
 
   @@index([storeId])
   @@index([categoryId])
@@ -225,11 +229,15 @@ model ProductItem {
   price           Decimal        @db.Decimal(10, 2)
   discountPercent Int            @default(0) @map("discount_percent")
   discountAmount  Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  // Optional URL to a free preview / sample (e.g. low-res PDF, audio
+  // clip) so buyers can check the goods before paying.
+  sampleUrl       String?        @map("sample_url") @db.Text
   createdDate     DateTime       @default(now()) @map("created_date")
 
-  product    Product     @relation(fields: [productId], references: [productId], onDelete: Cascade)
-  orderItems OrderItem[]
-  cartItems  CartItem[]
+  product     Product      @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  orderItems  OrderItem[]
+  cartItems   CartItem[]
+  stockAlerts StockAlert[]
 
   @@index([productId])
   @@map("product_item")
@@ -353,14 +361,18 @@ model Transaction {
 }
 
 model Order {
-  orderId       Int         @id @default(autoincrement()) @map("order_id")
-  cartId        Int         @unique @map("cart_id")
-  totalPrice    Decimal     @map("total_price") @db.Decimal(12, 2)
-  status        OrderStatus @default(pending)
-  transactionId Int?        @map("transaction_id")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  expiredAt     DateTime?   @map("expired_at")
+  orderId             Int         @id @default(autoincrement()) @map("order_id")
+  cartId              Int         @unique @map("cart_id")
+  totalPrice          Decimal     @map("total_price") @db.Decimal(12, 2)
+  status              OrderStatus @default(pending)
+  transactionId       Int?        @map("transaction_id")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+  expiredAt           DateTime?   @map("expired_at")
+  // Gift checkout — when set, the receipt shows the recipient instead of
+  // the buyer + (in a future batch) emails the recipient a redeem link.
+  giftRecipientEmail  String?     @map("gift_recipient_email") @db.VarChar(80)
+  giftMessage         String?     @map("gift_message")          @db.VarChar(500)
 
   cart        Cart         @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
@@ -456,4 +468,51 @@ model Message {
   @@index([recipientId, readAt])
   @@index([createdAt])
   @@map("message")
+}
+
+// ============================================================================
+//  PRODUCT Q&A — public questions buyers ask, sellers answer in-line.
+//  Lives below the reviews section on /product/[id].
+// ============================================================================
+
+model ProductQuestion {
+  questionId  Int      @id @default(autoincrement()) @map("question_id")
+  productId   Int      @map("product_id")
+  askerId     Int      @map("asker_id")
+  body        String   @db.VarChar(500)
+  // Inline answer — when present, the seller (or admin) has replied.
+  answer      String?  @db.VarChar(500)
+  answeredAt  DateTime? @map("answered_at")
+  answererId  Int?     @map("answerer_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  product  Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  asker    User    @relation("QuestionAsker",    fields: [askerId],    references: [userId], onDelete: Cascade)
+  answerer User?   @relation("QuestionAnswerer", fields: [answererId], references: [userId], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([productId, createdAt])
+  @@index([askerId])
+  @@map("product_question")
+}
+
+// ============================================================================
+//  STOCK ALERT — buyer asks to be notified when an out-of-stock variant
+//  comes back. Unique per (user, variant) so re-clicking the bell is a
+//  no-op. Fired off by the seller's inventory bump (see Batch D email).
+// ============================================================================
+
+model StockAlert {
+  alertId       Int       @id @default(autoincrement()) @map("alert_id")
+  userId        Int       @map("user_id")
+  productItemId Int       @map("product_item_id")
+  notifiedAt    DateTime? @map("notified_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user        User        @relation(fields: [userId],        references: [userId],        onDelete: Cascade)
+  productItem ProductItem @relation(fields: [productItemId], references: [productItemId], onDelete: Cascade)
+
+  @@unique([userId, productItemId])
+  @@index([productItemId, notifiedAt])
+  @@map("stock_alert")
 }

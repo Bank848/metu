@@ -16,6 +16,7 @@ type Variant = {
   price: number;
   discountPercent: number;
   discountAmount: number;
+  sampleUrl?: string;
 };
 
 type Initial = {
@@ -118,6 +119,7 @@ export function EditProductForm({
           items: variants.map((v) => ({
             ...v,
             discountAmount: (v.price * v.discountPercent) / 100,
+            sampleUrl: v.sampleUrl?.trim() || undefined,
           })),
         }),
       });
@@ -311,6 +313,16 @@ export function EditProductForm({
                   />
                 </label>
               </div>
+              <label className="block">
+                <span className="text-[11px] font-semibold text-ink-dim uppercase tracking-wider">Free sample URL <span className="text-ink-dim/70">(optional)</span></span>
+                <input
+                  type="url"
+                  value={v.sampleUrl ?? ""}
+                  onChange={(e) => updateVariant(i, { sampleUrl: e.target.value })}
+                  placeholder="https://… link to a low-res preview / sample"
+                  className={`mt-1 ${inputCls}`}
+                />
+              </label>
               {v.discountPercent > 0 && (
                 <div className="text-xs text-ink-secondary">
                   Buyers see: <span className="line-through text-ink-dim">{money(v.price)}</span>{" "}

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const parsed = checkoutSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "ValidationError" }, { status: 400 });
-  const { couponCode, selectedCartItemIds } = parsed.data;
+  const { couponCode, selectedCartItemIds, giftRecipientEmail, giftMessage } = parsed.data;
 
   const cart = await prisma.cart.findFirst({
     where: { userId: r.auth.uid, status: "active" },
@@ -84,6 +84,9 @@ export async function POST(req: NextRequest) {
         totalPrice: total,
         status: "paid",
         transactionId: txn.transactionId,
+        // Gift options propagate so the receipt knows whom this order is for.
+        giftRecipientEmail: giftRecipientEmail || null,
+        giftMessage: giftMessage || null,
         items: {
           create: selectedItems.map((ci) => ({
             productItemId: ci.productItemId,

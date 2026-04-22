@@ -18,6 +18,8 @@ type Order = {
   totalPrice: string | number;
   status: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
   createdAt: string;
+  giftRecipientEmail?: string | null;
+  giftMessage?: string | null;
   transaction?: { transactionId: number; totalAmount: string | number; date: string; transactionType: string } | null;
   items: Array<{
     orderItemId: number;
@@ -155,6 +157,21 @@ export default async function OrderDetail({
                   {order.status}
                 </Badge>
               </div>
+            )}
+
+            {order.giftRecipientEmail && (
+              <section className="px-7 pt-6">
+                <div className="rounded-xl border border-pink-400/30 bg-pink-400/10 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-pink-300 inline-flex items-center gap-1">
+                    🎁 Gift for {order.giftRecipientEmail}
+                  </div>
+                  {order.giftMessage && (
+                    <p className="mt-2 text-sm text-white whitespace-pre-line">
+                      “{order.giftMessage}”
+                    </p>
+                  )}
+                </div>
+              </section>
             )}
 
             {/* Items */}

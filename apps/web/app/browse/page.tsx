@@ -36,6 +36,7 @@ export default async function BrowsePage({
         : "newest",
       page: searchParams.page ? Math.max(1, Number(searchParams.page)) : 1,
       pageSize: 16,
+      minRating: searchParams.minRating ? Number(searchParams.minRating) : undefined,
     }),
     getCategories(),
     getTags(),
@@ -191,6 +192,36 @@ function FilterPanel({
             );
           })}
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-line bg-space-850 p-5">
+        <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
+          Minimum rating
+        </h3>
+        <ul className="space-y-0.5 text-sm">
+          <li>
+            <a
+              href={buildHref({ minRating: undefined })}
+              className={`block rounded-lg px-3 py-1.5 transition ${
+                !params.minRating ? "bg-brand-yellow/15 text-brand-yellow font-semibold" : "text-ink-secondary hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              Any rating
+            </a>
+          </li>
+          {[4, 3, 2, 1].map((n) => (
+            <li key={n}>
+              <a
+                href={buildHref({ minRating: String(n) })}
+                className={`block rounded-lg px-3 py-1.5 transition ${
+                  Number(params.minRating) === n ? "bg-brand-yellow/15 text-brand-yellow font-semibold" : "text-ink-secondary hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                {n}★ &amp; up
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="rounded-2xl border border-line bg-space-850 p-5">

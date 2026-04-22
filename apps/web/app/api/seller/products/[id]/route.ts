@@ -111,6 +111,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             price: new Prisma.Decimal(it.price),
             discountPercent: it.discountPercent,
             discountAmount: new Prisma.Decimal(it.discountAmount),
+            sampleUrl: it.sampleUrl,
           },
         });
       } else {
@@ -122,6 +123,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             price: new Prisma.Decimal(it.price),
             discountPercent: it.discountPercent,
             discountAmount: new Prisma.Decimal(it.discountAmount),
+            sampleUrl: it.sampleUrl,
           },
         });
       }

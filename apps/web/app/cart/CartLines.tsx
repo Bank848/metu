@@ -58,6 +58,10 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   const [couponResult, setCouponResult] = useState<CouponResult>(null);
   const [busy, setBusy] = useState(false);
   const [lineError, setLineError] = useState<Record<number, string>>({});
+  // Gift checkout state — collapsed by default to keep the summary tight.
+  const [giftOpen, setGiftOpen] = useState(false);
+  const [giftEmail, setGiftEmail] = useState("");
+  const [giftMessage, setGiftMessage] = useState("");
 
   // Every item is selected by default. Checkbox state survives qty / remove
   // as long as the item is still in the cart.
@@ -179,6 +183,8 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
           // Only send the chosen line IDs — unchecked items stay in the
           // next active cart.
           selectedCartItemIds: selectedItems.map((l) => l.cartItemId),
+          giftRecipientEmail: giftOpen && giftEmail.trim() ? giftEmail.trim() : undefined,
+          giftMessage: giftOpen && giftMessage.trim() ? giftMessage.trim() : undefined,
         }),
         credentials: "include",
       });
@@ -475,6 +481,40 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
             <p className="text-[11px] text-ink-dim pt-1">
               {cart.items.length - selectedItems.length} item(s) will stay in your cart.
             </p>
+          )}
+        </div>
+
+        {/* Gift checkout — collapsed by default. */}
+        <div className="mb-4 rounded-xl border border-white/10 bg-surface-2/40 p-3">
+          <label className="flex items-center gap-2 cursor-pointer text-sm">
+            <input
+              type="checkbox"
+              checked={giftOpen}
+              onChange={(e) => setGiftOpen(e.target.checked)}
+              className="h-4 w-4 accent-metu-yellow"
+            />
+            <span className="text-white font-semibold">🎁 This is a gift</span>
+          </label>
+          {giftOpen && (
+            <div className="mt-3 space-y-2">
+              <input
+                type="email"
+                value={giftEmail}
+                onChange={(e) => setGiftEmail(e.target.value)}
+                placeholder="Recipient's email"
+                className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
+              />
+              <textarea
+                value={giftMessage}
+                onChange={(e) => setGiftMessage(e.target.value.slice(0, 500))}
+                placeholder="Optional gift note"
+                rows={2}
+                className="w-full resize-none rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
+              />
+              <p className="text-[10px] text-ink-dim text-right font-mono">
+                {giftMessage.length} / 500
+              </p>
+            </div>
           )}
         </div>
 

@@ -16,6 +16,9 @@ export const checkoutSchema = z.object({
   // Undefined = check out ALL items. Array = partial checkout; unchecked
   // items stay in the user's new active cart.
   selectedCartItemIds: z.array(z.number().int().positive()).optional(),
+  // Gift options — when present the order is flagged for gift display.
+  giftRecipientEmail: z.string().email().max(80).optional(),
+  giftMessage: z.string().max(500).optional(),
 });
 
 export type AddToCartInput = z.infer<typeof addToCartSchema>;

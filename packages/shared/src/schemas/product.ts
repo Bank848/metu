@@ -20,6 +20,14 @@ export const productItemInputSchema = z.object({
   price: z.number().positive(),
   discountPercent: z.number().int().min(0).max(100).default(0),
   discountAmount: z.number().nonnegative().default(0),
+  // Optional public URL of a free preview / sample (PDF, audio clip, etc.)
+  // Empty string is normalised to undefined so Prisma stores NULL.
+  sampleUrl: z
+    .string()
+    .url()
+    .max(500)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 });
 
 export const productInputSchema = z.object({

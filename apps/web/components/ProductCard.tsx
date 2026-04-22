@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Star, Package, BadgeCheck } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { FavoriteButton } from "./FavoriteButton";
+import { CompareToggle } from "./CompareDrawer";
 import { cn, isDataUrl } from "@/lib/utils";
 import { money } from "@/lib/format";
 
@@ -72,8 +73,9 @@ export function ProductCard({
             −{product.discountPercent}%
           </span>
         )}
-        {/* Favourite heart + THB currency badge top-right */}
+        {/* Favourite heart + Compare toggle + THB currency badge top-right */}
         <div className="absolute top-3 right-3 flex items-center gap-2">
+          <CompareToggle productId={product.productId} />
           <FavoriteButton productId={product.productId} initial={isFavorited} />
           <span className="rounded-full glass-morphism-strong px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-metu-yellow uppercase border border-metu-yellow/30">
             THB

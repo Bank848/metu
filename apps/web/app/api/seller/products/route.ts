@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
           price: new Prisma.Decimal(it.price),
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
+          sampleUrl: it.sampleUrl,
         })),
       },
       images: { create: images.map((url, i) => ({ productImage: url, sortOrder: i })) },
