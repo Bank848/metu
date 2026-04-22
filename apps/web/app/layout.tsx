@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 
 const display = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable} dark`}>
       <body className="min-h-screen bg-surface-1 text-ink-primary font-body antialiased">
         {children}
+        <KeyboardShortcuts />
       </body>
     </html>
   );

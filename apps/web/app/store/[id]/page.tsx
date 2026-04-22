@@ -12,6 +12,7 @@ import { StarField } from "@/components/DotGrid";
 import { getStore, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
+import { ShareButton } from "@/components/ShareButton";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +63,12 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                 <BadgeCheck className="h-3 w-3" />
                 {store.businessType?.name ?? "Verified store"}
               </Badge>
-              <h1 className="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white">
-                {store.name}
-              </h1>
+              <div className="flex items-start gap-3">
+                <h1 className="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white flex-1">
+                  {store.name}
+                </h1>
+                <ShareButton title={store.name} text={`${store.name} on METU`} size="md" />
+              </div>
               <p className="mt-2 text-ink-secondary max-w-2xl">{store.description}</p>
               <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-ink-dim">
                 <span className="inline-flex items-center gap-1">

@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag, AlertTriangle } from "lucide-react";
+import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag, AlertTriangle, Heart } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { money } from "@/lib/format";
 import { play } from "@/lib/sound";
@@ -134,6 +134,20 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
     if (res.ok) {
       setCart({ ...cart, items: cart.items.filter((l) => l.cartItemId !== cartItemId) });
     }
+  }
+
+  /** Save for later: heart the product, then drop it from the cart in
+   *  one click. The favourite POST is idempotent so a no-op is safe. */
+  async function saveForLater(line: Line) {
+    try {
+      await fetch(`${API}/favorites/${line.productId}`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      /* swallow — proceed to remove either way */
+    }
+    await remove(line.cartItemId);
   }
 
   async function applyCoupon(e: React.FormEvent) {
@@ -326,9 +340,19 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                           </div>
                           <button
                             type="button"
+                            onClick={() => saveForLater(l)}
+                            className="text-ink-dim hover:text-metu-red transition"
+                            aria-label="Save for later"
+                            title="Move to favourites"
+                          >
+                            <Heart className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => remove(l.cartItemId)}
                             className="text-ink-dim hover:text-metu-red transition"
                             aria-label="Remove"
+                            title="Remove from cart"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

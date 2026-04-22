@@ -30,7 +30,12 @@ export default async function ProfilePage() {
         <PageHeader
           title="Your profile"
           subtitle="Manage your account, orders, and store."
-          action={<LogoutButton />}
+          action={
+            <div className="flex items-center gap-2">
+              <Button href="/profile/edit" variant="outline" size="sm">Edit profile</Button>
+              <LogoutButton />
+            </div>
+          }
         />
 
         <div className="grid md:grid-cols-[280px_1fr] gap-8 items-start">

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { browseProducts, getCategories, getTags, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
+import { RecentStrip } from "./RecentStrip";
 import { Filter, Package, SearchX } from "lucide-react";
 
 type Category = { categoryId: number; categoryName: string };
@@ -110,6 +111,9 @@ export default async function BrowsePage({
             {result.totalPages > 1 && (
               <Pagination page={result.page} totalPages={result.totalPages} params={searchParams} />
             )}
+
+            {/* Personal recently-viewed strip (hydrates from localStorage). */}
+            <RecentStrip />
           </section>
         </div>
       </main>
