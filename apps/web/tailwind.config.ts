@@ -69,10 +69,13 @@ const config: Config = {
         mono:    ["var(--font-mono)", "ui-monospace", "monospace"],
       },
       boxShadow: {
-        card: "0 4px 20px -4px rgba(0,0,0,0.45)",
-        pop:  "0 8px 32px -8px rgba(255, 204, 0, 0.45)",
-        glow: "0 0 0 1px rgba(255,204,0,0.35), 0 0 24px -4px rgba(255,204,0,0.30)",
-        gold: "0 6px 24px -8px rgba(178, 104, 0, 0.55)",
+        // Tighter blur radii — large blurs (>20px) compound badly when many
+        // cards transition simultaneously on hover. We keep the visual
+        // weight by bumping opacity slightly instead.
+        card: "0 4px 14px -4px rgba(0,0,0,0.5)",
+        pop:  "0 6px 18px -8px rgba(255, 204, 0, 0.55)",
+        glow: "0 0 0 1px rgba(255,204,0,0.4), 0 0 14px -4px rgba(255,204,0,0.35)",
+        gold: "0 4px 16px -8px rgba(178, 104, 0, 0.6)",
       },
       backgroundImage: {
         "button-gradient":  "linear-gradient(180deg, #FFCC00 0%, #B26800 100%)",
