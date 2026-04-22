@@ -34,8 +34,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!parsed.success) {
     return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });
   }
-  // Confirm product exists.
-  const product = await prisma.product.findUnique({ where: { productId }, select: { productId: true } });
+  // Confirm product exists and isn't soft-deleted/orphaned.
+  const product = await prisma.product.findFirst({
+    where: { productId, deletedAt: null, store: { deletedAt: null } },
+    select: { productId: true },
+  });
   if (!product) return NextResponse.json({ error: "NotFound" }, { status: 404 });
 
   const created = await prisma.productQuestion.create({

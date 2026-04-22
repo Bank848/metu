@@ -26,7 +26,14 @@ export async function GET(req: NextRequest) {
   if (ids.length === 0) return NextResponse.json({ items: [] });
 
   const products = await prisma.product.findMany({
-    where: { productId: { in: ids } },
+    // Hide products the seller paused/deleted, or whose store was deleted —
+    // a user's recently-viewed history shouldn't surface ghosts.
+    where: {
+      productId: { in: ids },
+      isActive: true,
+      deletedAt: null,
+      store: { deletedAt: null },
+    },
     include: {
       store: { select: { name: true, storeId: true } },
       items: { select: { price: true, discountPercent: true } },

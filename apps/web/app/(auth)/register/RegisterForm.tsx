@@ -2,8 +2,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Turnstile } from "@/components/Turnstile";
 
 type Country = { countryId: number; name: string };
+
+// Cloudflare Turnstile is opt-in via env. When the key isn't set we
+// don't render the widget at all and the server-side verify is a no-op.
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 const TODAY = new Date();
 // Don't allow signups with a future or impossibly-recent birthday — gate the
@@ -16,6 +21,7 @@ export function RegisterForm({ countries }: { countries: Country[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -30,6 +36,12 @@ export function RegisterForm({ countries }: { countries: Country[] }) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // Don't even hit the API if the CAPTCHA isn't solved yet — saves a
+    // failed POST + the rate-limit slot it would consume.
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError("Please complete the CAPTCHA below.");
+      return;
+    }
     setBusy(true);
     try {
       // Strip empty optional fields so the schema's `.optional()` is honoured.
@@ -43,6 +55,7 @@ export function RegisterForm({ countries }: { countries: Country[] }) {
       if (form.dateOfBirth) payload.dateOfBirth = form.dateOfBirth;
       if (form.gender) payload.gender = form.gender;
       if (form.countryId) payload.countryId = Number(form.countryId);
+      if (captchaToken) payload.captchaToken = captchaToken;
 
       const res = await fetch(`/api/auth/register`, {
         method: "POST",
@@ -181,6 +194,14 @@ export function RegisterForm({ countries }: { countries: Country[] }) {
           </label>
         </div>
       </details>
+
+      {TURNSTILE_SITE_KEY && (
+        <Turnstile
+          sitekey={TURNSTILE_SITE_KEY}
+          onVerify={setCaptchaToken}
+          onExpire={() => setCaptchaToken(null)}
+        />
+      )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
       <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy}>

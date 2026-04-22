@@ -12,10 +12,12 @@ export async function POST(req: NextRequest, { params }: { params: { productId: 
   const productId = Number(params.productId);
   if (!Number.isFinite(productId)) return NextResponse.json({ error: "BadId" }, { status: 400 });
 
-  // Verify the product exists so we don't litter the table with phantom
-  // refs (not strictly necessary — the FK would catch it — but a 404 is
-  // clearer than a 500).
-  const exists = await prisma.product.findUnique({ where: { productId }, select: { productId: true } });
+  // Verify the product exists, isn't soft-deleted, and isn't orphaned
+  // by a deleted store. Avoids cluttering favourites with ghosts.
+  const exists = await prisma.product.findFirst({
+    where: { productId, deletedAt: null, store: { deletedAt: null } },
+    select: { productId: true },
+  });
   if (!exists) return NextResponse.json({ error: "NotFound" }, { status: 404 });
 
   await prisma.productFavorite.upsert({

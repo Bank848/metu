@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id);
   if (!Number.isFinite(id)) return NextResponse.json({ error: "BadRequest" }, { status: 400 });
-  const product = await prisma.product.findUnique({
-    where: { productId: id },
+  // Public — soft-deleted products + orphan products (deleted store) 404.
+  const product = await prisma.product.findFirst({
+    where: { productId: id, deletedAt: null, store: { deletedAt: null } },
     include: {
       store: { include: { stats: true, businessType: true } },
       category: true,

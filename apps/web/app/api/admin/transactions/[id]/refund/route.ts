@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireAuth } from "@/lib/server/auth";
+import { audit } from "@/lib/server/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,5 +41,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     }),
   ]);
+  await audit({
+    actorId: r.user.userId,
+    action: "transaction.refund",
+    targetType: "transaction",
+    targetId: transactionId,
+    meta: {
+      userId: tx.userId,
+      amount: Number(tx.totalAmount),
+      ordersAffected: tx.orders.length,
+    },
+  });
   return NextResponse.json({ ok: true });
 }

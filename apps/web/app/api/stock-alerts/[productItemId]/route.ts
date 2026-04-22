@@ -19,8 +19,15 @@ export async function POST(req: NextRequest, { params }: { params: { productItem
   const productItemId = Number(params.productItemId);
   if (!Number.isFinite(productItemId)) return NextResponse.json({ error: "BadId" }, { status: 400 });
 
-  // Confirm the variant exists so we don't litter with phantom subscriptions.
-  const exists = await prisma.productItem.findUnique({ where: { productItemId }, select: { productItemId: true } });
+  // Confirm the variant exists and the parent product/store wasn't
+  // soft-deleted — no point subscribing to ghosts.
+  const exists = await prisma.productItem.findFirst({
+    where: {
+      productItemId,
+      product: { deletedAt: null, store: { deletedAt: null } },
+    },
+    select: { productItemId: true },
+  });
   if (!exists) return NextResponse.json({ error: "NotFound" }, { status: 404 });
 
   await prisma.stockAlert.upsert({

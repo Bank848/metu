@@ -19,8 +19,14 @@ export async function POST(req: NextRequest) {
   const { productItemId, quantity } = parsed.data;
 
   // Enforce stock + digital caps server-side so a crafted client can't
-  // bypass the UI controls.
-  const productItem = await prisma.productItem.findUnique({ where: { productItemId } });
+  // bypass the UI controls. Also block adds for variants whose product
+  // (or store) has been soft-deleted/paused since the page was rendered.
+  const productItem = await prisma.productItem.findFirst({
+    where: {
+      productItemId,
+      product: { isActive: true, deletedAt: null, store: { deletedAt: null } },
+    },
+  });
   if (!productItem) return NextResponse.json({ error: "NotFound" }, { status: 404 });
   const maxAllowed = DIGITAL_METHODS.has(productItem.deliveryMethod) ? 1 : Math.max(1, productItem.quantity);
 

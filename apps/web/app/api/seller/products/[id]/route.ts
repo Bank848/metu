@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { productInputSchema } from "@metu/shared";
 import { prisma } from "@/lib/server/prisma";
 import { withStore } from "@/lib/server/seller";
+import { audit } from "@/lib/server/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -133,7 +134,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ ok: true });
 }
 
-/** DELETE: remove the product (cascades to items, images, reviews, tags). */
+/**
+ * DELETE: soft-delete the product. We always set `deletedAt` (instead of
+ * a real DB delete) — that way OrderItem rows pointing at this product
+ * stay valid and order history is preserved. Public queries filter by
+ * `deletedAt: null` so the product disappears from /browse, /product/[id],
+ * featured, related, store pages, etc. immediately.
+ */
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const r = await withStore(req);
   if (!r.ok) return r.response;
@@ -143,18 +150,16 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const own = await assertOwnership(productId, r.store.storeId);
   if (!own.ok) return NextResponse.json({ error: own.error }, { status: own.status });
 
-  // ProductItem deletes are blocked by OrderItem FK (preserves order history).
-  // If we can't delete cleanly, surface a friendly error.
-  try {
-    await prisma.product.delete({ where: { productId } });
-  } catch (e: any) {
-    if (e?.code === "P2003") {
-      return NextResponse.json(
-        { error: "HasSales", message: "This product has past sales and can't be deleted. Unlist instead." },
-        { status: 409 },
-      );
-    }
-    throw e;
-  }
+  await prisma.product.update({
+    where: { productId },
+    data: { deletedAt: new Date() },
+  });
+  await audit({
+    actorId: r.auth.uid,
+    action: "product.delete",
+    targetType: "product",
+    targetId: productId,
+    meta: { storeId: r.store.storeId, productName: own.product.name },
+  });
   return NextResponse.json({ ok: true });
 }

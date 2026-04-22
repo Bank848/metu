@@ -29,7 +29,10 @@ export async function POST(
       { status: 400 },
     );
   }
-  const product = await prisma.product.findUnique({ where: { productId } });
+  // Reviewing a soft-deleted/orphan product makes no sense — 404.
+  const product = await prisma.product.findFirst({
+    where: { productId, deletedAt: null, store: { deletedAt: null } },
+  });
   if (!product) return NextResponse.json({ error: "NotFound" }, { status: 404 });
 
   const review = await prisma.productReview.create({

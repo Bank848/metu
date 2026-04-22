@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { withStore } from "@/lib/server/seller";
+import { audit } from "@/lib/server/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,6 +56,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   await prisma.order.update({
     where: { orderId },
     data: { status: next as AllowedStatus },
+  });
+  await audit({
+    actorId: r.auth.uid,
+    action: next === "fulfilled" ? "order.fulfilled" : "order.cancelled",
+    targetType: "order",
+    targetId: orderId,
+    meta: { from: order.status, to: next, storeId: r.store.storeId },
   });
   return NextResponse.json({ ok: true });
 }

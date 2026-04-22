@@ -9,7 +9,9 @@ export async function getMe() {
   const auth = readAuth();
   if (!auth) return null;
   const user = await loadUser(auth.uid);
-  if (!user) return null;
+  // Soft-deleted users are surfaced as logged-out — page renders the
+  // public/anonymous variant rather than a half-broken authed state.
+  if (!user || (user as any).deletedAt) return null;
   const { password: _, ...safe } = user as any;
   return { user: safe, role: auth.role };
 }

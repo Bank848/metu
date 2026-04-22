@@ -69,7 +69,12 @@ export async function requireAuth(
     return { ok: false, response: NextResponse.json({ error: "Forbidden", need: roles }, { status: 403 }) };
   }
   const user = await loadUser(auth.uid);
-  if (!user) return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  // Soft-deleted users still hold their JWT cookie until it expires —
+  // explicitly bounce them as Unauthorized so old sessions can't be
+  // resurrected after an admin removes the account.
+  if (!user || user.deletedAt) {
+    return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
   return { ok: true, auth, user };
 }
 
