@@ -36,13 +36,14 @@ primary_region = "sin"
     timeout = "5s"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VM size — Next 14 wants ~300-400 MB resident; 512 MB stays under the
-# Fly free credit ($5/mo) at ~$3.88/mo for one shared-cpu-1x machine.
-# Bump to 1 GB (~$5.70/mo) if you start seeing OOM kills under load.
+# VM size — bumped to 1 GB to match what's currently deployed (the Fly UI
+# scaled the live machines up). Costs ~$5.70/mo per machine on
+# shared-cpu-1x — slightly over the $5 free credit. Drop back to 512mb
+# (~$3.88/mo) if cost matters more than headroom.
 # ─────────────────────────────────────────────────────────────────────────────
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = "1gb"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Release phase — runs once per deploy in a temporary VM with the same
