@@ -46,7 +46,9 @@ export function ProductCard({
     <Link
       href={`/product/${product.productId}`}
       className={cn(
-        "group relative rounded-2xl glass-morphism overflow-hidden transition-all duration-200",
+        // `transform-gpu` promotes each card onto its own GPU layer so the
+        // hover lift doesn't trigger a full-page repaint of all cards.
+        "group relative rounded-2xl glass-morphism overflow-hidden transition-all duration-200 transform-gpu",
         "hover:border-metu-yellow/50 hover:shadow-pop hover:-translate-y-1",
         className,
       )}
