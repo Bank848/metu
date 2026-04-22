@@ -52,4 +52,7 @@ primary_region = "sin"
 # needs (advisory locks, prepared statements).
 # ─────────────────────────────────────────────────────────────────────────────
 [deploy]
-  release_command = "sh -c 'DATABASE_URL=\"$DATABASE_URL_UNPOOLED\" node_modules/.bin/prisma migrate deploy --schema=packages/db/prisma/schema.prisma'"
+  # Invoke Prisma's CLI entry directly (`node node_modules/prisma/build/index.js`)
+  # rather than via `node_modules/.bin/prisma` — the .bin/ symlink directory
+  # isn't included in our slim runner image, only the actual prisma package.
+  release_command = "sh -c 'DATABASE_URL=\"$DATABASE_URL_UNPOOLED\" node node_modules/prisma/build/index.js migrate deploy --schema=packages/db/prisma/schema.prisma'"
