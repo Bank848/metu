@@ -1,14 +1,15 @@
 import Image from "next/image";
-import { DollarSign, ShoppingBag, Star, Timer, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { DollarSign, ShoppingBag, Star, Timer, TrendingUp, AlertTriangle, Pencil, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
-import { apiAuth } from "@/lib/session";
+import { apiAuth, getMe } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
 import { money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { GlassButton } from "@/components/visual/GlassButton";
-import { Pencil, ExternalLink } from "lucide-react";
+import { prisma } from "@/lib/server/prisma";
 
 type Stats = {
   store: { storeId: number; name: string; description: string; coverImage: string | null; stats: { rating: number; ctr: number; responseTime: number } | null };
@@ -26,7 +27,29 @@ type Stats = {
 export const dynamic = "force-dynamic";
 
 export default async function SellerOverview() {
-  const stats = await apiAuth<Stats>("/seller/stats");
+  const me = await getMe();
+  const [stats, lowStock] = await Promise.all([
+    apiAuth<Stats>("/seller/stats"),
+    // Low-stock variants from physical (non-digital) products. Digital
+    // delivery methods always show "single-use" anyway so don't need
+    // a stock alert.
+    me?.user.store
+      ? prisma.productItem.findMany({
+          where: {
+            quantity: { lte: 5, gt: 0 },
+            deliveryMethod: { notIn: ["download", "email", "license_key", "streaming"] },
+            product: { storeId: me.user.store.storeId, isActive: true },
+          },
+          select: {
+            productItemId: true,
+            quantity: true,
+            product: { select: { productId: true, name: true } },
+          },
+          orderBy: { quantity: "asc" },
+          take: 6,
+        })
+      : Promise.resolve([] as Array<{ productItemId: number; quantity: number; product: { productId: number; name: string } }>),
+  ]);
   if (!stats) {
     return <EmptyState title="No store data" description="Your seller data will appear here." />;
   }
@@ -49,6 +72,32 @@ export default async function SellerOverview() {
           </div>
         }
       />
+
+      {lowStock.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="font-display font-bold text-amber-300 text-sm">
+              Low stock — {lowStock.length} variant{lowStock.length === 1 ? "" : "s"} running out
+            </div>
+            <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              {lowStock.map((it) => (
+                <li key={it.productItemId}>
+                  <Link
+                    href={`/seller/products/${it.product.productId}/edit`}
+                    className="text-amber-200 hover:text-amber-100 hover:underline"
+                  >
+                    {it.product.name} <span className="text-amber-300/70">({it.quantity} left)</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <GlassButton tone="glass" size="sm" href="/seller/products/bulk">
+            Bulk edit →
+          </GlassButton>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard icon={DollarSign} label="Total revenue" value={money(stats.kpi.totalRevenue)} accent="yellow" />

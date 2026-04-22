@@ -88,14 +88,16 @@ model User {
   dateOfBirth   DateTime? @map("date_of_birth")
   createdDate   DateTime  @default(now()) @map("created_date")
 
-  country      Country?        @relation(fields: [countryId], references: [countryId])
-  stats        UserStats?
-  store        Store?
-  carts        Cart[]
-  transactions Transaction[]
-  reviews      ProductReview[]
-  couponUsages CouponUsage[]
-  favorites    ProductFavorite[]
+  country           Country?         @relation(fields: [countryId], references: [countryId])
+  stats             UserStats?
+  store             Store?
+  carts             Cart[]
+  transactions      Transaction[]
+  reviews           ProductReview[]
+  couponUsages      CouponUsage[]
+  favorites         ProductFavorite[]
+  messagesSent      Message[]        @relation("MessageSender")
+  messagesReceived  Message[]        @relation("MessageRecipient")
 
   @@index([countryId])
   @@index([createdDate])
@@ -193,6 +195,10 @@ model Product {
   categoryId  Int    @map("category_id")
   name        String @db.VarChar(100)
   description String @db.VarChar(255)
+  // Soft-hide flag — paused products vanish from public catalogue
+  // (browse, store page, featured) but remain visible in the seller
+  // dashboard and in any order history that already references them.
+  isActive    Boolean @default(true) @map("is_active")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -203,9 +209,11 @@ model Product {
   reviews      ProductReview[]
   productNTags ProductNTag[]
   favorites    ProductFavorite[]
+  messages     Message[]
 
   @@index([storeId])
   @@index([categoryId])
+  @@index([isActive])
   @@map("product")
 }
 
@@ -357,6 +365,7 @@ model Order {
   cart        Cart         @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
   items       OrderItem[]
+  messages    Message[]
 
   @@index([status])
   @@index([createdAt])
@@ -417,4 +426,34 @@ model CouponUsage {
   @@index([couponId])
   @@index([userId])
   @@map("coupon_usage")
+}
+
+// ============================================================================
+//  MESSAGES — buyer ↔ seller direct messaging, optionally pinned to an
+//  order or product. No conversation table; threads are derived from the
+//  pair (senderId, recipientId) at query time. Polling-based UI (no
+//  realtime).
+// ============================================================================
+
+model Message {
+  messageId   Int       @id @default(autoincrement()) @map("message_id")
+  senderId    Int       @map("sender_id")
+  recipientId Int       @map("recipient_id")
+  orderId     Int?      @map("order_id")
+  productId   Int?      @map("product_id")
+  body        String    @db.VarChar(1000)
+  readAt      DateTime? @map("read_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  sender    User     @relation("MessageSender",    fields: [senderId],    references: [userId], onDelete: Cascade)
+  recipient User     @relation("MessageRecipient", fields: [recipientId], references: [userId], onDelete: Cascade)
+  order     Order?   @relation(fields: [orderId],   references: [orderId],   onDelete: SetNull)
+  product   Product? @relation(fields: [productId], references: [productId], onDelete: SetNull)
+
+  @@index([senderId])
+  @@index([recipientId])
+  // Composite index for the inbox query — "unread messages for me".
+  @@index([recipientId, readAt])
+  @@index([createdAt])
+  @@map("message")
 }

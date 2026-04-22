@@ -1,6 +1,8 @@
 import Image from "next/image";
+import { Download } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
+import { GlassButton } from "@/components/visual/GlassButton";
 import { OrderStatusActions } from "@/components/seller/OrderStatusActions";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
@@ -30,7 +32,16 @@ export default async function SellerOrders() {
   const orders = (await apiAuth<Order[]>("/seller/orders")) ?? [];
   return (
     <>
-      <PageHeader title="Orders inbox" subtitle={`${orders.length} orders containing your products`} />
+      <PageHeader
+        title="Orders inbox"
+        subtitle={`${orders.length} orders containing your products`}
+        action={
+          <GlassButton tone="glass" size="sm" href="/api/seller/orders/export">
+            <Download className="h-3.5 w-3.5" />
+            Download CSV
+          </GlassButton>
+        }
+      />
       <ul className="space-y-3">
         {orders.map((o) => (
           <li key={o.orderId} className="rounded-2xl border border-line bg-space-850 p-5">
