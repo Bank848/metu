@@ -1,16 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Star, Clock, MessageSquare, ShieldCheck } from "lucide-react";
+import { Star, Clock, MessageSquare, ShieldCheck, Flame } from "lucide-react";
 import { notFound } from "next/navigation";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
 import { Reviews } from "@/components/Reviews";
-import { getProduct, getFavoriteSet } from "@/lib/server/queries";
+import { getProduct, getFavoriteSet, getRecentPurchaseCount } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { isDataUrl } from "@/lib/utils";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { ExpandableText } from "@/components/ExpandableText";
+import { RecentPing } from "@/components/RecentPing";
+import { ShareButton } from "@/components/ShareButton";
 import { AddToCart } from "./AddToCart";
 import { Gallery } from "./Gallery";
 
@@ -33,13 +35,14 @@ export const dynamic = "force-dynamic";
 export default async function ProductPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   if (!Number.isFinite(id)) return notFound();
-  // Resolve the session first (cheap cookie decode) so both remaining DB
+  // Resolve the session first (cheap cookie decode) so the remaining DB
   // reads can fan out in the same Promise.all — eliminates the serial
   // getFavoriteSet await that was adding one extra Neon roundtrip.
   const me = await getMe();
-  const [product, favSet] = await Promise.all([
+  const [product, favSet, recentBuyers] = await Promise.all([
     getProduct(id) as Promise<Product | null>,
     getFavoriteSet(me?.user.userId),
+    getRecentPurchaseCount(id, 7),
   ]);
   if (!product) return notFound();
   const isFavorited = favSet.has(product.productId);
@@ -55,6 +58,8 @@ export default async function ProductPage({ params }: { params: { id: string } }
   return (
     <>
       <TopNav />
+      {/* Records this product into the user's recently-viewed history. */}
+      <RecentPing productId={product.productId} />
       <main className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
         <nav className="text-sm text-ink-dim mb-6 flex items-center gap-2">
           <Link href="/browse" className="hover:text-metu-yellow">Browse</Link>
@@ -79,6 +84,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 {product.name}
               </h1>
               <FavoriteButton productId={product.productId} initial={isFavorited} size="md" />
+              <ShareButton title={product.name} text={`Check out "${product.name}" on METU`} size="md" />
             </div>
             <div className="flex items-center gap-4 mb-4 text-sm">
               {product.avgRating !== undefined && (
@@ -95,6 +101,15 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 </div>
               )}
             </div>
+            {/* Social proof — only render when ≥2 buyers in the last week
+                so a single sale doesn't trigger an awkward "1 person bought
+                this" line. */}
+            {recentBuyers >= 2 && (
+              <div className="inline-flex items-center gap-1.5 mb-4 rounded-full bg-orange-400/10 border border-orange-400/30 text-orange-300 px-3 py-1 text-xs font-semibold">
+                <Flame className="h-3 w-3" />
+                {recentBuyers} {recentBuyers === 1 ? "person" : "people"} bought this in the last week
+              </div>
+            )}
             <ExpandableText text={product.description} className="mb-6" />
 
             <Link

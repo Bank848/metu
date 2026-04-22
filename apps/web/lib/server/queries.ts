@@ -396,3 +396,26 @@ export async function getProduct(id: number) {
   const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined;
   return { ...product, avgRating, reviewCount: ratings.length };
 }
+
+/**
+ * Distinct buyers who paid for this product in the last `days` window.
+ * Used by the social-proof line on /product/[id]: "X people bought this
+ * in the last week". Returns 0 when nothing crosses the threshold so the
+ * UI can simply hide the line.
+ */
+export async function getRecentPurchaseCount(productId: number, days = 7): Promise<number> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  // groupBy on order.cart.userId so multiple orders by the same buyer
+  // count as one — feels more honest than raw line-item counts.
+  const rows = await prisma.orderItem.findMany({
+    where: {
+      productItem: { productId },
+      order: {
+        status: { in: ["paid", "fulfilled"] },
+        createdAt: { gte: since },
+      },
+    },
+    select: { order: { select: { cart: { select: { userId: true } } } } },
+  });
+  return new Set(rows.map((r) => r.order.cart.userId)).size;
+}
