@@ -37,7 +37,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json(product);
 }
 
-/** PATCH: update name/description/category, replace images + variants + tags in one go. */
+/** PATCH: either flip the `isActive` flag (lightweight pause toggle) or
+ *  do a full edit replacing name/description/category + images + variants
+ *  + tags. The body shape decides which path runs. */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const r = await withStore(req);
   if (!r.ok) return r.response;
@@ -48,6 +50,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!own.ok) return NextResponse.json({ error: own.error }, { status: own.status });
 
   const body = await req.json().catch(() => ({}));
+
+  // Pause-toggle fast path — `{ isActive: boolean }` only.
+  if (
+    typeof body?.isActive === "boolean" &&
+    Object.keys(body).length === 1
+  ) {
+    await prisma.product.update({
+      where: { productId },
+      data: { isActive: body.isActive },
+    });
+    return NextResponse.json({ ok: true, isActive: body.isActive });
+  }
+
   const parsed = productInputSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });

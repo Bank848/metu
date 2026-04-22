@@ -76,6 +76,8 @@ export async function getFavoriteProducts(userId: number) {
 
 export async function getFeaturedProducts(take = 8) {
   const products = await prisma.product.findMany({
+    // Public-facing carousel — paused products are excluded.
+    where: { isActive: true },
     orderBy: { reviews: { _count: "desc" } },
     take,
     include: {
@@ -138,7 +140,8 @@ export async function getStore(storeId: number) {
       },
     }),
     prisma.product.findMany({
-      where: { storeId },
+      // Public store page only shows active (non-paused) products.
+      where: { storeId, isActive: true },
       orderBy: { productId: "desc" },
       include: {
         items: { select: { price: true, discountPercent: true } },
@@ -288,7 +291,8 @@ export async function browseProducts(params: {
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 16;
 
-  const where: Prisma.ProductWhereInput = {};
+  // Public browse — never surface paused products.
+  const where: Prisma.ProductWhereInput = { isActive: true };
   if (params.category) where.categoryId = params.category;
   if (params.q) {
     where.OR = [

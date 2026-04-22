@@ -14,6 +14,7 @@ type Product = {
   productId: number;
   name: string;
   description: string;
+  isActive: boolean;
   category: { categoryName: string };
   items: Array<{ price: string | number; discountPercent: number; deliveryMethod: string }>;
   images: Array<{ productImage: string }>;
@@ -31,9 +32,10 @@ export default async function SellerProducts() {
         title="Your products"
         subtitle={`${products.length} products listed in your store`}
         action={
-          <Button variant="primary" href="/seller/products/new">
-            + New product
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" href="/seller/products/bulk" size="sm">Bulk edit</Button>
+            <Button variant="primary" href="/seller/products/new" size="sm">+ New product</Button>
+          </div>
         }
       />
 
@@ -70,7 +72,14 @@ export default async function SellerProducts() {
                           {p.images[0] && <Image src={p.images[0].productImage} alt="" fill sizes="48px" className="object-cover" unoptimized={isDataUrl(p.images[0].productImage)} />}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold text-white truncate max-w-[280px]">{p.name}</div>
+                          <div className="text-sm font-semibold text-white truncate max-w-[280px] inline-flex items-center gap-2">
+                            {p.name}
+                            {!p.isActive && (
+                              <span className="inline-flex items-center rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30 px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase">
+                                Paused
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-ink-dim truncate max-w-[280px]">{p.description}</div>
                         </div>
                       </Link>
@@ -84,7 +93,11 @@ export default async function SellerProducts() {
                     </td>
                     <td className="px-5 py-3 text-sm text-ink-secondary">{p._count.reviews}</td>
                     <td className="px-5 py-3">
-                      <ProductRowActions productId={p.productId} productName={p.name} />
+                      <ProductRowActions
+                        productId={p.productId}
+                        productName={p.name}
+                        isActive={p.isActive}
+                      />
                     </td>
                   </tr>
                 );

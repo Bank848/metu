@@ -7,7 +7,9 @@ export function PageHeader({
   action,
   className,
 }: {
-  title: string;
+  // Accept ReactNode so callers can compose icons + badges + text inline
+  // (the coupon-report header is one such caller).
+  title: ReactNode;
   subtitle?: string;
   action?: ReactNode;
   className?: string;
