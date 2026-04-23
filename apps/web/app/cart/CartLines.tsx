@@ -67,6 +67,9 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   const [couponResult, setCouponResult] = useState<CouponResult>(null);
   const [busy, setBusy] = useState(false);
   const [lineError, setLineError] = useState<Record<number, string>>({});
+  // Lightweight transient toast surfaced near the summary — used for
+  // save-for-later feedback and any other non-line-scoped action result.
+  const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   // Gift checkout state — collapsed by default to keep the summary tight.
   const [giftOpen, setGiftOpen] = useState(false);
   const [giftEmail, setGiftEmail] = useState("");
@@ -87,6 +90,13 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       return next;
     });
   }, [cart.items]);
+
+  // Auto-dismiss the toast after a few seconds so it doesn't linger.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const selectedItems = useMemo(
     () => cart.items.filter((l) => selected[l.cartItemId]),
@@ -145,17 +155,24 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   }
 
   /** Save for later: heart the product, then drop it from the cart in
-   *  one click. The favourite POST is idempotent so a no-op is safe. */
+   *  one click. The favourite POST is idempotent so a no-op is safe.
+   *  Surfaces a toast either way so the user sees the click took effect. */
   async function saveForLater(line: Line) {
     try {
-      await fetch(`${API}/favorites/${line.productId}`, {
+      const res = await fetch(`${API}/favorites/${line.productId}`, {
         method: "POST",
         credentials: "include",
       });
+      if (!res.ok) {
+        setToast({ ok: false, text: "Couldn't save — try again" });
+        return;
+      }
     } catch {
-      /* swallow — proceed to remove either way */
+      setToast({ ok: false, text: "Couldn't save — try again" });
+      return;
     }
     await remove(line.cartItemId);
+    setToast({ ok: true, text: "Saved for later" });
   }
 
   async function applyCoupon(e: React.FormEvent) {
@@ -168,8 +185,17 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         body: JSON.stringify({ code: coupon.trim() }),
         credentials: "include",
       });
-      const data = await res.json();
-      setCouponResult(data);
+      // Guard against non-OK responses (e.g. 400/500 with HTML body) —
+      // res.json() would otherwise throw and leave the form silently
+      // stuck. Show an explicit "Invalid code" instead.
+      if (!res.ok) {
+        setCouponResult({ valid: false, reason: "Invalid code" });
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as CouponResult | null;
+      setCouponResult(data ?? { valid: false, reason: "Invalid code" });
+    } catch {
+      setCouponResult({ valid: false, reason: "Invalid code" });
     } finally {
       setBusy(false);
     }
@@ -178,6 +204,11 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   async function checkout() {
     if (selectedItems.length === 0) return;
     setBusy(true);
+    // `navigated` flag: on the success path we route away, so leaving
+    // the button busy is desirable (prevents a double-click flash before
+    // unmount). Every other path — including a synchronous throw inside
+    // the try (e.g. JSON.stringify on an exotic value) — must reset.
+    let navigated = false;
     try {
       const res = await fetch(`${API}/orders`, {
         method: "POST",
@@ -194,15 +225,16 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       });
       if (!res.ok) {
         play("error");
-        setBusy(false);
         return;
       }
       const data = await res.json();
       play("success");
+      navigated = true;
       router.push(`/orders/${data.orderId}?new=1`);
     } catch {
       play("error");
-      setBusy(false);
+    } finally {
+      if (!navigated) setBusy(false);
     }
   }
 
@@ -407,6 +439,20 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
 
       {/* ───── Summary ───── */}
       <aside className="rounded-2xl glass-morphism-strong p-6 sticky top-28">
+        {toast && (
+          <p
+            role="status"
+            aria-live="polite"
+            className={cn(
+              "mb-3 rounded-lg px-3 py-2 text-xs font-semibold",
+              toast.ok
+                ? "bg-green-500/10 text-green-300 border border-green-500/30"
+                : "bg-red-500/10 text-red-300 border border-red-500/30",
+            )}
+          >
+            {toast.text}
+          </p>
+        )}
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="h-4 w-4 text-metu-yellow" />
           <h2 className="font-display text-lg font-bold text-white">Order summary</h2>

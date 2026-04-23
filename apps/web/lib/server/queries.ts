@@ -292,8 +292,9 @@ export async function browseProducts(params: {
   page?: number;
   pageSize?: number;
   // 1..5 — keeps only products whose average review rating is at least this.
-  // Implemented as a post-filter in JS because Prisma can't aggregate
-  // reviews in a single SQL where-clause without a raw query.
+  // When set, we push the threshold into a HAVING clause via $queryRaw so
+  // pagination totals stay correct (a JS post-filter would lie about
+  // total/totalPages).
   minRating?: number;
 }) {
   const sort = params.sort ?? "newest";
@@ -340,9 +341,42 @@ export async function browseProducts(params: {
       ? { productId: "asc" }
       : { productId: "desc" };
 
+  // Rating filter active: gather the qualifying productIds via a HAVING
+  // raw query so total / totalPages reflect the *post-filter* universe.
+  // We narrow the candidate set to products that already match the base
+  // `where` (so the IN-list stays small) before aggregating reviews.
+  const minRating = params.minRating && params.minRating > 0 ? params.minRating : null;
+  let qualifyingIds: Set<number> | null = null;
+  if (minRating !== null) {
+    const candidateRows = await prisma.product.findMany({
+      where,
+      orderBy,
+      select: { productId: true },
+    });
+    if (candidateRows.length === 0) {
+      return { items: [], page, pageSize, total: 0, totalPages: 1 };
+    }
+    const candidateIds = candidateRows.map((r) => r.productId);
+    const ratingRows = await prisma.$queryRaw<Array<{ product_id: number }>>`
+      SELECT product_id
+        FROM product_review
+       WHERE product_id IN (${Prisma.join(candidateIds)})
+       GROUP BY product_id
+      HAVING AVG(rating::float) >= ${minRating}
+    `;
+    qualifyingIds = new Set(ratingRows.map((r) => Number(r.product_id)));
+    if (qualifyingIds.size === 0) {
+      return { items: [], page, pageSize, total: 0, totalPages: 1 };
+    }
+  }
+
+  const effectiveWhere: Prisma.ProductWhereInput = qualifyingIds
+    ? { ...where, productId: { in: [...qualifyingIds] } }
+    : where;
+
   const [rows, total] = await Promise.all([
     prisma.product.findMany({
-      where,
+      where: effectiveWhere,
       orderBy,
       take: pageSize,
       skip: (page - 1) * pageSize,
@@ -354,7 +388,7 @@ export async function browseProducts(params: {
         reviews: { select: { rating: true } },
       },
     }),
-    prisma.product.count({ where }),
+    prisma.product.count({ where: effectiveWhere }),
   ]);
 
   const items = rows.map((p) => {
@@ -380,22 +414,12 @@ export async function browseProducts(params: {
   if (sort === "price_asc") items.sort((a, b) => a.minPrice - b.minPrice);
   if (sort === "price_desc") items.sort((a, b) => b.minPrice - a.minPrice);
 
-  // Post-filter: rating threshold. Done in JS so we don't have to drop
-  // into raw SQL just for a HAVING clause. The pagination total counts
-  // before filtering — close enough for the demo. A future iteration
-  // could materialise an avgRating column on Product to push this into
-  // the where-clause.
-  const filtered =
-    params.minRating && params.minRating > 0
-      ? items.filter((p) => (p.avgRating ?? 0) >= params.minRating!)
-      : items;
-
   return {
-    items: filtered,
+    items,
     page,
     pageSize,
-    total: params.minRating && params.minRating > 0 ? filtered.length : total,
-    totalPages: Math.max(1, Math.ceil((params.minRating ? filtered.length : total) / pageSize)),
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
 }
 

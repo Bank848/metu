@@ -14,6 +14,13 @@ type Category = { categoryId: number; categoryName: string };
 type Tag = { tagId: number; tagName: string };
 
 const SAFE_SORT = ["newest", "price_asc", "price_desc", "rating"] as const;
+type SortKey = (typeof SAFE_SORT)[number];
+
+/** Type guard that narrows a raw query-string value to the SortKey enum,
+ *  falling back to the default. Replaces the previous `as any` cast. */
+function parseSort(v: string | undefined): SortKey {
+  return (SAFE_SORT as readonly string[]).includes(v ?? "") ? (v as SortKey) : "newest";
+}
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +38,7 @@ export default async function BrowsePage({
       maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
       delivery: searchParams.delivery,
       q: searchParams.q,
-      sort: SAFE_SORT.includes(searchParams.sort as any)
-        ? (searchParams.sort as any)
-        : "newest",
+      sort: parseSort(searchParams.sort),
       page: searchParams.page ? Math.max(1, Number(searchParams.page)) : 1,
       pageSize: 16,
       minRating: searchParams.minRating ? Number(searchParams.minRating) : undefined,
@@ -102,7 +107,7 @@ export default async function BrowsePage({
                 action={<Button href="/browse">Browse all →</Button>}
               />
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {result.items.map((p) => (
                   <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
                 ))}
