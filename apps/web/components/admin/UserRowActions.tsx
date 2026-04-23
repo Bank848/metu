@@ -1,10 +1,27 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, ShieldCheck, Store, User } from "lucide-react";
+import { ActionRow, type ActionRowItem } from "./ActionRow";
 
 type Role = "buyer" | "seller" | "admin";
 
+/**
+ * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
+ *
+ * The bespoke role-select + trash-button cluster is replaced with a
+ * three-dots menu that exposes:
+ *   - "Make admin" / "Make seller" / "Make buyer"  (current role disabled)
+ *   - "Delete user"                                (destructive / coral)
+ *
+ * The role-change and delete API calls are IDENTICAL to the previous
+ * implementation — only the trigger UI changed. Self-row protection is
+ * still respected (every action is `disabled` when `isSelf`).
+ *
+ * Errors used to render inline next to the buttons; now they surface as
+ * a small badge above the dropdown so the dropdown trigger stays the
+ * same width across rows.
+ */
 export function UserRowActions({
   userId,
   currentRole,
@@ -45,7 +62,6 @@ export function UserRowActions({
   }
 
   async function remove() {
-    if (!window.confirm(`Delete @${username}? This wipes their account, store, reviews, and orders.`)) return;
     setError(null);
     setBusy("delete");
     try {
@@ -66,29 +82,50 @@ export function UserRowActions({
     setBusy(null);
   }
 
+  const disabled = isSelf || busy !== null;
+
+  const actions: ActionRowItem[] = [
+    {
+      label: "Make admin",
+      icon: ShieldCheck,
+      tone: "primary",
+      onClick: () => changeRole("admin"),
+      disabled: disabled || currentRole === "admin",
+    },
+    {
+      label: "Make seller",
+      icon: Store,
+      tone: "safe",
+      onClick: () => changeRole("seller"),
+      disabled: disabled || currentRole === "seller",
+    },
+    {
+      label: "Make buyer",
+      icon: User,
+      onClick: () => changeRole("buyer"),
+      disabled: disabled || currentRole === "buyer",
+    },
+    {
+      label: "Delete user",
+      icon: Trash2,
+      tone: "destructive",
+      onClick: remove,
+      confirm: `Delete @${username}? This wipes their account, store, reviews, and orders.`,
+      disabled,
+    },
+  ];
+
   return (
-    <div className="flex items-center gap-2 justify-end">
-      <select
-        value={currentRole}
-        onChange={(e) => changeRole(e.target.value as Role)}
-        disabled={busy !== null || isSelf}
-        title={isSelf ? "Can't change your own role" : "Change role"}
-        className="rounded-full border border-line bg-space-900 px-2 py-1 text-xs text-white disabled:opacity-50"
-      >
-        <option value="buyer">buyer</option>
-        <option value="seller">seller</option>
-        <option value="admin">admin</option>
-      </select>
-      <button
-        type="button"
-        onClick={remove}
-        disabled={busy !== null || isSelf}
-        title={isSelf ? "Can't delete yourself" : "Delete user"}
-        className="rounded-full p-1.5 text-ink-dim hover:text-metu-red hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
-      {error && <span className="text-[10px] text-red-400 ml-2 max-w-[160px] truncate" title={error}>{error}</span>}
+    <div className="inline-flex flex-col items-end gap-1">
+      <ActionRow
+        actions={actions}
+        ariaLabel={isSelf ? "Self row — actions disabled" : `Actions for ${username}`}
+      />
+      {error && (
+        <span className="text-[10px] text-coral max-w-[160px] truncate" title={error}>
+          {error}
+        </span>
+      )}
     </div>
   );
 }

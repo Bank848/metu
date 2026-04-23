@@ -2,14 +2,21 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
+import { ActionRow, type ActionRowItem } from "./ActionRow";
 
+/**
+ * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
+ *
+ * The DELETE call signature is identical to the previous version. Only
+ * the trigger UI changed (inline pill button → three-dots menu) so the
+ * /admin/stores table looks like /admin/users + /admin/audit.
+ */
 export function StoreActions({ storeId, name }: { storeId: number; name: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function remove() {
-    if (!window.confirm(`Delete store "${name}"? Cascades to all of its products, coupons, and reviews.`)) return;
     setError(null);
     setBusy(true);
     try {
@@ -30,18 +37,25 @@ export function StoreActions({ storeId, name }: { storeId: number; name: string 
     }
   }
 
+  const actions: ActionRowItem[] = [
+    {
+      label: "Delete store",
+      icon: Trash2,
+      tone: "destructive",
+      onClick: remove,
+      confirm: `Delete store "${name}"? Cascades to all of its products, coupons, and reviews.`,
+      disabled: busy,
+    },
+  ];
+
   return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={remove}
-        disabled={busy}
-        className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 hover:border-metu-red/40 hover:text-metu-red px-3 py-1 text-xs font-semibold text-ink-secondary transition disabled:opacity-50"
-      >
-        <Trash2 className="h-3 w-3" />
-        {busy ? "Deleting…" : "Delete store"}
-      </button>
-      {error && <span className="text-[10px] text-red-400 max-w-[200px] truncate" title={error}>{error}</span>}
+    <div className="inline-flex flex-col items-end gap-1">
+      <ActionRow actions={actions} ariaLabel={`Actions for ${name}`} />
+      {error && (
+        <span className="text-[10px] text-coral max-w-[200px] truncate" title={error}>
+          {error}
+        </span>
+      )}
     </div>
   );
 }

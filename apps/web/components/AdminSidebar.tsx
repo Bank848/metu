@@ -19,8 +19,8 @@ export function AdminSidebar() {
   return (
     <aside className="w-64 shrink-0 bg-space-950 border-r border-line min-h-screen px-5 py-6 sticky top-0">
       <Logo />
-      <div className="mt-8 rounded-xl border border-brand-yellow/30 bg-brand-yellow/10 p-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-brand-yellow flex items-center gap-1">
+      <div className="mt-8 rounded-xl border border-metu-yellow/30 bg-metu-yellow/10 p-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-metu-yellow flex items-center gap-1">
           <ShieldCheck className="h-3 w-3" />
           Admin area
         </div>
@@ -35,7 +35,7 @@ export function AdminSidebar() {
               href={it.href}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition",
-                active ? "bg-brand-yellow text-space-black" : "text-ink-secondary hover:bg-white/5 hover:text-white",
+                active ? "bg-metu-yellow text-space-black" : "text-ink-secondary hover:bg-white/5 hover:text-white",
               )}
             >
               <it.icon className="h-4 w-4" />
@@ -45,7 +45,7 @@ export function AdminSidebar() {
         })}
       </nav>
       <div className="mt-8">
-        <Link href="/" className="text-xs font-semibold text-ink-dim hover:text-brand-yellow">
+        <Link href="/" className="text-xs font-semibold text-ink-dim hover:text-metu-yellow">
           ← Back to marketplace
         </Link>
       </div>
