@@ -122,7 +122,7 @@ export function EditProfileForm({
           Account details
         </h2>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="block">
             <span className="text-sm font-semibold text-white">First name</span>
             <input
