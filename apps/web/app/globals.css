@@ -129,6 +129,17 @@ html {
   font-family: var(--font-display), "Plus Jakarta Sans", system-ui, sans-serif;
 }
 
+/* ───────────── Thai script slot (Wave 2) ─────────────
+   Ties the `--font-thai` CSS variable (set by `next/font/google`'s
+   Prompt loader in `app/layout.tsx`) to the Tailwind `font-thai`
+   utility. Apply via `<span lang="th" className="font-thai">…</span>`
+   on Thai-only strings. Mixing Latin glyphs through the Prompt family
+   looks worse than mixing Thai through Plus Jakarta — see
+   docs/design-system.md §3.1 for the rationale. */
+.font-thai {
+  font-family: var(--font-thai), "Prompt", var(--font-body), Manrope, system-ui, sans-serif;
+}
+
 ::selection {
   background: var(--metu-yellow);
   color: var(--surface-1);

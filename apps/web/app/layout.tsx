@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Manrope, JetBrains_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Manrope, JetBrains_Mono, Prompt } from "next/font/google";
 import "./globals.css";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { CompareDrawer } from "@/components/CompareDrawer";
@@ -26,6 +26,19 @@ const mono = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400"],
   variable: "--font-mono",
+  display: "swap",
+});
+
+// Prompt — Cadson Demak's Bangkok-designed family. Wired here per
+// docs/design-system.md §3.1 so any Thai-locale string can opt in via
+// the `font-thai` Tailwind class (e.g. `<span lang="th"
+// className="font-thai">…</span>`). Restricted to body weights — Thai
+// display sizes inherit from the same family without needing the heavy
+// 800 cut, which would balloon the font payload.
+const thai = Prompt({
+  subsets: ["thai", "latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-thai",
   display: "swap",
 });
 
@@ -69,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // before the client provider takes over.
   const locale = getServerLocale();
   return (
-    <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} dark`}>
+    <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} ${thai.variable} dark`}>
       <head>
         {/*
           Bootstrap the user's saved theme BEFORE hydration so we never
