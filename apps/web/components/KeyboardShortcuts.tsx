@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Keyboard, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 /**
  * Global keyboard shortcuts. Mounted once in the root layout.
@@ -45,6 +46,10 @@ export function KeyboardShortcuts() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const pendingG = useRef<number | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Trap focus inside the cheatsheet while it's open so Tab cycles
+  // through Close + the back-link without escaping into the page.
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     function clearG() {
@@ -125,7 +130,10 @@ export function KeyboardShortcuts() {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
       <div className="absolute inset-0 bg-surface-1/85" onClick={() => setOpen(false)} />
-      <div className="relative w-full max-w-md rounded-2xl glass-morphism-strong p-6 shadow-pop">
+      <div
+        ref={dialogRef}
+        className="relative w-full max-w-md rounded-2xl glass-morphism-strong p-6 shadow-pop"
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="inline-flex items-center gap-2 font-display font-extrabold text-lg text-white">
             <Keyboard className="h-4 w-4 text-metu-yellow" />

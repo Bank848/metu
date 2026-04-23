@@ -6,7 +6,7 @@ export default function MyReviewsLoading() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[1100px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1100px] px-6 md:px-10 py-10">
         <div className="mb-8 space-y-2">
           <Skeleton className="h-9 w-56" />
           <Skeleton className="h-4 w-72" />

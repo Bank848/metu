@@ -22,7 +22,7 @@ export default async function EditProfilePage() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-3xl px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-3xl px-6 md:px-8 py-10">
         <Link
           href="/profile"
           className="inline-flex items-center gap-1.5 text-sm text-ink-dim hover:text-metu-yellow mb-3"

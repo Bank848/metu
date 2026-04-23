@@ -20,7 +20,7 @@ export default async function FavoritesPage() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[1280px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1280px] px-6 md:px-10 py-10">
         <PageHeader
           title="Your favourites"
           subtitle={`${products.length} product${products.length === 1 ? "" : "s"} saved`}

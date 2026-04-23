@@ -6,7 +6,7 @@ export default function OrderDetailLoading() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[960px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[960px] px-6 md:px-10 py-10">
         <Skeleton className="h-4 w-24 mb-4" />
         <div className="rounded-2xl glass-morphism p-6 space-y-4">
           <div className="flex items-center justify-between">

@@ -13,7 +13,7 @@ export default function ComparePage() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[1280px] px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-[1280px] px-6 md:px-8 py-10">
         <PageHeader title="Compare products" subtitle="Up to 3 products side-by-side." />
         <CompareView />
       </main>

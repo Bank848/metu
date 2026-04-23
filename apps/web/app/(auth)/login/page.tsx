@@ -7,7 +7,7 @@ export const metadata = { title: "Log in — METU" };
 
 export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
   return (
-    <main className="relative min-h-screen bg-space-black overflow-hidden">
+    <main id="main" className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
       {/* gold glow corner */}
       <div

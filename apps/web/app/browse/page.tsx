@@ -49,7 +49,7 @@ export default async function BrowsePage({
   return (
     <>
       <TopNav q={activeQ} />
-      <main className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
         <PageHeader
           title={activeQ ? `Results for “${activeQ}”` : "Browse the marketplace"}
           subtitle={

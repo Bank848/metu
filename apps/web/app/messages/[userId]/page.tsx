@@ -41,7 +41,7 @@ export default async function ThreadPage({ params }: { params: { userId: string 
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-3xl px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-3xl px-6 md:px-8 py-10">
         <Link
           href="/seller/messages"
           className="inline-flex items-center gap-1.5 text-sm text-ink-dim hover:text-metu-yellow mb-3"

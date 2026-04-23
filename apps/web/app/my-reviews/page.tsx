@@ -29,7 +29,7 @@ export default async function MyReviewsPage({
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-5xl px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-5xl px-6 md:px-8 py-10">
         <PageHeader
           title="My reviews"
           subtitle={

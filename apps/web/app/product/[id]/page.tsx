@@ -94,7 +94,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
       <TopNav />
       {/* Records this product into the user's recently-viewed history. */}
       <RecentPing productId={product.productId} />
-      <main className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
         <nav className="text-sm text-ink-dim mb-6 flex items-center gap-2">
           <Link href="/browse" className="hover:text-metu-yellow">Browse</Link>
           <span className="text-ink-mute">/</span>

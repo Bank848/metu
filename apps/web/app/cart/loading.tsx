@@ -6,7 +6,7 @@ export default function CartLoading() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[1200px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1200px] px-6 md:px-10 py-10">
         <Skeleton className="h-9 w-48 mb-8" />
         <div className="grid lg:grid-cols-[1fr_360px] gap-8">
           <div className="space-y-4">

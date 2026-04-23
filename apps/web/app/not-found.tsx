@@ -3,12 +3,18 @@ import { Compass } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { StarField } from "@/components/DotGrid";
 import { Button } from "@/components/ui/Button";
+import { getCategories } from "@/lib/server/queries";
 
 export const metadata = { title: "Not found — METU" };
 
-export default function NotFound() {
+export default async function NotFound() {
+  // Suggest a handful of categories so a confused visitor has somewhere
+  // useful to click. Categories are cached for an hour upstream so this
+  // doesn't pay a Neon roundtrip per 404.
+  const categories = (await getCategories().catch(() => [])).slice(0, 8);
+
   return (
-    <main className="relative min-h-screen overflow-hidden bg-space-black">
+    <main id="main" className="relative min-h-screen overflow-hidden bg-space-black">
       <StarField />
       <div
         aria-hidden
@@ -38,6 +44,26 @@ export default function NotFound() {
             Back home
           </Button>
         </div>
+
+        {categories.length > 0 && (
+          <div className="mt-12 w-full">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-dim mb-3">
+              Or jump straight into a category
+            </p>
+            <ul className="flex flex-wrap items-center justify-center gap-2">
+              {categories.map((c) => (
+                <li key={c.categoryId}>
+                  <Link
+                    href={`/browse?category=${c.categoryId}`}
+                    className="inline-flex rounded-full border border-line bg-space-850/80 px-3.5 py-1.5 text-sm text-white hover:border-brand-yellow/50 hover:text-brand-yellow transition"
+                  >
+                    {c.categoryName}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </main>
   );

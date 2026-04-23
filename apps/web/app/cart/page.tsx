@@ -52,7 +52,7 @@ export default async function CartPage() {
     <>
       <TopNav />
       {/* vibrant mesh subtly behind the page */}
-      <main className="relative">
+      <main id="main" className="relative">
         <div aria-hidden className="absolute inset-x-0 top-0 h-[600px] vibrant-mesh opacity-50 pointer-events-none" />
         <div className="relative mx-auto max-w-6xl px-6 md:px-8 py-10">
           <PageHeader

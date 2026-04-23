@@ -18,7 +18,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-space-black">
+    <main id="main" className="relative min-h-screen overflow-hidden bg-space-black">
       <StarField />
       <div
         aria-hidden

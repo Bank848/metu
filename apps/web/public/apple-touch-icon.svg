@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="METU">
+  <!-- iOS adds its own rounded mask, so we render edge-to-edge with a brand fill. -->
+  <rect width="180" height="180" fill="#0E0E0E"/>
+  <text x="90" y="106" text-anchor="middle"
+        font-family="'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif"
+        font-weight="800" font-size="46" letter-spacing="-1.5" fill="#FFD000">METU</text>
+</svg>
