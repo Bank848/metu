@@ -386,8 +386,9 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* CTA */}
-        <section className="mt-16 rounded-2xl glass-morphism p-8 text-center">
+        {/* CTA — Wave-3 swap to surface-accent so the closing block
+            visibly outranks the flat feature cards above it. */}
+        <section className="mt-16 rounded-2xl surface-accent p-8 text-center">
           <h2 className="font-display text-2xl font-extrabold text-white">Try it yourself</h2>
           <p className="mt-2 text-sm text-ink-secondary max-w-xl mx-auto">
             Use the demo chips on the login page to sign in as any role and walk the flows end-to-end.
@@ -429,8 +430,11 @@ function PersonaCard({
   count: string;
   tagline: string;
 }) {
+  // Wave-3: persona tiles drop the glass-morphism for `surface-flat`
+  // so the four-tile row reads as flat, not glassy. Tint stays on
+  // the icon only — the tile body keeps the neutral surface.
   return (
-    <div className="rounded-2xl glass-morphism p-5">
+    <div className="surface-flat rounded-2xl p-5 lift-on-hover hover:shadow-raised">
       <Icon className={`h-6 w-6 ${tint} mb-3`} />
       <div className="font-display text-lg font-bold text-white">{label}</div>
       <div className="text-[10px] uppercase tracking-wider text-ink-dim mt-0.5">{count}</div>
@@ -439,11 +443,14 @@ function PersonaCard({
   );
 }
 
+// Wave-3: re-routed sky/emerald onto mint, kept yellow for the seller
+// row, kept purple for admin (purple is the only colour we own that
+// reads as "elevated permission" — coral would clash with destructive).
 const ACCENT_RING = {
-  sky: "ring-sky-400/30 bg-sky-400/10 text-sky-300",
-  emerald: "ring-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+  sky: "ring-mint/30 bg-mint/10 text-mint",
+  emerald: "ring-mint/30 bg-mint/10 text-mint",
   yellow: "ring-metu-yellow/30 bg-metu-yellow/10 text-metu-yellow",
-  purple: "ring-purple-400/30 bg-purple-400/10 text-purple-300",
+  purple: "ring-coral/30 bg-coral/10 text-coral",
 } as const;
 
 function RoleBlock({
@@ -498,7 +505,7 @@ function FeatureCard({
     </div>
   );
   const inner = (
-    <div className="rounded-2xl glass-morphism p-5 h-full transition hover:border-metu-yellow/40">
+    <div className="surface-flat rounded-2xl p-5 h-full lift-on-hover hover:shadow-raised hover:border-metu-yellow/40">
       {header}
       <ul className="mt-3 space-y-1.5 text-sm text-ink-secondary">
         {bullets.map((b, i) => (
@@ -527,8 +534,8 @@ function MiniCard({
   body: string;
 }) {
   return (
-    <div className="rounded-2xl glass-morphism p-4">
-      <Icon className="h-4 w-4 text-metu-yellow mb-2" />
+    <div className="surface-flat rounded-xl p-4 lift-on-hover hover:shadow-raised">
+      <Icon className="h-4 w-4 text-mint mb-2" />
       <div className="font-display font-bold text-white text-sm">{title}</div>
       <p className="mt-1 text-xs text-ink-secondary leading-relaxed">{body}</p>
     </div>
