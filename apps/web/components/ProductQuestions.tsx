@@ -15,6 +15,13 @@ type UserSlim = {
   profileImage: string | null;
 };
 
+// The answerer carries one extra field — UserStats.role — so the UI
+// can render "Admin answered" vs "Seller answered" instead of always
+// hard-coding "Seller answered" (the original Phase 9 bug).
+type AnswererSlim = UserSlim & {
+  stats?: { role: "admin" | "seller" | "buyer" } | null;
+};
+
 type Question = {
   questionId: number;
   body: string;
@@ -22,7 +29,7 @@ type Question = {
   answeredAt: string | null;
   createdAt: string;
   asker: UserSlim;
-  answerer: UserSlim | null;
+  answerer: AnswererSlim | null;
 };
 
 /**
@@ -163,25 +170,40 @@ export function ProductQuestions({
               </div>
 
               {q.answer ? (
-                <div className="mt-4 ml-8 rounded-xl border border-metu-yellow/20 bg-metu-yellow/5 p-4 flex items-start gap-3">
-                  <CornerDownRight className="h-4 w-4 text-metu-yellow shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-metu-yellow inline-flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Seller answered
-                      {q.answerer && (
-                        <span className="text-ink-dim font-normal">
-                          · {q.answerer.firstName} {q.answerer.lastName}
-                        </span>
-                      )}
-                      {q.answeredAt && (
-                        <span className="text-ink-dim font-normal">
-                          · {new Date(q.answeredAt).toLocaleDateString()}
-                        </span>
-                      )}
+                (() => {
+                  // Resolve who actually answered. Admin replies are
+                  // common (admins can answer any product's questions
+                  // per the answer route). Without this branch the
+                  // label was hard-coded to "Seller answered" and
+                  // mislabelled every admin reply.
+                  const isAdmin = q.answerer?.stats?.role === "admin";
+                  const labelTone = isAdmin
+                    ? "border-coral/30 bg-coral/5 text-coral"
+                    : "border-metu-yellow/20 bg-metu-yellow/5 text-metu-yellow";
+                  const arrowTone = isAdmin ? "text-coral" : "text-metu-yellow";
+                  return (
+                    <div className={`mt-4 ml-8 rounded-xl border p-4 flex items-start gap-3 ${labelTone.split(" ").slice(0, 2).join(" ")}`}>
+                      <CornerDownRight className={`h-4 w-4 shrink-0 mt-0.5 ${arrowTone}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-xs font-semibold inline-flex items-center gap-1 ${labelTone.split(" ").slice(2).join(" ")}`}>
+                          <CheckCircle2 className="h-3 w-3" />
+                          {isAdmin ? "Admin answered" : "Seller answered"}
+                          {q.answerer && (
+                            <span className="text-ink-dim font-normal">
+                              · {q.answerer.firstName} {q.answerer.lastName}
+                            </span>
+                          )}
+                          {q.answeredAt && (
+                            <span className="text-ink-dim font-normal">
+                              · {new Date(q.answeredAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-white whitespace-pre-line">{q.answer}</p>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-white whitespace-pre-line">{q.answer}</p>
-                  </div>
-                </div>
+                  );
+                })()
               ) : (
                 canAnswer && <AnswerForm onSubmit={(text) => answer(q.questionId, text)} />
               )}

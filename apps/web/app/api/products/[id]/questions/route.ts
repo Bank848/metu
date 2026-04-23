@@ -17,7 +17,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     orderBy: { createdAt: "desc" },
     include: {
       asker:    { select: { userId: true, username: true, firstName: true, lastName: true, profileImage: true } },
-      answerer: { select: { userId: true, username: true, firstName: true, lastName: true, profileImage: true } },
+      // Include the answerer's role so the UI can render "Admin answered"
+      // vs "Seller answered" — without this the label was hard-coded to
+      // "Seller answered" in ProductQuestions.tsx and admin replies were
+      // mislabelled.
+      answerer: {
+        select: {
+          userId: true, username: true, firstName: true, lastName: true, profileImage: true,
+          stats: { select: { role: true } },
+        },
+      },
     },
   });
   return NextResponse.json({ questions });
