@@ -12,6 +12,10 @@ import { cn } from "@/lib/utils";
  * script in the layout reads localStorage before React hydrates and
  * applies the saved class. This component just keeps the React state +
  * localStorage in sync after that.
+ *
+ * Like `<SoundToggle>`, this accepts `inCluster` so the TopNav can
+ * render it as one of three nested buttons inside the shared control
+ * cluster shell. Standalone usage falls back to the original pill.
  */
 const STORAGE_KEY = "metu-theme";
 
@@ -22,7 +26,13 @@ function readStored(): Theme {
   return (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? "dark";
 }
 
-export function ThemeToggle({ className }: { className?: string }) {
+export function ThemeToggle({
+  className,
+  inCluster = false,
+}: {
+  className?: string;
+  inCluster?: boolean;
+}) {
   // Mount-gate to avoid the SSR/CSR mismatch — server renders the dark
   // icon, client picks up the actual stored theme on mount.
   const [mounted, setMounted] = useState(false);
@@ -57,8 +67,9 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-label={isLight ? "Switch to dark mode" : "Switch to light mode"}
       title={isLight ? "Switch to dark mode" : "Switch to light mode"}
       className={cn(
-        "relative h-9 w-9 rounded-full border border-line bg-space-900 text-ink-secondary",
-        "hover:text-brand-yellow hover:border-brand-yellow/40 transition flex items-center justify-center",
+        inCluster
+          ? "flex h-8 w-8 items-center justify-center rounded-md text-ink-secondary hover:text-white hover:bg-white/10 transition"
+          : "relative h-9 w-9 rounded-full border border-line bg-space-900 text-ink-secondary hover:text-brand-yellow hover:border-brand-yellow/40 transition flex items-center justify-center",
         className,
       )}
     >
