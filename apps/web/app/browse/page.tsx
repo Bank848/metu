@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { browseProducts, getCategories, getTags, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { RecentStrip } from "./RecentStrip";
-import { Filter, Package, SearchX } from "lucide-react";
+import { Filter, Package } from "lucide-react";
 
 type Category = { categoryId: number; categoryName: string };
 type Tag = { tagId: number; tagName: string };
@@ -100,12 +100,25 @@ export default async function BrowsePage({
             </form>
 
             {result.items.length === 0 ? (
-              <EmptyState
-                title={activeQ ? `No products match “${activeQ}”` : "No products match those filters"}
-                description="Try different keywords or clear some filters."
-                icon={activeQ ? <SearchX className="h-8 w-8" /> : <Package className="h-8 w-8" />}
-                action={<Button href="/browse">Browse all →</Button>}
-              />
+              activeQ ? (
+                // Search-with-no-results — opt into the Wave-2 `noResults`
+                // variant so the bespoke <NoResults /> illustration replaces
+                // the lucide SearchX icon. Keeps the empty state visually
+                // distinct from the "filters returned nothing" state below.
+                <EmptyState
+                  variant="noResults"
+                  title={`No products match “${activeQ}”`}
+                  description="Try different keywords or clear some filters."
+                  action={<Button href="/browse">Browse all →</Button>}
+                />
+              ) : (
+                <EmptyState
+                  title="No products match those filters"
+                  description="Try different keywords or clear some filters."
+                  icon={<Package className="h-8 w-8" />}
+                  action={<Button href="/browse">Browse all →</Button>}
+                />
+              )
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {result.items.map((p) => (
@@ -148,18 +161,30 @@ function FilterPanel({
     return `/browse?${p.toString()}`;
   };
 
+  // Wave-3 visual: filter cards now use `surface-flat` (no glassy
+  // backdrop-blur) with mixed radii — the category panel is the
+  // anchor card (`rounded-2xl`) while the chip groups land on smaller
+  // `rounded-xl` and `rounded-lg` so the sidebar reads as a layered
+  // stack rather than four identical glass squares. Active filters
+  // pick up the new mint accent so the "what's selected" signal is
+  // visually distinct from the metu-yellow primary CTA colour.
+  const activeRowClass =
+    "bg-mint/15 text-mint font-semibold border border-mint/30";
+  const idleRowClass =
+    "border border-transparent text-ink-secondary hover:bg-white/5 hover:text-white";
+
   return (
-    <div className="space-y-5 sticky top-28">
-      <div className="rounded-2xl border border-line bg-space-850 p-5">
+    <div className="space-y-4 sticky top-28">
+      <div className="surface-flat rounded-2xl p-5">
         <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3 flex items-center gap-2">
-          <Filter className="h-3.5 w-3.5" /> Category
+          <Filter className="h-3.5 w-3.5 text-mint" /> Category
         </h3>
         <ul className="space-y-0.5">
           <li>
             <a
               href={buildHref({ category: undefined })}
               className={`block rounded-lg px-3 py-1.5 text-sm transition ${
-                !activeCategory ? "bg-brand-yellow/15 text-brand-yellow font-semibold" : "text-ink-secondary hover:bg-white/5 hover:text-white"
+                !activeCategory ? activeRowClass : idleRowClass
               }`}
             >
               All categories
@@ -170,7 +195,7 @@ function FilterPanel({
               <a
                 href={buildHref({ category: String(c.categoryId) })}
                 className={`block rounded-lg px-3 py-1.5 text-sm transition ${
-                  activeCategory === c.categoryId ? "bg-brand-yellow/15 text-brand-yellow font-semibold" : "text-ink-secondary hover:bg-white/5 hover:text-white"
+                  activeCategory === c.categoryId ? activeRowClass : idleRowClass
                 }`}
               >
                 {c.categoryName}
@@ -180,7 +205,10 @@ function FilterPanel({
         </ul>
       </div>
 
-      <div className="rounded-2xl border border-line bg-space-850 p-5">
+      {/* Tag chips — smaller radius (xl) than the anchor card (2xl) so
+          the sidebar mixes radii per playbook §4. Active chips switch
+          to the new `success` (mint) Badge variant. */}
+      <div className="surface-flat rounded-xl p-5">
         <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
           Tags
         </h3>
@@ -192,14 +220,14 @@ function FilterPanel({
               : [...activeTags, String(t.tagId)];
             return (
               <a key={t.tagId} href={buildHref({ tags: newTags.join(",") })}>
-                <Badge variant={isActive ? "yellow" : "mist"}>{t.tagName}</Badge>
+                <Badge variant={isActive ? "success" : "mist"}>{t.tagName}</Badge>
               </a>
             );
           })}
         </div>
       </div>
 
-      <div className="rounded-2xl border border-line bg-space-850 p-5">
+      <div className="surface-flat rounded-xl p-5">
         <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
           Minimum rating
         </h3>
@@ -208,7 +236,7 @@ function FilterPanel({
             <a
               href={buildHref({ minRating: undefined })}
               className={`block rounded-lg px-3 py-1.5 transition ${
-                !params.minRating ? "bg-brand-yellow/15 text-brand-yellow font-semibold" : "text-ink-secondary hover:bg-white/5 hover:text-white"
+                !params.minRating ? activeRowClass : idleRowClass
               }`}
             >
               Any rating
@@ -219,7 +247,7 @@ function FilterPanel({
               <a
                 href={buildHref({ minRating: String(n) })}
                 className={`block rounded-lg px-3 py-1.5 transition ${
-                  Number(params.minRating) === n ? "bg-brand-yellow/15 text-brand-yellow font-semibold" : "text-ink-secondary hover:bg-white/5 hover:text-white"
+                  Number(params.minRating) === n ? activeRowClass : idleRowClass
                 }`}
               >
                 {n}★ &amp; up
@@ -229,7 +257,10 @@ function FilterPanel({
         </ul>
       </div>
 
-      <div className="rounded-2xl border border-line bg-space-850 p-5">
+      {/* Delivery panel uses the smallest radius (lg) — the radius
+          step-down (2xl → xl → xl → lg) gives the sidebar a deliberate
+          rhythm instead of four identical 2xl rectangles. */}
+      <div className="surface-flat rounded-lg p-5">
         <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
           Delivery method
         </h3>
@@ -239,7 +270,7 @@ function FilterPanel({
               <a
                 href={buildHref({ delivery: params.delivery === d ? undefined : d })}
                 className={`block rounded-lg px-3 py-1.5 capitalize transition ${
-                  params.delivery === d ? "bg-brand-yellow/15 text-brand-yellow font-semibold" : "text-ink-secondary hover:bg-white/5 hover:text-white"
+                  params.delivery === d ? activeRowClass : idleRowClass
                 }`}
               >
                 {d.replace("_", " ")}

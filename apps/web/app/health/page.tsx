@@ -2,6 +2,7 @@ import { Activity, Database, GitBranch, Clock, Box, Users, Store as StoreIcon, S
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
+import { StatCard } from "@/components/StatCard";
 import { prisma } from "@/lib/server/prisma";
 
 export const dynamic = "force-dynamic";
@@ -56,10 +57,12 @@ function fmtUptime(seconds: number): string {
 }
 
 function pingTone(ms: number, ok: boolean): { label: string; tone: string } {
+  // Wave-3: green/orange tones map onto the new mint/coral palette so
+  // the page reads as part of the marketplace, not a stock dashboard.
   if (!ok) return { label: "DOWN", tone: "red" };
-  if (ms < 100) return { label: "FAST", tone: "green" };
+  if (ms < 100) return { label: "FAST", tone: "mint" };
   if (ms < 500) return { label: "OK",   tone: "yellow" };
-  return { label: "SLOW", tone: "orange" };
+  return { label: "SLOW", tone: "coral" };
 }
 
 export default async function HealthPage() {
@@ -77,10 +80,10 @@ export default async function HealthPage() {
   const tone = pingTone(db.ms, db.ok);
 
   const toneClass = {
-    green:  "border-green-500/40  bg-green-500/15  text-green-300",
-    yellow: "border-amber-400/40  bg-amber-400/15  text-amber-200",
-    orange: "border-orange-500/40 bg-orange-500/15 text-orange-200",
-    red:    "border-red-500/40    bg-red-500/15    text-red-300",
+    mint:   "border-mint/40         bg-mint/15        text-mint",
+    yellow: "border-amber-400/40    bg-amber-400/15   text-amber-200",
+    coral:  "border-coral/40        bg-coral/15       text-coral",
+    red:    "border-red-500/40      bg-red-500/15     text-red-300",
   }[tone.tone] ?? "border-line bg-white/5 text-ink-secondary";
 
   return (
@@ -92,17 +95,18 @@ export default async function HealthPage() {
           subtitle="Live diagnostics — DB connectivity, latency, and basic catalogue stats."
         />
 
-        {/* Top status banner — green / amber / red strip the visitor
-            sees first, no need to scroll. */}
+        {/* Top status banner — mint when healthy, red when degraded.
+            Sits on `surface-flat` instead of a glass-y panel so the
+            tone classes carry the colour (Wave-3 token alignment). */}
         <section
           className={`mb-8 rounded-2xl border p-6 flex items-center gap-4 ${
             overall
-              ? "border-green-500/40 bg-gradient-to-br from-green-500/10 to-transparent"
-              : "border-red-500/40   bg-gradient-to-br from-red-500/10   to-transparent"
+              ? "border-mint/40 bg-gradient-to-br from-mint/10 to-transparent"
+              : "border-red-500/40 bg-gradient-to-br from-red-500/10 to-transparent"
           }`}
         >
           <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
-            overall ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"
+            overall ? "bg-mint/20 text-mint" : "bg-red-500/20 text-red-300"
           }`}>
             {overall ? <Activity className="h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}
           </div>
@@ -119,15 +123,21 @@ export default async function HealthPage() {
           </span>
         </section>
 
-        {/* Stat tiles */}
+        {/* Stat tiles — Wave-3: the DB-ping tile is the lead metric on
+            this page so it gets the `StatCard variant="highlight"`
+            treatment (mint surface-accent, icon-left, oversized value).
+            The other three stay on the leaner local <Tile /> on the
+            new `surface-flat` token so the row reads as 1 anchor + 3
+            supporting tiles instead of four identical glass squares. */}
         <div className="grid sm:grid-cols-2 gap-4 mb-8">
-          <Tile
-            icon={<Database className="h-5 w-5" />}
-            label="DB ping"
-            value={`${db.ms}ms`}
-            sub={db.ok ? "PostgreSQL via Prisma" : "Connection failed"}
-            ok={db.ok}
-          />
+          <div className="sm:col-span-2">
+            <StatCard
+              label="DB ping"
+              value={`${db.ms}ms`}
+              icon={Database}
+              variant={db.ok ? "highlight" : "zero"}
+            />
+          </div>
           <Tile
             icon={<Clock className="h-5 w-5" />}
             label="Process uptime"
@@ -155,7 +165,7 @@ export default async function HealthPage() {
 
         {/* Catalogue counts */}
         {counts ? (
-          <section className="rounded-2xl border border-line bg-space-850 p-6">
+          <section className="surface-flat rounded-2xl p-6">
             <h2 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-4">
               Catalogue counters (excludes soft-deleted)
             </h2>
@@ -206,10 +216,10 @@ function Tile({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-space-850 p-5">
+    <div className="surface-flat rounded-2xl p-5 lift-on-hover hover:shadow-raised">
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim">{label}</div>
-        <div className={ok ? "text-brand-yellow" : "text-red-400"}>{icon}</div>
+        <div className={ok ? "text-mint" : "text-red-400"}>{icon}</div>
       </div>
       <div className={`mt-2 font-display text-2xl font-extrabold text-white ${mono ? "font-mono" : ""}`}>
         {value}
@@ -221,12 +231,12 @@ function Tile({
 
 function CountCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-line bg-space-900 p-4">
+    <div className="surface-flat rounded-xl p-4">
       <div className="flex items-center gap-2 text-ink-dim text-xs font-semibold uppercase tracking-wider">
         {icon}
         {label}
       </div>
-      <div className="mt-1.5 font-display text-xl font-extrabold text-brand-yellow tabular-nums">
+      <div className="mt-1.5 font-display text-xl font-extrabold text-metu-yellow tabular-nums">
         {value.toLocaleString()}
       </div>
     </div>
