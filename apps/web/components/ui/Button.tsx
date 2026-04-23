@@ -16,6 +16,11 @@ const buttonVariants = cva(
         soft:    "bg-surface-3 text-white hover:bg-surface-4",
         dark:    "bg-surface-2 text-white border border-white/8 hover:bg-surface-3",
         danger:  "bg-metu-red/15 text-red-200 border border-metu-red/40 hover:bg-metu-red/25",
+        // Phase 9 / Wave 2 — non-primary CTAs that want to read "fresh /
+        // positive" or "hot / promotional" without leaning on gold. The
+        // hover state warms the tint slightly without touching `metu-yellow`.
+        mint:    "bg-mint/15 text-mint border border-mint/30 hover:bg-mint/25",
+        coral:   "bg-coral/15 text-coral border border-coral/35 hover:bg-coral/25",
       },
       size: {
         sm: "px-3 py-1.5 text-xs",

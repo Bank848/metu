@@ -2,7 +2,10 @@ import { forwardRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-type Tone = "gold" | "glass" | "outline";
+// Phase 9 / Wave 2 — added `mint` + `coral` so non-gold CTAs aren't
+// forced through `outline` or `glass`. Both pair with the Wave-1
+// `surface-accent` palette (see globals.css:179).
+type Tone = "gold" | "glass" | "outline" | "mint" | "coral";
 
 export interface GlassButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -29,6 +32,10 @@ export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
         "glass-morphism text-white hover:bg-white/10 active:bg-white/15 border border-white/10",
       outline:
         "bg-transparent text-white border border-white/15 hover:border-metu-yellow/60 hover:bg-white/5",
+      mint:
+        "bg-mint/15 text-mint border border-mint/30 hover:bg-mint/25",
+      coral:
+        "bg-coral/15 text-coral border border-coral/35 hover:bg-coral/25",
     }[tone];
 
     const classes = cn(
