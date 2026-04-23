@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
+import { getServerT } from "@/lib/i18n/server";
 
 export function Footer() {
+  const t = getServerT();
+  const year = new Date().getFullYear();
   return (
     <footer className="relative mt-24 bg-surface-2 text-white">
       {/* Top gold hairline */}
@@ -18,8 +21,7 @@ export function Footer() {
           <div>
             <Logo size="md" asLink={false} />
             <p className="mt-4 text-sm text-ink-secondary">
-              A digital marketplace for Thai creators. Sell templates, courses, music,
-              and art without ever shipping a thing.
+              {t("footer.tagline")}
             </p>
             <p className="mt-3 text-xs font-mono text-metu-yellow/80">
               CPE241 · KMUTT · Group 8
@@ -45,7 +47,7 @@ export function Footer() {
           </FooterColumn>
         </div>
         <div className="mt-10 pt-6 border-t border-white/8 text-xs text-ink-dim flex items-center justify-between">
-          <span>© 2026 METU · Built in Bangkok · CPE241 · KMUTT · Group 8</span>
+          <span>{t("footer.copyright", { year })} · CPE241 · KMUTT · Group 8</span>
           <span className="font-mono">Next.js · Prisma · Postgres</span>
         </div>
       </div>

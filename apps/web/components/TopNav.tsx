@@ -14,13 +14,15 @@ import {
   Palette,
   Plug,
   MoreHorizontal,
-  ChevronDown,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { SearchPill } from "./SearchPill";
 import { AuthMenu } from "./AuthMenu";
 import { SoundToggle } from "./SoundToggle";
+import { ThemeToggle } from "./ThemeToggle";
+import { LocaleSwitcher } from "./LocaleSwitcher";
 import { getMe } from "@/lib/session";
+import { getServerT } from "@/lib/i18n/server";
 
 type Tab = { label: string; icon: any; href: string };
 
@@ -40,6 +42,7 @@ export async function TopNav({ q }: { q?: string } = {}) {
   const me = await getMe();
   const hasStore = Boolean(me?.user?.store);
   const isAdmin = me?.role === "admin";
+  const t = getServerT();
 
   return (
     <header className="sticky top-0 z-40 glass-morphism-strong border-b border-white/6">
@@ -52,30 +55,45 @@ export async function TopNav({ q }: { q?: string } = {}) {
         <div className="hidden md:flex items-center gap-2 shrink-0">
           <Link
             href={me ? "/my-reviews" : "/browse?sort=rating"}
-            aria-label={me ? "My reviews" : "Top rated"}
-            title={me ? "My reviews" : "Top rated"}
+            aria-label={me ? t("nav.reviews") : t("nav.topRated")}
+            title={me ? t("nav.reviews") : t("nav.topRated")}
             className="flex h-10 w-10 items-center justify-center rounded-full text-ink-secondary hover:text-metu-yellow hover:bg-white/5 transition"
           >
             <Star className="h-5 w-5" />
           </Link>
           <Link
             href={me ? "/favorites" : "/login?next=/favorites"}
-            aria-label="Favourites"
-            title="Favourites"
+            aria-label={t("nav.favorites")}
+            title={t("nav.favorites")}
             className="flex h-10 w-10 items-center justify-center rounded-full text-ink-secondary hover:text-metu-red hover:bg-white/5 transition"
           >
             <Heart className="h-5 w-5" />
           </Link>
           <Link
             href="/cart"
-            aria-label="Cart"
+            aria-label={t("nav.cart")}
+            title={t("nav.cart")}
             className="relative flex h-10 w-10 items-center justify-center rounded-full text-ink-secondary hover:text-metu-yellow hover:bg-white/5 transition"
           >
             <ShoppingBag className="h-5 w-5" />
           </Link>
           <SoundToggle />
-          {isAdmin && <AdminButton />}
-          <AddStoreButton loggedIn={Boolean(me)} hasStore={hasStore} />
+          <ThemeToggle />
+          {isAdmin && (
+            <Link
+              href="/admin"
+              title={t("nav.admin")}
+              className="inline-flex items-center gap-1.5 rounded-pill border border-purple-400/40 bg-purple-400/15 hover:bg-purple-400/25 hover:border-purple-400/60 px-3 py-2 text-sm font-semibold text-purple-200 transition"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              {t("nav.admin")}
+            </Link>
+          )}
+          <AddStoreButton
+            loggedIn={Boolean(me)}
+            hasStore={hasStore}
+            label={hasStore ? t("nav.dashboard") : t("nav.addStore")}
+          />
         </div>
 
         <AuthMenu
@@ -106,28 +124,20 @@ export async function TopNav({ q }: { q?: string } = {}) {
   );
 }
 
-/** Admin-only quick-launch button. Sits to the left of "Add Store /
- *  Dashboard" so admins always have a one-click path to /admin. */
-function AdminButton() {
-  return (
-    <Link
-      href="/admin"
-      title="Admin panel"
-      className="inline-flex items-center gap-1.5 rounded-pill border border-purple-400/40 bg-purple-400/15 hover:bg-purple-400/25 hover:border-purple-400/60 px-3 py-2 text-sm font-semibold text-purple-200 transition"
-    >
-      <ShieldCheck className="h-4 w-4" />
-      Admin
-    </Link>
-  );
-}
-
-function AddStoreButton({ loggedIn, hasStore }: { loggedIn: boolean; hasStore: boolean }) {
+function AddStoreButton({
+  loggedIn,
+  hasStore,
+  label,
+}: {
+  loggedIn: boolean;
+  hasStore: boolean;
+  label: string;
+}) {
   const href = !loggedIn
     ? "/login?next=/become-seller"
     : hasStore
     ? "/seller"
     : "/become-seller";
-  const label = hasStore ? "Dashboard" : "+ Add Store";
   return (
     <Link
       href={href}
@@ -139,16 +149,5 @@ function AddStoreButton({ loggedIn, hasStore }: { loggedIn: boolean; hasStore: b
   );
 }
 
-function LocaleSwitcher() {
-  return (
-    <button
-      type="button"
-      className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-white hover:bg-white/10 transition"
-      aria-label="Language"
-    >
-      <span aria-hidden>🇹🇭</span>
-      <span>EN</span>
-      <ChevronDown className="h-3 w-3" />
-    </button>
-  );
-}
+// LocaleSwitcher moved to its own client component so it can flip the
+// language without a full page reload — see components/LocaleSwitcher.tsx.

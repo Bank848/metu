@@ -3,6 +3,9 @@ import { Plus_Jakarta_Sans, Manrope, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { CompareDrawer } from "@/components/CompareDrawer";
+import { themeBootstrapScript } from "@/components/ThemeToggle";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getServerLocale } from "@/lib/i18n/server";
 
 const display = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -60,8 +63,21 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read the user's saved locale from cookies so the server-rendered
+  // markup ships with the right language and there's no flash of English
+  // before the client provider takes over.
+  const locale = getServerLocale();
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable} dark`}>
+    <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} dark`}>
+      <head>
+        {/*
+          Bootstrap the user's saved theme BEFORE hydration so we never
+          flash the wrong palette on hard reload. Runs synchronously in
+          the document head, reads localStorage, swaps the html class.
+          Tiny inline script — no separate request.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
       <body className="min-h-screen bg-surface-1 text-ink-primary font-body antialiased">
         {/*
           Skip-to-content — first focusable element on every page so
@@ -77,9 +93,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
-        {children}
-        <KeyboardShortcuts />
-        <CompareDrawer />
+        <I18nProvider initialLocale={locale}>
+          {children}
+          <KeyboardShortcuts />
+          <CompareDrawer />
+        </I18nProvider>
       </body>
     </html>
   );
