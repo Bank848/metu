@@ -46,6 +46,12 @@ export default async function CartPage() {
   // already favourited (marked with a filled heart) so there's always
   // something to click. Cheap extra Promise.all only when the cart is
   // empty — full carts skip these queries entirely.
+  //
+  // Note: an earlier audit flagged these as "redundant under
+  // force-dynamic" — that was a false alarm. Neither getFeaturedProducts
+  // nor getFavoriteSet is wrapped in unstable_cache (verify in
+  // lib/server/queries.ts), so the route's `force-dynamic` flag and
+  // these direct Prisma calls don't conflict. Each request re-runs them.
   const [recommended, favSet] = isEmpty
     ? await Promise.all([getFeaturedProducts(8), getFavoriteSet(me.user.userId)])
     : [[] as Awaited<ReturnType<typeof getFeaturedProducts>>, new Set<number>()];

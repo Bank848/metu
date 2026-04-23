@@ -261,11 +261,30 @@ export function EditProductForm({
                   Variant {i + 1}
                   {isExisting && <span className="ml-2 text-[10px] text-metu-yellow/80">(live)</span>}
                 </span>
-                {!isExisting && (
-                  <button type="button" onClick={() => removeVariant(i)} className="text-ink-dim hover:text-metu-red" aria-label="Remove variant">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
+                {/* Always render the trash so the row layout doesn't shift,
+                    but visually disable + explain it for protected (live)
+                    variants — they have OrderItem / CartItem FKs and can't
+                    be dropped from the API side. */}
+                <button
+                  type="button"
+                  onClick={() => removeVariant(i)}
+                  disabled={isExisting}
+                  aria-disabled={isExisting}
+                  title={
+                    isExisting
+                      ? "Cannot delete — has sales history"
+                      : "Remove variant"
+                  }
+                  className={cn(
+                    "transition",
+                    isExisting
+                      ? "text-ink-dim opacity-40 cursor-not-allowed"
+                      : "text-ink-dim hover:text-metu-red",
+                  )}
+                  aria-label={isExisting ? "Cannot delete — has sales history" : "Remove variant"}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <label className="block">
