@@ -268,7 +268,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
               : Math.min(storeSubtotal, couponResult.discountValue)
             : 0;
           return (
-            <section key={storeId} className="rounded-2xl glass-morphism overflow-hidden">
+            <section key={storeId} className="rounded-2xl surface-flat overflow-hidden shadow-flat">
               {/* store header with select-all + gold rule */}
               <div className="px-5 py-3 flex items-center gap-3 border-b border-white/8 bg-gradient-to-r from-metu-yellow/8 via-transparent to-transparent">
                 <input
@@ -438,7 +438,10 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       </div>
 
       {/* ───── Summary ───── */}
-      <aside className="rounded-2xl glass-morphism-strong p-6 sticky top-28">
+      {/* Wave-3: surface-accent (mint) pins the summary as the right
+          column's anchor card. Toast colours follow the new tokens —
+          mint for success, coral for error. */}
+      <aside className="rounded-2xl surface-accent p-6 sticky top-28 shadow-flat">
         {toast && (
           <p
             role="status"
@@ -446,8 +449,8 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
             className={cn(
               "mb-3 rounded-lg px-3 py-2 text-xs font-semibold",
               toast.ok
-                ? "bg-green-500/10 text-green-300 border border-green-500/30"
-                : "bg-red-500/10 text-red-300 border border-red-500/30",
+                ? "bg-mint/15 text-mint border border-mint/30"
+                : "bg-coral/15 text-coral border border-coral/35",
             )}
           >
             {toast.text}

@@ -30,13 +30,20 @@ export default async function AdminOverview() {
 
   return (
     <>
-      <PageHeader
-        title="Marketplace overview"
-        subtitle="A bird's-eye view of activity across the platform."
-      />
+      {/* Wave-3: editorial hero card mirrors the seller dashboard — gives
+          the admin overview a magazine-style anchor instead of a bare
+          PageHeader floating above the stats grid. */}
+      <div className="surface-editorial rounded-3xl px-6 py-6 md:px-8 md:py-8 mb-6">
+        <PageHeader
+          title="Marketplace overview"
+          subtitle="A bird's-eye view of activity across the platform."
+        />
+      </div>
 
+      {/* Wave-3: GMV is the lead stat — `highlight` variant pulls it out
+          of the row. Other stats stay default. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={DollarSign} label="GMV (paid)" value={money(stats.gmv)} accent="yellow" />
+        <StatCard variant="highlight" icon={DollarSign} label="GMV (paid)" value={money(stats.gmv)} />
         <StatCard icon={Users} label="Users" value={stats.users} />
         <StatCard icon={Store} label="Stores" value={stats.stores} />
         <StatCard icon={Package} label="Products" value={stats.products} />

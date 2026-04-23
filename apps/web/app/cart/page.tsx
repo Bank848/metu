@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { ShoppingCart, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -70,10 +70,13 @@ export default async function CartPage() {
 
           {isEmpty ? (
             <>
+              {/* Wave-3: variant="cart" picks up the new EmptyCart
+                  illustration (mint-tinted) so the empty state doesn't
+                  read as a generic icon-in-circle. */}
               <EmptyState
+                variant="cart"
                 title={t("cart.empty.title")}
                 description={t("cart.empty.description")}
-                icon={<ShoppingCart className="h-8 w-8" />}
                 action={<GlassButton tone="gold" href="/browse">{t("cart.empty.cta")} →</GlassButton>}
               />
 

@@ -86,7 +86,10 @@ export function AddToCart({ items }: { items: Item[] }) {
   }
 
   return (
-    <div className="rounded-2xl glass-morphism p-6">
+    // Wave-3: anchor the buy-box on the mint accent surface so it reads
+    // as the "look here" card on the page. Gold-gradient is now reserved
+    // for the price + the "Buy now" CTA only — see docs/design-system.md §5.
+    <div className="rounded-2xl surface-accent p-6 shadow-flat">
       <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim mb-3">
         Choose a variant
       </div>

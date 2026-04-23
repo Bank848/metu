@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { Heart } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -27,10 +26,13 @@ export default async function FavoritesPage() {
         />
 
         {products.length === 0 ? (
+          // Wave-3: noResults variant picks up the new coral-tinted
+          // illustration so the empty favourites screen lands in the
+          // same family as cart-empty and search-no-results.
           <EmptyState
+            variant="noResults"
             title="No favourites yet"
             description="Tap the heart on any product to save it here for later."
-            icon={<Heart className="h-8 w-8" />}
             action={<GlassButton tone="gold" href="/browse">Browse marketplace →</GlassButton>}
           />
         ) : (

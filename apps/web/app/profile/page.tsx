@@ -39,7 +39,7 @@ export default async function ProfilePage() {
         />
 
         <div className="grid md:grid-cols-[280px_1fr] gap-8 items-start">
-          <aside className="rounded-2xl border border-line bg-space-850 p-6 text-center">
+          <aside className="rounded-2xl surface-flat p-6 text-center shadow-flat">
             <div className="relative h-24 w-24 rounded-full bg-brand-yellow overflow-hidden mx-auto ring-4 ring-brand-yellow/20">
               {me.user.profileImage && (
                 <Image src={me.user.profileImage} alt="" fill sizes="96px" className="object-cover" unoptimized={isDataUrl(me.user.profileImage)} />
@@ -71,7 +71,7 @@ export default async function ProfilePage() {
           </aside>
 
           <div className="space-y-6">
-            <section className="rounded-2xl border border-line bg-space-850 p-6">
+            <section className="rounded-2xl surface-flat p-6 shadow-flat">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-display font-bold text-white flex items-center gap-2">
                   <ShoppingBag className="h-4 w-4" />
@@ -101,7 +101,7 @@ export default async function ProfilePage() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-line bg-space-850 p-6">
+            <section className="rounded-2xl surface-flat p-6 shadow-flat">
               <h3 className="font-display font-bold text-white flex items-center gap-2 mb-3">
                 <Store className="h-4 w-4" />
                 {isSeller ? "Your store" : "Become a seller"}
