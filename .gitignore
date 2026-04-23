@@ -29,3 +29,10 @@ Thumbs.db
 # prisma
 packages/db/prisma/dev.db
 packages/db/prisma/dev.db-journal
+
+# tests — Playwright + Vitest output
+test-results
+playwright-report
+blob-report
+.last-run.json
+apps/web/coverage

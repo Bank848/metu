@@ -4,18 +4,8 @@ import { Star, Package, BadgeCheck } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { FavoriteButton } from "./FavoriteButton";
 import { CompareToggle } from "./CompareDrawer";
-import { cn, isDataUrl } from "@/lib/utils";
+import { cn, isDataUrl, cardImage } from "@/lib/utils";
 import { money } from "@/lib/format";
-
-/**
- * Cards render at ~300×225 on desktop and 200×150 on mobile — request a
- * smaller Unsplash variant (instead of the gallery's 1200×800) so /browse
- * doesn't try to decode 30+ MB of pixels into memory at once.
- */
-function cardImage(url: string): string {
-  if (!url.includes("images.unsplash.com")) return url;
-  return url.replace("w=1200", "w=600").replace("h=800", "h=400");
-}
 
 export type ProductCardProduct = {
   productId: number;
