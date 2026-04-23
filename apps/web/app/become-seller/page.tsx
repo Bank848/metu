@@ -18,7 +18,7 @@ export default async function BecomeSellerPage() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-2xl px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-2xl px-6 md:px-8 py-10">
         <PageHeader
           title="Open your store on METU"
           subtitle="Tell buyers who you are and what kind of digital products you sell."

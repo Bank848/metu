@@ -44,7 +44,7 @@ export default function FeaturesPage() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[1280px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1280px] px-6 md:px-10 py-10">
         <PageHeader
           title="Feature tour"
           subtitle="Everything the METU marketplace can do, grouped by who's logged in. Click any route to jump to it."

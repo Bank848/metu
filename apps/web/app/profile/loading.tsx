@@ -6,7 +6,7 @@ export default function ProfileLoading() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[900px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[900px] px-6 md:px-10 py-10">
         <div className="rounded-2xl glass-morphism p-6 mb-6 flex items-center gap-5">
           <Skeleton className="h-24 w-24 rounded-2xl" />
           <div className="flex-1 space-y-2">

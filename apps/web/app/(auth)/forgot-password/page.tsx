@@ -7,7 +7,7 @@ export const metadata = { title: "Forgot password — METU" };
 
 export default function ForgotPasswordPage() {
   return (
-    <main className="relative min-h-screen bg-space-black overflow-hidden">
+    <main id="main" className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
       <div
         aria-hidden

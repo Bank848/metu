@@ -10,7 +10,7 @@ export default function ResetPasswordPage({ searchParams }: { searchParams: { to
   const token = searchParams.token ?? "";
 
   return (
-    <main className="relative min-h-screen bg-space-black overflow-hidden">
+    <main id="main" className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
       <div
         aria-hidden

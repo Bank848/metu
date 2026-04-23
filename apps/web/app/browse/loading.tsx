@@ -6,7 +6,7 @@ export default function BrowseLoading() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
         <div className="mb-8 space-y-2">
           <Skeleton className="h-9 w-72" />
           <Skeleton className="h-4 w-96" />

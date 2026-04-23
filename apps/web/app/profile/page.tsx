@@ -26,7 +26,7 @@ export default async function ProfilePage() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-5xl px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-5xl px-6 md:px-8 py-10">
         <PageHeader
           title="Your profile"
           subtitle="Manage your account, orders, and store."

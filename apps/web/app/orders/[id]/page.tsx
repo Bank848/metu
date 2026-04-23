@@ -90,7 +90,7 @@ export default async function OrderDetail({
     <>
       <TopNav />
       {isNew && <Confetti />}
-      <main className="relative">
+      <main id="main" className="relative">
         {/* radial gold glow background, dim */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-[640px] vibrant-mesh opacity-60 pointer-events-none" />
 

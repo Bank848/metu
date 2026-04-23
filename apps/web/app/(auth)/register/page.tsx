@@ -17,7 +17,7 @@ export default async function RegisterPage() {
     orderBy: { name: "asc" },
   });
   return (
-    <main className="relative min-h-screen bg-space-black overflow-hidden">
+    <main id="main" className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
       <div
         aria-hidden

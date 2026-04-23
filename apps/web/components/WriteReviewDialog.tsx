@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Star, X } from "lucide-react";
 import { GlassButton } from "./visual/GlassButton";
 import { play } from "@/lib/sound";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 type Review = {
   reviewId: number;
@@ -32,6 +33,10 @@ export function WriteReviewDialog({
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Confine Tab focus inside the dialog and restore it to the trigger
+  // on close — WCAG 2.4.3 / 2.1.2 compliance for modal dialogs.
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(dialogRef, true);
 
   // ESC + body lock
   useEffect(() => {
@@ -90,6 +95,7 @@ export function WriteReviewDialog({
         aria-hidden
       />
       <form
+        ref={dialogRef}
         onSubmit={submit}
         className="relative w-full max-w-md rounded-2xl glass-morphism-strong p-6 animate-fade-in-up"
       >

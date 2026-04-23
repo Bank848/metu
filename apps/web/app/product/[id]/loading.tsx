@@ -6,7 +6,7 @@ export default function ProductLoading() {
   return (
     <>
       <TopNav />
-      <main className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
         <Skeleton className="h-3 w-72 mb-6" />
         <div className="grid md:grid-cols-[1.15fr_1fr] gap-10">
           <div className="space-y-3">

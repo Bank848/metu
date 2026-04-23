@@ -10,7 +10,7 @@ export default async function SellerLayout({ children }: { children: React.React
   return (
     <div className="flex min-h-screen bg-space-black">
       <SellerSidebar storeName={me.user?.store?.name} />
-      <main className="flex-1 px-8 py-10">{children}</main>
+      <main id="main" className="flex-1 px-8 py-10">{children}</main>
     </div>
   );
 }

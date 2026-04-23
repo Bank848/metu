@@ -29,12 +29,54 @@ export const metadata: Metadata = {
   title: "METU — Digital Marketplace",
   description:
     "METU is the digital marketplace for Thai creators. Templates, music, courses, art — sell and buy without ever shipping a thing.",
+  // Set the canonical site URL so Open Graph / Twitter cards resolve absolute
+  // image paths and the sitemap helper can derive the same base.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://metu.fly.dev"),
+  applicationName: "METU",
+  appleWebApp: {
+    capable: true,
+    title: "METU",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-touch-icon.svg", sizes: "180x180", type: "image/svg+xml" }],
+  },
+  openGraph: {
+    type: "website",
+    siteName: "METU",
+    title: "METU — Digital Marketplace",
+    description:
+      "Digital marketplace for Thai creators — templates, music, courses, art, and more.",
+  },
+};
+
+// Browser chrome / iOS status bar tint. Kept separate from `metadata` so
+// it lives on the recommended `viewport` export per Next 14 conventions.
+export const viewport = {
+  themeColor: "#0E0E0E",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable} dark`}>
       <body className="min-h-screen bg-surface-1 text-ink-primary font-body antialiased">
+        {/*
+          Skip-to-content — first focusable element on every page so
+          keyboard + screen-reader users can bypass the TopNav. Hidden
+          off-screen until focused, then springs into the top-left
+          corner with a brand-yellow pill so it's impossible to miss.
+          Pages render their main content inside <main id="main"> so
+          this anchor always has a target.
+        */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-full focus:bg-brand-yellow focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-space-black focus:shadow-2xl focus:outline-none focus:ring-2 focus:ring-brand-yellow/60"
+        >
+          Skip to content
+        </a>
         {children}
         <KeyboardShortcuts />
         <CompareDrawer />

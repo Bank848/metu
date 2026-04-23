@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="METU">
+  <!-- Brand-yellow tile with the METU wordmark, padded for maskable safety. -->
+  <rect width="512" height="512" rx="96" fill="#0E0E0E"/>
+  <rect x="32" y="32" width="448" height="448" rx="64" fill="#FFD000"/>
+  <text x="256" y="298" text-anchor="middle"
+        font-family="'Plus Jakarta Sans', 'Helvetica Neue', Arial, sans-serif"
+        font-weight="800" font-size="120" letter-spacing="-4" fill="#0E0E0E">METU</text>
+</svg>
