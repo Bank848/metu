@@ -4,6 +4,7 @@ import "./globals.css";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { CompareDrawer } from "@/components/CompareDrawer";
 import { themeBootstrapScript } from "@/components/ThemeToggle";
+import { PlausibleScript } from "@/components/PlausibleScript";
 import { I18nProvider } from "@/lib/i18n/client";
 import { getServerLocale } from "@/lib/i18n/server";
 
@@ -98,6 +99,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <KeyboardShortcuts />
           <CompareDrawer />
         </I18nProvider>
+        <PlausibleScript />
       </body>
     </html>
   );
