@@ -12,6 +12,13 @@ primary_region = "sin"
 [env]
   PORT = "8080"
   NODE_ENV = "production"
+  # Pin the Node process clock to GMT+7 so server-rendered timestamps
+  # (audit log "When" column, /admin/changelog "shippedAt", any
+  # toLocaleString() inside a server component) match the Thai user's
+  # frame of reference. Postgres still stores UTC; Node just renders
+  # in Asia/Bangkok by default. Browser-side toLocaleString() is
+  # unaffected — those already use the viewer's timezone.
+  TZ = "Asia/Bangkok"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HTTP service — Fly's edge terminates HTTPS and forwards to the container.
