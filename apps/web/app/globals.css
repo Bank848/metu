@@ -13,6 +13,17 @@
   --surface-3:      #201f1f;
   --surface-4:      #262626;
   --ink-base:       #fafafa;
+
+  /* ───── Wave-1 secondary + tertiary accents (Phase 9) ─────
+     Mirrored from tailwind.config.ts so plain CSS (these surface
+     classes below) can reference the same hex values without the
+     Tailwind toolchain. Keep these in sync if either side moves. */
+  --mint:           #6ee7b7;
+  --mint-dim:       #34d399;
+  --mint-deep:      #047857;
+  --coral:          #fb7185;
+  --coral-dim:      #f43f5e;
+  --coral-deep:     #881337;
 }
 
 /* ───────────── Light theme ─────────────
@@ -143,6 +154,94 @@ html {
   backdrop-filter: blur(4px) saturate(120%);
   -webkit-backdrop-filter: blur(4px) saturate(120%);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ───────────── Surface variants (NEW, Phase 9) ─────────────
+   Four flat alternatives to .glass-morphism. The decision tree:
+
+     Is this a card inside a list / grid?    → .surface-flat
+     Is this the "hero" card in that grid?   → .surface-accent
+     Is this a hero / banner section?        → .surface-hero
+     Is this a magazine-style breakout?      → .surface-editorial
+     Is this an OVERLAY (nav/modal/drawer)?  → .glass-morphism (existing)
+
+   None of these use backdrop-filter — they're cheap solids. That's the
+   whole point: scrolling 24 ProductCards no longer re-blurs the layer
+   beneath each card every frame. See docs/design-system.md §5. */
+
+.surface-flat {
+  /* Default for grid cards. Solid `surface-2` + the same hairline border
+     `.glass-morphism` had so the swap is a straight class rename. */
+  background: var(--surface-2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.surface-accent {
+  /* The "look here" variant — use ONCE per row inside an otherwise
+     `.surface-flat` grid. Default tint is mint; flip to coral by adding
+     `.surface-accent--coral`. The tint sits at low opacity so the
+     surface stays readable; the border picks up the accent at higher
+     opacity to make the card edge visibly different. */
+  background:
+    linear-gradient(180deg, rgba(110, 231, 183, 0.08) 0%, rgba(110, 231, 183, 0) 70%),
+    var(--surface-2);
+  border: 1px solid rgba(110, 231, 183, 0.25);
+}
+.surface-accent--coral {
+  background:
+    linear-gradient(180deg, rgba(251, 113, 133, 0.08) 0%, rgba(251, 113, 133, 0) 70%),
+    var(--surface-2);
+  border: 1px solid rgba(251, 113, 133, 0.28);
+}
+
+.surface-hero {
+  /* Ready-made hero panel: vibrant mesh + a subtle vignette. Replaces
+     hand-rolled `bg-hero-radial` chains on banner sections. */
+  background:
+    radial-gradient(60% 80% at 30% 20%, rgba(255, 204, 0, 0.18) 0, transparent 60%),
+    radial-gradient(50% 70% at 80% 70%, rgba(178, 104, 0, 0.22) 0, transparent 60%),
+    linear-gradient(180deg, #0e0e0e 0%, #1a1919 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.surface-editorial {
+  /* Magazine-style breakout — no border, no rounded corners by default,
+     full-bleed feel. Pair with `rounded-none` or `rounded-3xl` so it
+     contrasts with the `rounded-xl` cards around it. */
+  background: var(--surface-1);
+  border: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Light-mode parity for the new surfaces — same logic as the
+   `.glass-morphism` overrides above. Without these, light mode would
+   render the new surfaces black-on-white and look broken. */
+html.light .surface-flat {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+html.light .surface-accent {
+  background:
+    linear-gradient(180deg, rgba(4, 120, 87, 0.06) 0%, rgba(4, 120, 87, 0) 70%),
+    #ffffff;
+  border-color: rgba(4, 120, 87, 0.25);
+}
+html.light .surface-accent--coral {
+  background:
+    linear-gradient(180deg, rgba(244, 63, 94, 0.06) 0%, rgba(244, 63, 94, 0) 70%),
+    #ffffff;
+  border-color: rgba(244, 63, 94, 0.28);
+}
+html.light .surface-hero {
+  background:
+    radial-gradient(60% 80% at 30% 20%, rgba(255, 204, 0, 0.18) 0, transparent 60%),
+    radial-gradient(50% 70% at 80% 70%, rgba(255, 204, 0, 0.10) 0, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #f1f0ec 100%);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+html.light .surface-editorial {
+  background: #fafafa;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.05);
 }
 
 /* ───────────── Vibrant mesh background ───────────── */
@@ -318,4 +417,29 @@ input:-webkit-autofill {
   0%   { transform: translate(-50%, 0);    opacity: 0; }
   18%  { transform: translate(-50%, -12px); opacity: 1; }
   100% { transform: translate(-50%, -58px); opacity: 0; }
+}
+
+/* ───────────── Stagger reveal (NEW, Phase 9) ─────────────
+   Slightly slower + larger travel than `fade-in-up` so a staggered
+   grid (e.g. 8 ProductCards reveal-on-scroll) has a perceptible
+   cascade rather than blurring into a single pop. Wave-2 agents apply
+   this with an inline `style={{ animationDelay: \`${i * 60}ms\` }}`
+   on grid children. The reduced-motion block at the top of this file
+   neutralises this animation automatically — no extra guard needed. */
+@keyframes stagger-rise {
+  0%   { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ───────────── Lift on hover (NEW, Phase 9) ─────────────
+   A class-only equivalent of the inline `hover:-translate-y-1
+   hover:shadow-pop` we sprinkle on every card. Use this when you want
+   the lift WITHOUT the gold-tinted `shadow-pop` (which is what makes
+   the AI-grid feel — every card glowing yellow on hover). Pair with
+   any `boxShadow` token: `.lift-on-hover.hover:shadow-raised` etc. */
+.lift-on-hover {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.lift-on-hover:hover {
+  transform: translateY(-2px);
 }
