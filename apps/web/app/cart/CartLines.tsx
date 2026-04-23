@@ -8,6 +8,14 @@ import { GlassButton } from "@/components/visual/GlassButton";
 import { money } from "@/lib/format";
 import { play } from "@/lib/sound";
 import { cn, isDataUrl } from "@/lib/utils";
+import {
+  cartTotal,
+  DIGITAL_DELIVERY_METHODS,
+  discountFromCoupon,
+  eligibleSubtotalForStore,
+  maxForLine as cartMaxForLine,
+  subtotalOf,
+} from "@/lib/cart-math";
 
 type Line = {
   cartItemId: number;
@@ -44,10 +52,11 @@ type CouponResult =
     };
 
 const API = "/api";
-const DIGITAL = new Set(["download", "email", "license_key", "streaming"]);
 
+// Thin local wrapper so component code keeps reading `maxForLine(line)`
+// while the actual math lives in lib/cart-math.ts (where it can be unit-tested).
 function maxForLine(line: Line): number {
-  return DIGITAL.has(line.deliveryMethod) ? 1 : Math.max(1, line.stock);
+  return cartMaxForLine(line);
 }
 
 export function CartLines({ cart: initial }: { cart: Cart }) {
@@ -85,29 +94,24 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   );
   const selectedCount = selectedItems.reduce((a, b) => a + b.quantity, 0);
 
-  const subtotal = useMemo(
-    () => selectedItems.reduce((a, b) => a + b.lineTotal, 0),
-    [selectedItems],
-  );
+  const subtotal = useMemo(() => subtotalOf(selectedItems), [selectedItems]);
 
   // Discount is scoped to the coupon's store — only lines from that store
   // count toward the eligible subtotal the discount applies to.
   const eligibleSubtotal = useMemo(() => {
     if (!couponResult?.valid) return 0;
-    return selectedItems
-      .filter((l) => l.storeId === couponResult.store.storeId)
-      .reduce((a, b) => a + b.lineTotal, 0);
+    return eligibleSubtotalForStore(selectedItems, couponResult.store.storeId);
   }, [couponResult, selectedItems]);
 
   const discount = useMemo(() => {
-    if (!couponResult?.valid || eligibleSubtotal <= 0) return 0;
-    if (couponResult.discountType === "percent") {
-      return (eligibleSubtotal * couponResult.discountValue) / 100;
-    }
-    return Math.min(eligibleSubtotal, couponResult.discountValue);
+    if (!couponResult?.valid) return 0;
+    return discountFromCoupon(eligibleSubtotal, {
+      discountType: couponResult.discountType,
+      discountValue: couponResult.discountValue,
+    });
   }, [couponResult, eligibleSubtotal]);
 
-  const total = Math.max(0, subtotal - discount);
+  const total = cartTotal(subtotal, discount);
 
   async function updateQty(cartItemId: number, quantity: number) {
     setLineError((p) => ({ ...p, [cartItemId]: "" }));
@@ -270,7 +274,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                 {lines.map((l) => {
                   const isChecked = !!selected[l.cartItemId];
                   const max = maxForLine(l);
-                  const isDigital = DIGITAL.has(l.deliveryMethod);
+                  const isDigital = DIGITAL_DELIVERY_METHODS.has(l.deliveryMethod);
                   const err = lineError[l.cartItemId];
                   return (
                     <li key={l.cartItemId} className={cn("flex items-center gap-4 p-4 transition", !isChecked && "opacity-55")}>

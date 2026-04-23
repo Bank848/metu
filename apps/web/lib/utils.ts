@@ -22,6 +22,23 @@ export const isDataUrl = (s: string | null | undefined): boolean => {
 };
 
 /**
+ * Downsize Unsplash gallery images for product-card thumbnails.
+ *
+ * Hero / detail pages use the 1200×800 variant; cards on /browse and
+ * the favourites grid only need ~600×400. Replacing the size suffix
+ * in the URL keeps Unsplash from serving us multi-MB images that the
+ * browser then has to decode + downscale into ~200 px thumbnails.
+ *
+ * Pure URL transform, no I/O — extracted from `ProductCard` so it can
+ * be reused by RelatedProducts, the Compare grid, etc.
+ */
+export function cardImage(url: string): string {
+  if (!url) return url;
+  if (!url.includes("images.unsplash.com")) return url;
+  return url.replace("w=1200", "w=600").replace("h=800", "h=400");
+}
+
+/**
  * Resolve the absolute base URL.
  *  - On the browser: empty string → fetch hits the same origin.
  *  - On the server: derive from VERCEL_URL (auto-set by Vercel) or env override.
