@@ -43,7 +43,10 @@ export async function POST(
       comment: parsed.data.comment,
     },
     include: {
-      user: { select: { firstName: true, lastName: true, profileImage: true, username: true } },
+      // userId in the response so the moderation UI in <Reviews> can
+      // immediately recognise the just-posted row as owned by the
+      // viewer (without a refetch).
+      user: { select: { userId: true, firstName: true, lastName: true, profileImage: true, username: true } },
     },
   });
   return NextResponse.json({ review });
