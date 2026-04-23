@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -119,6 +119,25 @@ const BATCHES: Batch[] = [
       { title: "Prominent “Admin panel” button in TopNav for admin role only" },
       { title: "Smooth scroll behaviour on <html> + scroll-padding-top for sticky nav" },
       { title: "Reduced-motion media query disables both smooth scroll and animations" },
+    ],
+  },
+  {
+    id: "batch-e",
+    title: "Batch E · Platform polish",
+    subtitle:
+      "Seven items aimed at the next layer of polish — discoverability (PWA + sitemap), accessibility (skip-to-content + focus-trap), graceful 404, light mode, and scoped TH/EN i18n.",
+    icon: Palette,
+    tone: "info",
+    shippedAt: "07:57",
+    commitSha: "b08c41c",
+    items: [
+      { title: "PWA manifest at /manifest.webmanifest with branded SVG icons (any + maskable)" },
+      { title: "Dynamic /sitemap.xml (top 200 products + all stores) and /robots.txt" },
+      { title: "Custom 404 with popular-categories suggestions below the CTAs" },
+      { title: "Skip-to-content link + id=\"main\" wired into all 27 pages (WCAG 2.4.1)" },
+      { title: "useFocusTrap() hook on WriteReviewDialog + keyboard cheatsheet (WCAG 2.4.3)" },
+      { title: "Light mode toggle in TopNav — persists to localStorage, no flash on reload" },
+      { title: "TH/EN i18n in TopNav, footer, search placeholder, cart empty state" },
     ],
   },
   {
