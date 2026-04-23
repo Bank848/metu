@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Star, Clock, MessageSquare, ShieldCheck, Flame } from "lucide-react";
+import { Star, Clock, MessageSquare, ShieldCheck, Flame, Mail } from "lucide-react";
 import { notFound } from "next/navigation";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
@@ -9,6 +9,7 @@ import { Reviews } from "@/components/Reviews";
 import { getProduct, getFavoriteSet, getRecentPurchaseCount, getRelatedProducts } from "@/lib/server/queries";
 import { ProductCard } from "@/components/ProductCard";
 import { getMe } from "@/lib/session";
+import { getServerT } from "@/lib/i18n/server";
 import { isDataUrl } from "@/lib/utils";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { ExpandableText } from "@/components/ExpandableText";
@@ -25,7 +26,7 @@ type Product = {
   description: string;
   avgRating?: number;
   reviewCount?: number;
-  store: { storeId: number; name: string; description: string; profileImage?: string | null; businessType?: { name: string } | null; stats?: { rating: number; responseTime: number } | null };
+  store: { storeId: number; ownerId: number; name: string; description: string; profileImage?: string | null; businessType?: { name: string } | null; stats?: { rating: number; responseTime: number } | null };
   category: { categoryName: string };
   items: Array<{ productItemId: number; deliveryMethod: string; price: string | number; discountPercent: number; quantity: number }>;
   images: Array<{ productImage: string }>;
@@ -64,11 +65,18 @@ export default async function ProductPage({ params }: { params: { id: string } }
     getRelatedProducts(id, 4),
   ]);
   if (!product) return notFound();
+  const t = getServerT();
   // Seller-or-admin can answer questions on this product.
   const canAnswer =
     me?.role === "admin" ||
     (me?.user.store?.storeId !== undefined && me.user.store.storeId === product.store.storeId);
   const isFavorited = favSet.has(product.productId);
+  // Hide "Ask the seller" if the viewer IS the seller — `POST /api/messages`
+  // already rejects self-send so this is just UX hygiene.
+  const showAskSeller = !me || me.user.userId !== product.store.ownerId;
+  const askSellerHref = me
+    ? `/messages/${product.store.ownerId}?productId=${product.productId}`
+    : `/login?next=${encodeURIComponent(`/messages/${product.store.ownerId}?productId=${product.productId}`)}`;
 
   // Hydrate per-variant restock subscription state so the bell button
   // shows the right colour without a client round-trip.
@@ -155,7 +163,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
             <Link
               href={`/store/${product.store.storeId}`}
-              className="flex items-center gap-3 rounded-2xl surface-flat p-4 mb-6 hover:border-metu-yellow/40 transition lift-on-hover"
+              className="flex items-center gap-3 rounded-2xl surface-flat p-4 hover:border-metu-yellow/40 transition lift-on-hover"
             >
               <div className="relative h-12 w-12 shrink-0 rounded-full bg-metu-yellow overflow-hidden">
                 {product.store.profileImage && (
@@ -171,6 +179,23 @@ export default async function ProductPage({ params }: { params: { id: string } }
               </div>
               <div className="ml-auto text-xs text-metu-yellow">Visit store →</div>
             </Link>
+
+            {/* "Ask the seller" — small, inline, sits below the store
+                card so the buyer always has a low-pressure path to
+                clarify a question without leaving the product page.
+                Mint accent (matches the playbook's "soft / inviting"
+                role for secondary actions) and pre-fills the productId
+                so ThreadView can render the context pill. */}
+            {showAskSeller && (
+              <Link
+                href={askSellerHref}
+                className="mt-2 mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-mint hover:text-mint-dim transition"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                {t("messages.cta.askSeller")} →
+              </Link>
+            )}
+            {!showAskSeller && <div className="mb-6" />}
 
             <AddToCart items={items} />
           </div>

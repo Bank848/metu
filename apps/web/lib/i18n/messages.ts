@@ -31,6 +31,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     "nav.favorites": "Favourites",
     "nav.reviews": "My reviews",
     "nav.topRated": "Top rated",
+    "nav.messages": "Messages",
     "nav.admin": "Admin",
     "nav.dashboard": "Dashboard",
     "nav.addStore": "+ Add Store",
@@ -43,6 +44,15 @@ export const MESSAGES: Record<Locale, Messages> = {
     "auth.profile": "Profile",
     "auth.email": "Email",
     "auth.password": "Password",
+
+    // Messaging
+    "messages.empty.title": "No conversations yet",
+    "messages.empty.description": "Reach out to a store from any product or order page.",
+    "messages.compose.placeholder": "Type your message…",
+    "messages.cta.messageStore": "Message store",
+    "messages.cta.askSeller": "Ask the seller",
+    "messages.context.about": "About: {name}",
+    "messages.context.order": "Order #{id}",
 
     // Cart
     "cart.title": "Your cart",
@@ -77,6 +87,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     "nav.favorites": "รายการโปรด",
     "nav.reviews": "รีวิวของฉัน",
     "nav.topRated": "เรตติ้งสูงสุด",
+    "nav.messages": "ข้อความ",
     "nav.admin": "แอดมิน",
     "nav.dashboard": "แดชบอร์ด",
     "nav.addStore": "+ เปิดร้าน",
@@ -89,6 +100,15 @@ export const MESSAGES: Record<Locale, Messages> = {
     "auth.profile": "โปรไฟล์",
     "auth.email": "อีเมล",
     "auth.password": "รหัสผ่าน",
+
+    // Messaging
+    "messages.empty.title": "ยังไม่มีบทสนทนา",
+    "messages.empty.description": "เริ่มต้นส่งข้อความถึงร้านได้จากหน้าสินค้าหรือออเดอร์",
+    "messages.compose.placeholder": "พิมพ์ข้อความ…",
+    "messages.cta.messageStore": "ส่งข้อความถึงร้าน",
+    "messages.cta.askSeller": "ถามผู้ขาย",
+    "messages.context.about": "เกี่ยวกับ: {name}",
+    "messages.context.order": "ออเดอร์ #{id}",
 
     // Cart
     "cart.title": "ตะกร้าของคุณ",

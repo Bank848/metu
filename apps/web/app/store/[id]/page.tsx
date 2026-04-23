@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Star, Clock, BadgeCheck, MapPin, Calendar, Package as PackageIcon, MessageSquare, Activity } from "lucide-react";
+import { Star, Clock, BadgeCheck, MapPin, Calendar, Package as PackageIcon, MessageSquare, Activity, Mail } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
@@ -12,6 +12,7 @@ import { GlassButton } from "@/components/visual/GlassButton";
 import { StarField } from "@/components/DotGrid";
 import { getStore, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
+import { getServerT } from "@/lib/i18n/server";
 import { isDataUrl } from "@/lib/utils";
 import { ShareButton } from "@/components/ShareButton";
 
@@ -24,6 +25,14 @@ export default async function StorePage({ params }: { params: { id: string } }) 
   const [data, favSet] = await Promise.all([getStore(id), getFavoriteSet(me?.user.userId)]);
   if (!data) return notFound();
   const { store, products, productCount, reviewCount, avgRating } = data;
+  const t = getServerT();
+  // Owner can't message themselves — `POST /api/messages` rejects self-send
+  // anyway, but hiding the CTA keeps the storefront from showing a button
+  // the seller would never want to click.
+  const showMessageCta = !me || me.user.userId !== store.ownerId;
+  const messageHref = me
+    ? `/messages/${store.ownerId}`
+    : `/login?next=/messages/${store.ownerId}`;
 
   return (
     <>
@@ -75,6 +84,22 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                       mark, not a divider. */}
                   <span aria-hidden className="mt-2 block h-[3px] w-16 rounded-full bg-coral" />
                 </div>
+                {/* Action row — Message store sits left of Share so it
+                    reads as the primary social action ("talk to them")
+                    while Share remains the lighter utility. Coral tone
+                    deliberately distinct from the gold "Visit store"
+                    buy paths so it never feels like a checkout CTA. */}
+                {showMessageCta && (
+                  <GlassButton
+                    tone="coral"
+                    size="sm"
+                    href={messageHref}
+                    className="shrink-0"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {t("messages.cta.messageStore")}
+                  </GlassButton>
+                )}
                 <ShareButton title={store.name} text={`${store.name} on METU`} size="md" />
               </div>
               <p className="mt-3 text-ink-secondary max-w-2xl">{store.description}</p>

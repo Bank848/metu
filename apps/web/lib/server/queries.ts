@@ -432,6 +432,10 @@ export async function getProduct(id: number) {
       store: {
         select: {
           storeId: true,
+          // Owner id powers the "Ask the seller" link on the product
+          // page — Phase 10 Step 3c surfaces messaging from the
+          // existing store-info card without an extra query.
+          ownerId: true,
           name: true,
           profileImage: true,
           businessType: { select: { name: true } },

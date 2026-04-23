@@ -12,8 +12,10 @@ import {
   LogIn,
   ChevronDown,
   Star,
+  Mail,
 } from "lucide-react";
 import { cn, isDataUrl } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/client";
 
 type AuthMenuUser = {
   userId: number;
@@ -34,6 +36,7 @@ export function AuthMenu({
   hasStore: boolean;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -129,6 +132,9 @@ export function AuthMenu({
           </MenuItem>
           <MenuItem href="/orders" icon={Package} onClose={() => setOpen(false)}>
             My orders
+          </MenuItem>
+          <MenuItem href="/messages" icon={Mail} onClose={() => setOpen(false)}>
+            {t("nav.messages")}
           </MenuItem>
           <MenuItem href="/my-reviews" icon={Star} onClose={() => setOpen(false)}>
             My reviews
