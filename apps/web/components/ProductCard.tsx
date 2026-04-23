@@ -21,45 +21,73 @@ export type ProductCardProduct = {
   tags?: string[];
 };
 
+/**
+ * Phase 9 / Wave 2 — variant prop added.
+ *
+ *   - `default` (grid card) — drops `glass-morphism` for the cheaper
+ *     `surface-flat`, smaller `rounded-xl`, no gold hairline. This kills
+ *     the "every card is a glassy 2xl rectangle with a gold underline"
+ *     AI-grid feel called out at design-system.md §1 row 1.
+ *   - `feature` (hero card) — uses the `surface-accent` (mint) tint, keeps
+ *     `rounded-2xl` and the gold hairline so it visibly outranks the rest
+ *     of the grid. The parent controls layout (e.g. `col-span-2`); we
+ *     only stretch the image-aspect a little so the card reads bigger.
+ *
+ * The discount badge moved off the gold-gradient text (illegible at
+ * small sizes) onto a solid coral chip — coral is our "hot / promo"
+ * signal and stays distinct from `metu-red` (destructive).
+ */
+type Variant = "default" | "feature";
+
 export function ProductCard({
   product,
   className,
   isFavorited = false,
+  variant = "default",
 }: {
   product: ProductCardProduct;
   className?: string;
   // Hydrated by the server for the logged-in user — drives the heart's
   // initial fill state. Guests default to false and get a redirect on click.
   isFavorited?: boolean;
+  variant?: Variant;
 }) {
   const hasRange = product.maxPrice && product.maxPrice !== product.minPrice;
+  const isFeature = variant === "feature";
   return (
     <Link
       href={`/product/${product.productId}`}
       className={cn(
         // `transform-gpu` promotes each card onto its own GPU layer so the
         // hover lift doesn't trigger a full-page repaint of all cards.
-        "group relative rounded-2xl glass-morphism overflow-hidden transition-all duration-200 transform-gpu",
-        "hover:border-metu-yellow/50 hover:shadow-pop hover:-translate-y-1",
+        "group relative overflow-hidden transform-gpu lift-on-hover hover:shadow-raised",
+        isFeature
+          ? "rounded-2xl surface-accent hover:border-mint/45"
+          : "rounded-xl surface-flat hover:border-metu-yellow/40",
         className,
       )}
     >
       {/* image */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-surface-3 via-surface-2 to-surface-1">
+      <div
+        className={cn(
+          "relative overflow-hidden bg-gradient-to-br from-surface-3 via-surface-2 to-surface-1",
+          isFeature ? "aspect-[16/10]" : "aspect-[4/3]",
+        )}
+      >
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-metu-yellow/25">
-          <Package className="h-10 w-10" strokeWidth={1.5} />
+          <Package className={isFeature ? "h-14 w-14" : "h-10 w-10"} strokeWidth={1.5} />
         </div>
         <Image
           src={cardImage(product.image)}
           alt={product.name}
           fill
-          sizes="(max-width: 768px) 100vw, 25vw"
+          sizes={isFeature ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 100vw, 25vw"}
           className="object-cover group-hover:scale-105 transition-transform duration-300"
           unoptimized={isDataUrl(product.image)}
         />
-        {/* discount chip top-left */}
+        {/* discount chip top-left — solid coral fill, readable at any size */}
         {product.discountPercent && product.discountPercent > 0 && (
-          <span className="absolute top-3 left-3 rounded-full bg-metu-red/95 px-2.5 py-0.5 text-xs font-bold text-white shadow-card">
+          <span className="absolute top-3 left-3 rounded-md bg-coral px-2 py-0.5 text-[11px] font-bold text-coral-deep shadow-flat">
             −{product.discountPercent}%
           </span>
         )}
@@ -71,19 +99,26 @@ export function ProductCard({
             THB
           </span>
         </div>
-        {/* gold accent bar at the bottom of the image — friend's signature */}
-        <div className="absolute bottom-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-80 group-hover:opacity-100 group-hover:h-1 transition-all" />
+        {/* gold accent bar — kept on the feature card only (playbook §9) */}
+        {isFeature && (
+          <div className="absolute bottom-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-80 group-hover:opacity-100 group-hover:h-1 transition-all" />
+        )}
       </div>
 
       {/* body */}
-      <div className="p-4">
+      <div className={isFeature ? "p-5 md:p-6" : "p-4"}>
         {product.storeName && (
           <div className="text-xs font-medium text-ink-dim mb-1 inline-flex items-center gap-1">
             <BadgeCheck className="h-3 w-3 text-metu-yellow/80" />
             {product.storeName}
           </div>
         )}
-        <h3 className="font-display font-semibold text-white line-clamp-2 min-h-[3rem] group-hover:text-metu-yellow transition-colors">
+        <h3
+          className={cn(
+            "font-display font-semibold text-white line-clamp-2 group-hover:text-metu-yellow transition-colors",
+            isFeature ? "text-xl md:text-2xl min-h-[3.5rem]" : "min-h-[3rem]",
+          )}
+        >
           {product.name}
         </h3>
         {product.tags && product.tags.length > 0 && (
@@ -97,7 +132,12 @@ export function ProductCard({
         )}
         <div className="mt-3 flex items-end justify-between">
           <div>
-            <span className="font-display text-lg font-bold text-gold-gradient">
+            <span
+              className={cn(
+                "font-display font-bold text-gold-gradient",
+                isFeature ? "text-2xl md:text-3xl" : "text-lg",
+              )}
+            >
               {money(product.minPrice)}
             </span>
             {hasRange && (
