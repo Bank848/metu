@@ -30,7 +30,7 @@ type Product = {
   items: Array<{ productItemId: number; deliveryMethod: string; price: string | number; discountPercent: number; quantity: number }>;
   images: Array<{ productImage: string }>;
   productNTags: Array<{ tag: { tagName: string; tagId: number } }>;
-  reviews: Array<{ reviewId: number; rating: number; comment: string; createdAt: string; user: { firstName: string; lastName: string; profileImage?: string | null; username: string } }>;
+  reviews: Array<{ reviewId: number; rating: number; comment: string; createdAt: string; user: { userId: number; firstName: string; lastName: string; profileImage?: string | null; username: string } }>;
 };
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
       orderBy: { createdAt: "desc" },
       include: {
         asker:    { select: { userId: true, username: true, firstName: true, lastName: true, profileImage: true } },
-        answerer: { select: { userId: true, username: true, firstName: true, lastName: true, profileImage: true } },
+        // answerer.stats.role drives the "Admin answered" vs "Seller
+        // answered" label in ProductQuestions.tsx (Phase 10 Step 1).
+        answerer: {
+          select: {
+            userId: true, username: true, firstName: true, lastName: true, profileImage: true,
+            stats: { select: { role: true } },
+          },
+        },
       },
     }),
     getRelatedProducts(id, 4),
@@ -186,6 +193,8 @@ export default async function ProductPage({ params }: { params: { id: string } }
             avgRating={product.avgRating}
             reviewCount={product.reviewCount ?? product.reviews.length}
             canWrite={Boolean(me)}
+            isAdmin={me?.role === "admin"}
+            currentUserId={me?.user.userId}
           />
         </section>
 
@@ -193,6 +202,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
           productId={product.productId}
           initialQuestions={questions.map((q) => ({
             questionId: q.questionId,
+            askerId: q.askerId,
             body: q.body,
             answer: q.answer,
             answeredAt: q.answeredAt ? q.answeredAt.toISOString() : null,
@@ -202,6 +212,8 @@ export default async function ProductPage({ params }: { params: { id: string } }
           }))}
           canAnswer={canAnswer}
           isLoggedIn={Boolean(me)}
+          isAdmin={me?.role === "admin"}
+          currentUserId={me?.user.userId}
         />
 
         {related.length > 0 && (

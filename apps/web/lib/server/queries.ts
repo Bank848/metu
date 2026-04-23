@@ -446,7 +446,10 @@ export async function getProduct(id: number) {
         orderBy: { createdAt: "desc" },
         take: 5,
         include: {
-          user: { select: { firstName: true, lastName: true, profileImage: true, username: true } },
+          // userId is required by the moderation UI so we can show the
+          // edit/delete buttons to the review's author (in addition to
+          // any admin viewing the page).
+          user: { select: { userId: true, firstName: true, lastName: true, profileImage: true, username: true } },
         },
       },
     },

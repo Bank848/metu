@@ -12,6 +12,11 @@ type Review = {
   comment: string;
   createdAt: string;
   user: {
+    // userId added so the moderation UI in <Reviews> can compare
+    // against the current user and show edit/delete on owned rows.
+    // The POST /api/products/[id]/reviews endpoint already includes
+    // the full user object — this just widens the type to match.
+    userId: number;
     firstName: string;
     lastName: string;
     profileImage?: string | null;
