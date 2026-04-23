@@ -4,6 +4,7 @@ import { History, Filter } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/EmptyState";
+import { DataTable, type DataTableColumn } from "@/components/admin/DataTable";
 import { prisma } from "@/lib/server/prisma";
 import { isDataUrl } from "@/lib/utils";
 
@@ -21,7 +22,31 @@ function toneFor(action: string): "yellow" | "purple" | "info" | "success" | "mi
   return "mist";
 }
 
+type AuditRow = {
+  logId: number;
+  action: string;
+  targetType: string;
+  targetId: number | string;
+  createdAt: Date;
+  meta: unknown;
+  actor: {
+    userId: number;
+    username: string;
+    firstName: string;
+    lastName: string;
+    profileImage: string | null;
+  } | null;
+};
+
 type SearchParams = Record<string, string | undefined>;
+
+const columns: DataTableColumn<AuditRow>[] = [
+  { key: "action",    header: "Action" },
+  { key: "actor",     header: "Actor" },
+  { key: "target",    header: "Target" },
+  { key: "when",      header: "When" },
+  { key: "meta",      header: "Meta" },
+];
 
 export default async function AuditLogPage({
   searchParams,
@@ -77,8 +102,9 @@ export default async function AuditLogPage({
       />
 
       {/* Filter bar — action chips + target-type pills. Clicking the
-          active chip clears the filter (toggle behaviour). */}
-      <div className="mb-6 rounded-2xl border border-line bg-space-850 p-5 space-y-4">
+          active chip clears the filter (toggle behaviour). PRESERVED
+          from the pre-DataTable layout per Step 3b spec. */}
+      <div className="mb-6 surface-flat rounded-2xl p-5 space-y-4">
         <div>
           <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-2 flex items-center gap-2">
             <Filter className="h-3.5 w-3.5" /> Action
@@ -117,82 +143,83 @@ export default async function AuditLogPage({
         </div>
       </div>
 
-      {entries.length === 0 ? (
-        <EmptyState
-          title="No audit entries match those filters"
-          description="Try clearing the filters or wait for activity."
-          icon={<History className="h-8 w-8" />}
-        />
-      ) : (
-        <section className="rounded-2xl border border-line bg-space-850 overflow-hidden">
-          <ul className="divide-y divide-line">
-            {entries.map((e) => (
-              <li key={e.logId} className="px-6 py-4 flex items-start gap-4">
-                <div className="relative h-9 w-9 rounded-full bg-space-900 overflow-hidden shrink-0 border border-line">
-                  {e.actor?.profileImage && (
-                    <Image
-                      src={e.actor.profileImage}
-                      alt=""
-                      fill
-                      sizes="36px"
-                      className="object-cover"
-                      unoptimized={isDataUrl(e.actor.profileImage)}
-                    />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant={toneFor(e.action)}>{e.action}</Badge>
-                    <span className="text-sm text-white font-semibold">
-                      {e.actor
-                        ? `${e.actor.firstName} ${e.actor.lastName}`
-                        : "System"}
-                      {e.actor && (
-                        <span className="text-ink-dim font-normal"> · @{e.actor.username}</span>
-                      )}
-                    </span>
+      <DataTable<AuditRow>
+        ariaLabel="Audit log"
+        columns={columns}
+        rows={entries as AuditRow[]}
+        getRowKey={(e) => e.logId}
+        emptyState={
+          <EmptyState
+            title="No audit entries match those filters"
+            description="Try clearing the filters or wait for activity."
+            icon={<History className="h-8 w-8" />}
+          />
+        }
+        pagination={{
+          page,
+          totalPages,
+          buildHref: (next) => buildHref({ page: String(next) }),
+        }}
+        renderCell={(e, col) => {
+          switch (col.key) {
+            case "action":
+              return <Badge variant={toneFor(e.action)}>{e.action}</Badge>;
+            case "actor":
+              return (
+                <div className="flex items-center gap-2">
+                  <div className="relative h-7 w-7 rounded-full bg-space-900 overflow-hidden shrink-0 border border-line">
+                    {e.actor?.profileImage && (
+                      <Image
+                        src={e.actor.profileImage}
+                        alt=""
+                        fill
+                        sizes="28px"
+                        className="object-cover"
+                        unoptimized={isDataUrl(e.actor.profileImage)}
+                      />
+                    )}
                   </div>
-                  <div className="text-xs font-mono text-ink-dim mt-1">
-                    target: <span className="text-ink-secondary">{e.targetType}</span>#
-                    <span className="text-ink-secondary">{e.targetId}</span>
-                    {" · "}
-                    {new Date(e.createdAt).toLocaleString()}
+                  <div className="min-w-0">
+                    <div className="text-sm text-white font-semibold truncate">
+                      {e.actor ? `${e.actor.firstName} ${e.actor.lastName}` : "System"}
+                    </div>
+                    {e.actor && (
+                      <div className="text-[11px] text-ink-dim truncate">@{e.actor.username}</div>
+                    )}
                   </div>
-                  {e.meta && (
-                    <pre className="mt-2 rounded-lg border border-line bg-space-900 p-3 text-[11px] text-ink-secondary font-mono overflow-x-auto">
-                      {JSON.stringify(e.meta, null, 2)}
-                    </pre>
-                  )}
                 </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {totalPages > 1 && (
-        <div className="mt-8 flex items-center justify-center gap-2">
-          {page > 1 && (
-            <Link
-              href={buildHref({ page: String(page - 1) })}
-              className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50"
-            >
-              ← Prev
-            </Link>
-          )}
-          <span className="px-4 text-sm text-ink-secondary">
-            Page <span className="text-white font-semibold">{page}</span> of {totalPages}
-          </span>
-          {page < totalPages && (
-            <Link
-              href={buildHref({ page: String(page + 1) })}
-              className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50"
-            >
-              Next →
-            </Link>
-          )}
-        </div>
-      )}
+              );
+            case "target":
+              return (
+                <span className="text-xs font-mono text-ink-secondary">
+                  {e.targetType}
+                  <span className="text-ink-dim">#</span>
+                  {String(e.targetId)}
+                </span>
+              );
+            case "when":
+              return (
+                <span className="text-xs text-ink-dim whitespace-nowrap">
+                  {new Date(e.createdAt).toLocaleString()}
+                </span>
+              );
+            case "meta":
+              if (!e.meta) return <span className="text-xs text-ink-mute">—</span>;
+              return (
+                <details className="group">
+                  <summary className="cursor-pointer text-xs text-ink-dim hover:text-metu-yellow select-none">
+                    view
+                  </summary>
+                  <pre className="mt-2 rounded-lg border border-line bg-space-900 p-3 text-[11px] text-ink-secondary font-mono overflow-x-auto max-w-[360px]">
+                    {JSON.stringify(e.meta, null, 2)}
+                  </pre>
+                </details>
+              );
+            default:
+              return null;
+          }
+        }}
+      />
     </>
   );
 }

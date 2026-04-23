@@ -2,7 +2,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
+import { ActionRow, type ActionRowItem } from "./ActionRow";
 
+/**
+ * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
+ *
+ * Both API calls (POST /refund and DELETE) are identical to the prior
+ * implementation — only the trigger surface changed. The `type` prop
+ * still gates Refund: it only appears for purchases.
+ */
 export function TransactionActions({
   transactionId,
   type,
@@ -17,7 +25,6 @@ export function TransactionActions({
   const [error, setError] = useState<string | null>(null);
 
   async function refund() {
-    if (!window.confirm(`Refund TX #${transactionId} for ${buyerName}? Linked orders will be marked refunded and a new refund transaction will be recorded.`)) return;
     setError(null);
     setBusy("refund");
     try {
@@ -39,7 +46,6 @@ export function TransactionActions({
   }
 
   async function remove() {
-    if (!window.confirm(`Delete TX #${transactionId}? Audit trail will lose this row permanently.`)) return;
     setError(null);
     setBusy("delete");
     try {
@@ -60,30 +66,37 @@ export function TransactionActions({
     setBusy(null);
   }
 
+  const actions: ActionRowItem[] = [
+    ...(type === "purchase"
+      ? [
+          {
+            label: "Refund purchase",
+            icon: RotateCcw,
+            tone: "primary" as const,
+            onClick: refund,
+            confirm: `Refund TX #${transactionId} for ${buyerName}? Linked orders will be marked refunded and a new refund transaction will be recorded.`,
+            disabled: busy !== null,
+          },
+        ]
+      : []),
+    {
+      label: "Delete transaction",
+      icon: Trash2,
+      tone: "destructive",
+      onClick: remove,
+      confirm: `Delete TX #${transactionId}? Audit trail will lose this row permanently.`,
+      disabled: busy !== null,
+    },
+  ];
+
   return (
-    <div className="flex items-center gap-1.5">
-      {type === "purchase" && (
-        <button
-          type="button"
-          onClick={refund}
-          disabled={busy !== null}
-          title="Refund this purchase"
-          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 hover:border-metu-yellow/40 hover:text-metu-yellow px-2.5 py-1 text-[11px] font-semibold text-ink-secondary transition disabled:opacity-50"
-        >
-          <RotateCcw className="h-3 w-3" />
-          {busy === "refund" ? "…" : "Refund"}
-        </button>
+    <div className="inline-flex flex-col items-end gap-1">
+      <ActionRow actions={actions} ariaLabel={`Actions for transaction #${transactionId}`} />
+      {error && (
+        <span className="text-[10px] text-coral max-w-[140px] truncate" title={error}>
+          {error}
+        </span>
       )}
-      <button
-        type="button"
-        onClick={remove}
-        disabled={busy !== null}
-        title="Delete transaction record"
-        className="rounded-full p-1.5 text-ink-dim hover:text-metu-red hover:bg-white/5 disabled:opacity-30"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
-      {error && <span className="text-[10px] text-red-400 ml-1 max-w-[140px] truncate" title={error}>{error}</span>}
     </div>
   );
 }
