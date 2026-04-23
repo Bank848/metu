@@ -142,7 +142,7 @@ export default async function OrdersPage({
                   <li key={o.orderId}>
                     <Link
                       href={`/orders/${o.orderId}`}
-                      className="block rounded-2xl glass-morphism p-5 hover:border-metu-yellow/50 transition-all hover:-translate-y-0.5"
+                      className="block rounded-2xl surface-flat p-5 hover:border-metu-yellow/50 transition-all lift-on-hover hover:shadow-raised"
                     >
                       <div className="flex items-start justify-between gap-4 mb-3">
                         <div>

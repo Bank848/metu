@@ -117,8 +117,8 @@ export function ProductQuestions({
         </h2>
       </div>
 
-      {/* Ask form */}
-      <form onSubmit={submitQuestion} className="mb-6 rounded-2xl glass-morphism p-4">
+      {/* Ask form — Wave-3: surface-flat replaces glass */}
+      <form onSubmit={submitQuestion} className="mb-6 rounded-2xl surface-flat p-4 shadow-flat">
         <textarea
           value={ask}
           onChange={(e) => setAsk(e.target.value.slice(0, 500))}
@@ -148,7 +148,7 @@ export function ProductQuestions({
       ) : (
         <ul className="space-y-4">
           {questions.map((q) => (
-            <li key={q.questionId} className="rounded-2xl glass-morphism p-5">
+            <li key={q.questionId} className="rounded-2xl surface-flat p-5 shadow-flat">
               <div className="flex items-start gap-3">
                 <Avatar user={q.asker} />
                 <div className="flex-1 min-w-0">

@@ -3,6 +3,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Star, Pencil, MessageSquare } from "lucide-react";
 import { GlassButton } from "./visual/GlassButton";
+import { EmptyState } from "./EmptyState";
 import { WriteReviewDialog } from "./WriteReviewDialog";
 import { cn, isDataUrl } from "@/lib/utils";
 
@@ -60,35 +61,37 @@ export function Reviews({
   };
 
   if (reviews.length === 0) {
+    // Wave-3: pass through to EmptyState so the new illustration system
+    // owns the empty case (matches the cart-empty / no-results treatment).
     return (
-      <div className="rounded-2xl glass-morphism p-10 text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-metu-yellow/15 text-metu-yellow">
-          <MessageSquare className="h-6 w-6" />
-        </div>
-        <h3 className="font-display font-bold text-white text-lg">No reviews yet</h3>
-        <p className="text-sm text-ink-secondary mt-1 mb-6">
-          Be the first to share what you think about this product.
-        </p>
-        {canWrite ? (
-          <GlassButton tone="gold" onClick={() => setOpen(true)}>
-            <Pencil className="h-4 w-4" /> Write the first review
-          </GlassButton>
-        ) : (
-          <GlassButton tone="glass" href="/login">
-            Log in to write a review
-          </GlassButton>
-        )}
+      <>
+        <EmptyState
+          title="No reviews yet"
+          description="Be the first to share what you think about this product."
+          icon={<MessageSquare className="h-6 w-6" />}
+          action={
+            canWrite ? (
+              <GlassButton tone="gold" onClick={() => setOpen(true)}>
+                <Pencil className="h-4 w-4" /> Write the first review
+              </GlassButton>
+            ) : (
+              <GlassButton tone="glass" href="/login">
+                Log in to write a review
+              </GlassButton>
+            )
+          }
+        />
         {open && (
           <WriteReviewDialog productId={productId} onClose={() => setOpen(false)} onSubmitted={onSubmitted} />
         )}
-      </div>
+      </>
     );
   }
 
   return (
     <div className="grid lg:grid-cols-[300px_1fr] gap-6">
-      {/* Aggregate panel (left) */}
-      <aside className="rounded-2xl glass-morphism p-5 h-fit lg:sticky lg:top-32">
+      {/* Aggregate panel (left) — Wave-3: surface-flat instead of glass */}
+      <aside className="rounded-2xl surface-flat p-5 h-fit lg:sticky lg:top-32 shadow-flat">
         <div className="text-center pb-4 border-b border-white/8">
           <div className="font-display text-5xl font-extrabold text-gold-gradient">
             {(avgRating ?? 0).toFixed(1)}
@@ -157,7 +160,7 @@ export function Reviews({
         </div>
         <ul className="grid md:grid-cols-2 gap-4">
           {sorted.map((r) => (
-            <li key={r.reviewId} className="rounded-2xl glass-morphism p-5">
+            <li key={r.reviewId} className="rounded-2xl surface-flat p-5 shadow-flat lift-on-hover hover:shadow-raised">
               <div className="flex items-center gap-3 mb-2">
                 <div className="relative h-9 w-9 rounded-full bg-metu-yellow overflow-hidden">
                   {r.user.profileImage && (

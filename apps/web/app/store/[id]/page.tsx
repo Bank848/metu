@@ -1,11 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Star, Clock, BadgeCheck, MapPin, Calendar, Package as PackageIcon } from "lucide-react";
+import { Star, Clock, BadgeCheck, MapPin, Calendar, Package as PackageIcon, MessageSquare, Activity } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
 import { ProductCard } from "@/components/ProductCard";
+import { StatCard } from "@/components/StatCard";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { StarField } from "@/components/DotGrid";
@@ -28,8 +29,10 @@ export default async function StorePage({ params }: { params: { id: string } }) 
     <>
       <TopNav />
       <main>
-        {/* Cover banner */}
-        <section className="relative h-[280px] md:h-[360px] overflow-hidden">
+        {/* Cover banner — Wave-3: surface-hero replaces hand-rolled vibrant
+            mesh fallback so the storefront banner picks up the editorial
+            radial-gradient treatment from globals.css §5. */}
+        <section className="relative h-[280px] md:h-[360px] overflow-hidden surface-hero">
           <StarField density="md" />
           {store.coverImage ? (
             <Image
@@ -41,9 +44,7 @@ export default async function StorePage({ params }: { params: { id: string } }) 
               className="object-cover"
               unoptimized={isDataUrl(store.coverImage)}
             />
-          ) : (
-            <div className="absolute inset-0 vibrant-mesh" />
-          )}
+          ) : null}
           {/* dark overlay for legibility */}
           <div className="absolute inset-0 bg-gradient-to-t from-surface-1 via-surface-1/30 to-transparent" />
           {/* gold hairline */}
@@ -64,12 +65,19 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                 {store.businessType?.name ?? "Verified store"}
               </Badge>
               <div className="flex items-start gap-3">
-                <h1 className="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white flex-1">
-                  {store.name}
-                </h1>
+                <div className="flex-1 min-w-0">
+                  <h1 className="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white">
+                    {store.name}
+                  </h1>
+                  {/* Wave-3: short coral underline anchors the store name
+                      with the warm secondary accent. Stays under the
+                      heading rather than running full-width — this is a
+                      mark, not a divider. */}
+                  <span aria-hidden className="mt-2 block h-[3px] w-16 rounded-full bg-coral" />
+                </div>
                 <ShareButton title={store.name} text={`${store.name} on METU`} size="md" />
               </div>
-              <p className="mt-2 text-ink-secondary max-w-2xl">{store.description}</p>
+              <p className="mt-3 text-ink-secondary max-w-2xl">{store.description}</p>
               <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-ink-dim">
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3 w-3" /> {store.businessType?.name ?? "Marketplace"}
@@ -87,19 +95,31 @@ export default async function StorePage({ params }: { params: { id: string } }) 
             </div>
           </header>
 
-          {/* Stat cards */}
+          {/* Stat cards — Wave-3: lead stat uses `highlight` so the row
+              stops reading as four identical glass tiles (playbook §1
+              row 8). Remaining stats use the shared `StatCard` so they
+              inherit the new flat treatment. */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-            <Stat label="Products" value={productCount} icon={<PackageIcon className="h-4 w-4 text-metu-yellow" />} />
-            <Stat
+            <StatCard
+              variant="highlight"
+              icon={PackageIcon}
+              label="Products"
+              value={productCount}
+            />
+            <StatCard
+              icon={Star}
               label="Average rating"
               value={avgRating ? `${avgRating.toFixed(1)}★` : "—"}
-              icon={<Star className="h-4 w-4 text-metu-yellow fill-metu-yellow" />}
             />
-            <Stat label="Reviews" value={reviewCount} />
-            <Stat
+            <StatCard
+              icon={MessageSquare}
+              label="Reviews"
+              value={reviewCount}
+            />
+            <StatCard
+              icon={Activity}
               label="Engagement"
               value={store.stats ? `${(store.stats.ctr / 100).toFixed(1)}%` : "—"}
-              hint="CTR"
             />
           </div>
 
@@ -122,9 +142,17 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                 action={<GlassButton tone="gold" href="/browse">Browse marketplace →</GlassButton>}
               />
             ) : (
+              // Wave-3 asymmetry — first card is the `feature` variant
+              // (mint surface + bigger image). Same pattern as the
+              // related-products row on the product detail page.
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                {products.map((p) => (
-                  <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
+                {products.map((p, i) => (
+                  <ProductCard
+                    key={p.productId}
+                    product={p}
+                    isFavorited={favSet.has(p.productId)}
+                    variant={i === 0 ? "feature" : "default"}
+                  />
                 ))}
               </div>
             )}
@@ -133,32 +161,5 @@ export default async function StorePage({ params }: { params: { id: string } }) 
       </main>
       <Footer />
     </>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  hint,
-  icon,
-}: {
-  label: string;
-  value: string | number;
-  hint?: string;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl glass-morphism p-5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
-          {label}
-        </span>
-        {icon}
-      </div>
-      <div className="mt-1 font-display text-3xl font-extrabold text-white">
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </div>
-      {hint && <div className="text-xs text-ink-dim mt-1">{hint}</div>}
-    </div>
   );
 }

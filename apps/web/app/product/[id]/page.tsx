@@ -148,7 +148,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
             <Link
               href={`/store/${product.store.storeId}`}
-              className="flex items-center gap-3 rounded-2xl glass-morphism p-4 mb-6 hover:border-metu-yellow/40 transition"
+              className="flex items-center gap-3 rounded-2xl surface-flat p-4 mb-6 hover:border-metu-yellow/40 transition lift-on-hover"
             >
               <div className="relative h-12 w-12 shrink-0 rounded-full bg-metu-yellow overflow-hidden">
                 {product.store.profileImage && (
@@ -211,9 +211,18 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 More like this
               </h2>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-              {related.map((p) => (
-                <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
+            {/* Wave-3 asymmetry — first card uses the `feature` variant
+                (mint surface + bigger image + gold hairline) so the grid
+                stops reading as four identical tiles. */}
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              {related.map((p, i) => (
+                <ProductCard
+                  key={p.productId}
+                  product={p}
+                  isFavorited={favSet.has(p.productId)}
+                  variant={i === 0 ? "feature" : "default"}
+                  className={i === 0 ? "lg:col-span-1" : undefined}
+                />
               ))}
             </div>
           </section>

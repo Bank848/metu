@@ -56,26 +56,33 @@ export default async function SellerOverview() {
 
   return (
     <>
-      <PageHeader
-        title={stats.store.name}
-        subtitle={stats.store.description}
-        action={
-          <div className="flex gap-2">
-            <GlassButton tone="glass" size="sm" href={`/store/${stats.store.storeId}`}>
-              <ExternalLink className="h-3.5 w-3.5" />
-              View storefront
-            </GlassButton>
-            <GlassButton tone="gold" size="sm" href="/seller/store/edit">
-              <Pencil className="h-3.5 w-3.5" />
-              Edit store
-            </GlassButton>
-          </div>
-        }
-      />
+      {/* Wave-3: hero greeting card lives in the editorial surface so it
+          breaks the row-of-cards rhythm and reads as a magazine pull-out. */}
+      <div className="surface-editorial rounded-3xl px-6 py-6 md:px-8 md:py-8 mb-6">
+        <PageHeader
+          title={stats.store.name}
+          subtitle={stats.store.description}
+          action={
+            <div className="flex gap-2">
+              <GlassButton tone="glass" size="sm" href={`/store/${stats.store.storeId}`}>
+                <ExternalLink className="h-3.5 w-3.5" />
+                View storefront
+              </GlassButton>
+              <GlassButton tone="gold" size="sm" href="/seller/store/edit">
+                <Pencil className="h-3.5 w-3.5" />
+                Edit store
+              </GlassButton>
+            </div>
+          }
+        />
+      </div>
 
       {lowStock.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+        // Wave-3: low-stock banner picks up the coral border (= "needs
+        // attention" in the new accent register). Inner copy keeps the
+        // amber tones since the buyer-facing meaning hasn't changed.
+        <div className="mb-6 rounded-2xl border border-coral/40 bg-amber-400/10 p-4 flex items-start gap-3 shadow-flat">
+          <AlertTriangle className="h-5 w-5 text-coral shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <div className="font-display font-bold text-amber-300 text-sm">
               Low stock — {lowStock.length} variant{lowStock.length === 1 ? "" : "s"} running out
@@ -99,8 +106,10 @@ export default async function SellerOverview() {
         </div>
       )}
 
+      {/* Wave-3: lead stat (revenue) gets `highlight` — single mint card
+          to call out the headline number. Rest stay default. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={DollarSign} label="Total revenue" value={money(stats.kpi.totalRevenue)} accent="yellow" />
+        <StatCard variant="highlight" icon={DollarSign} label="Total revenue" value={money(stats.kpi.totalRevenue)} />
         <StatCard icon={ShoppingBag} label="Paid orders" value={stats.kpi.paidCount} />
         <StatCard icon={Star} label="Rating" value={((stats.store.stats?.rating ?? 0) / 10).toFixed(1) + "★"} />
         <StatCard icon={Timer} label="Response time" value={`${Math.round((stats.store.stats?.responseTime ?? 0) / 60)}h`} />

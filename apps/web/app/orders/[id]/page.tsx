@@ -100,8 +100,10 @@ export default async function OrderDetail({
             All orders
           </Link>
 
-          {/* Receipt card */}
-          <div className="rounded-3xl glass-morphism-strong overflow-hidden">
+          {/* Receipt card — Wave-3: surface-flat replaces glass so the
+              receipt reads as a printable, calm panel rather than a
+              floating glass slab. */}
+          <div className="rounded-3xl surface-flat overflow-hidden shadow-raised">
             {/* Hero / status header */}
             <header className="relative px-7 py-8 border-b border-white/8">
               <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent" />
