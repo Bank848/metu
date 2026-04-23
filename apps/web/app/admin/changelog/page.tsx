@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -119,6 +119,25 @@ const BATCHES: Batch[] = [
       { title: "Prominent “Admin panel” button in TopNav for admin role only" },
       { title: "Smooth scroll behaviour on <html> + scroll-padding-top for sticky nav" },
       { title: "Reduced-motion media query disables both smooth scroll and animations" },
+    ],
+  },
+  {
+    id: "batch-g",
+    title: "Batch G · Tests",
+    subtitle:
+      "Two test suites: Vitest for pure helpers (sub-second) and Playwright smoke tests covering all four personas against the live deploy. The pre-deploy regression gate the demo backlog asked for.",
+    icon: FlaskConical,
+    tone: "yellow",
+    shippedAt: "14:39",
+    commitSha: "51e520e",
+    items: [
+      { title: "Vitest + @vitest/coverage-v8 wired with `npm test -w @metu/web`" },
+      { title: "26 unit tests across 2 files run in ~500 ms — pure helpers, no jsdom" },
+      { title: "Extracted coupon math + maxForLine + subtotal helpers into lib/cart-math.ts" },
+      { title: "Extracted cardImage URL transform into lib/utils.ts (now reusable + tested)" },
+      { title: "Playwright + Chromium runs against https://metu.fly.dev (override with BASE_URL)" },
+      { title: "Four persona smoke specs: guest / buyer / seller / admin — happy path each" },
+      { title: "Full e2e suite passes in ~20 s on cold Neon — the pre-deploy regression gate" },
     ],
   },
   {
