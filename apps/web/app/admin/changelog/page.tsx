@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -119,6 +119,25 @@ const BATCHES: Batch[] = [
       { title: "Prominent “Admin panel” button in TopNav for admin role only" },
       { title: "Smooth scroll behaviour on <html> + scroll-padding-top for sticky nav" },
       { title: "Reduced-motion media query disables both smooth scroll and animations" },
+    ],
+  },
+  {
+    id: "batch-f",
+    title: "Batch F · Observability",
+    subtitle:
+      "Production-grade monitoring — Sentry error tracking + Plausible analytics, both env-optional so they only activate when keys are configured. Plus a public /health page anyone can hit.",
+    icon: Activity,
+    tone: "success",
+    shippedAt: "13:55",
+    commitSha: "5f7937c",
+    items: [
+      { title: "@sentry/nextjs v10 wired into instrumentation.ts (server + edge) and instrumentation-client.ts (browser)" },
+      { title: "DSN env-gated — no DSN, no init, no requests. Lazy-imported on the client so the SDK only ships when configured." },
+      { title: "global-error.tsx captures top-of-tree React render errors that escape per-route boundaries" },
+      { title: "Sample rates: 1.0 in dev, 0.2 in prod; releases tagged with the deploy SHA" },
+      { title: "Plausible analytics drop-in (NEXT_PUBLIC_PLAUSIBLE_DOMAIN env), cookie-free, no consent banner" },
+      { title: "Public /health page — DB ping, uptime, build SHA, region, soft-delete-aware catalogue counts" },
+      { title: "Color-graded ping badge (FAST / OK / SLOW / DOWN) so on-call can read status at a glance" },
     ],
   },
   {
