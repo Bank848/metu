@@ -1,12 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect, notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Receipt, Sparkles, Tag as TagIcon } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Receipt, Sparkles, Tag as TagIcon, Mail } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
+import { getServerT } from "@/lib/i18n/server";
 import { money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { prisma } from "@/lib/server/prisma";

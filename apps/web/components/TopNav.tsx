@@ -21,6 +21,7 @@ import { AuthMenu } from "./AuthMenu";
 import { SoundToggle } from "./SoundToggle";
 import { ThemeToggle } from "./ThemeToggle";
 import { LocaleSwitcher } from "./LocaleSwitcher";
+import { MessagesNavIcon } from "./MessagesNavIcon";
 import { getMe } from "@/lib/session";
 import { getServerT } from "@/lib/i18n/server";
 
@@ -83,6 +84,14 @@ export async function TopNav({ q }: { q?: string } = {}) {
             >
               <Heart className="h-[18px] w-[18px]" />
             </Link>
+            {/* Messages — paired with Cart as the second rounded-xl
+                square. Symmetry of shape signals "these two icons
+                hold actual content (unread count, cart items)" while
+                the differentiated hover tints (mint vs yellow) keep
+                them distinct as activity destinations. Renders even
+                when logged-out so the entry point is always present;
+                in that state the badge stays at zero. */}
+            <MessagesNavIcon enabled={Boolean(me)} />
             <Link
               href="/cart"
               aria-label={t("nav.cart")}
