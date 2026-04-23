@@ -2,9 +2,11 @@
 import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n/client";
 
 export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [q, setQ] = useState(defaultValue);
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,7 +62,7 @@ export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Search templates, courses, music, creators…"
+          placeholder={t("nav.search.placeholder")}
           className="flex-1 bg-transparent px-3 py-2.5 text-sm text-white placeholder:text-ink-dim focus:outline-none"
           autoComplete="off"
         />

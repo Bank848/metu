@@ -8,6 +8,7 @@ import { GlassButton } from "@/components/visual/GlassButton";
 import { ProductCard } from "@/components/ProductCard";
 import { apiAuth, getMe } from "@/lib/session";
 import { getFeaturedProducts, getFavoriteSet } from "@/lib/server/queries";
+import { getServerT } from "@/lib/i18n/server";
 import { CartLines } from "./CartLines";
 
 type Cart = {
@@ -39,6 +40,7 @@ export default async function CartPage() {
 
   const cart = await apiAuth<Cart>("/cart");
   const isEmpty = !cart || cart.items.length === 0;
+  const t = getServerT();
 
   // Empty carts: surface a handful of trending products + any the buyer
   // already favourited (marked with a filled heart) so there's always
@@ -56,17 +58,17 @@ export default async function CartPage() {
         <div aria-hidden className="absolute inset-x-0 top-0 h-[600px] vibrant-mesh opacity-50 pointer-events-none" />
         <div className="relative mx-auto max-w-6xl px-6 md:px-8 py-10">
           <PageHeader
-            title="Your cart"
+            title={t("cart.title")}
             subtitle="Review your items and apply a coupon before checking out."
           />
 
           {isEmpty ? (
             <>
               <EmptyState
-                title="Your cart is empty"
-                description="Explore the marketplace and add digital products you love."
+                title={t("cart.empty.title")}
+                description={t("cart.empty.description")}
                 icon={<ShoppingCart className="h-8 w-8" />}
-                action={<GlassButton tone="gold" href="/browse">Browse marketplace →</GlassButton>}
+                action={<GlassButton tone="gold" href="/browse">{t("cart.empty.cta")} →</GlassButton>}
               />
 
               {/* Inline recommendations so the user can fill the cart

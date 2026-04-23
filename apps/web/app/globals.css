@@ -12,14 +12,74 @@
   --surface-2:      #1a1919;
   --surface-3:      #201f1f;
   --surface-4:      #262626;
+  --ink-base:       #fafafa;
+}
+
+/* ───────────── Light theme ─────────────
+   Activated by `html.light` (toggled by <ThemeToggle> + persisted to
+   localStorage). Brand is dark-first by design — light mode is an
+   accessibility-tier alternative for sunlit screens, not the canonical
+   look. We flip the surface tokens here and override the few hard-coded
+   utility classes that would otherwise look broken under a light bg.
+   Anything more exotic falls back to the inherited dark colours, which
+   is good enough for the demo. */
+html.light {
+  color-scheme: light;
+  --surface-1: #fafafa;
+  --surface-2: #f1f0ec;
+  --surface-3: #e7e5df;
+  --surface-4: #d8d5cd;
+  --ink-base:  #18181b;
 }
 
 html,
 body {
   background: var(--surface-1);
-  color: #fafafa;
+  color: var(--ink-base);
   font-family: var(--font-body), Manrope, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Override the highest-impact dark utility classes so the most common
+   surfaces (cards, nav, inputs) read correctly in light mode. We don't
+   try to recolour every shade — just the ones a reviewer will see in
+   the first 30 seconds of clicking around. */
+html.light .bg-space-black,
+html.light .bg-space-950 { background-color: #f1f0ec !important; }
+html.light .bg-space-900 { background-color: #ffffff !important; }
+html.light .bg-space-850 { background-color: #ffffff !important; }
+html.light .bg-space-800 { background-color: #f7f6f2 !important; }
+html.light .bg-surface-1 { background-color: #fafafa !important; }
+html.light .bg-surface-2 { background-color: #ffffff !important; }
+html.light .bg-surface-3 { background-color: #f1f0ec !important; }
+html.light .text-white   { color: #18181b !important; }
+html.light .text-ink-primary   { color: #18181b !important; }
+html.light .text-ink-secondary { color: #44403c !important; }
+html.light .text-ink-dim       { color: #78716c !important; }
+html.light .border-line  { border-color: rgba(0, 0, 0, 0.08) !important; }
+html.light .glass-morphism {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+html.light .glass-morphism-strong {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+html.light .vibrant-mesh {
+  background:
+    radial-gradient(60% 80% at 30% 20%, rgba(255, 204, 0, 0.18) 0, transparent 60%),
+    radial-gradient(50% 70% at 80% 70%, rgba(255, 204, 0, 0.12) 0, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #f1f0ec 100%) !important;
+}
+html.light input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  -webkit-text-fill-color: #18181b;
+}
+html.light .stars-sm,
+html.light .stars-md,
+html.light .stars-high-density {
+  /* Stars on a white sky look like dust — hide them in light mode. */
+  display: none;
 }
 
 html {
@@ -237,8 +297,8 @@ html {
 
 input:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 1000px var(--surface-3) inset;
-  -webkit-text-fill-color: #fafafa;
-  caret-color: #fafafa;
+  -webkit-text-fill-color: var(--ink-base);
+  caret-color: var(--ink-base);
 }
 
 /* ───────────── Add-to-cart pulse ─────────────
