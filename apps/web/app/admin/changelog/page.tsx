@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,28 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-10",
+    title: "Phase 10 · Authoring + messaging follow-ups",
+    subtitle:
+      "Q&A label bug + admin moderation + dashboard rebrand (every form a seller touches) + admin tables + messaging discoverability for buyers. Ten commits, no schema migration.",
+    icon: MessageSquare,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-10",
+    items: [
+      { title: "Q&A admin replies now show 'Admin answered' (was hard-coded 'Seller answered')" },
+      { title: "Admin can edit/delete reviews + Q&A from product pages — coral 'MOD' pip + audit log" },
+      { title: "Authoring primitives: FormSection, TextInput / Textarea / Select / NumberInput / PriceInput, VariantRow, PreviewPane, DataTable, ActionRow" },
+      { title: "Seller forms rebuilt: NewProduct + EditProduct + EditStore + NewCoupon + BecomeSeller — multi-section layouts, sticky live preview" },
+      { title: "Cramped 4-col variant grid → semantic VariantRow (delivery method label above qty/price/discount, not inside it)" },
+      { title: "Admin tables: /admin/users + /stores + /reports + /audit consume DataTable + ActionRow with mint/coral tones" },
+      { title: "Sidebar tokens unified (brand-yellow → metu-yellow); SellerSidebar unread dot switched amber → mint" },
+      { title: "Buyer messaging is finally discoverable: chat icon + unread badge in TopNav, /messages buyer inbox, 'Messages' in AuthMenu" },
+      { title: "'Message store' on /store/[id], 'Ask the seller' on /product/[id], 'Message seller about this order' on /orders/[id]" },
+      { title: "FileImageInput compact thumbnail (was a giant aspect-5/2 box) — fixes 'ช่องใส่รูปใหญ่ไป' on /seller/products/new" },
+    ],
+  },
   {
     id: "batch-0",
     title: "Batch 0 · Perf regression hunt",

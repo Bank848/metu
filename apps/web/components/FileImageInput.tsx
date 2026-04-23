@@ -81,36 +81,53 @@ export function FileImageInput({
         </button>
       </div>
 
-      <div className={cn(
-        "relative grid gap-3",
-        aspect === "wide" ? "grid-cols-1" : "md:grid-cols-[120px_1fr]",
-      )}>
-        {/* Preview */}
+      {/*
+        Layout policy (Phase 10 Step 3a.5):
+        - Empty state: NO oversized aspect-ratio preview slot. Compact
+          64×64 (square) or 96×64 (wide) thumbnail next to the input.
+          User feedback: "ช่องใส่รูปมันใหญ่ไปหน่อย" — the empty wide
+          slot was reserving ~400 px of vertical space per image row.
+        - Filled state: small inline preview (h-20 / h-24) so the
+          seller sees what they uploaded without dominating the form.
+          Click the preview to see the full image in a new tab.
+        - The compact two-column flex layout works for BOTH aspects
+          now; the old `grid-cols-1` for wide-mode was the trigger for
+          the giant box.
+      */}
+      <div className="flex items-start gap-3">
+        {/* Preview thumbnail — small, fixed height, doesn't reserve
+            an aspect-ratio slot when empty. */}
         <div
           className={cn(
-            "relative rounded-xl overflow-hidden bg-surface-2 border border-white/10 flex items-center justify-center",
-            aspect === "wide" ? "aspect-[5/2]" : "aspect-square",
+            "relative rounded-xl overflow-hidden bg-surface-2 border border-white/10 flex items-center justify-center shrink-0",
+            value
+              ? aspect === "wide"
+                ? "h-20 w-32"   //  128 × 80 — 8:5
+                : "h-20 w-20"   //   80 × 80 — square
+              : aspect === "wide"
+                ? "h-16 w-24"   // empty: smaller still
+                : "h-16 w-16",
           )}
         >
           {value ? (
             <>
-              <Image src={value} alt="" fill sizes="200px" className="object-cover" unoptimized={isDataUrl(value)} />
+              <Image src={value} alt="" fill sizes="128px" className="object-cover" unoptimized={isDataUrl(value)} />
               <button
                 type="button"
                 onClick={() => onChange("")}
                 aria-label="Remove image"
-                className="absolute top-1.5 right-1.5 p-1 rounded-full bg-surface-1/80 text-white hover:bg-metu-red/30"
+                className="absolute top-1 right-1 p-1 rounded-full bg-surface-1/80 text-white hover:bg-metu-red/30"
               >
                 <X className="h-3 w-3" />
               </button>
             </>
           ) : (
-            <ImageIcon className="h-8 w-8 text-ink-dim/40" strokeWidth={1.5} />
+            <ImageIcon className="h-6 w-6 text-ink-dim/40" strokeWidth={1.5} />
           )}
         </div>
 
         {/* Field */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {mode === "upload" ? (
             <>
               <input
@@ -126,13 +143,13 @@ export function FileImageInput({
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-full rounded-xl border border-dashed border-white/15 bg-surface-2 hover:border-metu-yellow/50 hover:bg-white/[0.03] py-6 text-sm text-ink-secondary text-center transition"
+                className="w-full rounded-xl border border-dashed border-white/15 bg-surface-2 hover:border-metu-yellow/50 hover:bg-white/[0.03] py-3 px-4 text-sm text-ink-secondary text-left transition flex items-center gap-3"
               >
-                <Upload className="h-5 w-5 mx-auto mb-1 text-metu-yellow" />
-                <div className="font-semibold text-white">Click to upload</div>
-                <div className="text-[10px] text-ink-dim mt-0.5">
-                  PNG, JPG, or WebP · up to 1 MB
-                </div>
+                <Upload className="h-4 w-4 text-metu-yellow shrink-0" />
+                <span className="flex-1 min-w-0">
+                  <span className="block font-semibold text-white">Click to upload</span>
+                  <span className="block text-[10px] text-ink-dim">PNG / JPG / WebP · up to 1 MB</span>
+                </span>
               </button>
             </>
           ) : (
