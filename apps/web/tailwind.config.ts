@@ -61,12 +61,39 @@ const config: Config = {
           ink:        "#0E0E0E",
           mist:       "#262626",
         },
+
+        // ───── Wave-1 secondary + tertiary accents (NEW, Phase 9) ─────
+        // See docs/design-system.md §2.2/§2.3 for the rationale. The TL;DR:
+        //   - mint  = success / "live" / positive deltas. Cool counterpart
+        //             to gold, retires the ad-hoc `green-500/15` we sprinkle
+        //             in Badge.tsx.
+        //   - coral = soft alerts / "new" / "trending up". Warm but in a
+        //             different register from gold, and crucially distinct
+        //             from `metu-red` which stays destructive-only.
+        // Both are scale-of-three (DEFAULT / dim / deep) to mirror the
+        // `metu-yellow` family — keeps the mental model consistent.
+        mint: {
+          DEFAULT: "#6EE7B7",
+          dim:     "#34D399",
+          deep:    "#047857",
+        },
+        coral: {
+          DEFAULT: "#FB7185",
+          dim:     "#F43F5E",
+          deep:    "#881337",
+        },
       },
       fontFamily: {
         // Use CSS-vars set by next/font in layout.tsx, fall back to system stack.
         display: ["var(--font-display)", "Plus Jakarta Sans", "system-ui", "sans-serif"],
         body:    ["var(--font-body)", "Manrope", "system-ui", "sans-serif"],
         mono:    ["var(--font-mono)", "ui-monospace", "monospace"],
+        // Thai-specific stack. The `--font-thai` var is reserved here so
+        // Wave-2 can wire `next/font/google`'s Prompt loader in layout.tsx
+        // without another tailwind change. Until then this falls back to
+        // Prompt-from-system / Manrope, which still renders Thai correctly
+        // (just without the font-loading optimisation).
+        thai:    ["var(--font-thai)", "Prompt", "var(--font-body)", "Manrope", "system-ui", "sans-serif"],
       },
       boxShadow: {
         // Tighter blur radii — large blurs (>20px) compound badly when many
@@ -76,6 +103,15 @@ const config: Config = {
         pop:  "0 6px 18px -8px rgba(255, 204, 0, 0.55)",
         glow: "0 0 0 1px rgba(255,204,0,0.4), 0 0 14px -4px rgba(255,204,0,0.35)",
         gold: "0 4px 16px -8px rgba(178, 104, 0, 0.6)",
+
+        // ───── Wave-1 elevation scale (NEW, Phase 9) ─────
+        // Decoupled from the gold accent so non-gold contexts (mint cards,
+        // editorial breakouts, neutral modals) have an idiomatic shadow.
+        // Three rungs is plenty — flat → raised → floating. Anything more
+        // exotic (e.g. inset, ring) should be expressed inline.
+        flat:     "0 1px 0 rgba(0,0,0,0.4)",
+        raised:   "0 6px 20px -8px rgba(0,0,0,0.55)",
+        floating: "0 18px 40px -16px rgba(0,0,0,0.7)",
       },
       backgroundImage: {
         "button-gradient":  "linear-gradient(180deg, #FFCC00 0%, #B26800 100%)",
@@ -91,6 +127,12 @@ const config: Config = {
         "dot-grid": "26px 26px",
       },
       borderRadius: {
+        // `pill` already exists — Tailwind's defaults supply the rest of
+        // the scale (none/sm/md/lg/xl/2xl/3xl/full). We document the usage
+        // contract in docs/design-system.md §4 so the scale stops being
+        // "rounded-2xl on everything." Adding `pill` here would be
+        // redundant if Tailwind owned it, but the friend's reference uses
+        // an unusually large 118px pill so we keep the override.
         pill: "118px",
       },
       keyframes: {
@@ -112,12 +154,22 @@ const config: Config = {
           "0%":   { transform: "rotate(0deg)" },
           "100%": { transform: "rotate(360deg)" },
         },
+        // Wave-1 stagger reveal — see globals.css for the duplicate
+        // declaration. We declare it here too so Tailwind generates the
+        // `animate-stagger-rise` utility; the CSS copy exists so plain
+        // CSS surfaces (which can't use Tailwind's animation helper)
+        // can reference the same keyframe by name.
+        "stagger-rise": {
+          "0%":   { opacity: "0", transform: "translateY(14px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
-        "fade-in-up":  "fade-in-up 0.4s ease-out",
-        "twinkle":     "twinkle 4s ease-in-out infinite",
-        "shimmer":     "shimmer 3s linear infinite",
-        "border-spin": "border-spin 6s linear infinite",
+        "fade-in-up":   "fade-in-up 0.4s ease-out",
+        "twinkle":      "twinkle 4s ease-in-out infinite",
+        "shimmer":      "shimmer 3s linear infinite",
+        "border-spin":  "border-spin 6s linear infinite",
+        "stagger-rise": "stagger-rise 0.5s ease-out both",
       },
     },
   },
