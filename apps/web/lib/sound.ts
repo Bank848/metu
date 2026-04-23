@@ -54,6 +54,30 @@ export function toggleMute(): boolean {
   return next;
 }
 
+/**
+ * Prime the AudioContext on a real user gesture so subsequent async
+ * `play()` calls (those fired AFTER an `await fetch(…)` resolves)
+ * don't get silently dropped by Chrome's autoplay policy.
+ *
+ * Background: when `play()` creates a context inside an async
+ * callback chain that started from a user click, the gesture window
+ * has already closed. The context lands in `suspended` state and
+ * `resume()` is a no-op without a fresh gesture. By instantiating +
+ * resuming inside the FIRST direct user event, we guarantee a live
+ * (running) context exists for every later cue.
+ *
+ * Safe to call multiple times — `getCtx()` returns the singleton.
+ */
+export function primeAudio(): void {
+  const context = getCtx();
+  if (!context) return;
+  if (context.state === "suspended") {
+    context.resume().catch(() => {
+      /* swallow — some browsers reject without a recent gesture */
+    });
+  }
+}
+
 /** Play a single sine tone with a short attack/decay envelope. */
 function tone(
   context: AudioContext,

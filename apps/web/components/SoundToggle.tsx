@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
-import { isMuted, toggleMute, play } from "@/lib/sound";
+import { isMuted, toggleMute, play, primeAudio } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,6 +13,20 @@ import { cn } from "@/lib/utils";
  *
  * Clicking flips `metu-sound-muted` in localStorage and plays a tiny
  * click so the user hears it came back on.
+ *
+ * Bug fix: the SSR default used to be `muted=true`. The real lib
+ * default (lib/sound.ts:isMuted) is unmuted, so the icon and the
+ * actual behaviour disagreed for the first paint — users saw the
+ * VolumeX (muted) icon and clicked it expecting to UN-mute, which
+ * actually MUTED them. We now mirror the lib default. The
+ * `suppressHydrationWarning` covers the edge case where the user
+ * has a stored preference that differs.
+ *
+ * Also: pre-warms the AudioContext on the first user gesture so
+ * async play() calls (after a fetch resolves — cart add, review
+ * post) actually produce sound. Without the prime, Chrome's autoplay
+ * policy silently dropped them because the context was created
+ * mid-async, outside any active gesture window.
  */
 export function SoundToggle({
   className,
@@ -21,20 +35,33 @@ export function SoundToggle({
   className?: string;
   inCluster?: boolean;
 }) {
-  // Initialise as true during SSR so the silence-by-default renders; we
-  // swap to the real state in an effect to avoid hydration mismatch.
-  const [muted, setMuted] = useState<boolean>(true);
+  const [muted, setMuted] = useState<boolean>(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     setMuted(isMuted());
     setReady(true);
+
+    // Prime the AudioContext on the first pointerdown / keydown so
+    // async play() calls aren't blocked by Chrome's autoplay policy.
+    const onFirstGesture = () => {
+      primeAudio();
+      window.removeEventListener("pointerdown", onFirstGesture);
+      window.removeEventListener("keydown", onFirstGesture);
+    };
+    window.addEventListener("pointerdown", onFirstGesture, { once: true, passive: true });
+    window.addEventListener("keydown", onFirstGesture, { once: true });
+
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       setMuted(Boolean(detail));
     };
     window.addEventListener("metu-mute-change", handler);
-    return () => window.removeEventListener("metu-mute-change", handler);
+    return () => {
+      window.removeEventListener("metu-mute-change", handler);
+      window.removeEventListener("pointerdown", onFirstGesture);
+      window.removeEventListener("keydown", onFirstGesture);
+    };
   }, []);
 
   const Icon = muted ? VolumeX : Volume2;
