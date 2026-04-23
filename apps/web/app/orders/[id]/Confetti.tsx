@@ -1,9 +1,17 @@
 "use client";
 import { useEffect } from "react";
+import { play } from "@/lib/sound";
 
 // Pure-CSS confetti burst — no external dep required for the demo.
+// Pairs with the new `purchase` audio cue (lib/sound.ts) so the
+// celebratory triad-arpeggio + sparkle topper lands the moment the
+// confetti starts falling. The cue is muted by the existing
+// `metu-sound-muted` localStorage flag if the user has muted sounds.
 export function Confetti() {
   useEffect(() => {
+    // Audio first — Web Audio scheduling is more sensitive to lag than
+    // DOM mutation, so kick the cue before we start spawning 120 divs.
+    play("purchase");
     const colors = ["#FBBF24", "#F59E0B", "#1F2937", "#FEF3C7"];
     const container = document.createElement("div");
     container.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:9999;";

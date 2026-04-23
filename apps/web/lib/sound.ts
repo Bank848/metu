@@ -10,7 +10,7 @@
  * The mute toggle lives in TopNav.
  */
 
-type CueName = "cart" | "success" | "review" | "error" | "click";
+type CueName = "cart" | "success" | "review" | "error" | "click" | "purchase";
 
 const MUTE_KEY = "metu-sound-muted";
 
@@ -139,6 +139,24 @@ export function play(cue: CueName) {
     case "click": {
       // Tiny tick for nav clicks — rarely used, kept optional.
       tone(context, 1400, 0.04, { peakGain: 0.08 });
+      break;
+    }
+    case "purchase": {
+      // Order-success cue — bigger and more theatrical than `success`.
+      // C5 → E5 → G5 → C6 ascending arpeggio (a major chord rolled),
+      // then a sparkle ding (B6 + D7) on top to feel like the final
+      // beat of a confetti burst. Fires from app/orders/[id]/Confetti
+      // when ?new=1 is set, so the audio lands the moment confetti
+      // starts falling. Total duration ~0.95s — short enough not to
+      // outstay its welcome on a re-visit.
+      tone(context, 523.25, 0.18);                                       // C5
+      tone(context, 659.26, 0.18, { delay: 0.10 });                      // E5
+      tone(context, 783.99, 0.22, { delay: 0.20 });                      // G5
+      tone(context, 1046.5, 0.30, { delay: 0.32, peakGain: 0.20 });      // C6 — landing
+      // Sparkle topper — two short brighter tones (B6, D7) layered over
+      // the sustained C6 give the cue a "champagne fizz" finish.
+      tone(context, 1975.5, 0.10, { delay: 0.55, peakGain: 0.10 });      // B6
+      tone(context, 2349.3, 0.14, { delay: 0.62, peakGain: 0.10 });      // D7
       break;
     }
   }
