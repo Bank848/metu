@@ -3,9 +3,26 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FileImageInput } from "@/components/FileImageInput";
+import { FormSection } from "@/components/forms/FormSection";
+import { TextInput } from "@/components/forms/TextInput";
+import { TextareaInput } from "@/components/forms/TextareaInput";
+import { SelectInput } from "@/components/forms/SelectInput";
+import { PreviewPane } from "@/components/forms/PreviewPane";
 
 type BusinessType = { typeId: number; name: string; description: string };
 
+/**
+ * Phase 10 / Step 3a — onboarding form rebuilt against Step 2 primitives.
+ *
+ * Two `<FormSection>` blocks: Identity (name, business type) and
+ * Storefront (description, profile + cover imagery — mint surface so the
+ * "this is what shoppers see" section reads as the celebratory part).
+ *
+ * The right rail mirrors EditStoreForm's preview by using the shared
+ * `<PreviewPane variant="store">` so first-time sellers see exactly the
+ * card their store will become — same component, same markup as the
+ * editing flow they'll use forever after.
+ */
 export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessType[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -48,64 +65,78 @@ export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessTyp
     }
   }
 
-  const inputCls =
-    "mt-1 w-full rounded-xl border border-line bg-space-900 px-4 py-2.5 text-white placeholder:text-ink-dim focus:border-brand-yellow outline-none";
-
   return (
-    <form onSubmit={submit} className="rounded-2xl border border-line bg-space-850 p-6 space-y-4">
-      <label className="block">
-        <span className="text-sm font-semibold text-white">Store name</span>
-        <input
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          maxLength={60}
-          required
-          placeholder="Your store name…"
-          className={inputCls}
-        />
-      </label>
-      <label className="block">
-        <span className="text-sm font-semibold text-white">Description</span>
-        <textarea
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          maxLength={255}
-          required
-          placeholder="Tell shoppers what makes your store unique"
-          rows={3}
-          className={inputCls}
-        />
-      </label>
-      <label className="block">
-        <span className="text-sm font-semibold text-white">Business type</span>
-        <select
-          value={form.businessTypeId}
-          onChange={(e) => setForm({ ...form, businessTypeId: Number(e.target.value) })}
-          className={inputCls}
+    <form onSubmit={submit} className="grid gap-8 lg:grid-cols-[1fr_360px]">
+      <div className="space-y-6 min-w-0">
+        <FormSection title="Identity" description="What you call your store and what kind of business it is.">
+          <TextInput
+            label="Store name"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            maxLength={60}
+            required
+            placeholder="Your store name…"
+          />
+          <SelectInput
+            label="Business type"
+            value={form.businessTypeId}
+            onChange={(e) => setForm({ ...form, businessTypeId: Number(e.target.value) })}
+            options={businessTypes.map((b) => ({
+              value: String(b.typeId),
+              label: b.name,
+            }))}
+          />
+        </FormSection>
+
+        <FormSection
+          title="Storefront"
+          description="A pitch and two images. The preview on the right updates as you type."
+          accent="mint"
+          variant="accent"
         >
-          {businessTypes.map((b) => (
-            <option key={b.typeId} value={b.typeId}>{b.name}</option>
-          ))}
-        </select>
-      </label>
-      <FileImageInput
-        label="Profile image"
-        value={form.profileImage}
-        onChange={(v) => setForm({ ...form, profileImage: v })}
-        recommended={{ w: 400, h: 400, note: "square avatar" }}
-        aspect="square"
-      />
-      <FileImageInput
-        label="Cover image"
-        value={form.coverImage}
-        onChange={(v) => setForm({ ...form, coverImage: v })}
-        recommended={{ w: 1600, h: 600, note: "5:2 banner" }}
-        aspect="wide"
-      />
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy}>
-        {busy ? "Creating store…" : "Open my store →"}
-      </Button>
+          <TextareaInput
+            label="Description"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value.slice(0, 255) })}
+            maxLength={255}
+            required
+            rows={3}
+            placeholder="Tell shoppers what makes your store unique"
+            helperText={`${form.description.length} / 255`}
+          />
+          <FileImageInput
+            label="Profile image"
+            value={form.profileImage}
+            onChange={(v) => setForm({ ...form, profileImage: v })}
+            recommended={{ w: 400, h: 400, note: "square avatar" }}
+            aspect="square"
+          />
+          <FileImageInput
+            label="Cover image"
+            value={form.coverImage}
+            onChange={(v) => setForm({ ...form, coverImage: v })}
+            recommended={{ w: 1600, h: 600, note: "5:2 banner" }}
+            aspect="wide"
+          />
+        </FormSection>
+
+        {error && <p className="text-sm text-coral">{error}</p>}
+        <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy}>
+          {busy ? "Creating store…" : "Open my store →"}
+        </Button>
+      </div>
+
+      <div className="lg:sticky lg:top-24 lg:self-start">
+        <PreviewPane
+          variant="store"
+          state={{
+            name: form.name,
+            description: form.description,
+            profileImage: form.profileImage,
+            coverImage: form.coverImage,
+          }}
+        />
+      </div>
     </form>
   );
 }
