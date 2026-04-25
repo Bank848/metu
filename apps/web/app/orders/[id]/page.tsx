@@ -204,9 +204,11 @@ export default async function OrderDetail({
                       >
                         {it.productItem.product.name}
                       </Link>
-                      <div className="text-xs text-ink-dim capitalize mt-0.5">
-                        {it.productItem.deliveryMethod.replace("_", " ")} ·{" "}
-                        {it.productItem.product.store.name}
+                      <div className="text-xs text-ink-dim mt-0.5">
+                        <span className="capitalize">
+                          {it.productItem.deliveryMethod.replace("_", " ")}
+                        </span>{" "}
+                        · {it.productItem.product.store.name}
                       </div>
                       {(it.productItem.product.productNTags?.length ?? 0) > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
