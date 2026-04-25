@@ -82,6 +82,21 @@ html.light .vibrant-mesh {
     radial-gradient(50% 70% at 80% 70%, rgba(255, 204, 0, 0.12) 0, transparent 60%),
     linear-gradient(180deg, #ffffff 0%, #f1f0ec 100%) !important;
 }
+/* Hero radial — without this override the home-page Hero stays on the
+   dark `#161616 → #6D581D` gradient even in light mode. Combined with
+   the `html.light .text-white` override above (which flips the hero
+   word "DIGITAL" from white to near-black `#18181b`), dark ink lands
+   on a dark gradient and the word becomes invisible — F5 in
+   reports/qa-2026-04-25.md. We mirror the `surface-hero` light recipe
+   (cream + gold tint) so the same `#18181b` text now sits on a near-
+   white surface, lifting the contrast ratio from <2:1 to ~17:1
+   (WCAG 2.1 AA needs ≥3:1 for large text — hero is 6xl/8xl). */
+html.light .bg-hero-radial {
+  background:
+    radial-gradient(60% 80% at 30% 20%, rgba(255, 204, 0, 0.18) 0, transparent 60%),
+    radial-gradient(50% 70% at 80% 70%, rgba(178, 104, 0, 0.10) 0, transparent 60%),
+    linear-gradient(109.38deg, #ffffff 8.65%, #f1f0ec 79.46%) !important;
+}
 html.light input:-webkit-autofill {
   -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
   -webkit-text-fill-color: #18181b;
@@ -327,6 +342,30 @@ html.light .surface-editorial {
   -webkit-text-fill-color: transparent;
           color: transparent;
   animation: shimmer 3.2s linear infinite;
+}
+/* Light-mode shimmer — yellow `#ffcc00 → #fff7c8` on the cream hero
+   surface measures ~1.6:1 (well below WCAG 2.1 AA's 3:1 floor for
+   large text). We swap the stops to brand `metu-gold #B26800 →
+   metu-goldDeep #3D2B00` with a `#ffcc00` highlight band; the deep
+   stops give ~6:1 against `#fafafa`, the highlight band still reads
+   ~3.4:1, both clear the AA bar for a hero (6xl/8xl) headline.
+   Companion fix to F5 — DIGITAL is handled via `.text-white` (already
+   dark in light mode) sitting on the new `bg-hero-radial` cream
+   surface a few rules up. */
+html.light .text-light-sweep {
+  background: linear-gradient(
+    100deg,
+    #b26800 0%,
+    #b26800 38%,
+    #ffcc00 50%,
+    #b26800 62%,
+    #3d2b00 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+          color: transparent;
 }
 
 /* ───────────── Gold gradient text (totals / accents) ───────────── */
