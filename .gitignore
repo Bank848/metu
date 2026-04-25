@@ -36,3 +36,9 @@ playwright-report
 blob-report
 .last-run.json
 apps/web/coverage
+
+# Phase 11 QA workflow artefacts (reports/ + shots/) — per-run output
+# from the user-tester / CEO / specialists. Kept on disk for audit
+# but not committed (the prompt-kit playbook itself is committed).
+reports/
+shots/
