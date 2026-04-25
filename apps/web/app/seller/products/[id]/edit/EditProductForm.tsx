@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Info } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
 import { cn } from "@/lib/utils";
@@ -43,8 +43,13 @@ const DEFAULT_VARIANT: Variant = {
  *   - submits via PATCH instead of POST
  *   - existing variants are protected (can't be removed) because
  *     OrderItem / CartItem FK into them
- *   - a coral banner above Variants explains the lock so sellers don't
- *     wonder why the trash icon is dim
+ *   - a mint info banner above Variants explains the lock so sellers
+ *     don't wonder why the trash icon is dim. The banner used to render
+ *     in coral with an AlertTriangle (F27, QA 2026-04-25) which read as
+ *     an error state — the lock is normal product behaviour, not a
+ *     warning, so it picked up the brand `info` register: mint
+ *     surface-accent + Info icon, matching the success/positive
+ *     palette role mint plays elsewhere in the seller flow.
  */
 export function EditProductForm({
   productId,
@@ -246,10 +251,15 @@ export function EditProductForm({
           description="Update price, stock, and discount. Sold variants stay for order history."
         >
           {existingVariantCount > 0 && (
-            <div className="surface-accent surface-accent--coral rounded-xl px-4 py-3 flex items-start gap-2.5">
-              <AlertTriangle className="h-4 w-4 text-coral mt-0.5 shrink-0" />
+            // F27: this is a normal "informational" banner, not an
+            // error — sellers see it on every edit of a product that
+            // has any sales history. The mint surface-accent +
+            // `Info` icon match the brand info register and stop the
+            // lock from reading as a destructive warning.
+            <div className="surface-accent rounded-xl px-4 py-3 flex items-start gap-2.5">
+              <Info className="h-4 w-4 text-mint mt-0.5 shrink-0" />
               <p className="text-xs text-ink-secondary leading-relaxed">
-                Variants with sales history are <span className="text-coral font-semibold">locked</span> —
+                Variants with sales history are <span className="text-mint font-semibold">locked</span> —
                 these can be edited but not deleted.
               </p>
             </div>
