@@ -119,19 +119,20 @@ function Hero({ stats }: { stats: Stats }) {
         <div className="hidden md:block" />
       </div>
 
-      {/* Stats strip — broken out of the 4-equal-col grid. The first card
-          is `variant="highlight"` (icon-left, oversized value) so it
-          visibly outranks the other three. On mobile we stack 2x2; on
-          tablet+ the highlight stretches across two columns. */}
+      {/* Stats strip — broken out of the 4-equal-col grid. F26 (QA
+          2026-04-25): the SELLERS card previously rendered with the
+          `highlight` variant (mint surface-accent + mint icon chip),
+          which read as "this tile is selected" rather than "this tile
+          is the lead metric". All four cards now share the default
+          `surface-flat` treatment so the row reads as a consistent
+          stat row; the asymmetric column layout (Sellers + Reviews
+          spanning 2 cols on md+) is preserved so the row isn't four
+          identical squares either — the rhythm comes from spacing,
+          not from a colour swap. */}
       <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="md:col-span-2">
-            <StatCard
-              label="Sellers"
-              value={stats.sellers}
-              icon={Users}
-              variant="highlight"
-            />
+            <StatCard label="Sellers" value={stats.sellers} icon={Users} />
           </div>
           <StatCard label="Products" value={stats.products} icon={Package} />
           <StatCard label="Orders"   value={stats.orders}   icon={ShoppingBag} />

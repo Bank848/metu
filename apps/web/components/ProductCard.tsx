@@ -4,6 +4,7 @@ import { Star, Package, BadgeCheck } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { FavoriteButton } from "./FavoriteButton";
 import { CompareToggle } from "./CompareDrawer";
+import { StoreNameLink } from "./StoreNameLink";
 import { cn, isDataUrl, cardImage } from "@/lib/utils";
 import { money } from "@/lib/format";
 
@@ -15,10 +16,22 @@ export type ProductCardProduct = {
   maxPrice?: number;
   image: string;
   storeName?: string;
+  // Phase 11 / F13 — when present, the seller attribution under the
+  // card title becomes a clickable `<StoreNameLink>` instead of plain
+  // text. Optional because some surfaces (the seller form preview, see
+  // `forms/PreviewPane.tsx`) don't carry a real store yet.
+  storeId?: number;
   avgRating?: number;
   reviewCount?: number;
   discountPercent?: number;
   tags?: string[];
+  // Wave-3 / F21: opt-in currency badge. Default behaviour is "THB" — the
+  // only currency the marketplace handles today — and we hide the pill
+  // when the value matches because the price is already rendered with
+  // the ฿ glyph (see `lib/format.ts#money`). The render path is kept so
+  // a future multi-currency catalogue can pass `displayCurrency: "USD"`
+  // (etc.) without touching this component again.
+  displayCurrency?: string;
 };
 
 /**
@@ -77,27 +90,44 @@ export function ProductCard({
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-metu-yellow/25">
           <Package className={isFeature ? "h-14 w-14" : "h-10 w-10"} strokeWidth={1.5} />
         </div>
-        <Image
-          src={cardImage(product.image)}
-          alt={product.name}
-          fill
-          sizes={isFeature ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 100vw, 25vw"}
-          className="object-cover group-hover:scale-105 transition-transform duration-300"
-          unoptimized={isDataUrl(product.image)}
-        />
+        {/* Phase 11 / F16 — only render the <Image> when we actually
+            have a src. The seller new-product LIVE PREVIEW pane was
+            mounting `<Image src="">` while the form was empty, which
+            in Next/Image surfaces as the browser's broken-image icon
+            and clashed with the green Package placeholder underneath.
+            With this guard the placeholder cube wins until the seller
+            pastes a URL or uploads a file. */}
+        {product.image && (
+          <Image
+            src={cardImage(product.image)}
+            alt={product.name}
+            fill
+            sizes={isFeature ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 100vw, 25vw"}
+            className="object-cover group-hover:scale-105 transition-transform duration-300"
+            unoptimized={isDataUrl(product.image)}
+          />
+        )}
         {/* discount chip top-left — solid coral fill, readable at any size */}
         {product.discountPercent && product.discountPercent > 0 && (
           <span className="absolute top-3 left-3 rounded-md bg-coral px-2 py-0.5 text-[11px] font-bold text-coral-deep shadow-flat">
             −{product.discountPercent}%
           </span>
         )}
-        {/* Favourite heart + Compare toggle + THB currency badge top-right */}
+        {/* Favourite heart + Compare toggle + (optional) currency badge
+            top-right. The currency pill renders only when the product's
+            displayCurrency is something OTHER than THB — every price in
+            the catalogue today is THB and prefixed with ฿, so the pill
+            was pure visual noise (F21). The render path stays so a
+            future non-THB product can opt back in by setting
+            `displayCurrency` on the row. */}
         <div className="absolute top-3 right-3 flex items-center gap-2">
           <CompareToggle productId={product.productId} />
           <FavoriteButton productId={product.productId} initial={isFavorited} />
-          <span className="rounded-full glass-morphism-strong px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-metu-yellow uppercase border border-metu-yellow/30">
-            THB
-          </span>
+          {product.displayCurrency && product.displayCurrency !== "THB" && (
+            <span className="rounded-full glass-morphism-strong px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-metu-yellow uppercase border border-metu-yellow/30">
+              {product.displayCurrency}
+            </span>
+          )}
         </div>
         {/* gold accent bar — kept on the feature card only (playbook §9) */}
         {isFeature && (
@@ -108,9 +138,18 @@ export function ProductCard({
       {/* body */}
       <div className={isFeature ? "p-5 md:p-6" : "p-4"}>
         {product.storeName && (
-          <div className="text-xs font-medium text-ink-dim mb-1 inline-flex items-center gap-1">
-            <BadgeCheck className="h-3 w-3 text-metu-yellow/80" />
-            {product.storeName}
+          <div className="mb-1">
+            {product.storeId ? (
+              <StoreNameLink storeId={product.storeId} storeName={product.storeName} />
+            ) : (
+              // Fallback for surfaces that synthesise a card without a
+              // real store — keeps the visual identical to the link form
+              // so the layout doesn't shift between the two cases.
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-dim">
+                <BadgeCheck className="h-3 w-3 text-metu-yellow/80" />
+                {product.storeName}
+              </span>
+            )}
           </div>
         )}
         <h3
