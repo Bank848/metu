@@ -5,19 +5,18 @@ import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
 import { getMe } from "@/lib/session";
-import { prisma } from "@/lib/server/prisma";
+import { getCountries } from "@/lib/server/queries";
 import { EditProfileForm } from "./EditProfileForm";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditProfilePage() {
-  const me = await getMe();
+  // Run the auth check and the cached country list in parallel — countries
+  // are reference data that never change within a session, so the cached
+  // helper short-circuits the second DB hit on warm requests and removes
+  // the blocking serial wait that produced the F28 skeleton flash.
+  const [me, countries] = await Promise.all([getMe(), getCountries()]);
   if (!me) redirect("/login?next=/profile/edit");
-
-  const countries = await prisma.country.findMany({
-    select: { countryId: true, name: true },
-    orderBy: { name: "asc" },
-  });
 
   return (
     <>
