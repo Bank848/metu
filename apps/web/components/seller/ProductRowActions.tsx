@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { Pencil, Trash2, Copy, Pause, Play } from "lucide-react";
+import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 
 /**
  * Row-level actions for /seller/products: pause/unpause toggle, edit
@@ -23,6 +24,8 @@ export function ProductRowActions({
   const router = useRouter();
   const [busy, setBusy] = useState<null | "pause" | "duplicate" | "delete">(null);
   const [error, setError] = useState<string | null>(null);
+  // Phase 11 / F19 — open the in-page confirm modal before delete.
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function togglePause() {
     setError(null);
@@ -71,13 +74,7 @@ export function ProductRowActions({
   }
 
   async function remove() {
-    if (
-      !window.confirm(
-        `Delete "${productName}"? This removes all its variants, images, and reviews. If the product has sales history use "Pause" instead.`,
-      )
-    ) {
-      return;
-    }
+    setConfirmDelete(false);
     setError(null);
     setBusy("delete");
     try {
@@ -129,7 +126,7 @@ export function ProductRowActions({
       </Link>
       <button
         type="button"
-        onClick={remove}
+        onClick={() => setConfirmDelete(true)}
         disabled={busy !== null}
         title="Delete product"
         className="rounded-full p-1.5 text-ink-dim hover:text-metu-red hover:bg-white/5 disabled:opacity-30"
@@ -142,6 +139,15 @@ export function ProductRowActions({
           {error}
         </span>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete "${productName}"?`}
+        body='This removes all its variants, images, and reviews. If the product has sales history use "Pause" instead.'
+        confirmLabel="Delete product"
+        tone="destructive"
+        onConfirm={remove}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }

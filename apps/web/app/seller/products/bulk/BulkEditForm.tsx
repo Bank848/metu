@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Save, AlertTriangle } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
+import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +29,10 @@ export function BulkEditForm({ items }: { items: Item[] }) {
   const [percent, setPercent] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<null | { ok: number; fail: number }>(null);
+  // Phase 11 / F19 — open the in-page confirm modal before fanning out
+  // the price patch. Keeps the seller from blowing past native dialogs
+  // (which Chrome MCP locks on, per QA F19).
+  const [confirmApply, setConfirmApply] = useState(false);
 
   const selectedItems = items.filter((it) => selected[it.productItemId]);
   const pct = Number(percent);
@@ -37,16 +42,14 @@ export function BulkEditForm({ items }: { items: Item[] }) {
     setSelected(on ? Object.fromEntries(items.map((it) => [it.productItemId, true])) : {});
   }
 
-  async function apply(e: React.FormEvent) {
+  function onSubmitForm(e: React.FormEvent) {
     e.preventDefault();
     if (!validPct || selectedItems.length === 0) return;
-    if (
-      !window.confirm(
-        `Adjust ${selectedItems.length} variant${selectedItems.length === 1 ? "" : "s"} by ${pct > 0 ? "+" : ""}${pct}%?`,
-      )
-    ) {
-      return;
-    }
+    setConfirmApply(true);
+  }
+
+  async function apply() {
+    setConfirmApply(false);
     setBusy(true);
     setResult(null);
 
@@ -84,7 +87,7 @@ export function BulkEditForm({ items }: { items: Item[] }) {
     <div className="space-y-6">
       {/* Toolbar */}
       <form
-        onSubmit={apply}
+        onSubmit={onSubmitForm}
         className="rounded-2xl glass-morphism p-5 flex flex-wrap items-end gap-4"
       >
         <label className="block">
@@ -216,6 +219,18 @@ export function BulkEditForm({ items }: { items: Item[] }) {
           </tbody>
         </table>
       </div>
+      <ConfirmDialog
+        open={confirmApply}
+        title="Apply price change?"
+        body={`Adjust ${selectedItems.length} variant${selectedItems.length === 1 ? "" : "s"} by ${pct > 0 ? "+" : ""}${pct}%. This updates the catalogue price immediately for buyers.`}
+        confirmLabel="Apply change"
+        // Bulk price changes are reversible (the seller can re-apply
+        // an inverse percentage), so this stays on the default tone
+        // rather than the destructive coral.
+        tone="default"
+        onConfirm={apply}
+        onCancel={() => setConfirmApply(false)}
+      />
     </div>
   );
 }

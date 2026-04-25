@@ -2,9 +2,16 @@ import Link from "next/link";
 import { Logo } from "./Logo";
 import { BrandMark } from "./illustrations/BrandMark";
 import { getServerT } from "@/lib/i18n/server";
+import { getMe } from "@/lib/session";
 
-export function Footer() {
+export async function Footer() {
   const t = getServerT();
+  const me = await getMe();
+  // Phase 11 / F4 — the footer's "Admin panel" link was rendered to
+  // every visitor. Bouncing guests through /login is harmless but the
+  // CTA is noise on a marketing-facing surface. Gate on role so only
+  // admins see it (matches the TopNav admin pill in `TopNav.tsx`).
+  const isAdmin = me?.role === "admin";
   const year = new Date().getFullYear();
   return (
     <footer className="relative mt-24 bg-surface-2 text-white">
@@ -74,7 +81,7 @@ export function Footer() {
             <FooterColumn title="Demo" titleHref="/login" accent="coral">
               <FooterLink href="/features">Feature tour</FooterLink>
               <FooterLink href="/login">Demo accounts</FooterLink>
-              <FooterLink href="/admin">Admin panel</FooterLink>
+              {isAdmin && <FooterLink href="/admin">Admin panel</FooterLink>}
               <FooterLink href="/my-reviews">My reviews</FooterLink>
             </FooterColumn>
           </div>

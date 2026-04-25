@@ -129,11 +129,17 @@ export async function TopNav({ q }: { q?: string } = {}) {
               {t("nav.admin")}
             </Link>
           )}
-          <AddStoreButton
-            loggedIn={Boolean(me)}
-            hasStore={hasStore}
-            label={hasStore ? t("nav.dashboard") : t("nav.addStore")}
-          />
+          {/* Phase 11 / F11 — guests no longer see the "+ Add Store"
+              pill. The CTA used to render unconditionally and bounced
+              guests through /login, wasting attention before sign-up.
+              Sellers / buyers still see the appropriate "Dashboard" /
+              "+ Add Store" label per their store state. */}
+          {me && (
+            <AddStoreButton
+              hasStore={hasStore}
+              label={hasStore ? t("nav.dashboard") : t("nav.addStore")}
+            />
+          )}
         </div>
 
         {/* Auth menu — sits outside the cluster because the avatar IS
@@ -167,19 +173,15 @@ export async function TopNav({ q }: { q?: string } = {}) {
 }
 
 function AddStoreButton({
-  loggedIn,
   hasStore,
   label,
 }: {
-  loggedIn: boolean;
   hasStore: boolean;
   label: string;
 }) {
-  const href = !loggedIn
-    ? "/login?next=/become-seller"
-    : hasStore
-    ? "/seller"
-    : "/become-seller";
+  // Caller in <TopNav> already gates this on `me` being truthy (F11),
+  // so we no longer render a /login bounce route here.
+  const href = hasStore ? "/seller" : "/become-seller";
   return (
     <Link
       href={href}
