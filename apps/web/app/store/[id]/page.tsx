@@ -113,7 +113,10 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                 </span>
                 {store.stats && (
                   <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> ~{Math.round(store.stats.responseTime / 60)}h response
+                    <Clock className="h-3 w-3" />{" "}
+                    {store.stats.responseTime > 0
+                      ? `~${Math.round(store.stats.responseTime / 60)}h response`
+                      : t("empty.responseTime")}
                   </span>
                 )}
               </div>
@@ -134,7 +137,8 @@ export default async function StorePage({ params }: { params: { id: string } }) 
             <StatCard
               icon={Star}
               label="Average rating"
-              value={avgRating ? `${avgRating.toFixed(1)}★` : "—"}
+              value={avgRating ? `${avgRating.toFixed(1)}★` : t("empty.avgRating")}
+              variant={avgRating ? "default" : "zero"}
             />
             <StatCard
               icon={MessageSquare}

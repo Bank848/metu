@@ -56,6 +56,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Cart
     "cart.title": "Your cart",
+    "cart.subtitle": "Review your items and apply a coupon before checking out.",
     "cart.empty.title": "Your cart is empty",
     "cart.empty.description": "Pick something from the marketplace to get started.",
     "cart.empty.cta": "Browse marketplace",
@@ -79,6 +80,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Empty states (most-visited)
     "empty.noResults": "No results found",
     "empty.tryAgain": "Try a different search.",
+    "empty.audit.title": "No moderation events yet",
+    "empty.audit.description":
+      "Destructive admin and seller actions (review deletes, refunds, role changes) will appear here as they happen.",
+    "empty.responseTime": "New seller — no response data yet",
+    "empty.avgRating": "No ratings yet",
   },
   th: {
     // Top navigation
@@ -112,6 +118,7 @@ export const MESSAGES: Record<Locale, Messages> = {
 
     // Cart
     "cart.title": "ตะกร้าของคุณ",
+    "cart.subtitle": "ตรวจสอบรายการและใส่โค้ดส่วนลดก่อนชำระเงิน",
     "cart.empty.title": "ตะกร้าของคุณยังว่างอยู่",
     "cart.empty.description": "ลองหยิบสินค้าจากตลาดเข้ามาก่อนนะ",
     "cart.empty.cta": "เลือกชมตลาด",
@@ -135,6 +142,11 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Empty states
     "empty.noResults": "ไม่พบผลลัพธ์",
     "empty.tryAgain": "ลองค้นหาด้วยคำอื่นดู",
+    "empty.audit.title": "ยังไม่มีการดำเนินการจากผู้ดูแล",
+    "empty.audit.description":
+      "การกระทำสำคัญของแอดมินและผู้ขาย (ลบรีวิว คืนเงิน เปลี่ยนสิทธิ์) จะปรากฏที่นี่เมื่อเกิดขึ้น",
+    "empty.responseTime": "ผู้ขายใหม่ — ยังไม่มีข้อมูลการตอบกลับ",
+    "empty.avgRating": "ยังไม่มีรีวิว",
   },
 };
 

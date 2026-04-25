@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { DataTable, type DataTableColumn } from "@/components/admin/DataTable";
 import { prisma } from "@/lib/server/prisma";
 import { isDataUrl } from "@/lib/utils";
+import { getServerT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,8 @@ export default async function AuditLogPage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const t = getServerT();
+  const isFiltered = Boolean(action || targetType);
 
   const buildHref = (overrides: Partial<SearchParams>) => {
     const p = new URLSearchParams();
@@ -98,7 +101,11 @@ export default async function AuditLogPage({
     <>
       <PageHeader
         title="Audit log"
-        subtitle={`Every destructive admin and seller action, in reverse chronological order. ${total.toLocaleString()} entries.`}
+        subtitle={
+          total > 0
+            ? `Every destructive admin and seller action, in reverse chronological order. ${total.toLocaleString()} entries.`
+            : "Every destructive admin and seller action, in reverse chronological order."
+        }
       />
 
       {/* Filter bar — action chips + target-type pills. Clicking the
@@ -149,11 +156,19 @@ export default async function AuditLogPage({
         rows={entries as AuditRow[]}
         getRowKey={(e) => e.logId}
         emptyState={
-          <EmptyState
-            title="No audit entries match those filters"
-            description="Try clearing the filters or wait for activity."
-            icon={<History className="h-8 w-8" />}
-          />
+          isFiltered ? (
+            <EmptyState
+              title="No audit entries match those filters"
+              description="Try clearing the filters or wait for activity."
+              icon={<History className="h-8 w-8" />}
+            />
+          ) : (
+            <EmptyState
+              title={t("empty.audit.title")}
+              description={t("empty.audit.description")}
+              icon={<History className="h-8 w-8" />}
+            />
+          )
         }
         pagination={{
           page,

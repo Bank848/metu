@@ -65,7 +65,7 @@ export default async function CartPage() {
         <div className="relative mx-auto max-w-6xl px-6 md:px-8 py-10">
           <PageHeader
             title={t("cart.title")}
-            subtitle="Review your items and apply a coupon before checking out."
+            subtitle={t("cart.subtitle")}
           />
 
           {isEmpty ? (
