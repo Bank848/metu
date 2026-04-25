@@ -9,10 +9,15 @@ export async function GET(req: NextRequest) {
   const r = await requireAuth(req, ["admin"]);
   if (!r.ok) return r.response;
 
+  // Phase 11 / F10 (CEO Decision 3) — counters across `/`, `/health`,
+  // and `/admin` must agree. We filter soft-deleted users + stores +
+  // products here so /admin matches the public /api/stats output;
+  // orders + reviews stay unfiltered (no soft-delete column on those
+  // tables today).
   const [users, stores, products, reviews, orders, gmv, pendingOrders, recentTx, daily] = await Promise.all([
-    prisma.user.count(),
-    prisma.store.count(),
-    prisma.product.count(),
+    prisma.user.count({ where: { deletedAt: null } }),
+    prisma.store.count({ where: { deletedAt: null } }),
+    prisma.product.count({ where: { deletedAt: null } }),
     prisma.productReview.count(),
     prisma.order.count(),
     prisma.$queryRaw<Array<{ total: string }>>`

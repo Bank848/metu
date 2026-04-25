@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { browseProducts, getCategories, getTags, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { RecentStrip } from "./RecentStrip";
+import { SortSelect } from "./SortSelect";
 import { Filter, Package } from "lucide-react";
 
 type Category = { categoryId: number; categoryName: string };
@@ -22,6 +23,35 @@ function parseSort(v: string | undefined): SortKey {
   return (SAFE_SORT as readonly string[]).includes(v ?? "") ? (v as SortKey) : "newest";
 }
 
+/**
+ * Resolve `?category=` to a categoryId.
+ *
+ * Phase 11 / F3 — historically this used `Number(searchParams.category)`
+ * which silently coerced non-numeric slugs to `NaN` and dropped the
+ * filter, so /browse?category=fonts returned the unfiltered grid. We now
+ * accept either the numeric categoryId or a slug-style name and look the
+ * latter up against the existing categories list (already cached for an
+ * hour by `getCategories()`, so the lookup is a pure in-memory match).
+ *
+ * Returns `undefined` when the slug is unknown — the caller treats that
+ * as "no category filter" rather than throwing, mirroring how every
+ * other browse param is forgiving of bad input.
+ */
+function resolveCategoryId(
+  raw: string | undefined,
+  categories: ReadonlyArray<Category>,
+): number | undefined {
+  if (!raw) return undefined;
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber) && asNumber > 0) return asNumber;
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) return undefined;
+  const hit = categories.find(
+    (c) => c.categoryName.trim().toLowerCase() === normalized,
+  );
+  return hit?.categoryId;
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function BrowsePage({
@@ -30,23 +60,27 @@ export default async function BrowsePage({
   searchParams: Record<string, string | undefined>;
 }) {
   const me = await getMe();
-  const [result, categories, tags, favSet] = await Promise.all([
-    browseProducts({
-      category: searchParams.category ? Number(searchParams.category) : undefined,
-      tags: searchParams.tags,
-      minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
-      maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
-      delivery: searchParams.delivery,
-      q: searchParams.q,
-      sort: parseSort(searchParams.sort),
-      page: searchParams.page ? Math.max(1, Number(searchParams.page)) : 1,
-      pageSize: 16,
-      minRating: searchParams.minRating ? Number(searchParams.minRating) : undefined,
-    }),
+  // Categories are needed to resolve `?category=<slug>` (F3) before we
+  // can dispatch browseProducts, but the lookup is a 1-hour cache hit
+  // so the wait is essentially free.
+  const [categories, tags, favSet] = await Promise.all([
     getCategories(),
     getTags(),
     getFavoriteSet(me?.user.userId),
   ]);
+  const categoryId = resolveCategoryId(searchParams.category, categories);
+  const result = await browseProducts({
+    category: categoryId,
+    tags: searchParams.tags,
+    minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
+    maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
+    delivery: searchParams.delivery,
+    q: searchParams.q,
+    sort: parseSort(searchParams.sort),
+    page: searchParams.page ? Math.max(1, Number(searchParams.page)) : 1,
+    pageSize: 16,
+    minRating: searchParams.minRating ? Number(searchParams.minRating) : undefined,
+  });
 
   const activeSort = searchParams.sort ?? "newest";
   const activeQ = searchParams.q ?? "";
@@ -66,7 +100,12 @@ export default async function BrowsePage({
 
         <div className="grid md:grid-cols-[260px_1fr] gap-8">
           <aside>
-            <FilterPanel categories={categories} tags={tags} params={searchParams} />
+            <FilterPanel
+              categories={categories}
+              tags={tags}
+              params={searchParams}
+              activeCategoryId={categoryId}
+            />
           </aside>
 
           <section>
@@ -76,16 +115,10 @@ export default async function BrowsePage({
                 return <input key={k} type="hidden" name={k} value={v} />;
               })}
               <span className="text-xs font-medium text-ink-dim mr-2">Sort</span>
-              <select
-                name="sort"
-                defaultValue={activeSort}
-                className="rounded-full border border-line bg-space-800 px-4 py-2 text-sm text-white focus:border-brand-yellow outline-none"
-              >
-                <option value="newest">Newest</option>
-                <option value="rating">Top rated</option>
-                <option value="price_asc">Price ↑</option>
-                <option value="price_desc">Price ↓</option>
-              </select>
+              {/* Phase 11 / F22 — auto-submits on change. The Apply
+                  button below is now redundant for Sort but kept as
+                  a safety net per CEO decision. */}
+              <SortSelect activeSort={activeSort} />
               <button type="submit" className="rounded-full bg-brand-yellow px-4 py-2 text-sm font-bold text-space-black hover:bg-brand-yellowDark">
                 Apply
               </button>
@@ -120,7 +153,22 @@ export default async function BrowsePage({
                 />
               )
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
+              // Wave-3 / F18: drop the fixed 2/3/4/4/5 column template
+              // for `auto-fill` + `minmax`. The previous template left a
+              // 2-column gap on the final row whenever
+              // `result.items.length` wasn't a multiple of the active
+              // breakpoint's column count (e.g. pageSize=16 against 3
+              // cols → orphan card). `auto-fill` lets the browser drop
+              // the trailing slot when the row would otherwise stretch
+              // a card into giant whitespace, so the grid balances
+              // itself on every page size. The 230px min was chosen so
+              // the card count per row matches the previous breakpoints
+              // (3 at md, 4 at lg, 5 at 2xl) within ~5% — no visible
+              // layout shift for full pages. Mobile (<480px) drops to a
+              // single column at this min, matching `grid-cols-1`
+              // rather than the previous `grid-cols-2`; a 2-column
+              // layout at 320px wide produced cards too narrow to read.
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-5">
                 {result.items.map((p) => (
                   <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
                 ))}
@@ -145,12 +193,19 @@ function FilterPanel({
   categories,
   tags,
   params,
+  activeCategoryId,
 }: {
   categories: Category[];
   tags: Tag[];
   params: Record<string, string | undefined>;
+  // Pre-resolved on the server — accepts the slug-style `?category=fonts`
+  // path as well as the legacy numeric `?category=35` (Phase 11 / F3).
+  // Falls back to coercing `params.category` directly so any in-flight
+  // numeric URL keeps working without a hydration mismatch.
+  activeCategoryId?: number;
 }) {
-  const activeCategory = Number(params.category);
+  const activeCategory =
+    activeCategoryId ?? (Number.isFinite(Number(params.category)) ? Number(params.category) : 0);
   const activeTags = (params.tags ?? "").split(",").filter(Boolean);
 
   const buildHref = (overrides: Record<string, string | undefined>) => {
