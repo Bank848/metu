@@ -16,6 +16,11 @@ type Store = {
   coverImage: string | null;
   profileImage: string | null;
   createdAt: string;
+  // `deletedAt` lands on the row whenever an admin soft-deletes the
+  // store (Phase 11 / F23). The admin table still LISTS deleted stores
+  // — we just exclude them from the headline KPIs so a freshly
+  // moderated junk store doesn't continue dragging the average down.
+  deletedAt: string | null;
   businessType: { name: string };
   owner: { username: string; firstName: string; lastName: string; profileImage: string | null };
   stats: { rating: number; ctr: number; responseTime: number } | null;
@@ -39,16 +44,28 @@ export default async function AdminStores() {
   // Promoted KPIs — replaces the three Kpi tiles that lived inside each
   // card. The "Products" tile becomes the row's lead via the highlight
   // variant; rating-average and CTR-average are the supporting stats.
-  const totalProducts = stores.reduce((sum, s) => sum + s._count.products, 0);
-  const ratedStores = stores.filter((s) => s.stats);
+  //
+  // Phase 11 / F23 — the headline averages used to include
+  // soft-deleted junk stores AND zero-rated stores that simply haven't
+  // sold anything yet, both of which dragged the row down to 2.1★ on
+  // /admin/stores. The KPI now restricts the population to active
+  // stores that actually have products listed; the table itself still
+  // shows every row so a moderator can see what's been deleted /
+  // empty.
+  const liveStores = stores.filter((s) => !s.deletedAt);
+  const totalProducts = liveStores.reduce((sum, s) => sum + s._count.products, 0);
+  const ratedStores = liveStores.filter(
+    (s) => s.stats && s._count.products > 0 && s.stats.rating > 0,
+  );
   const avgRating =
     ratedStores.length === 0
       ? null
       : ratedStores.reduce((sum, s) => sum + (s.stats?.rating ?? 0), 0) / ratedStores.length / 10;
+  const ctrPopulation = liveStores.filter((s) => s.stats && s._count.products > 0);
   const avgCtr =
-    ratedStores.length === 0
+    ctrPopulation.length === 0
       ? null
-      : ratedStores.reduce((sum, s) => sum + (s.stats?.ctr ?? 0), 0) / ratedStores.length / 100;
+      : ctrPopulation.reduce((sum, s) => sum + (s.stats?.ctr ?? 0), 0) / ctrPopulation.length / 100;
 
   return (
     <>

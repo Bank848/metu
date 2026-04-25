@@ -146,7 +146,11 @@ export default async function ProductPage({ params }: { params: { id: string } }
               {product.store.stats && (
                 <div className="flex items-center gap-1 text-ink-dim">
                   <Clock className="h-4 w-4" />
-                  <span>~{Math.round(product.store.stats.responseTime / 60)}h response</span>
+                  <span>
+                    {product.store.stats.responseTime > 0
+                      ? `~${Math.round(product.store.stats.responseTime / 60)}h response`
+                      : t("empty.responseTime")}
+                  </span>
                 </div>
               )}
             </div>

@@ -17,8 +17,15 @@ function safeDelivery(v: string | undefined): DeliveryMethod | undefined {
 export async function getStats() {
   // Public counters — exclude soft-deleted rows so the homepage never shows
   // a number that includes ghosts.
+  //
+  // Phase 11 / F10 (CEO Decision 3) — the "Sellers" tile previously
+  // counted `UserStats.role = seller` (i.e. "users with the seller
+  // role") which diverged from `/health` and `/admin` (both of which
+  // count `Store` rows). Unify on `Store.count` so the same number
+  // appears on every counter surface; the human-facing "Sellers" label
+  // stays unchanged because each store has exactly one owner.
   const [sellers, products, orders, reviews] = await Promise.all([
-    prisma.userStats.count({ where: { role: "seller", user: { deletedAt: null } } }),
+    prisma.store.count({ where: { deletedAt: null } }),
     prisma.product.count({ where: { deletedAt: null } }),
     prisma.order.count(),
     prisma.productReview.count(),
@@ -281,6 +288,19 @@ export const getBusinessTypes = unstable_cache(
   { revalidate: 3600, tags: ["business-types"] },
 );
 
+// Country list for the profile-edit / register dropdowns. Effectively static
+// (countries don't change within a session, or a year). Cached to keep the
+// /profile/edit cold path off Neon.
+export const getCountries = unstable_cache(
+  async () =>
+    prisma.country.findMany({
+      select: { countryId: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ["countries"],
+  { revalidate: 3600, tags: ["countries"] },
+);
+
 export async function browseProducts(params: {
   category?: number;
   tags?: string;
@@ -447,6 +467,12 @@ export async function getProduct(id: number) {
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
       reviews: {
+        // Phase 11 / F1 — cascade the soft-delete on `User` into review
+        // visibility on the public product page. Without this filter a
+        // reviewer flagged + soft-deleted via `DELETE /api/admin/users`
+        // still has their comment + display name visible to every
+        // guest, defeating the moderation pipeline.
+        where: { user: { deletedAt: null } },
         orderBy: { createdAt: "desc" },
         take: 5,
         include: {

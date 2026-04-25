@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ProductRowActions } from "@/components/seller/ProductRowActions";
 import { apiAuth } from "@/lib/session";
 import { money } from "@/lib/format";
-import { isDataUrl } from "@/lib/utils";
+import { isDataUrl, cardImage } from "@/lib/utils";
 
 type Product = {
   productId: number;
@@ -60,7 +60,7 @@ export default async function SellerProducts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {products.map((p) => {
+              {products.map((p, idx) => {
                 const prices = p.items.map((i) => Number(i.price));
                 const min = Math.min(...prices);
                 const max = Math.max(...prices);
@@ -68,8 +68,31 @@ export default async function SellerProducts() {
                   <tr key={p.productId} className="hover:bg-white/5">
                     <td className="px-5 py-3">
                       <Link href={`/product/${p.productId}`} className="flex items-center gap-3">
+                        {/* Phase 11 / F9 — match the public ProductCard
+                            wiring exactly. The seller's table cell is a
+                            48px thumbnail, but the previous markup
+                            requested the full 1200×800 Unsplash variant
+                            and relied on lazy-loading inside a `<td>`,
+                            which left the row showing the grey
+                            placeholder square long after the rest of
+                            the page settled. Using `cardImage()` (the
+                            same helper /browse and /store use) hands
+                            the optimiser a 600×400 source so the 48px
+                            crop is decoded almost instantly, and we
+                            mark the first row `priority` so it never
+                            depends on lazy-loading at all. */}
                         <div className="relative h-12 w-12 rounded-lg bg-space-900 overflow-hidden shrink-0 border border-line">
-                          {p.images[0] && <Image src={p.images[0].productImage} alt="" fill sizes="48px" className="object-cover" unoptimized={isDataUrl(p.images[0].productImage)} />}
+                          {p.images[0] && (
+                            <Image
+                              src={cardImage(p.images[0].productImage)}
+                              alt=""
+                              fill
+                              sizes="48px"
+                              className="object-cover"
+                              unoptimized={isDataUrl(p.images[0].productImage)}
+                              priority={idx < 4}
+                            />
+                          )}
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-white truncate max-w-[280px] inline-flex items-center gap-2">
