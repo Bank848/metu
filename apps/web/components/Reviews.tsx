@@ -5,6 +5,7 @@ import { Star, Pencil, MessageSquare, Trash2, Shield } from "lucide-react";
 import { GlassButton } from "./visual/GlassButton";
 import { EmptyState } from "./EmptyState";
 import { WriteReviewDialog } from "./WriteReviewDialog";
+import { ConfirmDialog } from "./forms/ConfirmDialog";
 import { cn, isDataUrl } from "@/lib/utils";
 
 type Review = {
@@ -49,6 +50,10 @@ export function Reviews({
   const [sort, setSort] = useState<SortKey>("newest");
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  // Phase 11 / F19 — destructive moderation now flows through the
+  // in-app <ConfirmDialog> primitive instead of native window.confirm().
+  // Carries the row's reviewId so the modal knows which row to delete.
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   const sorted = useMemo(() => {
     const copy = [...reviews];
@@ -71,10 +76,11 @@ export function Reviews({
     setOpen(false);
   };
 
-  /** Delete a review — admin or owner only. Confirms first because
-   *  the row is hard-deleted (no soft-delete column on ProductReview). */
+  /** Delete a review — admin or owner only. The row is hard-deleted
+   *  (no soft-delete column on ProductReview), so the trash icon opens
+   *  a <ConfirmDialog> first; this handler runs only after the user
+   *  confirms in the modal. */
   async function deleteReview(reviewId: number) {
-    if (!confirm("Delete this review? This cannot be undone.")) return;
     const res = await fetch(`/api/reviews/${reviewId}`, {
       method: "DELETE",
       credentials: "include",
@@ -82,6 +88,7 @@ export function Reviews({
     if (res.ok) {
       setReviews((prev) => prev.filter((r) => r.reviewId !== reviewId));
     }
+    setPendingDeleteId(null);
   }
 
   /** Save inline edits — admin or owner only. Optimistic update on 200. */
@@ -274,7 +281,7 @@ export function Reviews({
                       </button>
                       <button
                         type="button"
-                        onClick={() => deleteReview(r.reviewId)}
+                        onClick={() => setPendingDeleteId(r.reviewId)}
                         aria-label="Delete review"
                         title="Delete review"
                         className="p-1.5 rounded-md text-ink-dim hover:text-coral hover:bg-coral/5 transition"
@@ -303,6 +310,17 @@ export function Reviews({
       {open && (
         <WriteReviewDialog productId={productId} onClose={() => setOpen(false)} onSubmitted={onSubmitted} />
       )}
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Delete this review?"
+        body="This cannot be undone. The review and its rating are removed from the product immediately."
+        confirmLabel="Delete review"
+        tone="destructive"
+        onConfirm={() => {
+          if (pendingDeleteId !== null) return deleteReview(pendingDeleteId);
+        }}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

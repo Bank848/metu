@@ -4,6 +4,8 @@ import { Store as StoreIcon, Tag as TagIcon } from "lucide-react";
 import { cn, isDataUrl } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
+import { useI18n } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n/messages";
 
 /**
  * Phase 10 / Step 2 — live render of how the marketplace will show the
@@ -58,6 +60,7 @@ export type PreviewPaneProps =
   | { variant: "coupon";  state: CouponPreviewState;  className?: string };
 
 export function PreviewPane(props: PreviewPaneProps) {
+  const { locale } = useI18n();
   return (
     <aside
       className={cn("space-y-2", props.className)}
@@ -68,9 +71,21 @@ export function PreviewPane(props: PreviewPaneProps) {
       </div>
       {props.variant === "product" && <ProductPreview state={props.state} />}
       {props.variant === "store"   && <StorePreview   state={props.state} />}
-      {props.variant === "coupon"  && <CouponPreview  state={props.state} />}
+      {props.variant === "coupon"  && <CouponPreview  state={props.state} locale={locale} />}
     </aside>
   );
+}
+
+/**
+ * Map our app `Locale` to a BCP-47 tag for `Intl.DateTimeFormat`. We pass
+ * an explicit tag (rather than `undefined`) so the seller sees dates in
+ * the locale they picked in the TopNav, not whatever their OS happens to
+ * default to. We also pin Asia/Bangkok because the marketplace is
+ * Bangkok-first and coupon end-dates are stored as wall-clock dates in
+ * that timezone.
+ */
+function bcp47(locale: Locale): string {
+  return locale === "th" ? "th-TH" : "en-US";
 }
 
 /** Renders the real ProductCard so the preview never diverges from the
@@ -142,7 +157,7 @@ function StorePreview({ state }: { state: StorePreviewState }) {
   );
 }
 
-function CouponPreview({ state }: { state: CouponPreviewState }) {
+function CouponPreview({ state, locale }: { state: CouponPreviewState; locale: Locale }) {
   const parts: string[] = [];
   if (state.discountPercent && state.discountPercent > 0) {
     parts.push(`${state.discountPercent}% off`);
@@ -158,7 +173,16 @@ function CouponPreview({ state }: { state: CouponPreviewState }) {
         ? new Date(state.expiresAt)
         : state.expiresAt;
     if (!Number.isNaN(date.getTime())) {
-      parts.push(`ends ${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`);
+      // Pass the active app locale (was `undefined` → OS locale, F17) and
+      // pin Asia/Bangkok so the "ends" pill is stable regardless of the
+      // viewer's machine clock zone.
+      parts.push(
+        `ends ${date.toLocaleDateString(bcp47(locale), {
+          month: "short",
+          day: "numeric",
+          timeZone: "Asia/Bangkok",
+        })}`
+      );
     }
   }
   const summary = parts.length > 0 ? parts.join(", ") : "no discount set";

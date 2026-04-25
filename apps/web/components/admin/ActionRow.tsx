@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MoreHorizontal, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 
 /**
  * Phase 10 / Step 2 — dropdown row-actions menu.
@@ -23,10 +24,13 @@ import { cn } from "@/lib/utils";
  *                   typically inhabit.
  *   - safe        = mint (success / "live" / positive)
  *
- * The `confirm` prop wraps the click in `window.confirm()`. We use the
- * native dialog because admin actions are infrequent and the existing
- * codebase (StoreActions.tsx, etc.) uses the same pattern — wiring up a
- * full confirm-modal primitive can land in a later step.
+ * Phase 11 / F19 — the `confirm` prop now opens an in-page
+ * <ConfirmDialog> primitive instead of the native `window.confirm()`.
+ * Public API is unchanged: callers pass `confirm: "Are you sure …?"`
+ * and the row action dispatches only after the user clicks the modal's
+ * primary button. The native dialog couldn't be styled, locked Chrome
+ * MCP in admin moderation flows, and clashed with the rest of the
+ * polished chrome (see `reports/qa-2026-04-25.md` §F19).
  */
 export type ActionTone = "default" | "primary" | "destructive" | "safe";
 
@@ -56,6 +60,11 @@ export interface ActionRowProps {
 export function ActionRow({ actions, ariaLabel = "Row actions", className }: ActionRowProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Phase 11 / F19 — when a picked action carries a `confirm: string`
+  // we stash the action here and open the in-page <ConfirmDialog>
+  // primitive instead of calling `window.confirm()`. The dropdown
+  // closes immediately on pick so the modal can take over the page.
+  const [pendingAction, setPendingAction] = useState<ActionRowItem | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -75,7 +84,10 @@ export function ActionRow({ actions, ariaLabel = "Row actions", className }: Act
 
   function handlePick(action: ActionRowItem) {
     if (action.disabled) return;
-    if (action.confirm && typeof window !== "undefined" && !window.confirm(action.confirm)) {
+    if (action.confirm) {
+      // Defer the actual onClick until the user confirms in the modal.
+      setOpen(false);
+      setPendingAction(action);
       return;
     }
     setOpen(false);
@@ -130,6 +142,22 @@ export function ActionRow({ actions, ariaLabel = "Row actions", className }: Act
           })}
         </ul>
       )}
+      <ConfirmDialog
+        open={pendingAction !== null}
+        title="Confirm action"
+        body={pendingAction?.confirm}
+        confirmLabel={pendingAction?.label ?? "Confirm"}
+        // Map ActionRow's destructive tone to the dialog's destructive
+        // tone so the primary button paints coral (matches the row
+        // hover colour). All other tones use the default gold.
+        tone={pendingAction?.tone === "destructive" ? "destructive" : "default"}
+        onConfirm={() => {
+          const action = pendingAction;
+          setPendingAction(null);
+          if (action) action.onClick();
+        }}
+        onCancel={() => setPendingAction(null)}
+      />
     </div>
   );
 }

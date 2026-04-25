@@ -2,8 +2,19 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, XCircle, RotateCcw } from "lucide-react";
+import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 
 type Status = "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
+
+// Phase 11 / F19 — pending confirm-dialog state. Each entry maps a
+// transition kind to the human-readable copy shown in the modal body
+// and the destructive tone (refund/cancel = destructive, fulfil =
+// neutral). The handler reads back through this map on confirm so the
+// dialog can drive every transition without three separate components.
+type Pending =
+  | { kind: "fulfilled"; title: string; body: string; confirmLabel: string }
+  | { kind: "cancelled"; title: string; body: string; confirmLabel: string }
+  | { kind: "refunded";  title: string; body: string; confirmLabel: string };
 
 /**
  * Seller-side order actions. Shown on /seller/orders rows.
@@ -24,10 +35,9 @@ export function OrderStatusActions({
   const router = useRouter();
   const [busy, setBusy] = useState<null | "fulfilled" | "cancelled" | "refunded">(null);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
 
   async function patch(next: "fulfilled" | "cancelled") {
-    const verb = next === "fulfilled" ? "mark this order as fulfilled" : "cancel this order";
-    if (!window.confirm(`Are you sure you want to ${verb}?`)) return;
     setError(null);
     setBusy(next);
     try {
@@ -51,13 +61,6 @@ export function OrderStatusActions({
   }
 
   async function refund() {
-    if (
-      !window.confirm(
-        `Refund this order? The full total is returned to the buyer and a refund transaction is recorded. This is used for out-of-stock / can't-fulfil situations.`,
-      )
-    ) {
-      return;
-    }
     setError(null);
     setBusy("refunded");
     try {
@@ -78,6 +81,42 @@ export function OrderStatusActions({
     setBusy(null);
   }
 
+  // Open the in-page confirm modal — never call the action directly.
+  function askPatch(next: "fulfilled" | "cancelled") {
+    setPending(
+      next === "fulfilled"
+        ? {
+            kind: "fulfilled",
+            title: "Mark order as fulfilled?",
+            body: "The buyer is notified that their order is on the way / available for download.",
+            confirmLabel: "Mark fulfilled",
+          }
+        : {
+            kind: "cancelled",
+            title: "Cancel this order?",
+            body: "The order moves to cancelled. The buyer keeps their payment record but the line is no longer pending fulfilment.",
+            confirmLabel: "Cancel order",
+          },
+    );
+  }
+
+  function askRefund() {
+    setPending({
+      kind: "refunded",
+      title: "Refund this order?",
+      body: "The full total is returned to the buyer and a refund transaction is recorded. Use this for out-of-stock or can't-fulfil situations.",
+      confirmLabel: "Refund order",
+    });
+  }
+
+  function runPending() {
+    const p = pending;
+    setPending(null);
+    if (!p) return;
+    if (p.kind === "fulfilled" || p.kind === "cancelled") return patch(p.kind);
+    if (p.kind === "refunded") return refund();
+  }
+
   const canFulfilOrCancel = currentStatus === "paid";
   const canRefund = currentStatus === "paid" || currentStatus === "fulfilled";
 
@@ -89,7 +128,7 @@ export function OrderStatusActions({
         <>
           <button
             type="button"
-            onClick={() => patch("fulfilled")}
+            onClick={() => askPatch("fulfilled")}
             disabled={busy !== null}
             className="inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-400/10 hover:border-green-400/50 hover:bg-green-400/15 px-3 py-1 text-[11px] font-semibold text-green-300 transition disabled:opacity-50"
           >
@@ -98,7 +137,7 @@ export function OrderStatusActions({
           </button>
           <button
             type="button"
-            onClick={() => patch("cancelled")}
+            onClick={() => askPatch("cancelled")}
             disabled={busy !== null}
             className="inline-flex items-center gap-1 rounded-full border border-metu-red/30 bg-metu-red/10 hover:border-metu-red/60 hover:bg-metu-red/20 px-3 py-1 text-[11px] font-semibold text-red-300 transition disabled:opacity-50"
           >
@@ -110,7 +149,7 @@ export function OrderStatusActions({
       {canRefund && (
         <button
           type="button"
-          onClick={refund}
+          onClick={askRefund}
           disabled={busy !== null}
           className="inline-flex items-center gap-1 rounded-full border border-purple-400/30 bg-purple-400/10 hover:border-purple-400/60 hover:bg-purple-400/20 px-3 py-1 text-[11px] font-semibold text-purple-300 transition disabled:opacity-50"
           title="Refund this order — e.g. out of stock, can't fulfil"
@@ -120,6 +159,17 @@ export function OrderStatusActions({
         </button>
       )}
       {error && <span className="text-[10px] text-red-400 max-w-[160px] truncate" title={error}>{error}</span>}
+      <ConfirmDialog
+        open={pending !== null}
+        title={pending?.title ?? ""}
+        body={pending?.body}
+        confirmLabel={pending?.confirmLabel ?? "Confirm"}
+        // Cancel + refund are destructive register; "mark fulfilled" is a
+        // forward / positive transition so it stays on the default tone.
+        tone={pending && pending.kind !== "fulfilled" ? "destructive" : "default"}
+        onConfirm={runPending}
+        onCancel={() => setPending(null)}
+      />
     </div>
   );
 }

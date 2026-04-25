@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageCircleQuestion, CornerDownRight, CheckCircle2, Pencil, Trash2, Shield } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
+import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 import { isDataUrl } from "@/lib/utils";
 
 type UserSlim = {
@@ -69,6 +70,10 @@ export function ProductQuestions({
   // editingId carries which question is currently in inline-edit mode
   // and which field — body (asker / admin) or answer (admin only).
   const [editingId, setEditingId] = useState<{ id: number; field: "body" | "answer" } | null>(null);
+  // Phase 11 / F19 — destructive moderation flows through <ConfirmDialog>
+  // instead of native window.confirm(). Carries the questionId so the
+  // modal knows which row to remove on confirm.
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   async function submitQuestion(e: React.FormEvent) {
     e.preventDefault();
@@ -101,10 +106,10 @@ export function ProductQuestions({
     setBusy(false);
   }
 
-  /** Delete a whole question — admin OR original asker. Confirms first
-   *  because the question + any attached answer disappear together. */
+  /** Delete a whole question — admin OR original asker. The question +
+   *  any attached answer disappear together, so the trash icon opens
+   *  a <ConfirmDialog> first; this handler runs only after confirm. */
   async function deleteQuestion(questionId: number) {
-    if (!confirm("Delete this question? This cannot be undone.")) return;
     const res = await fetch(`/api/questions/${questionId}`, {
       method: "DELETE",
       credentials: "include",
@@ -112,6 +117,7 @@ export function ProductQuestions({
     if (res.ok) {
       setQuestions((prev) => prev.filter((q) => q.questionId !== questionId));
     }
+    setPendingDeleteId(null);
   }
 
   /** Save inline edits to a question body (asker / admin) OR the answer
@@ -191,7 +197,18 @@ export function ProductQuestions({
           <span className="text-[10px] text-ink-dim font-mono">{ask.length} / 500</span>
           <div className="flex items-center gap-2">
             {error && <span className="text-xs text-red-400">{error}</span>}
-            <GlassButton tone="gold" size="sm" type="submit" disabled={busy || ask.trim().length < 3}>
+            {/* Phase 11 / F12 — disable the submit while logged out so
+                a guest can't trigger a 401. The textarea placeholder
+                already prompts "Log in to ask a question"; this just
+                pulls the button into the same gated state instead of
+                relying on the click handler's redirect-to-/login. */}
+            <GlassButton
+              tone="gold"
+              size="sm"
+              type="submit"
+              disabled={!isLoggedIn || busy || ask.trim().length < 3}
+              title={!isLoggedIn ? "Log in to ask a question" : undefined}
+            >
               {busy ? "Posting…" : "Post question"}
             </GlassButton>
           </div>
@@ -245,7 +262,7 @@ export function ProductQuestions({
                           </button>
                           <button
                             type="button"
-                            onClick={() => deleteQuestion(q.questionId)}
+                            onClick={() => setPendingDeleteId(q.questionId)}
                             aria-label="Delete question"
                             title="Delete question"
                             className="p-1 rounded-md text-ink-dim hover:text-coral hover:bg-coral/5 transition"
@@ -337,6 +354,17 @@ export function ProductQuestions({
           })}
         </ul>
       )}
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Delete this question?"
+        body="This cannot be undone. The question and any attached answer disappear together."
+        confirmLabel="Delete question"
+        tone="destructive"
+        onConfirm={() => {
+          if (pendingDeleteId !== null) return deleteQuestion(pendingDeleteId);
+        }}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </section>
   );
 }
