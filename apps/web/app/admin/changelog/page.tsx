@@ -32,6 +32,29 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-11",
+    title: "Phase 11 · QA workflow run",
+    subtitle:
+      "First end-to-end run of the user-tester → CEO → 8-specialist QA workflow. 28 findings ingested from a live walk; 27 closed in one session, 1 escalated + resolved (F22 sort/apply). 8 commits, no schema migration.",
+    icon: FlaskConical,
+    tone: "success",
+    shippedAt: "today",
+    commitSha: "phase-11",
+    items: [
+      { title: "F1 — Soft-deleted offensive review on /product/100 (user 53 + cascade fix on getProduct reviews include)" },
+      { title: "F2 — /admin/audit empty-state copy + verified the audit pipeline writes (1 → 6 rows from this run alone)" },
+      { title: "F3 — /browse?category=<slug> now resolves slugs (was Number() → NaN → silent drop)" },
+      { title: "F5 — Light-theme hero contrast: DIGITAL went from ~1.5:1 to ~17:1 via bg-hero-radial light override" },
+      { title: "F6/F14/F23 — Junk-store cleanup (4 stores soft-deleted via admin API; KPIs auto-corrected)" },
+      { title: "F8 — admin/stores + admin/users got their own loading.tsx skeletons" },
+      { title: "F10 — Counter unify: home / health / admin all read Store.count (CEO Decision · Option A)" },
+      { title: "F19 — New <ConfirmDialog> primitive (forms/) replaces window.confirm in 6 callsites; full ARIA contract" },
+      { title: "F22 — Sort dropdown auto-submits via SortSelect (CEO Decision · Option A)" },
+      { title: "F28 — /profile/edit skeleton-flash killed: route-scoped loading.tsx + cached getCountries" },
+      { title: "Plus 6 ux-polish + 4 design-cohesion + 4 content-copy + 2 i18n + 1 a11y findings (full list in qa-2026-04-25.md)" },
+    ],
+  },
+  {
     id: "phase-10",
     title: "Phase 10 · Authoring + messaging follow-ups",
     subtitle:
