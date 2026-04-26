@@ -493,3 +493,16 @@ input:-webkit-autofill {
 .lift-on-hover:hover {
   transform: translateY(-2px);
 }
+
+/* ───────────── Bottom-sheet rise (NEW, Phase 11 / F19) ─────────────
+   Used by the mobile filter sheet on /browse. 200ms cubic-bezier feels
+   like the platform default sheet animation (iOS / Material). Reduced-
+   motion users get an instant snap thanks to the @media block at the
+   top of this file. */
+@keyframes sheet-rise {
+  0%   { opacity: 0; transform: translateY(100%); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-sheet-rise {
+  animation: sheet-rise 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
+}

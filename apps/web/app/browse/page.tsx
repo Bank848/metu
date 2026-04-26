@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -9,6 +10,7 @@ import { browseProducts, getCategories, getTags, getFavoriteSet } from "@/lib/se
 import { getMe } from "@/lib/session";
 import { RecentStrip } from "./RecentStrip";
 import { SortSelect } from "./SortSelect";
+import { BrowseFiltersSheet } from "./BrowseFiltersSheet";
 import { Filter, Package } from "lucide-react";
 
 type Category = { categoryId: number; categoryName: string };
@@ -85,6 +87,16 @@ export default async function BrowsePage({
   const activeSort = searchParams.sort ?? "newest";
   const activeQ = searchParams.q ?? "";
 
+  // Phase 11 / F19 — count active filters (excluding `q`, which is
+  // the search bar, and `sort` / `page`, which are presentation state).
+  // The mobile sheet trigger shows this badge so users know at a
+  // glance how many filters are narrowing the result.
+  const activeFilterCount =
+    (searchParams.category ? 1 : 0) +
+    (searchParams.tags ? searchParams.tags.split(",").filter(Boolean).length : 0) +
+    (searchParams.minRating ? 1 : 0) +
+    (searchParams.delivery ? 1 : 0);
+
   return (
     <>
       <TopNav q={activeQ} />
@@ -107,7 +119,11 @@ export default async function BrowsePage({
             `minmax(0,1fr)` floors the minimum at 0 so the column
             constrains and the inner grid wraps to the actual width. */}
         <div className="grid md:grid-cols-[260px_minmax(0,1fr)] gap-8">
-          <aside>
+          {/* Phase 11 / F19 — sidebar is desktop-only. Mobile users
+              see the <BrowseFiltersSheet> trigger at the top of the
+              section (next to Sort) and open filters in a bottom-sheet
+              instead of scrolling past four cards to reach products. */}
+          <aside className="hidden md:block">
             <FilterPanel
               categories={categories}
               tags={tags}
@@ -127,17 +143,30 @@ export default async function BrowsePage({
                 batch — we render the bar as a flex container instead.
                 Hidden inputs that used to preserve other params are
                 gone for the same reason: SortSelect builds the next
-                URL from `window.location` directly. */}
+                URL from `window.location` directly.
+
+                Phase 11 / F19 — the mobile filters trigger lives
+                inline in this row so the sort + filter controls share
+                a single mental model on small screens. */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
+              <BrowseFiltersSheet activeCount={activeFilterCount}>
+                <FilterPanel
+                  categories={categories}
+                  tags={tags}
+                  params={searchParams}
+                  activeCategoryId={categoryId}
+                />
+              </BrowseFiltersSheet>
               <span className="text-xs font-medium text-ink-dim mr-2">Sort</span>
               <SortSelect activeSort={activeSort} />
               {(activeQ || searchParams.category || searchParams.tags || searchParams.delivery) && (
-                <a
+                <Link
                   href="/browse"
+                  scroll={false}
                   className="ml-auto rounded-full border border-line px-4 py-2 text-sm text-ink-secondary hover:text-white hover:border-brand-yellow/40"
                 >
                   Clear all filters
-                </a>
+                </Link>
               )}
             </div>
 
@@ -251,32 +280,40 @@ function FilterPanel({
     "border border-transparent text-ink-secondary hover:bg-white/5 hover:text-white";
 
   return (
-    <div className="space-y-4 sticky top-28">
+    // Phase 11 / F19 — sticky sidebar gets a max-height + scroll so a
+    // tall filter list (lots of tags) doesn't run off-screen on
+    // shorter laptops. `top-28` keeps it clear of the TopNav.
+    // The whole tree converted from <a> to <Link scroll={false}> so
+    // toggling a filter no longer jumps the user back to the top of
+    // the product grid.
+    <div className="space-y-4 md:sticky md:top-28 md:max-h-[calc(100vh-7rem)] md:overflow-y-auto md:pr-1">
       <div className="surface-flat rounded-2xl p-5">
         <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3 flex items-center gap-2">
           <Filter className="h-3.5 w-3.5 text-mint" /> Category
         </h3>
         <ul className="space-y-0.5">
           <li>
-            <a
+            <Link
               href={buildHref({ category: undefined })}
+              scroll={false}
               className={`block rounded-lg px-3 py-1.5 text-sm transition ${
                 !activeCategory ? activeRowClass : idleRowClass
               }`}
             >
               All categories
-            </a>
+            </Link>
           </li>
           {categories.map((c) => (
             <li key={c.categoryId}>
-              <a
+              <Link
                 href={buildHref({ category: String(c.categoryId) })}
+                scroll={false}
                 className={`block rounded-lg px-3 py-1.5 text-sm transition ${
                   activeCategory === c.categoryId ? activeRowClass : idleRowClass
                 }`}
               >
                 {c.categoryName}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
@@ -296,9 +333,9 @@ function FilterPanel({
               ? activeTags.filter((id) => id !== String(t.tagId))
               : [...activeTags, String(t.tagId)];
             return (
-              <a key={t.tagId} href={buildHref({ tags: newTags.join(",") })}>
+              <Link key={t.tagId} href={buildHref({ tags: newTags.join(",") })} scroll={false}>
                 <Badge variant={isActive ? "success" : "mist"}>{t.tagName}</Badge>
-              </a>
+              </Link>
             );
           })}
         </div>
@@ -310,25 +347,27 @@ function FilterPanel({
         </h3>
         <ul className="space-y-0.5 text-sm">
           <li>
-            <a
+            <Link
               href={buildHref({ minRating: undefined })}
+              scroll={false}
               className={`block rounded-lg px-3 py-1.5 transition ${
                 !params.minRating ? activeRowClass : idleRowClass
               }`}
             >
               Any rating
-            </a>
+            </Link>
           </li>
           {[4, 3, 2, 1].map((n) => (
             <li key={n}>
-              <a
+              <Link
                 href={buildHref({ minRating: String(n) })}
+                scroll={false}
                 className={`block rounded-lg px-3 py-1.5 transition ${
                   Number(params.minRating) === n ? activeRowClass : idleRowClass
                 }`}
               >
                 {n}★ &amp; up
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
@@ -344,14 +383,15 @@ function FilterPanel({
         <ul className="space-y-0.5 text-sm">
           {["download", "email", "license_key", "streaming"].map((d) => (
             <li key={d}>
-              <a
+              <Link
                 href={buildHref({ delivery: params.delivery === d ? undefined : d })}
+                scroll={false}
                 className={`block rounded-lg px-3 py-1.5 capitalize transition ${
                   params.delivery === d ? activeRowClass : idleRowClass
                 }`}
               >
                 {d.replace("_", " ")}
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
@@ -376,19 +416,23 @@ function Pagination({
     return `/browse?${qs.toString()}`;
   };
   return (
+    // Pagination intentionally KEEPS scroll-to-top behaviour (no
+    // `scroll={false}`) — moving to a new page should land the user
+    // at the top of the new grid, not in the middle. Only the
+    // sidebar filter toggles preserve scroll (Phase 11 / F19).
     <div className="mt-10 flex items-center justify-center gap-2">
       {page > 1 && (
-        <a href={buildHref(page - 1)} className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50">
+        <Link href={buildHref(page - 1)} className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50">
           ← Prev
-        </a>
+        </Link>
       )}
       <span className="px-4 text-sm text-ink-secondary">
         Page <span className="text-white font-semibold">{page}</span> of {totalPages}
       </span>
       {page < totalPages && (
-        <a href={buildHref(page + 1)} className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50">
+        <Link href={buildHref(page + 1)} className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50">
           Next →
-        </a>
+        </Link>
       )}
     </div>
   );
