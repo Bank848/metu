@@ -1,11 +1,10 @@
-import Image from "next/image";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
+import { Avatar } from "@/components/ui/Avatar";
 import { UserRowActions } from "@/components/admin/UserRowActions";
 import { DataTable, type DataTableColumn } from "@/components/admin/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { apiAuth, getMe } from "@/lib/session";
-import { isDataUrl } from "@/lib/utils";
 
 type UserRow = {
   userId: number;
@@ -121,18 +120,15 @@ export default async function AdminUsers({
             case "user":
               return (
                 <div className="flex items-center gap-3">
-                  <div className="relative h-9 w-9 rounded-full bg-metu-yellow overflow-hidden shrink-0">
-                    {u.profileImage && (
-                      <Image
-                        src={u.profileImage}
-                        alt=""
-                        fill
-                        sizes="36px"
-                        className="object-cover"
-                        unoptimized={isDataUrl(u.profileImage)}
-                      />
-                    )}
-                  </div>
+                  {/* Phase 11 / F15 — Avatar primitive renders initials
+                      over a deterministic colour when profileImage is
+                      missing, instead of leaving a flat yellow disc. */}
+                  <Avatar
+                    name={`${u.firstName} ${u.lastName}`}
+                    email={u.username}
+                    src={u.profileImage}
+                    size="sm"
+                  />
                   <div>
                     <div className="text-sm font-semibold text-white">
                       {u.firstName} {u.lastName}

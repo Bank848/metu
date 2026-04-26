@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -14,8 +13,10 @@ import {
   Star,
   Mail,
 } from "lucide-react";
-import { cn, isDataUrl } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
+import { Avatar } from "@/components/ui/Avatar";
+import { Badge } from "@/components/ui/Badge";
 
 type AuthMenuUser = {
   userId: number;
@@ -93,20 +94,17 @@ export function AuthMenu({
           open && "border-brand-yellow/60",
         )}
       >
-        <div className="relative h-8 w-8 rounded-full overflow-hidden bg-space-700">
-          {user.profileImage ? (
-            <Image
-              src={user.profileImage}
-              alt={`${user.firstName} ${user.lastName}`}
-              fill
-              sizes="32px"
-              className="object-cover"
-              unoptimized={isDataUrl(user.profileImage)}
-            />
-          ) : (
-            <UserIcon className="h-4 w-4 m-2 text-ink-dim" />
-          )}
-        </div>
+        {/* Phase 11 / F15 — fall back to initials over a deterministic
+            colour instead of a flat coloured circle when the user has
+            no profile image. The `<Avatar>` primitive handles both the
+            uploaded-photo and the fallback path. */}
+        <Avatar
+          name={`${user.firstName} ${user.lastName}`}
+          email={user.username}
+          src={user.profileImage}
+          size="sm"
+          className="h-8 w-8"
+        />
         <ChevronDown className="h-3.5 w-3.5 text-ink-dim mr-1.5" />
       </button>
 
@@ -120,11 +118,17 @@ export function AuthMenu({
               {user.firstName} {user.lastName}
             </div>
             <div className="text-xs text-ink-dim">@{user.username}</div>
-            {role && (
-              <div className="mt-1.5 inline-flex rounded-full bg-brand-yellow/15 text-brand-yellow text-[10px] font-bold uppercase tracking-wider px-2 py-0.5">
-                {role}
-              </div>
-            )}
+            {/* Phase 11 / F6 — when the user is BOTH a buyer (per
+                stats.role) AND owns a store, render two badges side by
+                side instead of forcing a single role pill. The previous
+                copy showed only `role` which read as wrong on the
+                seeded buyer demo (Thana Siri owns store id 19 but
+                stats.role = "buyer"). Schema is unchanged — we're just
+                surfacing the dual-role data more accurately. Admin
+                trumps everything (admins always render the admin pill
+                alone). Match Phase 10 admin-tables convention:
+                buyer = mist (neutral), seller = success (mint). */}
+            <RoleBadges role={role} hasStore={hasStore} />
           </div>
 
           <MenuItem href="/profile" icon={UserIcon} onClose={() => setOpen(false)}>
@@ -188,5 +192,46 @@ function MenuItem({
       <Icon className="h-4 w-4" />
       {children}
     </Link>
+  );
+}
+
+/**
+ * Phase 11 / F6 — exported so /profile can render the same row of
+ * badges in its header card. See `<AuthMenu>` for the rationale.
+ *
+ * Badge map (matches /admin/users):
+ *   admin  → yellow  (privileged)
+ *   seller → success (mint — "live" relationship)
+ *   buyer  → mist    (neutral)
+ *
+ * `hasStore` is enough to claim the seller badge even when stats.role
+ * still says "buyer" — that's the whole point of the dual-role fix.
+ */
+export function RoleBadges({
+  role,
+  hasStore,
+}: {
+  role: "buyer" | "seller" | "admin" | null;
+  hasStore: boolean;
+}) {
+  if (!role) return null;
+  if (role === "admin") {
+    return (
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        <Badge variant="yellow" className="uppercase text-[10px] tracking-wider">Admin</Badge>
+      </div>
+    );
+  }
+  // Buyer chip is always present once the user is logged in and not an
+  // admin. Seller chip joins it whenever the user owns a store, even if
+  // stats.role is still set to "buyer" on the legacy seed.
+  const showSeller = role === "seller" || hasStore;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1">
+      <Badge variant="mist" className="uppercase text-[10px] tracking-wider">Buyer</Badge>
+      {showSeller && (
+        <Badge variant="success" className="uppercase text-[10px] tracking-wider">Seller</Badge>
+      )}
+    </div>
   );
 }

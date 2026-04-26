@@ -55,6 +55,52 @@ export function apiUrl(path: string): string {
   return `${baseUrl()}${withApi}`;
 }
 
+/**
+ * Two-letter initials for an avatar fallback. Strips emoji/punctuation,
+ * collapses whitespace, then picks first letter of the first two words —
+ * mirroring the convention used by Gmail / Slack / GitHub avatars so the
+ * empty-state visually reads as "this is a person" rather than a blob of
+ * yellow.
+ *
+ *   getInitials("Mei Huang")           // "MH"
+ *   getInitials("Kanda Chitra extra")  // "KC"  (extra word ignored)
+ *   getInitials("madonna")             // "M"
+ *   getInitials(undefined, "u@x.dev")  // "U"   (email fallback)
+ *   getInitials("", "")                // "?"   (last-ditch fallback so the
+ *                                              //   bubble is never empty)
+ */
+export function getInitials(name: string | null | undefined, fallback?: string | null): string {
+  const raw = (name ?? "").trim() || (fallback ?? "").trim();
+  if (!raw) return "?";
+  // For email-shaped fallbacks ("alice@example.dev") only the local
+  // part should contribute — otherwise the domain leaks into the
+  // initials (e.g. "u@example.dev" → "UE"). Names that happen to
+  // contain "@" are rare enough that this trade-off is fine.
+  const source = raw.includes("@") ? raw.split("@")[0] : raw;
+  // Drop characters that aren't letters/numbers in any script (covers
+  // emoji + most punctuation while still respecting Thai / accented chars).
+  const cleaned = source.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "?";
+  const parts = cleaned.split(" ").slice(0, 2);
+  return parts.map((p) => p[0]).join("").toUpperCase();
+}
+
+/**
+ * Deterministic hue (0..359) seeded from a string — same input always
+ * yields the same hue. Used by the avatar fallback so a given user's
+ * "blank" bubble is consistent across pages instead of flashing a new
+ * colour on each render. Cheap FNV-ish hash over code points; not
+ * cryptographic, just stable.
+ */
+export function avatarHue(seed: string | null | undefined): number {
+  const s = (seed ?? "").trim() || "?";
+  let h = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  }
+  return h % 360;
+}
+
 export async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(path), {
     ...init,

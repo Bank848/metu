@@ -109,19 +109,20 @@ export default async function BrowsePage({
           </aside>
 
           <section>
-            <form className="mb-4 flex flex-wrap items-center gap-2" action="/browse" method="get">
-              {Object.entries(searchParams).map(([k, v]) => {
-                if (k === "sort" || !v) return null;
-                return <input key={k} type="hidden" name={k} value={v} />;
-              })}
+            {/* Phase 11 / F11 — Sort row no longer wraps a submit
+                button. F22 (run #1) wired the dropdown to auto-submit
+                via `router.push()`, which made the adjacent yellow
+                "Apply" button dead UI: clicking it after a sort change
+                fired a no-op submit because the URL had already been
+                updated. Filters in the sidebar are anchor links
+                (instant nav), so there's nothing left for the form to
+                batch — we render the bar as a flex container instead.
+                Hidden inputs that used to preserve other params are
+                gone for the same reason: SortSelect builds the next
+                URL from `window.location` directly. */}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-ink-dim mr-2">Sort</span>
-              {/* Phase 11 / F22 — auto-submits on change. The Apply
-                  button below is now redundant for Sort but kept as
-                  a safety net per CEO decision. */}
               <SortSelect activeSort={activeSort} />
-              <button type="submit" className="rounded-full bg-brand-yellow px-4 py-2 text-sm font-bold text-space-black hover:bg-brand-yellowDark">
-                Apply
-              </button>
               {(activeQ || searchParams.category || searchParams.tags || searchParams.delivery) && (
                 <a
                   href="/browse"
@@ -130,7 +131,7 @@ export default async function BrowsePage({
                   Clear all filters
                 </a>
               )}
-            </form>
+            </div>
 
             {result.items.length === 0 ? (
               activeQ ? (
@@ -169,8 +170,21 @@ export default async function BrowsePage({
               // rather than the previous `grid-cols-2`; a 2-column
               // layout at 320px wide produced cards too narrow to read.
               <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-5">
-                {result.items.map((p) => (
-                  <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
+                {result.items.map((p, i) => (
+                  // Phase 11 / F4 — first row of tiles preloads. The grid
+                  // is `auto-fill,minmax(230px,1fr)` so the column count
+                  // depends on viewport width; 4 covers the common
+                  // `lg`/`xl` breakpoints (1280–1535px renders 4-up,
+                  // ≥1536px renders 5-up where the 5th tile still gets a
+                  // late `loading="lazy"` and is fine — preloading 5
+                  // would push the budget too far for the rare wide
+                  // viewport). Below the fold stays lazy.
+                  <ProductCard
+                    key={p.productId}
+                    product={p}
+                    isFavorited={favSet.has(p.productId)}
+                    priority={i < 4}
+                  />
                 ))}
               </div>
             )}

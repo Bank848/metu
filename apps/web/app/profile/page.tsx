@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Mail, Calendar, Award, ShoppingBag, Store } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
@@ -6,9 +5,10 @@ import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Avatar } from "@/components/ui/Avatar";
+import { RoleBadges } from "@/components/AuthMenu";
 import { apiAuth, getMe } from "@/lib/session";
 import { money } from "@/lib/format";
-import { isDataUrl } from "@/lib/utils";
 import { LogoutButton } from "./LogoutButton";
 
 type Order = { orderId: number; status: string; totalPrice: string | number; createdAt: string };
@@ -21,7 +21,8 @@ export default async function ProfilePage() {
 
   const orders = (await apiAuth<Order[]>("/orders")) ?? [];
   const role = me.role as "buyer" | "seller" | "admin";
-  const isSeller = role === "seller" || me.user?.store;
+  const hasStore = Boolean(me.user?.store);
+  const isSeller = role === "seller" || hasStore;
 
   return (
     <>
@@ -40,19 +41,26 @@ export default async function ProfilePage() {
 
         <div className="grid md:grid-cols-[280px_1fr] gap-8 items-start">
           <aside className="rounded-2xl surface-flat p-6 text-center shadow-flat">
-            <div className="relative h-24 w-24 rounded-full bg-brand-yellow overflow-hidden mx-auto ring-4 ring-brand-yellow/20">
-              {me.user.profileImage && (
-                <Image src={me.user.profileImage} alt="" fill sizes="96px" className="object-cover" unoptimized={isDataUrl(me.user.profileImage)} />
-              )}
+            {/* Phase 11 / F15 — Avatar primitive renders the photo OR
+                initials over a deterministic colour for the empty state. */}
+            <div className="mx-auto w-fit">
+              <Avatar
+                name={`${me.user.firstName} ${me.user.lastName}`}
+                email={me.user.username}
+                src={me.user.profileImage}
+                size="xl"
+                ring
+              />
             </div>
             <h2 className="mt-4 font-display text-lg font-bold text-white">
               {me.user.firstName} {me.user.lastName}
             </h2>
             <p className="text-sm text-ink-dim">@{me.user.username}</p>
+            {/* Phase 11 / F6 — multi-role badges share the AuthMenu
+                primitive so the dropdown and the profile header agree
+                on what roles a user holds. */}
             <div className="mt-3 flex justify-center">
-              <Badge variant={role === "admin" ? "dark" : role === "seller" ? "yellow" : "mist"}>
-                {role.toUpperCase()}
-              </Badge>
+              <RoleBadges role={role} hasStore={hasStore} />
             </div>
             <div className="mt-6 text-left space-y-2 text-sm">
               <div className="flex items-center gap-2 text-ink-secondary">
