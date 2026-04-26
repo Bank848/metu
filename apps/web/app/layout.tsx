@@ -83,16 +83,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const locale = getServerLocale();
   return (
     // Phase 11 QA round #3 / F1 — `suppressHydrationWarning` on <html>
-    // is required because `themeBootstrapScript` (mounted in <head>
-    // below) intentionally rewrites this element's className BEFORE
-    // React hydrates. Without the flag, React compares its rendered
-    // attribute (`...dark`) against the post-bootstrap DOM (could be
-    // `...light`) and throws #418/#422 to the console on every public
-    // page load. The bootstrap script is the correct pattern (kills
-    // flash-of-wrong-theme on hard reload) — `suppressHydrationWarning`
-    // tells React the discrepancy on THIS element is intentional. The
-    // flag scopes to the html element only; child trees still hydrate
-    // strictly. Standard Next.js theme-toggle pattern (cf. next-themes).
+    // is defensive: the `themeBootstrapScript` mounted in <head> below
+    // intentionally rewrites this element's className BEFORE React
+    // hydrates (e.g. dark → light when the user has saved that pref).
+    // Without the flag, React would compare its rendered attribute
+    // against the post-bootstrap DOM and warn. The flag scopes to the
+    // html element only; child trees still hydrate strictly. Standard
+    // Next.js theme-toggle pattern (cf. next-themes). Note: the actual
+    // root-cause of the QA r3/F1 console errors turned out to be Next
+    // 14 App Router's multi-`priority` <Image> hydration bug — see the
+    // `priority={i===0}` / `loading="lazy"` narrowing in commit 907ee5b.
+    // We keep this flag because it's the right pattern for theme bootstrap.
     <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} ${thai.variable} dark`} suppressHydrationWarning>
       <head>
         {/*
