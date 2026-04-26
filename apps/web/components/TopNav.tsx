@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   Star,
   Heart,
-  ShoppingBag,
   Store,
   ShieldCheck,
   LayoutGrid,
@@ -22,6 +21,7 @@ import { SoundToggle } from "./SoundToggle";
 import { ThemeToggle } from "./ThemeToggle";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 import { MessagesNavIcon } from "./MessagesNavIcon";
+import { CartNavIcon } from "./CartNavIcon";
 import { getMe } from "@/lib/session";
 import { getServerT } from "@/lib/i18n/server";
 
@@ -92,18 +92,13 @@ export async function TopNav({ q }: { q?: string } = {}) {
                 when logged-out so the entry point is always present;
                 in that state the badge stays at zero. */}
             <MessagesNavIcon enabled={Boolean(me)} />
-            <Link
-              href="/cart"
-              aria-label={t("nav.cart")}
-              title={t("nav.cart")}
-              // Cart breaks the rounded-full symmetry of its siblings:
-              // it's a soft-rounded square (rounded-xl) tinted with the
-              // surface-flat token. Visual weight cue that "this is the
-              // money path" without resorting to a pill CTA.
-              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white hover:border-metu-yellow/50 hover:bg-metu-yellow/10 hover:text-metu-yellow transition"
-            >
-              <ShoppingBag className="h-[18px] w-[18px]" />
-            </Link>
+            {/* Phase 11 run #2 / F8 — moved to a client component so the
+                badge can update immediately after Add-to-cart fires the
+                `cart:update` window event (and on a 60s background poll
+                for out-of-band changes). The visual stays identical to
+                the previous static <Link>: rounded-xl square, hairline
+                border, yellow hover tint. */}
+            <CartNavIcon />
           </div>
 
           {/* Group 2: control cluster — Sound · Theme · Locale all

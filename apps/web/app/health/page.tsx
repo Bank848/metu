@@ -35,10 +35,12 @@ async function getCounts() {
   // Wrapped so a Neon hiccup downgrades the page to "degraded" rather
   // than crashing — health pages must never 500.
   try {
+    // Phase 11 run #2 / F14 — products count now also gates on live
+    // store so /health matches /admin overview + /admin/stores.
     const [users, stores, products, orders] = await Promise.all([
       prisma.user.count({ where: { deletedAt: null } }),
       prisma.store.count({ where: { deletedAt: null } }),
-      prisma.product.count({ where: { deletedAt: null } }),
+      prisma.product.count({ where: { deletedAt: null, store: { deletedAt: null } } }),
       prisma.order.count(),
     ]);
     return { users, stores, products, orders };

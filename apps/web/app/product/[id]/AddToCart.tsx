@@ -72,8 +72,19 @@ export function AddToCart({ items }: { items: Item[] }) {
       setJustAdded(true);
       play("cart");
       setTimeout(() => setJustAdded(false), 900);
-      // Ask the layout to re-read the cart count so the TopNav badge
-      // increments without a page navigation.
+      // Phase 11 run #2 / F8 — broadcast a cart-mutation event so the
+      // <CartNavIcon> in TopNav re-fetches `/api/cart` immediately.
+      // `router.refresh()` alone wasn't enough because the count lives
+      // in a client component that owns its own state; the event lets
+      // the badge update within ~200ms instead of waiting for the next
+      // 60s background poll. The optional-chain guard keeps this safe
+      // for SSR where `window` is undefined.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cart:update"));
+      }
+      // Keep the router refresh — it still picks up server-rendered
+      // affordances elsewhere on the page (e.g. order totals after a
+      // checkout-style "Buy now").
       router.refresh();
       if (buyNow) {
         router.push("/cart");

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateProfileSchema } from "@metu/shared";
 import { prisma } from "@/lib/server/prisma";
 import { requireAuth } from "@/lib/server/auth";
+import { findFirstProfaneField } from "@/lib/server/profanity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,21 @@ export async function PATCH(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json(
       { error: "ValidationError", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  // Phase 11 run #2 / F3 (CEO Decision 1) — same profanity guard as the
+  // register endpoint. Display-name fields can be edited here and were
+  // the same vector that surfaced the offensive Phase-10 username on
+  // /admin/users; gate the change before any DB write.
+  const profane = findFirstProfaneField({
+    firstName: parsed.data.firstName,
+    lastName: parsed.data.lastName,
+  });
+  if (profane) {
+    return NextResponse.json(
+      { error: "ProfanityRejected", field: profane.field, message: profane.message },
       { status: 400 },
     );
   }

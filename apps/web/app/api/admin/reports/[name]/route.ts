@@ -12,6 +12,10 @@ export async function GET(req: NextRequest, { params }: { params: { name: string
 
   switch (name) {
     case "revenue-by-category": {
+      // Phase 11 / F12 cousin — revenue from products belonging to a
+      // soft-deleted store / a soft-deleted product would inflate the
+      // category leaderboard with ghost rows. Filter both predicates so
+      // the breakdown matches what's actually live on the marketplace.
       const sql = `
 -- Revenue by category: join orders → order_items → product_items → products → categories
 -- and aggregate SUM(price_at_purchase * quantity) where the order is paid/fulfilled.
@@ -22,8 +26,11 @@ FROM orders o
 JOIN order_item oi  ON oi.order_id = o.order_id
 JOIN product_item pi ON pi.product_item_id = oi.product_item_id
 JOIN product p       ON p.product_id = pi.product_id
+JOIN store s         ON s.store_id = p.store_id
 JOIN category c      ON c.category_id = p.category_id
 WHERE o.status IN ('paid','fulfilled')
+  AND p.deleted_at IS NULL
+  AND s.deleted_at IS NULL
 GROUP BY c.category_id, c.category_name
 ORDER BY revenue DESC`;
       const rows = await prisma.$queryRaw<Array<{ category_id: number; category_name: string; revenue: string; orders: bigint }>>`
@@ -34,14 +41,21 @@ ORDER BY revenue DESC`;
         JOIN order_item oi  ON oi.order_id = o.order_id
         JOIN product_item pi ON pi.product_item_id = oi.product_item_id
         JOIN product p       ON p.product_id = pi.product_id
+        JOIN store s         ON s.store_id = p.store_id
         JOIN category c      ON c.category_id = p.category_id
         WHERE o.status IN ('paid','fulfilled')
+          AND p.deleted_at IS NULL
+          AND s.deleted_at IS NULL
         GROUP BY c.category_id, c.category_name
         ORDER BY revenue DESC
       `;
       return NextResponse.json({ sql, rows: rows.map((r) => ({ ...r, orders: Number(r.orders), revenue: Number(r.revenue) })) });
     }
     case "top-stores": {
+      // Phase 11 / F12 (CEO Decision 2) — exclude soft-deleted stores so
+      // junk seed-data names ("bank848", "67676767", "Test", "dadsad")
+      // never surface on the leaderboard. Same surgical predicate fix as
+      // F1; we filter on the `store` row, not on the joined order side.
       const sql = `
 SELECT s.store_id, s.name,
        COALESCE(SUM(oi.price_at_purchase * oi.quantity), 0)::text AS revenue,
@@ -51,6 +65,7 @@ LEFT JOIN product p       ON p.store_id = s.store_id
 LEFT JOIN product_item pi ON pi.product_id = p.product_id
 LEFT JOIN order_item oi   ON oi.product_item_id = pi.product_item_id
 LEFT JOIN orders o        ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
+WHERE s.deleted_at IS NULL
 GROUP BY s.store_id, s.name
 ORDER BY revenue DESC
 LIMIT 10`;
@@ -63,6 +78,7 @@ LIMIT 10`;
         LEFT JOIN product_item pi ON pi.product_id = p.product_id
         LEFT JOIN order_item oi   ON oi.product_item_id = pi.product_item_id
         LEFT JOIN orders o        ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
+        WHERE s.deleted_at IS NULL
         GROUP BY s.store_id, s.name
         ORDER BY revenue DESC
         LIMIT 10
