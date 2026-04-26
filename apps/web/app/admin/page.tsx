@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiAuth } from "@/lib/session";
-import { money } from "@/lib/format";
+import { money, moneyCompact } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
 type Stats = {
@@ -43,7 +43,16 @@ export default async function AdminOverview() {
       {/* Wave-3: GMV is the lead stat — `highlight` variant pulls it out
           of the row. Other stats stay default. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard variant="highlight" icon={Banknote} label="GMV (paid)" value={money(stats.gmv)} />
+        {/* Phase 11.2 — GMV is the lead admin KPI; same compact-format
+            treatment as /seller's Total revenue. Hover surfaces the
+            exact baht figure. */}
+        <StatCard
+          variant="highlight"
+          icon={Banknote}
+          label="GMV (paid)"
+          value={moneyCompact(stats.gmv)}
+          valueTooltip={money(stats.gmv)}
+        />
         <StatCard icon={Users} label="Users" value={stats.users} />
         <StatCard icon={Store} label="Stores" value={stats.stores} />
         <StatCard icon={Package} label="Products" value={stats.products} />

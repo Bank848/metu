@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { prisma } from "@/lib/server/prisma";
-import { money } from "@/lib/format";
+import { money, moneyCompact } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -153,7 +153,15 @@ export default async function SellerAnalyticsPage() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={TrendingUp} label="Revenue (lifetime)" value={money(totalRevenue)} accent="yellow" />
+        {/* Phase 11.2 — lifetime revenue can run into 7+ digits;
+            compact notation keeps the card from clipping at md. */}
+        <StatCard
+          icon={TrendingUp}
+          label="Revenue (lifetime)"
+          value={moneyCompact(totalRevenue)}
+          valueTooltip={money(totalRevenue)}
+          accent="yellow"
+        />
         <StatCard icon={ShoppingBag} label="Orders" value={totalOrders} />
         <StatCard icon={PackageIcon} label="Units sold" value={totalUnits} />
         <StatCard icon={Users} label="Unique buyers" value={totalBuyers} />
