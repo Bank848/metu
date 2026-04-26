@@ -57,6 +57,7 @@ export function ProductCard({
   className,
   isFavorited = false,
   variant = "default",
+  priority = false,
 }: {
   product: ProductCardProduct;
   className?: string;
@@ -64,9 +65,21 @@ export function ProductCard({
   // initial fill state. Guests default to false and get a redirect on click.
   isFavorited?: boolean;
   variant?: Variant;
+  // Phase 11 / F4 — Above-the-fold hint. When `true`, the card image is
+  // marked as a `priority` resource for next/image, which preloads it via
+  // `<link rel="preload">` and drops the default `loading="lazy"`. Pass it
+  // for the first row of `/browse` and the lead card on the home grid so
+  // the cold-navigate "placeholder cube → real image" pop disappears. The
+  // `feature` variant on home is the LCP element and defaults to high
+  // priority automatically.
+  priority?: boolean;
 }) {
   const hasRange = product.maxPrice && product.maxPrice !== product.minPrice;
   const isFeature = variant === "feature";
+  // The home-page editorial card IS the LCP element on `/`, so default it
+  // to priority even when the parent forgets to pass the prop. Grid cards
+  // stay opt-in via `priority` so we don't preload the entire page.
+  const eagerLoad = priority || isFeature;
   return (
     <Link
       href={`/product/${product.productId}`}
@@ -105,6 +118,10 @@ export function ProductCard({
             sizes={isFeature ? "(max-width: 768px) 100vw, 50vw" : "(max-width: 768px) 100vw, 25vw"}
             className="object-cover group-hover:scale-105 transition-transform duration-300"
             unoptimized={isDataUrl(product.image)}
+            // Phase 11 / F4 — above-the-fold tiles preload (priority) and
+            // drop lazy-loading; the rest stay lazy by default so the
+            // browser doesn't fetch every off-screen thumbnail at once.
+            {...(eagerLoad ? { priority: true } : { loading: "lazy" })}
           />
         )}
         {/* discount chip top-left — solid coral fill, readable at any size */}
