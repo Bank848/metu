@@ -24,9 +24,16 @@ export async function getStats() {
   // count `Store` rows). Unify on `Store.count` so the same number
   // appears on every counter surface; the human-facing "Sellers" label
   // stays unchanged because each store has exactly one owner.
+  //
+  // Phase 11 run #2 / F14 (CEO Decision 2) — the products tile used to
+  // count every non-deleted product, but `/admin/stores` summed only
+  // products that belong to live stores (off-by-one when one product
+  // sat under a soft-deleted store). Match the admin view here so home,
+  // /health, /admin overview, and /admin/stores all read the same
+  // number. Counts now reflect what an admin can act on.
   const [sellers, products, orders, reviews] = await Promise.all([
     prisma.store.count({ where: { deletedAt: null } }),
-    prisma.product.count({ where: { deletedAt: null } }),
+    prisma.product.count({ where: { deletedAt: null, store: { deletedAt: null } } }),
     prisma.order.count(),
     prisma.productReview.count(),
   ]);
@@ -569,4 +576,46 @@ export async function getRecentPurchaseCount(productId: number, days = 7): Promi
     select: { order: { select: { cart: { select: { userId: true } } } } },
   });
   return new Set(rows.map((r) => r.order.cart.userId)).size;
+}
+
+/**
+ * Phase 11 / F13 — Admin store list. Mirrors the shape and predicates of
+ * the `/api/admin/stores` route handler so server components can skip
+ * the same-host HTTP round-trip that was costing /admin/stores ~2.5s of
+ * skeleton-flash on cold load (see brief F13).
+ *
+ * Two reasons to bypass the proxied /api route from a server component:
+ *
+ *   1. **Latency.** A same-host HTTP hop (cookie forwarding + JSON
+ *      encode/decode + a fresh fetch with `cache: "no-store"`) runs on
+ *      every cold render. Skipping it is what made `/admin/users` and
+ *      `/admin/audit` feel instant in Phase 10.
+ *   2. **Environment parity.** The proxied path 404s on Vercel preview
+ *      URLs with deployment protection (the same trap the queries.ts
+ *      header warns about) — direct Prisma works the same on every
+ *      environment.
+ *
+ * Predicates match `/api/admin/stores` after S1's CEO-Decision-2 fix:
+ *   - `deletedAt: null` so the table + headline subtitle align with `/`,
+ *     `/health`, `/admin` (all of which honour the soft-delete flag).
+ *   - `_count.products` is restricted to non-deleted products so an
+ *     admin never sees "12 products" on a store row while /browse shows
+ *     11. The KPI tile sums those counts, so this also keeps the
+ *     "Products listed" total in lock-step with `getStats().products`.
+ */
+export async function getAdminStores() {
+  return prisma.store.findMany({
+    where: { deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    include: {
+      owner: { select: { username: true, firstName: true, lastName: true, profileImage: true } },
+      businessType: true,
+      stats: true,
+      _count: {
+        select: {
+          products: { where: { deletedAt: null } },
+        },
+      },
+    },
+  });
 }

@@ -6,26 +6,13 @@ import { StatCard } from "@/components/StatCard";
 import { StoreActions } from "@/components/admin/StoreActions";
 import { DataTable, type DataTableColumn } from "@/components/admin/DataTable";
 import { EmptyState } from "@/components/EmptyState";
-import { apiAuth } from "@/lib/session";
+import { getAdminStores } from "@/lib/server/queries";
 import { isDataUrl } from "@/lib/utils";
 
-type Store = {
-  storeId: number;
-  name: string;
-  description: string;
-  coverImage: string | null;
-  profileImage: string | null;
-  createdAt: string;
-  // `deletedAt` lands on the row whenever an admin soft-deletes the
-  // store (Phase 11 / F23). The admin table still LISTS deleted stores
-  // — we just exclude them from the headline KPIs so a freshly
-  // moderated junk store doesn't continue dragging the average down.
-  deletedAt: string | null;
-  businessType: { name: string };
-  owner: { username: string; firstName: string; lastName: string; profileImage: string | null };
-  stats: { rating: number; ctr: number; responseTime: number } | null;
-  _count: { products: number };
-};
+// Type derived from the Prisma helper so the row shape stays in lock-step
+// with the query: any future column added to `getAdminStores()` flows into
+// the table without a manual type-sync.
+type Store = Awaited<ReturnType<typeof getAdminStores>>[number];
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +26,14 @@ const columns: DataTableColumn<Store>[] = [
 ];
 
 export default async function AdminStores() {
-  const stores = (await apiAuth<Store[]>("/admin/stores")) ?? [];
+  // Phase 11 run #2 / F13 — direct Prisma read instead of the prior
+  // `apiAuth("/admin/stores")` proxy. The same-host HTTP hop was the
+  // dominant chunk of the 2.5s skeleton-flash QA flagged; the route's
+  // auth guard is already covered upstream by `app/admin/layout.tsx`,
+  // which redirects non-admins before this page even mounts. The query
+  // mirrors the route's predicates (deletedAt: null + nested product
+  // count filter) so counts stay aligned with `/`, `/health`, `/admin`.
+  const stores = await getAdminStores();
 
   // Promoted KPIs — replaces the three Kpi tiles that lived inside each
   // card. The "Products" tile becomes the row's lead via the highlight
@@ -49,9 +43,13 @@ export default async function AdminStores() {
   // soft-deleted junk stores AND zero-rated stores that simply haven't
   // sold anything yet, both of which dragged the row down to 2.1★ on
   // /admin/stores. The KPI now restricts the population to active
-  // stores that actually have products listed; the table itself still
-  // shows every row so a moderator can see what's been deleted /
-  // empty.
+  // stores that actually have products listed.
+  //
+  // Phase 11 run #2 / F1 (CEO Decision 2) — the helper already filters
+  // out soft-deleted stores so the table + subtitle naturally read 4
+  // (matching `/`, `/health`, `/admin`). The defensive `!s.deletedAt`
+  // guard stays so a future change to the helper never re-introduces
+  // ghost rows in the KPI averages.
   const liveStores = stores.filter((s) => !s.deletedAt);
   const totalProducts = liveStores.reduce((sum, s) => sum + s._count.products, 0);
   const ratedStores = liveStores.filter(
