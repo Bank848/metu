@@ -11,14 +11,16 @@ const OPTIONS: Array<{ value: SortKey; label: string }> = [
 ];
 
 /**
- * Phase 11 / F22 — Browse Sort dropdown that auto-submits on change.
+ * Phase 11 / F22 + F11 — Browse Sort dropdown that auto-submits on
+ * change.
  *
- * Old behaviour required the user to change the `<select>` AND then
- * click "Apply", which felt slow and inconsistent with the chip
- * filters (which are anchor links and navigate instantly). Per CEO
- * decision, Sort now auto-submits via `router.push()` while the Apply
- * button stays visible for users who prefer to commit changes
- * explicitly — a redundant safety net, not a required step.
+ * Old behaviour (pre-F22) required the user to change the `<select>`
+ * AND then click "Apply", which felt slow and inconsistent with the
+ * chip filters (which are anchor links and navigate instantly). F22
+ * wired auto-submit via `router.push()` and F11 then removed the
+ * adjacent Apply button — clicking it after a sort change fired a
+ * no-op submit because the URL had already been updated, which read
+ * to users as "the button is broken".
  *
  * Other params (q, category, tags, etc.) are preserved by reading the
  * current URL search params and overwriting only `sort` + clearing

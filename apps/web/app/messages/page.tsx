@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Mail } from "lucide-react";
@@ -6,11 +5,11 @@ import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
+import { Avatar } from "@/components/ui/Avatar";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { prisma } from "@/lib/server/prisma";
 import { getServerT } from "@/lib/i18n/server";
-import { isDataUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -91,18 +90,16 @@ export default async function BuyerMessagesPage() {
                         : "flex items-center gap-4 rounded-2xl surface-flat p-4 lift-on-hover hover:border-metu-yellow/40 transition"
                     }
                   >
-                    <div className="relative h-12 w-12 shrink-0 rounded-full bg-metu-yellow overflow-hidden">
-                      {thread.partner.profileImage && (
-                        <Image
-                          src={thread.partner.profileImage}
-                          alt=""
-                          fill
-                          sizes="48px"
-                          className="object-cover"
-                          unoptimized={isDataUrl(thread.partner.profileImage)}
-                        />
-                      )}
-                    </div>
+                    {/* Phase 11 / F15 — initials fallback for users
+                        with no profile image. Same primitive as the
+                        topbar / admin / profile avatars so the empty
+                        state reads consistently across pages. */}
+                    <Avatar
+                      name={`${thread.partner.firstName} ${thread.partner.lastName}`}
+                      email={thread.partner.username}
+                      src={thread.partner.profileImage}
+                      size="md"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <div className="font-display font-bold text-white truncate">

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isDataUrl, cardImage, cn } from "@/lib/utils";
+import { isDataUrl, cardImage, cn, getInitials, avatarHue } from "@/lib/utils";
 
 describe("isDataUrl", () => {
   it("matches base64 data URLs (typed seller uploads)", () => {
@@ -51,6 +51,72 @@ describe("cardImage", () => {
 
   it("returns falsy input unchanged so callers can safely chain it", () => {
     expect(cardImage("")).toBe("");
+  });
+});
+
+describe("getInitials (Phase 11 / F15 avatar fallback)", () => {
+  it("returns first letter of the first two words, uppercased", () => {
+    expect(getInitials("Mei Huang")).toBe("MH");
+    expect(getInitials("kanda chitra")).toBe("KC");
+  });
+
+  it("ignores any words past the first two", () => {
+    expect(getInitials("Arun Phongchai Extra Word")).toBe("AP");
+  });
+
+  it("falls back to a single letter when there's only one word", () => {
+    expect(getInitials("madonna")).toBe("M");
+  });
+
+  it("strips emoji and punctuation before extracting letters", () => {
+    expect(getInitials("👑 Mei  ·  Huang!")).toBe("MH");
+  });
+
+  it("handles non-Latin scripts (Thai)", () => {
+    // Thai display names should still produce the first character of
+    // the first two words rather than collapsing to "?".
+    const initials = getInitials("กานดา จิตรา");
+    expect(initials).toHaveLength(2);
+    expect(initials).toBe(initials.toUpperCase());
+  });
+
+  it("uses the email fallback when the name is missing", () => {
+    expect(getInitials(undefined, "u@example.dev")).toBe("U");
+    expect(getInitials("", "alice@x")).toBe("A");
+  });
+
+  it("returns '?' when neither name nor fallback can yield a letter", () => {
+    expect(getInitials("", "")).toBe("?");
+    expect(getInitials(null, null)).toBe("?");
+    expect(getInitials("👋👋👋", "")).toBe("?");
+  });
+});
+
+describe("avatarHue (Phase 11 / F15 deterministic colour seed)", () => {
+  it("returns the same hue for the same input", () => {
+    expect(avatarHue("buyer@metu.dev")).toBe(avatarHue("buyer@metu.dev"));
+    expect(avatarHue("Mei Huang")).toBe(avatarHue("Mei Huang"));
+  });
+
+  it("stays inside the [0, 360) range", () => {
+    for (const seed of ["a", "Mei Huang", "really long name string here", ""]) {
+      const h = avatarHue(seed);
+      expect(h).toBeGreaterThanOrEqual(0);
+      expect(h).toBeLessThan(360);
+    }
+  });
+
+  it("yields different hues for different inputs (sanity check)", () => {
+    const a = avatarHue("alice");
+    const b = avatarHue("bob");
+    // Not a strict requirement, but a hash collision on these two
+    // strings would mean every user looks identical — flag it.
+    expect(a).not.toBe(b);
+  });
+
+  it("handles null / undefined without crashing", () => {
+    expect(typeof avatarHue(null)).toBe("number");
+    expect(typeof avatarHue(undefined)).toBe("number");
   });
 });
 
