@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,25 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "qa-r3-f1",
+    title: "QA round #3 / F1 — silent React hydration errors fixed",
+    subtitle:
+      "Round #3 of the Phase 11 QA workflow opened DevTools on every persona route and found two minified React errors (#418 + #422) firing on /, /browse, /cart. The pages rendered correctly to users but React was falling back to client-rendering the affected boundaries. Root-caused to Next 14 App Router's documented multi-`<Image priority>` hydration bug — narrowed every route to ≤1 priority image.",
+    icon: AlertTriangle,
+    tone: "warning",
+    shippedAt: "today",
+    commitSha: "907ee5b",
+    items: [
+      { title: "QA round #3: HTTP sweep (23/23 routes correct), Phase 11.2 ฿45.6K compact format verified, F19 mobile sheet trigger DOM verified, Phase 12.2.1 ban metadata re-verified via SSH+Prisma. Report: reports/qa-2026-04-26-r3.md" },
+      { title: "F1 root cause: Next 14 fires React #418 + #422 when ≥2 <Image priority fill> render on the same route. The multiple <link rel=\"preload\"> injections post-render don't match the SSR snapshot" },
+      { title: "/cart line thumbnails: priority → loading=\"lazy\" (small N at 80×80, no LCP impact)" },
+      { title: "/browse first-row tiles: priority={i<4} → priority={i===0} (only the LCP card preloads; the next 3 drop to lazy and arrive a tick later, invisible on 4G/wifi)" },
+      { title: "/ trending grid: dropped priority={i<2} entirely. The feature card auto-promotes via ProductCard's eagerLoad logic, so the LCP element stays priority — the grid below drops to lazy" },
+      { title: "Defensive: also added suppressHydrationWarning to <html> in app/layout.tsx (themeBootstrapScript modifies className pre-hydration; standard next-themes pattern even though not the actual culprit here)" },
+      { title: "Verified post-fix: /, /browse, /browse?sort=price_asc, /browse?category=fonts&minRating=4, /cart all log 0 console errors. Vitest 37/37, build clean (89.8 kB shared)" },
+    ],
+  },
   {
     id: "phase-12-2",
     title: "Phase 12.2 · User ban metadata",
