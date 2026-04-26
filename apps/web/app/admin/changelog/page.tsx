@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -32,13 +32,47 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-12-1",
+    title: "Phase 12.1 · Store live-rows partial index",
+    subtitle:
+      "Schema-only ship. Adds a Postgres partial index on store(created_at DESC) WHERE deleted_at IS NULL — covers every admin / public query that filters by the soft-delete flag (introduced by Phase 11 run #2 fixes F1, F12, F14). Free query-plan upgrade for /admin/stores, /admin/reports leaderboards, /, /health, public store browse. No app code change; Postgres planner picks the partial index automatically.",
+    icon: Database,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "912fc08",
+    items: [
+      { title: "New migration: 20260426030000_phase_12_1_store_live_partial_index" },
+      { title: "CREATE INDEX store_live_idx ON store(created_at DESC) WHERE deleted_at IS NULL" },
+      { title: "Existing store_deleted_at_idx preserved for moderation views that need to enumerate soft-deleted rows" },
+      { title: "Skipped CONCURRENTLY (Prisma migrations run in a transaction); at current scale (~8 stores) the index builds instantly" },
+      { title: "Cost: ~16 KB index storage at current scale, scales linearly with live store count. O(log n) vs O(n) on the live-stores filter" },
+      { title: "Closes S8's 'Store index for KPI / soft-delete queries' proposal from Phase 11 run #2" },
+    ],
+  },
+  {
+    id: "phase-11-1",
+    title: "Phase 11.1 · Post-deploy hotfixes",
+    subtitle:
+      "Two visual regressions caught after Phase 11 run #2 shipped — both CSS-only, single commit. /browse stopped overflowing the viewport on wide desktops; /seller's Total revenue StatCard stopped clipping when the number got large. Shared First Load JS unchanged (89.8 kB).",
+    icon: Bug,
+    tone: "warning",
+    shippedAt: "today",
+    commitSha: "362853d",
+    items: [
+      { title: "/browse parent grid: 1fr → minmax(0,1fr) so the column honours the viewport (the inner auto-fill product grid was pushing the layout past the right edge)" },
+      { title: "StatCard highlight: shrink ramp text-3xl/text-5xl → text-2xl/sm:text-3xl/md:text-4xl/xl:text-5xl + tabular-nums for digit alignment" },
+      { title: "StatCard value div: add min-w-0 + truncate + title attr so oversized baht values ellipse inside the card instead of pushing the layout sideways" },
+      { title: "Bonus: also dropped the routable /not-found page so the URL falls through to the framework 404 (status code now matches the screen)" },
+    ],
+  },
+  {
     id: "phase-11-run-2",
     title: "Phase 11 · QA workflow run #2",
     subtitle:
       "Second end-to-end QA pass. 22 findings ingested from a fresh live walk (0 P0 / 0 regressions / 17 NEW · 5 carry-over). 20 closed in one session, 1 deferred (user-53 prod soft-delete needs admin shell), 1 deferred (F19 layout restructure out-of-scope). 5 commits, no schema migration.",
     icon: FlaskConical,
     tone: "success",
-    shippedAt: "today",
+    shippedAt: "yesterday",
     commitSha: "phase-11-r2",
     items: [
       { title: "F1 + F12 + F14 — Surgical deletedAt:null predicate on every admin query that surfaces stores/products (admin/stores, reports, stats, /health). Counts now agree across pages." },
