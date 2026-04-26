@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Users, Store, Package, ShoppingBag, DollarSign, Clock } from "lucide-react";
+import { Users, Store, Package, ShoppingBag, Banknote, Clock } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -43,7 +43,7 @@ export default async function AdminOverview() {
       {/* Wave-3: GMV is the lead stat — `highlight` variant pulls it out
           of the row. Other stats stay default. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard variant="highlight" icon={DollarSign} label="GMV (paid)" value={money(stats.gmv)} />
+        <StatCard variant="highlight" icon={Banknote} label="GMV (paid)" value={money(stats.gmv)} />
         <StatCard icon={Users} label="Users" value={stats.users} />
         <StatCard icon={Store} label="Stores" value={stats.stores} />
         <StatCard icon={Package} label="Products" value={stats.products} />
