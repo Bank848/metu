@@ -40,5 +40,7 @@ apps/web/coverage
 # Phase 11 QA workflow artefacts (reports/ + shots/) — per-run output
 # from the user-tester / CEO / specialists. Kept on disk for audit
 # but not committed (the prompt-kit playbook itself is committed).
-reports/
+# Anchor with leading slash so we don't accidentally ignore the
+# /admin/reports API route (whose folder happens to be named "reports").
+/reports/
 shots/

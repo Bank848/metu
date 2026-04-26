@@ -122,24 +122,32 @@ export function OrderStatusActions({
 
   if (!canFulfilOrCancel && !canRefund) return null;
 
+  // Phase 11 run #2 / F22 — pixel-position clicks on these action
+  // buttons were failing in QA (only `button.click()` via devtools
+  // triggered the dialog). Most likely cause: a transparent ancestor
+  // (or a sibling growing on hover via the row-card transform) was
+  // floating above the button's hit-box at the rendered coordinates.
+  // We pin the action row to `relative z-10` and stop click propagation
+  // so each button owns its rectangle outright. Belt-and-braces — the
+  // change is purely defensive, no visual delta.
   return (
-    <div className="flex flex-wrap items-center gap-2 mt-3">
+    <div className="relative z-10 flex flex-wrap items-center gap-2 mt-3">
       {canFulfilOrCancel && (
         <>
           <button
             type="button"
-            onClick={() => askPatch("fulfilled")}
+            onClick={(e) => { e.stopPropagation(); askPatch("fulfilled"); }}
             disabled={busy !== null}
-            className="inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-400/10 hover:border-green-400/50 hover:bg-green-400/15 px-3 py-1 text-[11px] font-semibold text-green-300 transition disabled:opacity-50"
+            className="relative z-10 inline-flex items-center gap-1 rounded-full border border-green-400/30 bg-green-400/10 hover:border-green-400/50 hover:bg-green-400/15 px-3 py-1 text-[11px] font-semibold text-green-300 transition disabled:opacity-50"
           >
             <CheckCircle2 className="h-3 w-3" />
             {busy === "fulfilled" ? "Marking…" : "Mark fulfilled"}
           </button>
           <button
             type="button"
-            onClick={() => askPatch("cancelled")}
+            onClick={(e) => { e.stopPropagation(); askPatch("cancelled"); }}
             disabled={busy !== null}
-            className="inline-flex items-center gap-1 rounded-full border border-metu-red/30 bg-metu-red/10 hover:border-metu-red/60 hover:bg-metu-red/20 px-3 py-1 text-[11px] font-semibold text-red-300 transition disabled:opacity-50"
+            className="relative z-10 inline-flex items-center gap-1 rounded-full border border-metu-red/30 bg-metu-red/10 hover:border-metu-red/60 hover:bg-metu-red/20 px-3 py-1 text-[11px] font-semibold text-red-300 transition disabled:opacity-50"
           >
             <XCircle className="h-3 w-3" />
             {busy === "cancelled" ? "Cancelling…" : "Cancel"}
@@ -149,9 +157,9 @@ export function OrderStatusActions({
       {canRefund && (
         <button
           type="button"
-          onClick={askRefund}
+          onClick={(e) => { e.stopPropagation(); askRefund(); }}
           disabled={busy !== null}
-          className="inline-flex items-center gap-1 rounded-full border border-purple-400/30 bg-purple-400/10 hover:border-purple-400/60 hover:bg-purple-400/20 px-3 py-1 text-[11px] font-semibold text-purple-300 transition disabled:opacity-50"
+          className="relative z-10 inline-flex items-center gap-1 rounded-full border border-purple-400/30 bg-purple-400/10 hover:border-purple-400/60 hover:bg-purple-400/20 px-3 py-1 text-[11px] font-semibold text-purple-300 transition disabled:opacity-50"
           title="Refund this order — e.g. out of stock, can't fulfil"
         >
           <RotateCcw className="h-3 w-3" />

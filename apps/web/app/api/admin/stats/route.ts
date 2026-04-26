@@ -14,10 +14,14 @@ export async function GET(req: NextRequest) {
   // products here so /admin matches the public /api/stats output;
   // orders + reviews stay unfiltered (no soft-delete column on those
   // tables today).
+  //
+  // Phase 11 run #2 / F14 (CEO Decision 2) — products count also gates
+  // on live store, so the four surfaces (/, /health, /admin overview,
+  // /admin/stores) read the same number for "products."
   const [users, stores, products, reviews, orders, gmv, pendingOrders, recentTx, daily] = await Promise.all([
     prisma.user.count({ where: { deletedAt: null } }),
     prisma.store.count({ where: { deletedAt: null } }),
-    prisma.product.count({ where: { deletedAt: null } }),
+    prisma.product.count({ where: { deletedAt: null, store: { deletedAt: null } } }),
     prisma.productReview.count(),
     prisma.order.count(),
     prisma.$queryRaw<Array<{ total: string }>>`

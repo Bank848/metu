@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { checkoutSchema } from "@metu/shared";
 import { prisma } from "@/lib/server/prisma";
@@ -117,6 +118,16 @@ export async function POST(req: NextRequest) {
     }
     return { order, txn };
   });
+
+  // Phase 11 run #2 / F2 — public counters on `/` and `/health` cached
+  // the previous order count behind their `force-dynamic` server fetch
+  // (Next still served the rendered tree to subsequent SSR requests
+  // until the segment was invalidated). After a successful checkout we
+  // revalidate every surface that displays an "orders" total so the
+  // number bumps within the same minute as the admin overview.
+  revalidatePath("/");
+  revalidatePath("/health");
+  revalidatePath("/admin");
 
   return NextResponse.json({
     orderId: result.order.orderId,

@@ -4,6 +4,7 @@ import { registerSchema } from "@metu/shared";
 import { prisma } from "@/lib/server/prisma";
 import { setAuthCookie } from "@/lib/server/auth";
 import { verifyTurnstile } from "@/lib/server/turnstile";
+import { findFirstProfaneField } from "@/lib/server/profanity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });
   }
   const { username, email, password, firstName, lastName, countryId, gender, dateOfBirth } = parsed.data;
+
+  // Phase 11 run #2 / F3 (CEO Decision 1) — profanity guard. Username +
+  // first/last name are surfaced on every review attribution, message
+  // thread, and admin moderation table; let one slur through here and
+  // it's tedious to scrub later (yesterday's user-53 cleanup proved
+  // that). Reject 400 with a friendly message so the form can render
+  // it inline.
+  const profane = findFirstProfaneField({ username, firstName, lastName });
+  if (profane) {
+    return NextResponse.json(
+      { error: "ProfanityRejected", field: profane.field, message: profane.message },
+      { status: 400 },
+    );
+  }
 
   const [dupUsername, dupEmail] = await Promise.all([
     prisma.user.findUnique({ where: { username } }),
