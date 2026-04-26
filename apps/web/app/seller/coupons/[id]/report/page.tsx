@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Tag as TagIcon, Users, DollarSign, Receipt } from "lucide-react";
+import { ArrowLeft, Tag as TagIcon, Users, Banknote, Receipt } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -109,8 +109,8 @@ export default async function CouponReportPage({ params }: { params: { id: strin
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard icon={Receipt} label="Redemptions" value={totalRedemptions} accent="yellow" />
         <StatCard icon={Users} label="Unique buyers" value={uniqueBuyers} />
-        <StatCard icon={DollarSign} label="Gross subtotal" value={money(totalGross)} />
-        <StatCard icon={DollarSign} label="Discount given" value={money(totalDiscount)} />
+        <StatCard icon={Banknote} label="Gross subtotal" value={money(totalGross)} />
+        <StatCard icon={Banknote} label="Discount given" value={money(totalDiscount)} />
       </div>
 
       {sorted.length === 0 ? (

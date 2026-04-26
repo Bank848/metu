@@ -119,28 +119,20 @@ function Hero({ stats }: { stats: Stats }) {
         <div className="hidden md:block" />
       </div>
 
-      {/* Stats strip — broken out of the 4-equal-col grid. F26 (QA
-          2026-04-25): the SELLERS card previously rendered with the
-          `highlight` variant (mint surface-accent + mint icon chip),
-          which read as "this tile is selected" rather than "this tile
-          is the lead metric". All four cards now share the default
-          `surface-flat` treatment so the row reads as a consistent
-          stat row; the asymmetric column layout (Sellers + Reviews
-          spanning 2 cols on md+) is preserved so the row isn't four
-          identical squares either — the rhythm comes from spacing,
-          not from a colour swap. */}
+      {/* Stats strip — F16 (QA 2026-04-26): the previous layout gave
+          SELLERS a `md:col-span-2` and REVIEWS a `md:col-span-2 lg:col-span-1`
+          which on the md breakpoint produced a 3-up first row + an
+          orphan REVIEWS tile in row 2. All four counters carry the
+          same weight at this density, so the row is now four equal
+          tiles (2x2 on mobile, 4-wide from md upward). The earlier
+          F26 fix (no `highlight` mint accent on SELLERS) is preserved
+          — every card stays on `surface-flat`. */}
       <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="md:col-span-2">
-            <StatCard label="Sellers" value={stats.sellers} icon={Users} />
-          </div>
+          <StatCard label="Sellers"  value={stats.sellers}  icon={Users} />
           <StatCard label="Products" value={stats.products} icon={Package} />
           <StatCard label="Orders"   value={stats.orders}   icon={ShoppingBag} />
-          {/* Reviews is the lowest-volume number — let it sit as a third
-              equal tile under tablet+; on mobile it follows the others. */}
-          <div className="md:col-span-2 lg:col-span-1">
-            <StatCard label="Reviews" value={stats.reviews} icon={Star} />
-          </div>
+          <StatCard label="Reviews"  value={stats.reviews}  icon={Star} />
         </div>
       </div>
     </section>
@@ -184,8 +176,18 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
             className="h-full"
           />
         </div>
-        {rest.slice(0, 7).map((p) => (
-          <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
+        {rest.slice(0, 7).map((p, i) => (
+          // Phase 11 / F4 — the feature card is the LCP element; the
+          // next two grid cards (top-right column on desktop) sit above
+          // the fold too so they get `priority` to suppress the
+          // placeholder-cube flash on cold load. The remaining tiles
+          // stay lazy.
+          <ProductCard
+            key={p.productId}
+            product={p}
+            isFavorited={favSet.has(p.productId)}
+            priority={i < 2}
+          />
         ))}
       </div>
     </section>
