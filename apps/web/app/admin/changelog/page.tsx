@@ -109,7 +109,7 @@ const BATCHES: Batch[] = [
       { title: "Keyboard shortcuts: /, g b, g c, g f, ? — with a built-in cheatsheet dialog" },
       { title: "/profile/edit page with avatar, name, email, country, DOB, gender" },
       { title: "Change-password flow with current-password verify + bcrypt hash" },
-      { title: "“Save for later” — moves a cart line into favourites in one click" },
+      { title: "“Save for later” — moves a cart line into favorites in one click" },
     ],
   },
   {
@@ -255,13 +255,20 @@ export default function ChangelogPage() {
     day: "numeric",
   });
 
+  // Headline counts only reflect what shipped TODAY — older batches stay
+  // in the list as historical record but don't inflate the "shipped
+  // today" totals (was the F17 bug: 80 features / 11 batches reported as
+  // today's work when only 2 batches actually landed today).
+  const todayBatches = BATCHES.filter((b) => b.shippedAt === "today");
+  const todayBatchCount = todayBatches.length;
+  const todayItemCount = todayBatches.reduce((sum, b) => sum + b.items.length, 0);
   const totalItems = BATCHES.reduce((sum, b) => sum + b.items.length, 0);
 
   return (
     <>
       <PageHeader
         title="What's new"
-        subtitle={`${BATCHES.length} batches · ${totalItems} features shipped today (${today})`}
+        subtitle={`${todayBatchCount} ${todayBatchCount === 1 ? "batch" : "batches"} · ${todayItemCount} ${todayItemCount === 1 ? "item" : "items"} shipped today (${today}) · ${BATCHES.length} batches / ${totalItems} items in the full log`}
       />
 
       {/* TL;DR strip — for the friend you'll show this to first. */}
@@ -271,7 +278,7 @@ export default function ChangelogPage() {
           TL;DR
         </div>
         <p className="text-base text-white leading-relaxed">
-          Today we shipped <strong className="text-brand-yellow">{totalItems} features across {BATCHES.length} batches</strong>{" "}
+          Today we shipped <strong className="text-brand-yellow">{todayItemCount} items across {todayBatchCount} {todayBatchCount === 1 ? "batch" : "batches"}</strong>{" "}
           — performance fixes, quick UX wins, seller tools, buyer-growth features, the admin/role fix you noticed,
           and a full trust &amp; security pass (rate limits, password reset, audit log, CAPTCHA, GDPR export).
           Everything is live on{" "}

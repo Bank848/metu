@@ -28,7 +28,7 @@ export const MESSAGES: Record<Locale, Messages> = {
     // Top navigation
     "nav.search.placeholder": "Search products, stores, tags…",
     "nav.cart": "Cart",
-    "nav.favorites": "Favourites",
+    "nav.favorites": "Favorites",
     "nav.reviews": "My reviews",
     "nav.topRated": "Top rated",
     "nav.messages": "Messages",
@@ -65,6 +65,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     "cart.total": "Total",
     "cart.checkout": "Checkout",
     "cart.couponCode": "Coupon code",
+    "cart.coupon.placeholder": "Try METU10 — 10% off Kluay Studio",
+    "cart.coupon.notFound": "Coupon not found or inactive. Try METU10 for 10% off.",
     "cart.applyCoupon": "Apply",
     "cart.removeItem": "Remove",
     "cart.saveForLater": "Save for later",
@@ -85,6 +87,19 @@ export const MESSAGES: Record<Locale, Messages> = {
       "Destructive admin and seller actions (review deletes, refunds, role changes) will appear here as they happen.",
     "empty.responseTime": "New seller — no response data yet",
     "empty.avgRating": "No ratings yet",
+
+    // Favorites page
+    "favorites.title": "Your favorites",
+    "favorites.subtitle.zero": "0 products saved",
+    "favorites.subtitle.one": "1 product saved",
+    "favorites.subtitle.many": "{count} products saved",
+    "favorites.empty.title": "No favorites yet",
+    "favorites.empty.description": "Tap the heart on any product to save it here for later.",
+    "favorites.empty.cta": "Browse marketplace →",
+
+    // Favorite button (per-product heart)
+    "favorite.add": "Save to favorites",
+    "favorite.remove": "Remove from favorites",
   },
   th: {
     // Top navigation
@@ -127,6 +142,8 @@ export const MESSAGES: Record<Locale, Messages> = {
     "cart.total": "ราคารวมทั้งหมด",
     "cart.checkout": "ชำระเงิน",
     "cart.couponCode": "โค้ดส่วนลด",
+    "cart.coupon.placeholder": "ลอง METU10 — ลด 10% ที่ร้าน Kluay Studio",
+    "cart.coupon.notFound": "ไม่พบโค้ดหรือโค้ดยังไม่เปิดใช้งาน ลอง METU10 เพื่อรับส่วนลด 10%",
     "cart.applyCoupon": "ใช้",
     "cart.removeItem": "ลบ",
     "cart.saveForLater": "บันทึกไว้ทีหลัง",
@@ -147,6 +164,19 @@ export const MESSAGES: Record<Locale, Messages> = {
       "การกระทำสำคัญของแอดมินและผู้ขาย (ลบรีวิว คืนเงิน เปลี่ยนสิทธิ์) จะปรากฏที่นี่เมื่อเกิดขึ้น",
     "empty.responseTime": "ผู้ขายใหม่ — ยังไม่มีข้อมูลการตอบกลับ",
     "empty.avgRating": "ยังไม่มีรีวิว",
+
+    // Favorites page
+    "favorites.title": "รายการโปรดของคุณ",
+    "favorites.subtitle.zero": "ยังไม่มีสินค้าที่บันทึกไว้",
+    "favorites.subtitle.one": "บันทึกไว้ 1 รายการ",
+    "favorites.subtitle.many": "บันทึกไว้ {count} รายการ",
+    "favorites.empty.title": "ยังไม่มีรายการโปรด",
+    "favorites.empty.description": "แตะรูปหัวใจที่สินค้าใดก็ได้เพื่อบันทึกไว้ดูภายหลัง",
+    "favorites.empty.cta": "เลือกชมตลาด →",
+
+    // Favorite button (per-product heart)
+    "favorite.add": "บันทึกเป็นรายการโปรด",
+    "favorite.remove": "นำออกจากรายการโปรด",
   },
 };
 

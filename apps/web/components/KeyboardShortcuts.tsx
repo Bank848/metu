@@ -28,7 +28,7 @@ const SHORTCUTS: Array<{ keys: string; label: string }> = [
   { keys: "g h", label: "Home" },
   { keys: "g b", label: "Browse" },
   { keys: "g c", label: "Cart" },
-  { keys: "g f", label: "Favourites" },
+  { keys: "g f", label: "Favorites" },
   { keys: "g o", label: "Orders" },
   { keys: "g p", label: "Profile" },
   { keys: "?", label: "Show this cheatsheet" },

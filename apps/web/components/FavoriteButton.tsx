@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/client";
 
 /**
  * Heart toggle. Optimistic: flips instantly on click, reverts on failure.
@@ -22,6 +23,7 @@ export function FavoriteButton({
   className?: string;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [favorited, setFavorited] = useState(initial);
   const [busy, setBusy] = useState(false);
 
@@ -62,7 +64,7 @@ export function FavoriteButton({
     <button
       type="button"
       onClick={toggle}
-      aria-label={favorited ? "Remove from favourites" : "Save to favourites"}
+      aria-label={favorited ? t("favorite.remove") : t("favorite.add")}
       className={cn(
         "inline-flex items-center justify-center rounded-full border transition",
         dims,

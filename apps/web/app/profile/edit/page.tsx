@@ -53,7 +53,7 @@ export default async function EditProfilePage() {
           </h2>
           <p className="text-sm text-ink-dim mb-4">
             Download a JSON copy of everything METU has stored about you —
-            profile, orders, reviews, favourites, messages, and more.
+            profile, orders, reviews, favorites, messages, and more.
             Right to data portability, no questions asked.
           </p>
           <a

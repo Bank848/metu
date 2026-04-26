@@ -8,6 +8,7 @@ import { GlassButton } from "@/components/visual/GlassButton";
 import { money } from "@/lib/format";
 import { play } from "@/lib/sound";
 import { cn, isDataUrl } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/client";
 import {
   cartTotal,
   DIGITAL_DELIVERY_METHODS,
@@ -61,6 +62,7 @@ function maxForLine(line: Line): number {
 
 export function CartLines({ cart: initial }: { cart: Cart }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [cart, setCart] = useState(initial);
   const [coupon, setCoupon] = useState("");
   const [couponFocused, setCouponFocused] = useState(false);
@@ -142,6 +144,12 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         l.cartItemId === cartItemId ? { ...l, quantity, lineTotal: l.unitPrice * quantity } : l,
       ),
     });
+    // Phase 11 run #2 / F8 — keep the TopNav cart badge in sync with
+    // the local count. The +/- controls don't navigate so the badge
+    // would otherwise stay stale until the next 60s poll.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("cart:update"));
+    }
   }
 
   async function remove(cartItemId: number) {
@@ -151,6 +159,12 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
     });
     if (res.ok) {
       setCart({ ...cart, items: cart.items.filter((l) => l.cartItemId !== cartItemId) });
+      // Phase 11 run #2 / F8 — keep the TopNav badge in sync after a
+      // line removal (otherwise a buyer empties the cart but the icon
+      // still shows the old count for ~60s).
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cart:update"));
+      }
     }
   }
 
@@ -229,6 +243,13 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       }
       const data = await res.json();
       play("success");
+      // Phase 11 run #2 / F8 — checkout empties the active cart server
+      // side; tell the TopNav badge before we navigate away so the
+      // icon doesn't briefly flash the pre-checkout count on the
+      // /orders/[id] page.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("cart:update"));
+      }
       navigated = true;
       router.push(`/orders/${data.orderId}?new=1`);
     } catch {
@@ -324,7 +345,22 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                         className="relative h-20 w-20 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8 hover:border-metu-yellow/40 transition"
                       >
                         {l.image && (
-                          <Image src={l.image} alt="" fill sizes="80px" className="object-cover" unoptimized={isDataUrl(l.image)} />
+                          // Phase 11 / F10 — Cart usually contains a small
+                          // number of items and they all sit above the fold
+                          // (or scroll into it within one screen). Mark the
+                          // thumbnail as `priority` so it preloads with the
+                          // page instead of waiting on the lazy-load
+                          // intersection observer — kills the empty-rect
+                          // flash on cold /cart navigates.
+                          <Image
+                            src={l.image}
+                            alt=""
+                            fill
+                            sizes="80px"
+                            className="object-cover"
+                            unoptimized={isDataUrl(l.image)}
+                            priority
+                          />
                         )}
                       </Link>
 
@@ -385,7 +421,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                             onClick={() => saveForLater(l)}
                             className="text-ink-dim hover:text-metu-red transition"
                             aria-label="Save for later"
-                            title="Move to favourites"
+                            title="Move to favorites"
                           >
                             <Heart className="h-4 w-4" />
                           </button>
@@ -480,7 +516,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                 onChange={(e) => setCoupon(e.target.value.toUpperCase())}
                 onFocus={() => setCouponFocused(true)}
                 onBlur={() => setCouponFocused(false)}
-                placeholder="Have a code? Paste it here"
+                placeholder={t("cart.coupon.placeholder")}
                 className="flex-1 rounded-pill bg-transparent px-4 py-1.5 text-sm text-white placeholder:text-ink-dim focus:outline-none"
               />
               <button
@@ -506,7 +542,15 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
             </p>
           )}
           {couponResult && !couponResult.valid && (
-            <p className="text-xs text-red-400">{couponResult.reason}</p>
+            <p className="text-xs text-red-400">
+              {/* Expand the API's terse "Coupon not found or inactive" with
+                  a hint pointing at the active demo code. Other reasons
+                  (expired, usage limit) already explain themselves and
+                  pass through unchanged. */}
+              {couponResult.reason === "Coupon not found or inactive"
+                ? t("cart.coupon.notFound")
+                : couponResult.reason}
+            </p>
           )}
           {couponNoMatch && (
             <p className="text-xs text-amber-400 inline-flex items-center gap-1">
