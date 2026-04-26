@@ -98,7 +98,15 @@ export default async function BrowsePage({
           }
         />
 
-        <div className="grid md:grid-cols-[260px_1fr] gap-8">
+        {/* Phase 11.1 hotfix — `1fr` is shorthand for `minmax(auto,1fr)`,
+            and `auto` lets the column grow past 1fr when its contents
+            overflow. The inner product grid uses
+            `grid-cols-[repeat(auto-fill,minmax(230px,1fr))]` which
+            packs as many 230px tracks as fit, so on wide viewports it
+            was pushing the right column past the viewport edge.
+            `minmax(0,1fr)` floors the minimum at 0 so the column
+            constrains and the inner grid wraps to the actual width. */}
+        <div className="grid md:grid-cols-[260px_minmax(0,1fr)] gap-8">
           <aside>
             <FilterPanel
               categories={categories}

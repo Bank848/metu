@@ -54,10 +54,18 @@ export function StatCard({
     return "surface-flat";
   })();
 
+  // Phase 11.1 hotfix — large baht values (e.g. ฿1,234,567 at
+  // font-display extrabold) were blowing past the highlight card's
+  // ¼-viewport slot at md (text-5xl ≈ 48px × 10 chars ≈ 480px). Drop
+  // the ramp to text-4xl on md and only restore text-5xl at xl where
+  // the card has the room. tabular-nums keeps digits aligned so
+  // multiple highlight cards don't dance.
   const valueClass = cn(
-    "font-display font-extrabold",
+    "font-display font-extrabold tabular-nums",
     variant === "zero" ? "text-ink-dim" : "text-white",
-    variant === "highlight" ? "text-3xl md:text-5xl" : "text-3xl md:text-4xl",
+    variant === "highlight"
+      ? "text-2xl sm:text-3xl md:text-4xl xl:text-5xl"
+      : "text-3xl md:text-4xl",
   );
 
   const iconColor =
@@ -87,7 +95,11 @@ export function StatCard({
           <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-dim">
             {label}
           </span>
-          <div className={valueClass}>
+          {/* min-w-0 + truncate so an oversized number ellipses inside
+              the card instead of pushing the layout sideways. The
+              `title` attr surfaces the full value on hover for the
+              edge case where ellipsis hides a digit. */}
+          <div className={cn(valueClass, "min-w-0 truncate")} title={String(value)}>
             {typeof value === "number" ? value.toLocaleString() : value}
           </div>
           {trend && (
@@ -117,7 +129,7 @@ export function StatCard({
         </span>
         {Icon && <Icon className={cn("h-4 w-4", iconColor)} strokeWidth={2} />}
       </div>
-      <div className={valueClass}>
+      <div className={cn(valueClass, "min-w-0 truncate")} title={String(value)}>
         {typeof value === "number" ? value.toLocaleString() : value}
       </div>
       {trend && (
