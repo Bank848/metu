@@ -21,6 +21,11 @@ type Variant = "default" | "highlight" | "zero";
 export function StatCard({
   label,
   value,
+  // Optional override for the hover tooltip. Useful when `value` has
+  // been compacted (e.g. moneyCompact() → "฿45.6K") and we still want
+  // sellers/admins to read the precise figure on hover. Falls back to
+  // String(value) when omitted.
+  valueTooltip,
   icon: Icon,
   trend,
   accent,
@@ -29,6 +34,7 @@ export function StatCard({
 }: {
   label: string;
   value: string | number;
+  valueTooltip?: string;
   icon?: LucideIcon;
   trend?: { value: number; label?: string };
   accent?: "yellow" | "charcoal" | "none";
@@ -60,11 +66,17 @@ export function StatCard({
   // the ramp to text-4xl on md and only restore text-5xl at xl where
   // the card has the room. tabular-nums keeps digits aligned so
   // multiple highlight cards don't dance.
+  // Phase 11.2 — drop the HIGHLIGHT ramp one notch (was
+  // text-2xl/sm:text-3xl/md:text-4xl/xl:text-5xl) per user feedback
+  // "ให้มันตัวเล็กลง". Even with moneyCompact(), the headline number
+  // sits in a ¼-viewport slot at md and looked oversized at text-4xl.
+  // Default + zero variants keep their existing ramp (text-3xl/
+  // md:text-4xl) so non-revenue cards across the app are untouched.
   const valueClass = cn(
     "font-display font-extrabold tabular-nums",
     variant === "zero" ? "text-ink-dim" : "text-white",
     variant === "highlight"
-      ? "text-2xl sm:text-3xl md:text-4xl xl:text-5xl"
+      ? "text-xl sm:text-2xl md:text-3xl xl:text-4xl"
       : "text-3xl md:text-4xl",
   );
 
@@ -99,7 +111,7 @@ export function StatCard({
               the card instead of pushing the layout sideways. The
               `title` attr surfaces the full value on hover for the
               edge case where ellipsis hides a digit. */}
-          <div className={cn(valueClass, "min-w-0 truncate")} title={String(value)}>
+          <div className={cn(valueClass, "min-w-0 truncate")} title={valueTooltip ?? String(value)}>
             {typeof value === "number" ? value.toLocaleString() : value}
           </div>
           {trend && (
@@ -129,7 +141,7 @@ export function StatCard({
         </span>
         {Icon && <Icon className={cn("h-4 w-4", iconColor)} strokeWidth={2} />}
       </div>
-      <div className={cn(valueClass, "min-w-0 truncate")} title={String(value)}>
+      <div className={cn(valueClass, "min-w-0 truncate")} title={valueTooltip ?? String(value)}>
         {typeof value === "number" ? value.toLocaleString() : value}
       </div>
       {trend && (

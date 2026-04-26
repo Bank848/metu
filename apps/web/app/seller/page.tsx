@@ -6,7 +6,7 @@ import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { apiAuth, getMe } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
-import { money } from "@/lib/format";
+import { money, moneyCompact } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { prisma } from "@/lib/server/prisma";
@@ -109,7 +109,18 @@ export default async function SellerOverview() {
       {/* Wave-3: lead stat (revenue) gets `highlight` — single mint card
           to call out the headline number. Rest stay default. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard variant="highlight" icon={Banknote} label="Total revenue" value={money(stats.kpi.totalRevenue)} />
+        {/* Phase 11.2 — `moneyCompact()` formats as "฿45.6K" / "฿1.2M"
+            so the headline number always fits the highlight slot.
+            `valueTooltip` exposes the precise figure on hover for
+            sellers who need the exact amount before reaching for
+            /seller/analytics. */}
+        <StatCard
+          variant="highlight"
+          icon={Banknote}
+          label="Total revenue"
+          value={moneyCompact(stats.kpi.totalRevenue)}
+          valueTooltip={money(stats.kpi.totalRevenue)}
+        />
         <StatCard icon={ShoppingBag} label="Paid orders" value={stats.kpi.paidCount} />
         <StatCard icon={Star} label="Rating" value={((stats.store.stats?.rating ?? 0) / 10).toFixed(1) + "★"} />
         <StatCard icon={Timer} label="Response time" value={`${Math.round((stats.store.stats?.responseTime ?? 0) / 60)}h`} />
