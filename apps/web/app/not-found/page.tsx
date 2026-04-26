@@ -1,5 +1,11 @@
 import { notFound } from "next/navigation";
 
+// Must run per-request — without this Next.js prerenders the route at
+// build time and serves the cached 200 response, even though the page
+// body calls notFound(). force-dynamic ensures notFound() fires on
+// every hit and the status code matches the screen.
+export const dynamic = "force-dynamic";
+
 /**
  * Phase 11 run #2 / F21 (CEO Decision 4) — convert /not-found to a true
  * HTTP 404.
