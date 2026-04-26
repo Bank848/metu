@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,24 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-12-2",
+    title: "Phase 12.2 · User ban metadata",
+    subtitle:
+      "Schema-level distinction between 'user self-deleted' and 'admin removed for cause'. Today the AuditLog already records the reason in meta JSON, but it's not queryable as a first-class field on User and the moderation UI couldn't see it on the row. Now banned users wear a coral 'Banned' badge with the reason underneath.",
+    icon: ShieldAlert,
+    tone: "danger",
+    shippedAt: "today",
+    commitSha: "b787f66",
+    items: [
+      { title: "New migration: 20260426040000_phase_12_2_user_ban_metadata — adds banned_at + banned_reason columns + index, fully additive (no backfill, all existing rows stay NULL)" },
+      { title: "DELETE /api/admin/users/[id] accepts optional { reason } body. With reason → bannedAt + bannedReason populated, audit becomes 'user.ban' + meta. Without reason → unchanged behaviour (deletedAt only, audit stays 'user.delete')" },
+      { title: "UserRowActions: 'Delete user' → 'Remove user'. Opens a ConfirmDialog with a 120-char textarea for the reason. Confirm button label flips between 'Remove user' (no reason) and 'Ban user' (reason typed)" },
+      { title: "/admin/users rows: banned users get a coral Badge + reason text underneath; soft-deleted-only users get a mist 'Deleted' badge. Hover any badge for full reason" },
+      { title: "Convention: bannedAt SET ⇒ admin removal for cause; bannedAt NULL + deletedAt SET ⇒ user self-deleted (or pre-12.2 removal)" },
+      { title: "Closes S8's 'User moderation fields (bannedAt / bannedReason)' proposal from Phase 11 run #2" },
+    ],
+  },
   {
     id: "phase-11-f19",
     title: "Phase 11 · F19 — /browse mobile bottom-sheet",
