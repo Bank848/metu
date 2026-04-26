@@ -17,6 +17,12 @@ type UserRow = {
   country?: { name: string } | null;
   stats?: { role: "buyer" | "seller" | "admin" } | null;
   store?: { name: string } | null;
+  // Phase 12.2 — moderation metadata. Both NULL for active users.
+  // bannedAt populated only for admin-driven removals; deletedAt
+  // alone (no bannedAt) indicates a self-delete or pre-12.2 removal.
+  deletedAt?: string | null;
+  bannedAt?: string | null;
+  bannedReason?: string | null;
 };
 
 type UsersResp = {
@@ -129,11 +135,31 @@ export default async function AdminUsers({
                     src={u.profileImage}
                     size="sm"
                   />
-                  <div>
-                    <div className="text-sm font-semibold text-white">
-                      {u.firstName} {u.lastName}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-white truncate">
+                        {u.firstName} {u.lastName}
+                      </span>
+                      {/* Phase 12.2 — moderation badges. BANNED takes
+                          precedence over DELETED because a ban is also
+                          a delete; we want admins to see the cause
+                          first. Reason surfaces on hover via title. */}
+                      {u.bannedAt ? (
+                        <Badge variant="coral" className="uppercase text-[10px]" title={u.bannedReason ?? "Banned by admin"}>
+                          Banned
+                        </Badge>
+                      ) : u.deletedAt ? (
+                        <Badge variant="mist" className="uppercase text-[10px]" title="Soft-deleted">
+                          Deleted
+                        </Badge>
+                      ) : null}
                     </div>
                     <div className="text-xs text-ink-dim">@{u.username}</div>
+                    {u.bannedReason && (
+                      <div className="text-[11px] text-coral mt-0.5 max-w-[260px] truncate" title={u.bannedReason}>
+                        {u.bannedReason}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

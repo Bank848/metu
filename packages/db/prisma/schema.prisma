@@ -93,6 +93,15 @@ model User {
   // DELETE so order history and reviews don't FK-cascade away.
   deletedAt          DateTime?         @map("deleted_at")
 
+  // Phase 12.2 — moderation metadata. NULL when:
+  //   (a) user is active, OR
+  //   (b) user soft-deleted themselves (deletedAt set, bannedAt NULL).
+  // Populated only by admin-driven removals (profanity, fraud, abuse).
+  // Decoupled from deletedAt so we can later support "ban without
+  // delete" (account stays visible in moderation queue) if needed.
+  bannedAt           DateTime?         @map("banned_at")
+  bannedReason       String?           @map("banned_reason") @db.VarChar(120)
+
   country            Country?          @relation(fields: [countryId], references: [countryId])
   stats              UserStats?
   store              Store?
@@ -112,6 +121,7 @@ model User {
   @@index([countryId])
   @@index([createdDate])
   @@index([deletedAt])
+  @@index([bannedAt])
   @@map("users")
 }
 
