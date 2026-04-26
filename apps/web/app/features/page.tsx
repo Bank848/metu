@@ -387,7 +387,7 @@ export default function FeaturesPage() {
             bullets={[
               "Multi-store cart, line wrappers in surface-flat, summary card in mint surface-accent",
               "Coupon validation surfaces explicit toast (mint success / coral error)",
-              "Save-for-later moves a line into favourites; toast confirms either way",
+              "Save-for-later moves a line into favorites; toast confirms either way",
               "Empty cart uses the new <EmptyCart /> SVG illustration",
               "Checkout busy state guaranteed to reset (was strandable on early throw)",
             ]}
@@ -700,7 +700,7 @@ export default function FeaturesPage() {
             <MiniCard icon={Smartphone} title="A11y" body="Skip-to-content link as first focusable, useFocusTrap on modals, color-contrasted accent palette, light-mode parity for surface tokens." accent="mint" />
             <MiniCard icon={FlaskConical} title="Vitest + Playwright" body="26 unit tests for cart math + utils helpers. 4 Playwright persona smoke specs (guest / buyer / seller / admin) run against the live deploy in ~20s." accent="mint" />
             <MiniCard icon={Clock} title="GMT+7 server clock" body="Fly machine pinned to TZ=Asia/Bangkok so server-rendered timestamps (audit log, changelog) match the Thai user's frame. Postgres still stores UTC." accent="coral" />
-            <MiniCard icon={Trash2} title="GDPR data export" body="GET /api/profile/export streams a JSON dump of every row a user owns: profile, orders, reviews, favourites, messages, audit entries." accent="coral" />
+            <MiniCard icon={Trash2} title="GDPR data export" body="GET /api/profile/export streams a JSON dump of every row a user owns: profile, orders, reviews, favorites, messages, audit entries." accent="coral" />
             <MiniCard icon={Zap} title="Neon keep-warm" body="Vercel cron pings /api/health every 4 min so Neon's serverless compute never cold-starts during demo hours. SELECT 1 + < 100ms." accent="mint" />
             <MiniCard icon={DollarSign} title="Coupon + cart math" body="Pure cart-math helpers extracted to lib/cart-math.ts: maxForLine, subtotalOf, eligibleSubtotalForStore, discountFromCoupon, cartTotal. 100% unit-tested." accent="mint" />
             <MiniCard icon={Settings} title="Demo chips on /login" body="One-click pre-fill for admin@metu.dev / seller@metu.dev / buyer@metu.dev. FormData-safe against React-state races." accent="mint" />

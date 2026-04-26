@@ -36,8 +36,8 @@ export default function manifest(): MetadataRoute.Manifest {
         url: "/browse",
       },
       {
-        name: "My favourites",
-        short_name: "Favourites",
+        name: "My favorites",
+        short_name: "Favorites",
         url: "/favorites",
       },
       {
