@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,40 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-11-f19",
+    title: "Phase 11 · F19 — /browse mobile bottom-sheet",
+    subtitle:
+      "Three layout improvements that the run #2 ux-polish specialist deferred as 'needs real layout work, not a polish pass'. Mobile gets a slide-up filter sheet with active-count badge; sidebar filter toggles preserve scroll position; sticky sidebar caps to viewport height.",
+    icon: Filter,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "aba77ed",
+    items: [
+      { title: "Mobile gets a 'Filters (N)' pill instead of stacking 4 filter cards above the product grid — opens a slide-up bottom-sheet (max 85vh, ESC + backdrop close, body scroll locked)" },
+      { title: "Active-filter count badge on the trigger pill (computed server-side from search params: category + each tag + minRating + delivery)" },
+      { title: "Every filter <a> converted to <Link scroll={false}> — toggling a tag/rating no longer slams the user back to the top of the grid" },
+      { title: "Sticky sidebar gets max-h:calc(100vh-7rem) + overflow-y-auto so a long tag list doesn't run off-screen on shorter laptops" },
+      { title: "Pagination intentionally KEEPS scroll-to-top — moving to a new page should land at the top of the new grid" },
+      { title: "New sheet-rise keyframe (220ms platform-feeling cubic-bezier) added to globals.css" },
+    ],
+  },
+  {
+    id: "phase-11-2",
+    title: "Phase 11.2 · moneyCompact() for KPI revenue cards",
+    subtitle:
+      "Phase 11.1 capped overflow with truncate but the result still ellipsed mid-number ('฿45,6…'). User asked for K/M abbreviations + smaller font. Now Total revenue / GMV / Lifetime revenue render as '฿45.6K' / '฿1.2M' and stay readable on every viewport.",
+    icon: Wallet,
+    tone: "warning",
+    shippedAt: "today",
+    commitSha: "b873994",
+    items: [
+      { title: "New moneyCompact() helper in lib/format.ts — below ฿1,000 falls through to money(); above uses en-US compact notation (฿45.6K, ฿1.2M, ฿1.5B)" },
+      { title: "StatCard gains an optional valueTooltip prop — when value has been compacted, callers pass the precise figure so hover surfaces the exact amount" },
+      { title: "StatCard highlight ramp dropped one notch (text-2xl→xl, sm:text-3xl→2xl, md:text-4xl→3xl, xl:text-5xl→4xl) — default + zero variants unchanged" },
+      { title: "Wired into /seller (Total revenue), /admin (GMV paid), /seller/analytics (Revenue lifetime)" },
+    ],
+  },
   {
     id: "phase-12-1",
     title: "Phase 12.1 · Store live-rows partial index",
