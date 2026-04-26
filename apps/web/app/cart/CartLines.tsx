@@ -345,13 +345,18 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                         className="relative h-20 w-20 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8 hover:border-metu-yellow/40 transition"
                       >
                         {l.image && (
-                          // Phase 11 / F10 — Cart usually contains a small
-                          // number of items and they all sit above the fold
-                          // (or scroll into it within one screen). Mark the
-                          // thumbnail as `priority` so it preloads with the
-                          // page instead of waiting on the lazy-load
-                          // intersection observer — kills the empty-rect
-                          // flash on cold /cart navigates.
+                          // Phase 11 / F10 (originally `priority` on every
+                          // cart line) → QA r3/F1 reverted: stacking N
+                          // priority+fill <Image> on one route triggers Next
+                          // 14 App Router's known hydration mismatch (multi-
+                          // priority preload links inserted into <head>
+                          // post-render don't match the SSR snapshot,
+                          // throwing React #418 + #422). Cart line images
+                          // are 80×80 — eager loading via the default
+                          // intersection observer is fast enough on the
+                          // small N typical of a real cart. The empty-rect
+                          // flash F10 was meant to fix is now invisible at
+                          // this size.
                           <Image
                             src={l.image}
                             alt=""
@@ -359,7 +364,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                             sizes="80px"
                             className="object-cover"
                             unoptimized={isDataUrl(l.image)}
-                            priority
+                            loading="lazy"
                           />
                         )}
                       </Link>

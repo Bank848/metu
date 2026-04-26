@@ -208,19 +208,20 @@ export default async function BrowsePage({
               // layout at 320px wide produced cards too narrow to read.
               <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-5">
                 {result.items.map((p, i) => (
-                  // Phase 11 / F4 — first row of tiles preloads. The grid
-                  // is `auto-fill,minmax(230px,1fr)` so the column count
-                  // depends on viewport width; 4 covers the common
-                  // `lg`/`xl` breakpoints (1280–1535px renders 4-up,
-                  // ≥1536px renders 5-up where the 5th tile still gets a
-                  // late `loading="lazy"` and is fine — preloading 5
-                  // would push the budget too far for the rare wide
-                  // viewport). Below the fold stays lazy.
+                  // Phase 11 / F4 (priority={i<4}) → QA r3/F1 narrowed to
+                  // priority={i===0}. Stacking ≥2 priority+fill <Image>
+                  // reliably triggers React #418 + #422 in Next 14 App
+                  // Router (the multiple <link rel="preload"> injections
+                  // post-render don't match the SSR snapshot). Promoting
+                  // only the first card preserves the LCP win on the
+                  // hero tile — the next 3 cards drop back to lazy and
+                  // arrive a tick later, which is invisible at typical
+                  // 4G/wifi latencies. Below the fold stays lazy.
                   <ProductCard
                     key={p.productId}
                     product={p}
                     isFavorited={favSet.has(p.productId)}
-                    priority={i < 4}
+                    priority={i === 0}
                   />
                 ))}
               </div>
