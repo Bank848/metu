@@ -82,7 +82,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // before the client provider takes over.
   const locale = getServerLocale();
   return (
-    <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} ${thai.variable} dark`}>
+    // Phase 11 QA round #3 / F1 — `suppressHydrationWarning` on <html>
+    // is required because `themeBootstrapScript` (mounted in <head>
+    // below) intentionally rewrites this element's className BEFORE
+    // React hydrates. Without the flag, React compares its rendered
+    // attribute (`...dark`) against the post-bootstrap DOM (could be
+    // `...light`) and throws #418/#422 to the console on every public
+    // page load. The bootstrap script is the correct pattern (kills
+    // flash-of-wrong-theme on hard reload) — `suppressHydrationWarning`
+    // tells React the discrepancy on THIS element is intentional. The
+    // flag scopes to the html element only; child trees still hydrate
+    // strictly. Standard Next.js theme-toggle pattern (cf. next-themes).
+    <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} ${thai.variable} dark`} suppressHydrationWarning>
       <head>
         {/*
           Bootstrap the user's saved theme BEFORE hydration so we never
