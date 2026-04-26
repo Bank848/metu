@@ -177,16 +177,19 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
           />
         </div>
         {rest.slice(0, 7).map((p, i) => (
-          // Phase 11 / F4 — the feature card is the LCP element; the
-          // next two grid cards (top-right column on desktop) sit above
-          // the fold too so they get `priority` to suppress the
-          // placeholder-cube flash on cold load. The remaining tiles
-          // stay lazy.
+          // Phase 11 / F4 (priority={i<2}) → QA r3/F1: the feature card
+          // (variant="feature") above already gets implicit priority via
+          // ProductCard's auto-promotion (eagerLoad = priority || isFeature).
+          // Adding 2 MORE priority+fill <Image> on the same render pushes
+          // us into Next 14's known multi-priority hydration mismatch
+          // (React #418 + #422). The feature card is the LCP element;
+          // letting the trending grid drop to lazy keeps the page warning-
+          // free without touching LCP — the trending grid was below the
+          // fold on most viewports anyway.
           <ProductCard
             key={p.productId}
             product={p}
             isFavorited={favSet.has(p.productId)}
-            priority={i < 2}
           />
         ))}
       </div>
