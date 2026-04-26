@@ -32,13 +32,42 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-11-run-2",
+    title: "Phase 11 · QA workflow run #2",
+    subtitle:
+      "Second end-to-end QA pass. 22 findings ingested from a fresh live walk (0 P0 / 0 regressions / 17 NEW · 5 carry-over). 20 closed in one session, 1 deferred (user-53 prod soft-delete needs admin shell), 1 deferred (F19 layout restructure out-of-scope). 5 commits, no schema migration.",
+    icon: FlaskConical,
+    tone: "success",
+    shippedAt: "today",
+    commitSha: "phase-11-r2",
+    items: [
+      { title: "F1 + F12 + F14 — Surgical deletedAt:null predicate on every admin query that surfaces stores/products (admin/stores, reports, stats, /health). Counts now agree across pages." },
+      { title: "F2 — POST /api/orders revalidates / and /health so the homepage trending counts refresh without a manual reload" },
+      { title: "F3 — leo-profanity guard wired into POST /api/auth/register + PATCH /api/auth/me (server-only, ~25 kB, zero client bundle impact)" },
+      { title: "F4 + F10 — Image priority hints on first 4 /browse cards, first 2 trending cards, and cart line thumbnails — kills the placeholder flash above the fold" },
+      { title: "F5 — ImageGallery thumbnail onError fallback (broken thumb URLs swap to placeholder instead of 0×0 gap)" },
+      { title: "F6 — Multi-role badges in AuthMenu + /profile (mist Buyer + mint Seller when hasStore=true OR role=seller, yellow Admin override)" },
+      { title: "F7 + F16 — DollarSign → Banknote on every baht StatCard ('USD' read by Thai users); equalize home stats grid columns" },
+      { title: "F8 — New CartNavIcon (60s poll + cart:update window event) wired into TopNav + dispatched from PDP / cart mutations" },
+      { title: "F9 — Coupon hint i18n: placeholder 'e.g. METU10' + 'not found' error now route through useI18n (10 EN + 10 TH new keys total)" },
+      { title: "F11 — Sort dropdown's redundant Apply button removed (run #1 wired auto-submit; this rips out the leftover button)" },
+      { title: "F13 — /admin/stores skeleton flash gone: getAdminStores helper replaces same-host HTTP hop with a direct Prisma call" },
+      { title: "F15 — New <Avatar> primitive (xs/sm/md/lg/xl) with deterministic HSL hue + AA-contrast initials, wired into AuthMenu / admin users / messages / profile" },
+      { title: "F17 — /admin/changelog header + TL;DR derive counts from BATCHES.shippedAt='today' (was the entire log) — singular/plural inline" },
+      { title: "F18 — UK 'favourites' → US 'favorites' across every user-visible string (full i18n family added; nav.favorites EN value flipped)" },
+      { title: "F21 — /not-found now emits HTTP 404 (was 200 OK) via app/not-found/page.tsx → notFound()" },
+      { title: "F22 — Seller OrderStatusActions z-index + stopPropagation: Refund / Mark-fulfilled / Cancel buttons no longer get swallowed by the row click handler" },
+      { title: "11 new Vitest tests for getInitials + avatarHue (26 → 37) · build clean (89.8 kB shared First Load JS, unchanged)" },
+    ],
+  },
+  {
     id: "phase-11",
-    title: "Phase 11 · QA workflow run",
+    title: "Phase 11 · QA workflow run #1",
     subtitle:
       "First end-to-end run of the user-tester → CEO → 8-specialist QA workflow. 28 findings ingested from a live walk; 27 closed in one session, 1 escalated + resolved (F22 sort/apply). 8 commits, no schema migration.",
     icon: FlaskConical,
     tone: "success",
-    shippedAt: "today",
+    shippedAt: "yesterday",
     commitSha: "phase-11",
     items: [
       { title: "F1 — Soft-deleted offensive review on /product/100 (user 53 + cascade fix on getProduct reviews include)" },
@@ -61,7 +90,7 @@ const BATCHES: Batch[] = [
       "Q&A label bug + admin moderation + dashboard rebrand (every form a seller touches) + admin tables + messaging discoverability for buyers. Ten commits, no schema migration.",
     icon: MessageSquare,
     tone: "info",
-    shippedAt: "today",
+    shippedAt: "yesterday",
     commitSha: "phase-10",
     items: [
       { title: "Q&A admin replies now show 'Admin answered' (was hard-coded 'Seller answered')" },
