@@ -32,6 +32,26 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-15-2",
+    title: "Phase 15.2 · Active sessions UI (list + revoke + sign-out-everywhere)",
+    subtitle:
+      "Users can now see every device signed into their better-auth account from /profile/edit and revoke any of them. The current device gets a 'THIS DEVICE' badge + disabled Revoke button so a user can't accidentally sign themselves out. 'Sign out everywhere else' button revokes every session except the current one. The legacy JWT-cookie path doesn't have rows here (the cookie itself IS the session); for those users the table shows empty + a hint to change password to invalidate.",
+    icon: Monitor,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-15-2",
+    items: [
+      { title: "service: listSessions (filters expiresAt > now, strips token field), revokeSession (ownership-checked via userId predicate, 404 SessionNotFound if no row matches — guards against ID-enumeration attacks), revokeAllOtherSessions (deleteMany except currentSessionId; if null because user is on JWT-cookie path, deletes ALL)" },
+      { title: "controller: 3 handlers + readBetterAuthSessionId() helper that calls auth.api.getSession({ headers }) to identify the current row. JWT-cookie users get currentSessionId=null surfaced to the UI" },
+      { title: "routes: GET /auth/sessions, DELETE /auth/sessions/all-others (mounted BEFORE /:id so the literal path wins the route match), DELETE /auth/sessions/:id. All requireAuth-gated" },
+      { title: "BFF: 3 forwarder routes — /api/auth/sessions, /api/auth/sessions/[id], /api/auth/sessions/all-others (~12 LOC each, standard forwardToApi pattern)" },
+      { title: "EditProfileForm: NEW Active sessions section below password. Lazy-loads via useEffect on mount (fast SSR, async hydrate). Renders list of {ua, ip, createdAt, Revoke button}. Current device shown with yellow 'THIS DEVICE' pill + disabled button. 'Sign out everywhere else' appears when there are 2+ sessions" },
+      { title: "Vitest 132 → 138 (6 new): GET 401 + happy with currentSessionId null when JWT-auth, DELETE :id 401 + 404 SessionNotFound + happy ownership-checked deleteMany, DELETE all-others happy ALL-revoke when JWT-auth (no current id) + audit row 'user.sessions_revoked' with revoked count + kept=0" },
+      { title: "Build clean. Web shared First Load JS = 89.8 kB (unchanged — sessions section is plain JSX + a single useEffect, no new client deps)" },
+      { title: "Phase 15.4 NEXT: standardise audit IP+UA capture (small migration adds 2 columns + middleware that attaches req.auditCtx so service functions don't need to touch req directly)" },
+    ],
+  },
+  {
     id: "phase-15-1",
     title: "Phase 15.1 · Rate limit middleware (sliding window, in-memory)",
     subtitle:

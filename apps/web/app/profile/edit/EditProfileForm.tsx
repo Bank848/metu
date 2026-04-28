@@ -1,9 +1,22 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { User, Lock, Save, Phone, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { User, Lock, Save, Phone, ShieldCheck, Monitor, Trash2 } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
+
+/**
+ * Phase 15.2 — Active session entry shape returned by GET /auth/sessions.
+ * `id`, `createdAt`, `expiresAt` from the better-auth session row;
+ * `ipAddress` + `userAgent` populated when the session was created.
+ */
+type SessionRow = {
+  id: number;
+  createdAt: string;
+  expiresAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+};
 
 type Country = { countryId: number; name: string };
 
@@ -53,6 +66,82 @@ export function EditProfileForm({
   // but for UX we don't auto-show the input on a fresh page load —
   // user has to click "Send code" again.
   const [otpRequested, setOtpRequested] = useState(false);
+
+  // Phase 15.2 — sessions UI state. Loaded lazily on mount via
+  // useEffect; no SSR hydration so the page renders fast and the
+  // sessions table fills in async.
+  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+  const [sessionsMsg, setSessionsMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [sessionsBusy, setSessionsBusy] = useState<null | "list" | "revoke" | "revoke-all">(null);
+
+  async function loadSessions() {
+    setSessionsBusy("list");
+    try {
+      const res = await fetch("/api/auth/sessions", { credentials: "include" });
+      if (!res.ok) {
+        setSessions([]);
+        return;
+      }
+      const data = await res.json();
+      setSessions(data.sessions ?? []);
+      setCurrentSessionId(data.currentSessionId ?? null);
+    } catch {
+      setSessions([]);
+    } finally {
+      setSessionsBusy(null);
+    }
+  }
+
+  useEffect(() => {
+    loadSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function revokeSession(id: number) {
+    setSessionsMsg(null);
+    setSessionsBusy("revoke");
+    try {
+      const res = await fetch(`/api/auth/sessions/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSessionsMsg({ ok: false, text: data?.message ?? "Failed to revoke" });
+        return;
+      }
+      setSessionsMsg({ ok: true, text: "Session revoked." });
+      await loadSessions();
+    } catch {
+      setSessionsMsg({ ok: false, text: "Network error" });
+    } finally {
+      setSessionsBusy(null);
+    }
+  }
+
+  async function revokeAllOthers() {
+    setSessionsMsg(null);
+    setSessionsBusy("revoke-all");
+    try {
+      const res = await fetch("/api/auth/sessions/all-others", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSessionsMsg({ ok: false, text: data?.message ?? "Failed to revoke" });
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      setSessionsMsg({ ok: true, text: `Revoked ${data.revoked ?? 0} session(s).` });
+      await loadSessions();
+    } catch {
+      setSessionsMsg({ ok: false, text: "Network error" });
+    } finally {
+      setSessionsBusy(null);
+    }
+  }
   const [form, setForm] = useState({
     firstName: initial.firstName,
     lastName: initial.lastName,
@@ -497,6 +586,88 @@ export function EditProfileForm({
           </GlassButton>
         </div>
       </form>
+
+      {/* ───── Active sessions (Phase 15.2) ─────
+          Lists better-auth session rows for the current user. The
+          legacy JWT-cookie path doesn't have rows here (the cookie
+          itself is the session); for those users the table shows
+          empty + a hint. The current better-auth session, if any,
+          gets a "(this device)" badge and a disabled Revoke button
+          so the user can't accidentally sign themselves out. */}
+      <section className="rounded-2xl glass-morphism p-6 space-y-4">
+        <h2 className="font-display font-bold text-white flex items-center gap-2">
+          <Monitor className="h-4 w-4 text-metu-yellow" />
+          Active sessions
+        </h2>
+        <p className="text-sm text-ink-secondary -mt-2">
+          Devices currently signed in via Google. Revoke any you don't recognise.
+        </p>
+
+        {sessions === null && (
+          <p className="text-sm text-ink-dim">Loading sessions…</p>
+        )}
+        {sessions && sessions.length === 0 && (
+          <p className="text-sm text-ink-dim">
+            No active Google sessions. (If you signed in with email + password, your
+            session is managed via cookie — change your password to invalidate it
+            on every device.)
+          </p>
+        )}
+        {sessions && sessions.length > 0 && (
+          <ul className="divide-y divide-white/5 -mx-2">
+            {sessions.map((s) => {
+              const isCurrent = s.id === currentSessionId;
+              const ua = s.userAgent ?? "Unknown device";
+              const where = s.ipAddress ?? "unknown IP";
+              return (
+                <li key={s.id} className="flex items-center justify-between gap-3 px-2 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-white truncate">
+                      <span className="truncate">{ua.slice(0, 60)}</span>
+                      {isCurrent && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-metu-yellow/20 text-metu-yellow font-bold">
+                          THIS DEVICE
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-ink-dim font-mono mt-0.5">
+                      {where} · created {new Date(s.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => revokeSession(s.id)}
+                    disabled={isCurrent || sessionsBusy !== null}
+                    className="flex items-center gap-1 rounded-lg border border-coral-400/30 bg-coral-400/5 text-coral-200 px-3 py-1.5 text-xs font-semibold hover:bg-coral-400/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Revoke
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {sessions && sessions.length > 1 && (
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={revokeAllOthers}
+              disabled={sessionsBusy !== null}
+              className="rounded-lg border border-white/15 bg-surface-2 px-3 py-1.5 text-xs font-semibold text-white hover:border-coral-400/40 disabled:opacity-50"
+            >
+              {sessionsBusy === "revoke-all" ? "Revoking…" : "Sign out everywhere else"}
+            </button>
+          </div>
+        )}
+
+        {sessionsMsg && (
+          <p className={`text-sm ${sessionsMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
+            {sessionsMsg.text}
+          </p>
+        )}
+      </section>
     </div>
   );
 }
