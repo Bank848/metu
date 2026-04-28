@@ -599,6 +599,12 @@ model AuditLog {
   targetType  String   @map("target_type") @db.VarChar(40)  // e.g. "user", "store", "order"
   targetId    Int      @map("target_id")
   meta        Json?    // optional JSON snapshot of pre-change state or extra context
+  // Phase 15.4 — request context. NULL for pre-15.4 rows + system
+  // actions that don't originate from an HTTP request. VARCHAR(45)
+  // sized for IPv6 worst case; VARCHAR(255) for UA per existing
+  // session table convention.
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.VarChar(255)
   createdAt   DateTime @default(now()) @map("created_at")
 
   actor User? @relation(fields: [actorId], references: [userId], onDelete: SetNull)
