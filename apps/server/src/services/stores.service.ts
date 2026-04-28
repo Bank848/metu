@@ -13,7 +13,7 @@ import type {
  */
 export async function findStores(filters: ListStoreQuery): Promise<StoreListResponse> {
   return prisma.store.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, suspendedAt: null },
     take: filters.limit,
     orderBy: { createdAt: "desc" },
     include: {
@@ -40,7 +40,11 @@ export async function findStoreById(
 ): Promise<StoreDetailResponse | null> {
   const [store, products] = await Promise.all([
     prisma.store.findFirst({
-      where: { storeId, deletedAt: null },
+      // Phase 16.1 — also filter suspendedAt:null. A suspended store
+      // is HIDDEN from public surfaces (vs the seller dashboard, which
+      // sees it with a banner). Returning null here makes the
+      // controller surface 404 — same shape as a deleted/missing store.
+      where: { storeId, deletedAt: null, suspendedAt: null },
       include: {
         owner: {
           select: {
@@ -56,6 +60,10 @@ export async function findStoreById(
       },
     }),
     prisma.product.findMany({
+      // Phase 16.1 — by the time we reach this query the parent
+      // store is already verified live (suspended store would have
+      // returned null above), so no extra suspendedAt filter on the
+      // product side is needed.
       where: { storeId, isActive: true, deletedAt: null },
       orderBy: { productId: "desc" },
       include: {

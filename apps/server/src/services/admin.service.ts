@@ -201,6 +201,39 @@ export async function deleteStore(storeId: number, actorUserId: number, req?: Au
   });
 }
 
+/**
+ * Phase 16.1 — admin store-suspended toggle.
+ *
+ * Sets `suspendedAt` to NOW (or clears to NULL when value=false).
+ * Public catalog queries filter on suspendedAt:null AND
+ * deletedAt:null so a suspended store immediately disappears from
+ * /browse + /store/[id] + featured + sitemap; the seller still
+ * sees it in /seller dashboard with a banner explaining the
+ * suspension.
+ *
+ * Distinct from deleteStore — suspension is reversible by passing
+ * value=false (the column resets to NULL). Admins use Suspend for
+ * "warning + temporary freeze"; Delete for permanent removal.
+ */
+export async function setStoreSuspended(
+  storeId: number,
+  actorUserId: number,
+  value: boolean,
+  req?: AuditReq,
+): Promise<void> {
+  await prisma.store.update({
+    where: { storeId },
+    data: { suspendedAt: value ? new Date() : null },
+  });
+  await audit({
+    actorId: actorUserId,
+    action: value ? "store.suspend" : "store.unsuspend",
+    targetType: "store",
+    targetId: storeId,
+    req,
+  });
+}
+
 // =============================================================================
 //  STATS — composite dashboard payload
 // =============================================================================

@@ -163,7 +163,13 @@ export default async function AdminStores() {
               return null;
           }
         }}
-        actions={(s) => <StoreActions storeId={s.storeId} name={s.name} />}
+        actions={(s) => (
+          <StoreActions
+            storeId={s.storeId}
+            name={s.name}
+            suspended={Boolean((s as any).suspendedAt)}
+          />
+        )}
       />
     </>
   );

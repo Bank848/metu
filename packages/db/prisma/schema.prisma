@@ -183,6 +183,11 @@ model Store {
   // Soft-delete — hides from public catalogue + storefronts but keeps
   // historical orders / reviews intact.
   deletedAt      DateTime? @map("deleted_at")
+  // Phase 16.1 — intermediate state: HIDDEN from public surfaces but
+  // not yet deleted. Admin toggles via /admin/stores. Seller still
+  // sees the store in /seller dashboard with a banner. Reversible by
+  // clearing the column. NULL = live.
+  suspendedAt    DateTime? @map("suspended_at")
 
   owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
   businessType BusinessType @relation(fields: [businessTypeId], references: [typeId])

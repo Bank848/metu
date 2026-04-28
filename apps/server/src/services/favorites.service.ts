@@ -24,7 +24,9 @@ export async function listForUser(userId: number): Promise<number[]> {
  */
 export async function addFavorite(userId: number, productId: number): Promise<void> {
   const exists = await prisma.product.findFirst({
-    where: { productId, deletedAt: null, store: { deletedAt: null } },
+    // Phase 16.1 — also reject suspended stores so a buyer can't
+    // heart something they wouldn't be able to actually browse.
+    where: { productId, deletedAt: null, store: { deletedAt: null, suspendedAt: null } },
     select: { productId: true },
   });
   if (!exists) throw new AppError(404, "ProductNotFound");
