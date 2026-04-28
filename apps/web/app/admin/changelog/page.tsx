@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: KeyRound,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-14-3",
+    commitSha: "af72290",
     items: [
       { title: "@metu/shared: new setPasswordSchema = { newPassword + confirmPassword } with the same min(6).max(100) bounds + match refinement as changePasswordSchema, but NO currentPassword field" },
       { title: "auth.service.setPassword(): looks up user.password, throws 400 PasswordAlreadySet if non-null, hashes + updates + writes 'user.set_password' AuditLog row. Same bcrypt rounds as changePassword for hash consistency" },
