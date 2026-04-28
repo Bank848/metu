@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: Layers,
     tone: "success",
     shippedAt: "today",
-    commitSha: "phase-13-11",
+    commitSha: "4954044",
     items: [
       { title: "NEW layered reference module: routes/reference.routes.ts → controllers/reference.controller.ts → services/reference.service.ts → models/reference.model.ts. Two endpoints (GET /business-types + GET /countries) — public reads driving the become-seller + register form dropdowns" },
       { title: "DELETED: apps/server/src/routes/catalog.ts (33 LOC) — last legacy flat router. Replaced by reference.routes.ts" },
