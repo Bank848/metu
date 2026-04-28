@@ -76,9 +76,20 @@ export const logout: RequestHandler = (_req, res) => {
 };
 
 export const me: RequestHandler = (req, res) => {
+  // currentUser() returns the FULL Prisma row including the bcrypt
+  // password hash — strip it before sending. Without this guard,
+  // GET /auth/me leaks the hash in every response (caught during
+  // Phase 13.2 live smoke, BAD if the response is ever logged or
+  // cached client-side). Single sanitize point keeps the rest of
+  // middleware/auth.ts simple.
   const user = currentUser(req);
   const auth = currentAuth(req);
-  res.json({ user, role: auth?.role });
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const { password, ...safe } = user;
+  res.json({ user: safe, role: auth?.role });
 };
 
 export const updateMe: RequestHandler = async (req, res, next) => {

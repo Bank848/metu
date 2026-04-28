@@ -118,4 +118,29 @@ describe("GET /auth/me", () => {
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Unauthorized");
   });
+
+  it("never leaks the bcrypt hash on a successful read", async () => {
+    // Mint a real cookie so requireAuth() resolves the user, then
+    // verify the password field is stripped from the response.
+    const jwt = await import("jsonwebtoken");
+    const token = jwt.default.sign(
+      { uid: 7, role: "buyer" },
+      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
+      { expiresIn: "1h" },
+    );
+    (prisma.user.findUnique as any).mockResolvedValue({
+      userId: 7,
+      email: "buyer@metu.dev",
+      password: "$2a$10$shouldNeverEscape",
+      deletedAt: null,
+      stats: { role: "buyer" },
+      store: null,
+    });
+    const res = await request(buildApp())
+      .get("/auth/me")
+      .set("Cookie", `metu_auth=${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.user.userId).toBe(7);
+    expect(res.body.user.password).toBeUndefined();
+  });
 });
