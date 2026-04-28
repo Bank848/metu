@@ -11,13 +11,22 @@ import bcrypt from "bcryptjs";
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
     $queryRaw: vi.fn(),
+    $transaction: vi.fn(async (ops: any[]) => Promise.all(ops)),
     user: {
       findUnique: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
     },
     cart: {
       create: vi.fn(),
     },
+    passwordResetToken: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    auditLog: { create: vi.fn() },
   },
 }));
 
@@ -117,6 +126,40 @@ describe("GET /auth/me", () => {
     const res = await request(buildApp()).get("/auth/me");
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Unauthorized");
+  });
+
+  it("forgot-password always returns 200 + generic message (no enum leak)", async () => {
+    // Email NOT in DB
+    (prisma.user.findUnique as any).mockResolvedValue(null);
+    const res1 = await request(buildApp())
+      .post("/auth/forgot-password")
+      .send({ email: "ghost@metu.dev" });
+    expect(res1.status).toBe(200);
+    expect(res1.body.message).toMatch(/if that email is registered/i);
+
+    // Email IS in DB — same response shape, but a token was created
+    // server-side (and an email "sent" via the console provider).
+    (prisma.user.findUnique as any).mockResolvedValue({
+      userId: 7,
+      email: "buyer@metu.dev",
+      firstName: "Thana",
+      deletedAt: null,
+    });
+    const res2 = await request(buildApp())
+      .post("/auth/forgot-password")
+      .send({ email: "buyer@metu.dev" });
+    expect(res2.status).toBe(200);
+    expect(res2.body.message).toBe(res1.body.message);
+    expect(prisma.passwordResetToken.create).toHaveBeenCalled();
+  });
+
+  it("reset-password rejects expired/missing token with 400 InvalidToken", async () => {
+    (prisma.passwordResetToken.findUnique as any).mockResolvedValue(null);
+    const res = await request(buildApp())
+      .post("/auth/reset-password")
+      .send({ token: "x".repeat(40), newPassword: "newpass1" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("InvalidToken");
   });
 
   it("never leaks the bcrypt hash on a successful read", async () => {

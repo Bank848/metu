@@ -1,12 +1,17 @@
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { findFirstProfaneField } from "../utils/profanity.js";
+import { sendEmail } from "../utils/email.js";
+import { audit } from "../utils/audit.js";
 import type {
   ChangePasswordInput,
+  ForgotPasswordInput,
   LoginInput,
   RegisterInput,
+  ResetPasswordInput,
   SafeUser,
   UpdateProfileInput,
 } from "../models/auth.model.js";
@@ -200,5 +205,102 @@ export async function changePassword(
   await prisma.user.update({
     where: { userId },
     data: { password: hash },
+  });
+}
+
+const RESET_TOKEN_TTL_MIN = 30;
+
+/**
+ * POST /auth/forgot-password — issue a password reset token + email
+ * the link.
+ *
+ * Always succeeds (return value is meaningless to the controller —
+ * never expose whether the email was found, otherwise an attacker
+ * can enumerate registered accounts). Soft-deleted users get the
+ * same silent treatment.
+ *
+ * The raw token goes into the email link; we store its SHA-256 hash
+ * in the DB so a leaked DB row alone can't reset anyone's password.
+ * TTL: 30 minutes (matches the BFF behaviour the email asks for).
+ */
+export async function forgotPassword(input: ForgotPasswordInput): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  if (!user || user.deletedAt) return; // silent no-op
+
+  const raw = crypto.randomBytes(32).toString("base64url");
+  const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MIN * 60_000);
+
+  await prisma.passwordResetToken.create({
+    data: { userId: user.userId, tokenHash, expiresAt },
+  });
+
+  // Link points at the BFF, not the API server — that's where the
+  // user-facing /reset-password page lives. SITE_URL falls back to
+  // the prod URL so the email is always actionable.
+  const base = process.env.SITE_URL ?? "https://metu.fly.dev";
+  const link = `${base}/reset-password?token=${raw}`;
+
+  await sendEmail({
+    to: user.email,
+    subject: "Reset your METU password",
+    html: `
+      <p>Hi ${user.firstName ?? ""},</p>
+      <p>Use the link below to set a new password. It expires in ${RESET_TOKEN_TTL_MIN} minutes.</p>
+      <p><a href="${link}">${link}</a></p>
+      <p>If you didn't request this, ignore this email — your password stays the same.</p>
+      <p>— The METU team</p>
+    `,
+  });
+}
+
+/**
+ * POST /auth/reset-password — consume a valid token + write a new
+ * bcrypt hash. We hash the raw token client-side then look up by
+ * the hash. The hashed lookup means a leaked DB row alone can't
+ * reset anyone's password.
+ *
+ * Throws `AppError(400, "InvalidToken")` for any rejection mode
+ * (missing / consumed / expired) so an attacker can't tell which
+ * branch they hit.
+ */
+export async function resetPassword(input: ResetPasswordInput): Promise<void> {
+  const tokenHash = crypto.createHash("sha256").update(input.token).digest("hex");
+  const row = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+  });
+  if (!row || row.consumedAt || row.expiresAt < new Date()) {
+    throw new AppError(
+      400,
+      "InvalidToken",
+      "This reset link has expired or already been used.",
+    );
+  }
+
+  const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+
+  // Three-statement transaction:
+  //  1. Update the user's password.
+  //  2. Mark the consumed token (this token can't be reused).
+  //  3. Invalidate any OTHER outstanding tokens for the same user
+  //     so an attacker who grabbed a separate fresh token (e.g.
+  //     before this reset) can't use it after the password rotates.
+  await prisma.$transaction([
+    prisma.user.update({ where: { userId: row.userId }, data: { password: hash } }),
+    prisma.passwordResetToken.update({
+      where: { tokenId: row.tokenId },
+      data: { consumedAt: new Date() },
+    }),
+    prisma.passwordResetToken.updateMany({
+      where: { userId: row.userId, consumedAt: null, NOT: { tokenId: row.tokenId } },
+      data: { consumedAt: new Date() },
+    }),
+  ]);
+
+  await audit({
+    actorId: row.userId,
+    action: "auth.password_reset",
+    targetType: "user",
+    targetId: row.userId,
   });
 }

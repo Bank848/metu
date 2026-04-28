@@ -10,10 +10,14 @@ export {
   registerSchema,
   updateProfileSchema,
   changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   type LoginInput,
   type RegisterInput,
   type UpdateProfileInput,
   type ChangePasswordInput,
+  type ForgotPasswordInput,
+  type ResetPasswordInput,
 } from "@metu/shared";
 
 import type { User, UserStats } from "@prisma/client";

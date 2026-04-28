@@ -1,8 +1,10 @@
 import type { RequestHandler } from "express";
 import {
   changePasswordSchema,
+  forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  resetPasswordSchema,
   updateProfileSchema,
 } from "../models/auth.model.js";
 import * as service from "../services/auth.service.js";
@@ -119,6 +121,45 @@ export const changePassword: RequestHandler = async (req, res, next) => {
     if (!auth) throw new AppError(401, "Unauthorized");
 
     await service.changePassword(auth.uid, parsed.data);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/forgot-password — accepts ANY input shape and ALWAYS
+ * returns the same generic body so an attacker can't enumerate
+ * registered emails. Validation failure → still 200 + generic message.
+ */
+export const forgotPassword: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = forgotPasswordSchema.safeParse(req.body);
+    if (parsed.success) {
+      // Service is silent — never throws to prevent enumeration.
+      await service.forgotPassword(parsed.data);
+    }
+    res.json({
+      ok: true,
+      message: "If that email is registered, a reset link is on the way.",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/reset-password — consume a token, write a new hash.
+ * Service throws `AppError(400, "InvalidToken")` for any rejection
+ * mode (missing / consumed / expired) so the surface stays flat.
+ */
+export const resetPassword: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    await service.resetPassword(parsed.data);
     res.json({ ok: true });
   } catch (err) {
     next(err);
