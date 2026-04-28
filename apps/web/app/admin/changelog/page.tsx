@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: ShieldAlert,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-16-1",
+    commitSha: "218f0fc",
     items: [
       { title: "Migration 20260429050653_phase_16_1_store_suspended: ALTER store ADD suspended_at TIMESTAMP NULL + new partial index store_live_v2_idx ON (created_at DESC) WHERE deleted_at IS NULL AND suspended_at IS NULL (covers the public 'live stores' query plan)" },
       { title: "schema.prisma: Store gains suspendedAt with @map. Distinct from deletedAt (permanent admin removal); suspendedAt is reversible 'freeze' state" },
