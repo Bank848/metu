@@ -16,11 +16,28 @@ import jwt from "jsonwebtoken";
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
     user: { findUnique: vi.fn() },
-    store: { findUnique: vi.fn() },
-    product: { findMany: vi.fn(), findUnique: vi.fn(), count: vi.fn() },
+    store: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    userStats: { findUnique: vi.fn(), upsert: vi.fn() },
+    product: {
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      count: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    productItem: { findUnique: vi.fn(), update: vi.fn() },
     productReview: { findMany: vi.fn() },
-    order: { findMany: vi.fn() },
+    order: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    coupon: { findMany: vi.fn(), create: vi.fn() },
+    transaction: { create: vi.fn() },
+    auditLog: { create: vi.fn() },
     $queryRaw: vi.fn(),
+    $transaction: vi.fn(),
   },
 }));
 
@@ -239,5 +256,312 @@ describe("GET /seller/stats", () => {
     expect(res.body.kpi.totalRevenue).toBe(500);
     expect(res.body.productCount).toBe(7);
     expect(res.body.topProducts[0].productId).toBe(100);
+  });
+});
+
+// =============================================================================
+//  WRITE SIDE (Phase 13.9.2)
+// =============================================================================
+
+describe("POST /seller/become-seller", () => {
+  it("401 without cookie", async () => {
+    const res = await request(buildApp())
+      .post("/seller/become-seller")
+      .send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("409 StoreExists when the user already owns one", async () => {
+    // The 409 fires before the controller looks at the body — we need
+    // to exercise the existing-store check, so the body just has to
+    // pass schema validation. Schema rejects null for image URLs;
+    // omit them entirely.
+    (prisma.store.findUnique as any).mockResolvedValue({ storeId: 11 });
+    const res = await request(buildApp())
+      .post("/seller/become-seller")
+      .set("Cookie", cookieFor(7))
+      .send({
+        businessTypeId: 1,
+        name: "Shop",
+        description: "stuff",
+      });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("StoreExists");
+  });
+
+  it("400 ValidationError on bad body", async () => {
+    (prisma.store.findUnique as any).mockResolvedValue(null);
+    const res = await request(buildApp())
+      .post("/seller/become-seller")
+      .set("Cookie", cookieFor(9, "buyer"))
+      .send({}); // missing required fields
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("ValidationError");
+  });
+});
+
+describe("PATCH /seller/store", () => {
+  it("noop when body has no recognised keys", async () => {
+    const res = await request(buildApp())
+      .patch("/seller/store")
+      .set("Cookie", cookieFor(7))
+      .send({});
+    expect(res.status).toBe(200);
+    expect(res.body.noop).toBe(true);
+    expect(prisma.store.update).not.toHaveBeenCalled();
+  });
+
+  it("partial update: only sent keys reach Prisma", async () => {
+    (prisma.store.update as any).mockResolvedValue({
+      storeId: 11,
+      name: "New Name",
+    });
+    const res = await request(buildApp())
+      .patch("/seller/store")
+      .set("Cookie", cookieFor(7))
+      .send({ name: "New Name" });
+    expect(res.status).toBe(200);
+    expect(res.body.store.name).toBe("New Name");
+    const call = (prisma.store.update as any).mock.calls[0][0];
+    expect(call.data).toEqual({ name: "New Name" });
+  });
+});
+
+describe("PATCH /seller/products/:id (pause toggle fast path)", () => {
+  it("flips isActive without invoking the full edit transaction", async () => {
+    (prisma.product.findUnique as any).mockResolvedValue({
+      productId: 100,
+      storeId: 11,
+      name: "thing",
+    });
+    (prisma.product.update as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .patch("/seller/products/100")
+      .set("Cookie", cookieFor(7))
+      .send({ isActive: false });
+    expect(res.status).toBe(200);
+    expect(res.body.isActive).toBe(false);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /seller/products/:id (soft-delete + audit)", () => {
+  it("404 when product missing", async () => {
+    (prisma.product.findUnique as any).mockResolvedValue(null);
+    const res = await request(buildApp())
+      .delete("/seller/products/9999")
+      .set("Cookie", cookieFor(7));
+    expect(res.status).toBe(404);
+  });
+
+  it("403 when product belongs to another store", async () => {
+    (prisma.product.findUnique as any).mockResolvedValue({
+      productId: 100,
+      storeId: 99,
+    });
+    const res = await request(buildApp())
+      .delete("/seller/products/100")
+      .set("Cookie", cookieFor(7));
+    expect(res.status).toBe(403);
+  });
+
+  it("happy: soft-delete + audit row written", async () => {
+    (prisma.product.findUnique as any).mockResolvedValue({
+      productId: 100,
+      storeId: 11,
+      name: "thing",
+    });
+    (prisma.product.update as any).mockResolvedValue({});
+    (prisma.auditLog.create as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .delete("/seller/products/100")
+      .set("Cookie", cookieFor(7));
+    expect(res.status).toBe(200);
+    expect(prisma.product.update).toHaveBeenCalledWith({
+      where: { productId: 100 },
+      data: { deletedAt: expect.any(Date) },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "product.delete",
+        targetType: "product",
+        targetId: 100,
+      }),
+    });
+  });
+});
+
+describe("POST /seller/products/:id/duplicate", () => {
+  it("404 when source missing", async () => {
+    (prisma.product.findFirst as any).mockResolvedValue(null);
+    const res = await request(buildApp())
+      .post("/seller/products/9999/duplicate")
+      .set("Cookie", cookieFor(7));
+    expect(res.status).toBe(404);
+  });
+
+  it("creates a paused copy prefixed 'Copy of '", async () => {
+    (prisma.product.findFirst as any).mockResolvedValue({
+      productId: 100,
+      storeId: 11,
+      categoryId: 5,
+      name: "Original",
+      description: "desc",
+      items: [
+        { deliveryMethod: "download", quantity: 10, price: 5, discountPercent: 0, discountAmount: 0 },
+      ],
+      images: [{ productImage: "data:img1", sortOrder: 0 }],
+      productNTags: [{ tagId: 1 }],
+    });
+    (prisma.product.create as any).mockResolvedValue({ productId: 200 });
+    const res = await request(buildApp())
+      .post("/seller/products/100/duplicate")
+      .set("Cookie", cookieFor(7));
+    expect(res.status).toBe(200);
+    expect(res.body.productId).toBe(200);
+    const create = (prisma.product.create as any).mock.calls[0][0];
+    expect(create.data.name).toBe("Copy of Original");
+    expect(create.data.isActive).toBe(false);
+  });
+});
+
+describe("PATCH /seller/product-items/:id (variant nudge)", () => {
+  it("403 when variant belongs to another store", async () => {
+    (prisma.productItem.findUnique as any).mockResolvedValue({
+      productItemId: 500,
+      product: { storeId: 99 },
+    });
+    const res = await request(buildApp())
+      .patch("/seller/product-items/500")
+      .set("Cookie", cookieFor(7))
+      .send({ price: 99 });
+    expect(res.status).toBe(403);
+  });
+
+  it("happy: updates only the keys sent", async () => {
+    (prisma.productItem.findUnique as any).mockResolvedValue({
+      productItemId: 500,
+      product: { storeId: 11 },
+    });
+    (prisma.productItem.update as any).mockResolvedValue({
+      productItemId: 500,
+      price: 50,
+      discountPercent: 10,
+      quantity: 99,
+    });
+    const res = await request(buildApp())
+      .patch("/seller/product-items/500")
+      .set("Cookie", cookieFor(7))
+      .send({ quantity: 99 });
+    expect(res.status).toBe(200);
+    expect(res.body.productItem.quantity).toBe(99);
+    const call = (prisma.productItem.update as any).mock.calls[0][0];
+    expect(call.data).toEqual({ quantity: 99 });
+  });
+});
+
+describe("POST /seller/coupons", () => {
+  it("creates a coupon scoped to the seller's store", async () => {
+    (prisma.coupon.create as any).mockResolvedValue({ couponId: 1 });
+    const res = await request(buildApp())
+      .post("/seller/coupons")
+      .set("Cookie", cookieFor(7))
+      .send({
+        code: "WELCOME10",
+        discountType: "percent",
+        discountValue: 10,
+        startDate: "2026-01-01T00:00:00.000Z",
+        endDate: "2026-12-31T23:59:59.000Z",
+        usageLimit: 100,
+        isActive: true,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.couponId).toBe(1);
+    const call = (prisma.coupon.create as any).mock.calls[0][0];
+    expect(call.data.storeId).toBe(11);
+    expect(call.data.code).toBe("WELCOME10");
+  });
+});
+
+describe("PATCH /seller/orders/:id (status flip)", () => {
+  it("409 AlreadyRefunded when order is refunded", async () => {
+    (prisma.order.findUnique as any).mockResolvedValue({
+      orderId: 1,
+      status: "refunded",
+      items: [{ productItem: { product: { storeId: 11 } } }],
+    });
+    const res = await request(buildApp())
+      .patch("/seller/orders/1")
+      .set("Cookie", cookieFor(7))
+      .send({ status: "fulfilled" });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("AlreadyRefunded");
+  });
+
+  it("409 InvalidTransition when fulfilling a non-paid order", async () => {
+    (prisma.order.findUnique as any).mockResolvedValue({
+      orderId: 1,
+      status: "pending",
+      items: [{ productItem: { product: { storeId: 11 } } }],
+    });
+    const res = await request(buildApp())
+      .patch("/seller/orders/1")
+      .set("Cookie", cookieFor(7))
+      .send({ status: "fulfilled" });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("InvalidTransition");
+  });
+
+  it("happy: paid → fulfilled, audit row written", async () => {
+    (prisma.order.findUnique as any).mockResolvedValue({
+      orderId: 1,
+      status: "paid",
+      items: [{ productItem: { product: { storeId: 11 } } }],
+    });
+    (prisma.order.update as any).mockResolvedValue({});
+    (prisma.auditLog.create as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .patch("/seller/orders/1")
+      .set("Cookie", cookieFor(7))
+      .send({ status: "fulfilled" });
+    expect(res.status).toBe(200);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: "order.fulfilled" }),
+    });
+  });
+});
+
+describe("POST /seller/orders/:id/refund", () => {
+  it("403 when order has no line from this store", async () => {
+    (prisma.order.findUnique as any).mockResolvedValue({
+      orderId: 1,
+      status: "paid",
+      cart: { userId: 9 },
+      items: [{ productItem: { product: { storeId: 99 } } }],
+    });
+    const res = await request(buildApp())
+      .post("/seller/orders/1/refund")
+      .set("Cookie", cookieFor(7));
+    expect(res.status).toBe(403);
+  });
+
+  it("happy: refunds + creates Transaction in one $transaction call", async () => {
+    (prisma.order.findUnique as any).mockResolvedValue({
+      orderId: 1,
+      status: "paid",
+      totalPrice: "100.00",
+      cart: { userId: 9 },
+      items: [{ productItem: { product: { storeId: 11 } } }],
+    });
+    (prisma.$transaction as any).mockResolvedValue([{}, {}]);
+    (prisma.auditLog.create as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .post("/seller/orders/1/refund")
+      .set("Cookie", cookieFor(7));
+    expect(res.status).toBe(200);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: "order.refund" }),
+    });
   });
 });
