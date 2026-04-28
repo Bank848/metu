@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@better-auth/prisma-adapter": "^1.6.9",
     "@metu/db": "*",
     "@metu/shared": "*",
     "@prisma/client": "^5.22.0",

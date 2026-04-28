@@ -29,12 +29,18 @@ COPY apps/server/package.json ./apps/server/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/db/package.json ./packages/db/
 
-# Phase 14.1 — dropped `--ignore-scripts` because better-auth's
-# nested @better-auth/prisma-adapter dep relies on its parent's
-# install hook to materialise the dist re-exports. We still skip
-# apps/web's postinstall by simply not building it in this server
-# stage; the explicit `prisma generate` below takes care of @metu/db.
-RUN npm ci --include=dev
+# `--ignore-scripts` skips apps/web's prisma postinstall AND
+# @metu/db's prisma generate postinstall — both fail at this stage
+# because the schema file isn't copied yet. The builder stage runs
+# `prisma generate` explicitly once the source tree is present.
+#
+# Phase 14.1 note: better-auth's `dist/.../prisma-adapter/index.mjs`
+# re-exports from the separate `@better-auth/prisma-adapter`
+# package. We install that package as a direct dep on @metu/server
+# (see apps/server/package.json) so npm puts it at workspace level
+# instead of relying on better-auth's install hook to materialise
+# the nested copy — which `--ignore-scripts` would skip.
+RUN npm ci --include=dev --ignore-scripts
 
 # ───── Stage 2: builder ─────
 FROM node:20-alpine AS builder
