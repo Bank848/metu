@@ -29,9 +29,12 @@ COPY apps/server/package.json ./apps/server/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/db/package.json ./packages/db/
 
-# `--ignore-scripts` skips apps/web's prisma postinstall (schema not
-# present yet). The builder stage runs `prisma generate` explicitly.
-RUN npm ci --include=dev --ignore-scripts
+# Phase 14.1 — dropped `--ignore-scripts` because better-auth's
+# nested @better-auth/prisma-adapter dep relies on its parent's
+# install hook to materialise the dist re-exports. We still skip
+# apps/web's postinstall by simply not building it in this server
+# stage; the explicit `prisma generate` below takes care of @metu/db.
+RUN npm ci --include=dev
 
 # ───── Stage 2: builder ─────
 FROM node:20-alpine AS builder
