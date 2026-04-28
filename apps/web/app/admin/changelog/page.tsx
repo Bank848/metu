@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: ShieldAlert,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-14-4",
+    commitSha: "44ab6d0",
     items: [
       { title: "@metu/shared: 3 new schemas — updatePhoneSchema (liberal phone format, server normalises), requestOtpSchema (empty body, auth proves identity), verifyOtpSchema (6-digit numeric)" },
       { title: "NEW utils/otp.ts: generateCode (crypto.randomInt, no modulo bias), hashCode (SHA-256 of userId:phone:code so leaked codes can't be replayed against a different user/phone), otpIdentifier, expiresAt. deliverCode() routes to console (default) / twilio (env-gated) / disabled" },
