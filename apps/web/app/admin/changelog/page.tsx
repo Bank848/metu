@@ -32,6 +32,28 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-13-9-1",
+    title: "Phase 13.9.1 · Seller dashboard reads migrated",
+    subtitle:
+      "First half of the largest module migration. All six read-side seller endpoints (store, products list, single product, stats analytics, orders list with status filter, CSV export) now live on the layered Express server. New requireStore() middleware piggybacks on requireAuth() so every read endpoint has a single-line gate at the router level. Phase 13.9.2 follows with the write side (become-seller, store PATCH, product CRUD, duplicate, items DELETE, coupons, order status, refund) so review-ability stays high.",
+    icon: Store,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-9-1",
+    items: [
+      { title: "New middleware/seller.ts: requireStore() reads req.user.store (loaded by requireAuth's include) and returns 403 NoStore if the user hasn't onboarded. Mounted once at the router level via router.use(requireAuth(), requireStore()) — every read endpoint inherits both gates without per-route stacking" },
+      { title: "Layered seller resource: routes/seller.routes.ts → controllers/seller.controller.ts → services/seller.service.ts → models/seller.model.ts. Service functions take storeId (not the request) so they're pure + unit-testable" },
+      { title: "GET /seller/store: store with businessType + stats" },
+      { title: "GET /seller/products: live products only (deletedAt:null) — soft-deleted rows stay out of the seller dashboard, admin /admin/audit can still see them via the audit log" },
+      { title: "GET /seller/products/:id: 404 (NotFound) vs 403 (Forbidden — wrong store) deliberately distinct so the dashboard UI can tell stale links apart from bug attempts" },
+      { title: "GET /seller/stats: composite analytics — kpi totals, product count, recent reviews, daily orders (30 days), top 5 products by revenue. Three $queryRaw aggregates kept serial because they hit overlapping indexes (Neon free-tier burst friendliness)" },
+      { title: "GET /seller/orders?status=: scoped sub-includes — nested items only resolve to lines for THIS store so multi-store orders don't leak competitor product detail" },
+      { title: "GET /seller/orders/export: CSV download. Express sets Content-Type + Content-Disposition; proxy.ts updated to forward both (and cache-control) so the file-download UX survives the BFF hop" },
+      { title: "Vitest 63 → 73 (auth gates: 401 sweep across all 6 endpoints + 403 NoStore for buyer; store happy; products-list deletedAt:null assertion; product/:id 404, 403, happy; orders happy + status filter passthrough; orders/export CSV body + headers; stats composite payload)" },
+      { title: "BFF: 6 routes converted to forwardToApi proxies. PATCH /api/seller/store, POST /api/seller/products, PATCH/DELETE /api/seller/products/:id stay local until Phase 13.9.2 migrates the write side — files are hybrid (proxy GET + local mutation) for one PR" },
+    ],
+  },
+  {
     id: "phase-13-8",
     title: "Phase 13.8 · Messages migrated to Express",
     subtitle:
