@@ -58,6 +58,11 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
   if (!user || user.deletedAt) {
     throw new AppError(401, "InvalidCredentials");
   }
+  // Phase 14.1 — User.password is nullable now (Google-only signups
+  // have no password until they Set Password from /profile/edit).
+  // Treat NULL the same as a wrong password — same surface, no
+  // information leak about WHY the credential check failed.
+  if (!user.password) throw new AppError(401, "InvalidCredentials");
   const ok = await bcrypt.compare(input.password, user.password);
   if (!ok) throw new AppError(401, "InvalidCredentials");
 
@@ -197,6 +202,10 @@ export async function changePassword(
     select: { password: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
+  // Phase 14.1 — Google-only users have no password set. They must
+  // use the Phase 14.3 `POST /auth/set-password` flow first (which
+  // skips currentPassword verification because there is none yet).
+  if (!user.password) throw new AppError(400, "NoPasswordSet");
 
   const ok = await bcrypt.compare(input.currentPassword, user.password);
   if (!ok) throw new AppError(401, "InvalidCurrentPassword");
