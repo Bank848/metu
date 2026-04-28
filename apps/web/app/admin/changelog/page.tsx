@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: KeyRound,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-14-3-5",
+    commitSha: "c54fa62",
     items: [
       { title: "lib/auth.ts: databaseHooks.user.create.before checks for email collision (User.email match where deletedAt:null) and throws APIError('CONFLICT', 'EmailAlreadyRegistered') when found. better-auth surfaces this as the OAuth flow's error and redirects to errorCallbackURL" },
       { title: "Same hook now ALSO populates the NOT NULL fields better-auth doesn't know about: firstName + lastName split from Google's name string (single name → '—' surname placeholder), unique username derived via deriveUsername() helper" },
