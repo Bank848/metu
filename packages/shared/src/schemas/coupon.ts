@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DISCOUNT_TYPE } from "../enums";
+import { DISCOUNT_TYPE } from "../enums.js";
 
 export const validateCouponSchema = z.object({
   code: z.string().min(1).max(50),

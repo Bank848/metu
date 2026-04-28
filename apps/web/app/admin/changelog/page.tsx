@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,26 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-13-1",
+    title: "Phase 13.1 · Backend separation — Express API + Next BFF",
+    subtitle:
+      "Splits the monolith into two Fly apps: metu (Next.js BFF, owns UI + SSR) and metu-api (Express, owns Prisma + routes/controllers/services). Catalog (products, stores, categories, tags, health) is the first vertical slice. Auth, cart, orders, etc. follow in 13.2+.",
+    icon: Layers,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-1",
+    items: [
+      { title: "New @metu/server workspace at apps/server with the routes/controllers/services/models/middleware/db/utils layout. One file per resource per layer (products.routes.ts → products.controller.ts → products.service.ts → products.model.ts)" },
+      { title: "5 layered resources live: GET /health, GET /products[?…], GET /products/:id, GET /products/featured, GET /stores[?limit=N], GET /stores/:id, GET /categories, GET /tags" },
+      { title: "Vitest 14/14 across both workspaces (5 server + 9 web). Server tests mock Prisma + drive supertest(buildApp())" },
+      { title: "Next BFF rewired: lib/server/api.ts wraps fetch + cookie forwarding; lib/server/queries.ts catalog functions delegate via apiFetch(). 5 of 6 catalog reads migrated; getProduct stays direct-Prisma until Reviews module ports the soft-delete-cascade selector" },
+      { title: "Deploy: apps/server/Dockerfile (multi-stage Node 20) + fly.server.toml. New Fly app metu-api in sin region. release_command runs prisma migrate deploy on every release" },
+      { title: "BFF picks API base from INTERNAL_API_URL env (https://metu-api.fly.dev in prod, http://localhost:4000 locally via concurrently)" },
+      { title: "Live verified: /, /browse, /browse?sort=price_asc, /browse?category=fonts, /store/18 all served by Next + delegate to metu-api (visible in Fly logs as GET /products?…, /stores/18, /categories, /tags)" },
+      { title: "apps/server/README.md documents the why + the 5-step add-an-endpoint template for the next migration" },
+    ],
+  },
   {
     id: "qa-r3-f1",
     title: "QA round #3 / F1 — silent React hydration errors fixed",

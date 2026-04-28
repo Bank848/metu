@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DELIVERY_METHOD } from "../enums";
+import { DELIVERY_METHOD } from "../enums.js";
 
 export const browseQuerySchema = z.object({
   category: z.coerce.number().int().positive().optional(),
