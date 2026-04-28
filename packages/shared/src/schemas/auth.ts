@@ -32,6 +32,11 @@ export const changePasswordSchema = z
     currentPassword: z.string().min(1),
     newPassword: z.string().min(6).max(100),
     confirmPassword: z.string().min(6).max(100),
+    // Phase 15.3 — when the user has verified their phone, the
+    // server requires this OTP. Schema treats it as optional here
+    // so users without phone verification can still change passwords;
+    // the service-side guard enforces presence + freshness.
+    otpCode: z.string().regex(/^\d{6}$/).optional(),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
     message: "Passwords don't match",
@@ -56,6 +61,11 @@ export const setPasswordSchema = z
   .object({
     newPassword: z.string().min(6).max(100),
     confirmPassword: z.string().min(6).max(100),
+    // Phase 15.3 — same OTP enforcement story as changePasswordSchema.
+    // OAuth-only users without a verified phone can still set their
+    // first password; once they verify a phone, future password ops
+    // gate on a fresh OTP.
+    otpCode: z.string().regex(/^\d{6}$/).optional(),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
     message: "Passwords don't match",

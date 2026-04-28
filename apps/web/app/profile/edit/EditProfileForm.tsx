@@ -152,6 +152,10 @@ export function EditProfileForm({
     dateOfBirth: initial.dateOfBirth,
   });
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  // Phase 15.3 — OTP code for sensitive password ops. Only surfaced
+  // when initial.phoneVerified=true (server gates the requirement
+  // there too — UI is just consistent with what the server expects).
+  const [pwOtp, setPwOtp] = useState("");
 
   const inputCls =
     "w-full rounded-xl border border-white/10 bg-surface-2 px-4 py-2.5 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none";
@@ -298,12 +302,16 @@ export function EditProfileForm({
       // Phase 14.3 — Google-only users (initial.hasPassword=false)
       // hit /set-password (no currentPassword check); existing users
       // hit /change-password (verifies the current password first).
+      // Phase 15.3 — when phoneVerified=true the body also carries
+      // otpCode (server gates on it server-side; UI requires the
+      // user to fetch + enter it before submit).
       const url = initial.hasPassword
         ? "/api/auth/change-password"
         : "/api/auth/set-password";
-      const body = initial.hasPassword
-        ? pw
+      const body: Record<string, unknown> = initial.hasPassword
+        ? { ...pw }
         : { newPassword: pw.newPassword, confirmPassword: pw.confirmPassword };
+      if (initial.phoneVerified && pwOtp) body.otpCode = pwOtp;
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -315,7 +323,18 @@ export function EditProfileForm({
         const fallback = initial.hasPassword
           ? "Failed to change password"
           : "Failed to set password";
-        setPasswordMsg({ ok: false, text: data?.message ?? fallback });
+        // Phase 15.3 — distinct OTP error codes get helpful hints.
+        const otpHint =
+          data?.error === "OtpRequired"
+            ? "Phone verified — enter a fresh SMS code below to confirm this change."
+            : data?.error === "InvalidOtp"
+            ? "Wrong SMS code. Try again or request a new one."
+            : data?.error === "OtpExpired"
+            ? "SMS code expired. Request a new one and try again."
+            : data?.error === "NoPendingOtp"
+            ? "No pending SMS code — click 'Send code' first."
+            : null;
+        setPasswordMsg({ ok: false, text: otpHint ?? data?.message ?? fallback });
         return;
       }
       const successText = initial.hasPassword
@@ -323,6 +342,7 @@ export function EditProfileForm({
         : "Password set. You can now sign in with email + password too.";
       setPasswordMsg({ ok: true, text: successText });
       setPw({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPwOtp("");
       // Refresh so the next render reads hasPassword=true and the
       // form switches back to the change-password flow.
       router.refresh();
@@ -571,6 +591,40 @@ export function EditProfileForm({
             />
           </label>
         </div>
+
+        {/* Phase 15.3 — OTP gate on sensitive password ops. Only
+            shown when the user has VERIFIED their phone — until
+            then the server doesn't gate. 'Send code' reuses the
+            existing /request-otp flow; user copy-pastes the code
+            from their SMS into the field. */}
+        {initial.phoneVerified && (
+          <div className="rounded-xl border border-white/10 bg-surface-2 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                SMS code required (phone verified)
+              </span>
+              <button
+                type="button"
+                onClick={requestOtp}
+                disabled={busy !== null}
+                className="text-xs font-semibold text-metu-yellow hover:underline disabled:opacity-50"
+              >
+                {busy === "otp-request" ? "Sending…" : "Send code"}
+              </button>
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="\d{6}"
+              maxLength={6}
+              value={pwOtp}
+              onChange={(e) => setPwOtp(e.target.value.replace(/\D/g, ""))}
+              placeholder="123456"
+              className={`text-center font-mono tracking-widest ${inputCls}`}
+            />
+          </div>
+        )}
 
         {passwordMsg && (
           <p className={`text-sm ${passwordMsg.ok ? "text-green-400" : "text-red-400"}`}>

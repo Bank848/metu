@@ -211,7 +211,10 @@ export async function changePassword(
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { userId },
-    select: { password: true },
+    // Phase 15.3 — pull phone + phoneVerifiedAt so we know whether
+    // to gate on a fresh OTP (only when the user has actually
+    // verified their phone).
+    select: { password: true, phone: true, phoneVerifiedAt: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
   // Phase 14.1 — Google-only users have no password set. They must
@@ -221,6 +224,12 @@ export async function changePassword(
 
   const ok = await bcrypt.compare(input.currentPassword, user.password);
   if (!ok) throw new AppError(401, "InvalidCurrentPassword");
+
+  // Phase 15.3 — when phone is verified, sensitive password change
+  // requires a fresh OTP. Defends against a stolen session: an
+  // attacker with a valid cookie can't change the password without
+  // also having access to the user's SMS messages.
+  await ensureSensitiveOtpIfVerified(userId, user.phone, user.phoneVerifiedAt, input.otpCode);
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
   await prisma.user.update({
@@ -251,10 +260,15 @@ export async function setPassword(
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { userId },
-    select: { password: true },
+    // Phase 15.3 — same OTP-gating story as changePassword. A user
+    // who set a phone + verified it before clicking 'Set password'
+    // proves possession via fresh OTP.
+    select: { password: true, phone: true, phoneVerifiedAt: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
   if (user.password) throw new AppError(400, "PasswordAlreadySet");
+
+  await ensureSensitiveOtpIfVerified(userId, user.phone, user.phoneVerifiedAt, input.otpCode);
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
   await prisma.user.update({
@@ -267,6 +281,57 @@ export async function setPassword(
     targetType: "user",
     targetId: userId,
   });
+}
+
+// =============================================================================
+//  PHASE 15.3 — OTP enforcement helper
+// =============================================================================
+
+/**
+ * Phase 15.3 — gate sensitive password operations on a fresh OTP
+ * when the user has verified their phone. No-op when phone isn't
+ * verified (Phase 14.4's scaffold is opt-in; users who haven't
+ * verified can still change passwords with just their current one).
+ *
+ * Failure modes (all 400 with distinct error codes):
+ *   • OtpRequired       — phone is verified but no code in body
+ *   • InvalidOtp        — code didn't match the pending hash
+ *   • NoPendingOtp      — no /request-otp was called recently
+ *   • OtpExpired        — pending code is past TTL
+ *
+ * Consumes the verification row on success — exactly the same
+ * behaviour as the standalone /auth/verify-otp endpoint, just
+ * inline so /change-password and /set-password can require a
+ * single round-trip.
+ */
+async function ensureSensitiveOtpIfVerified(
+  userId: number,
+  phone: string | null,
+  phoneVerifiedAt: Date | null,
+  otpCode: string | undefined,
+): Promise<void> {
+  // No phone OR not verified → OTP not required. Bail early.
+  if (!phone || !phoneVerifiedAt) return;
+
+  if (!otpCode) throw new AppError(400, "OtpRequired");
+
+  const identifier = otpIdentifier(userId);
+  const pending = await prisma.verification.findFirst({
+    where: { identifier },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!pending) throw new AppError(400, "NoPendingOtp");
+  if (pending.expiresAt.getTime() < Date.now()) {
+    await prisma.verification.delete({ where: { id: pending.id } });
+    throw new AppError(400, "OtpExpired");
+  }
+
+  const expected = hashCode(userId, phone, otpCode);
+  if (expected !== pending.value) throw new AppError(400, "InvalidOtp");
+
+  // Consume the row so the same code can't be replayed against a
+  // second sensitive action.
+  await prisma.verification.delete({ where: { id: pending.id } });
 }
 
 // =============================================================================
