@@ -74,13 +74,14 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
   // Public-catalogue gates — the BFF used to apply these inline. We
   // pull them server-side so any future API consumer (mobile, partner)
   // gets the same filtered view without re-implementing it.
-  //   • isActive    — sellers can pause a product without delisting it
-  //   • deletedAt   — soft-deleted products are admin-only
-  //   • store.deletedAt — orphan products from a deleted store
+  //   • isActive            — sellers can pause a product without delisting
+  //   • deletedAt           — soft-deleted products are admin-only
+  //   • store.deletedAt     — orphan products from a deleted store
+  //   • store.suspendedAt   — Phase 16.1: hide products from suspended stores
   const where: Prisma.ProductWhereInput = {
     isActive: true,
     deletedAt: null,
-    store: { deletedAt: null },
+    store: { deletedAt: null, suspendedAt: null },
   };
   if (category) where.categoryId = category;
   if (q) {
@@ -147,7 +148,12 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
  */
 export async function findFeatured(limit = 8): Promise<ProductListItem[]> {
   return listProducts(
-    { isActive: true, deletedAt: null, store: { deletedAt: null } },
+    {
+      isActive: true,
+      deletedAt: null,
+      // Phase 16.1 — same suspendedAt:null gate as findProducts.
+      store: { deletedAt: null, suspendedAt: null },
+    },
     { reviews: { _count: "desc" } },
     limit,
     0,
@@ -185,6 +191,18 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
     },
   });
   if (!product) return null;
+  // Phase 16.1 — public detail must hide products from suspended OR
+  // soft-deleted stores. We do the parent check post-fetch (vs in
+  // the WHERE) because findUnique doesn't accept relation filters
+  // on the nested store; cleaner to load + reject than restructure
+  // the query into a findFirst.
+  if (
+    product.deletedAt !== null ||
+    product.store.deletedAt !== null ||
+    product.store.suspendedAt !== null
+  ) {
+    return null;
+  }
   const ratings = product.reviews.map((r) => r.rating);
   const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined;
   return { ...product, avgRating, reviewCount: ratings.length };

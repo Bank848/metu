@@ -51,7 +51,8 @@ export async function askQuestion(
   input: QuestionAskInput,
 ): Promise<QuestionWithUsers> {
   const product = await prisma.product.findFirst({
-    where: { productId, deletedAt: null, store: { deletedAt: null } },
+    // Phase 16.1 — also reject suspended stores (hidden from public).
+    where: { productId, deletedAt: null, store: { deletedAt: null, suspendedAt: null } },
     select: { productId: true },
   });
   if (!product) throw new AppError(404, "ProductNotFound");

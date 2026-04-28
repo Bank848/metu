@@ -1,24 +1,35 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, PauseCircle, PlayCircle } from "lucide-react";
 import { ActionRow, type ActionRowItem } from "./ActionRow";
 
 /**
  * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
- *
- * The DELETE call signature is identical to the previous version. Only
- * the trigger UI changed (inline pill button → three-dots menu) so the
- * /admin/stores table looks like /admin/users + /admin/audit.
+ * Phase 16.1 — adds a Suspend/Unsuspend toggle ABOVE the destructive
+ * Delete. Suspended stores are HIDDEN from public surfaces (browse,
+ * /store/[id], featured, sitemap) but the row + products + history
+ * stay intact. Reversible — vs Delete which is permanent.
  */
-export function StoreActions({ storeId, name }: { storeId: number; name: string }) {
+export function StoreActions({
+  storeId,
+  name,
+  // Phase 16.1 — drives the suspend/unsuspend label + tone. When the
+  // store is currently suspended (suspendedAt != null) the action
+  // becomes "Resume" + safe-tone; otherwise it's "Suspend" + warning.
+  suspended = false,
+}: {
+  storeId: number;
+  name: string;
+  suspended?: boolean;
+}) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"suspend" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function remove() {
     setError(null);
-    setBusy(true);
+    setBusy("delete");
     try {
       const res = await fetch(`/api/admin/stores/${storeId}`, {
         method: "DELETE",
@@ -27,24 +38,57 @@ export function StoreActions({ storeId, name }: { storeId: number; name: string 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.message ?? "Failed to delete store");
-        setBusy(false);
+        setBusy(null);
         return;
       }
       router.refresh();
     } catch {
       setError("Network error");
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  async function toggleSuspended() {
+    setError(null);
+    setBusy("suspend");
+    try {
+      const res = await fetch(`/api/admin/stores/${storeId}/suspend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ value: !suspended }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.message ?? "Failed to update suspended state");
+        setBusy(null);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Network error");
+      setBusy(null);
     }
   }
 
   const actions: ActionRowItem[] = [
+    {
+      label: suspended ? "Resume store" : "Suspend store",
+      icon: suspended ? PlayCircle : PauseCircle,
+      tone: suspended ? "safe" : "primary",
+      onClick: toggleSuspended,
+      confirm: suspended
+        ? `Resume "${name}"? It'll appear on /browse + storefront immediately.`
+        : `Suspend "${name}"? It disappears from /browse + storefront immediately. Reversible — vs Delete which is permanent.`,
+      disabled: busy !== null,
+    },
     {
       label: "Delete store",
       icon: Trash2,
       tone: "destructive",
       onClick: remove,
       confirm: `Delete store "${name}"? Cascades to all of its products, coupons, and reviews.`,
-      disabled: busy,
+      disabled: busy !== null,
     },
   ];
 

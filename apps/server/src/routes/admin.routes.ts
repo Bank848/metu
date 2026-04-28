@@ -37,6 +37,9 @@ router.post("/users/:id/require-password-reset", ctrl.setRequirePasswordReset);
 // Stores
 router.get("/stores",                 ctrl.listStores);
 router.delete("/stores/:id",          ctrl.deleteStore);
+// Phase 16.1 — reversible "freeze" alternative to DELETE.
+// Body: { value: boolean }.
+router.post("/stores/:id/suspend",    ctrl.setStoreSuspended);
 
 // Stats
 router.get("/stats",                  ctrl.getStats);

@@ -18,7 +18,8 @@ export async function createReview(
   input: ReviewInput,
 ): Promise<ReviewWithAuthor> {
   const product = await prisma.product.findFirst({
-    where: { productId, deletedAt: null, store: { deletedAt: null } },
+    // Phase 16.1 — also reject suspended stores (parent hidden from public).
+    where: { productId, deletedAt: null, store: { deletedAt: null, suspendedAt: null } },
     select: { productId: true },
   });
   if (!product) throw new AppError(404, "ProductNotFound");

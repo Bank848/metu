@@ -418,3 +418,54 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
     });
   });
 });
+
+// =============================================================================
+//  Phase 16.1 — store-suspended toggle
+// =============================================================================
+describe("POST /admin/stores/:id/suspend (Phase 16.1)", () => {
+  it("400 ValidationError when body.value is missing or not boolean", async () => {
+    const res = await request(buildApp())
+      .post("/admin/stores/11/suspend")
+      .set("Cookie", cookieFor(1, "admin"))
+      .send({}); // no value
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("ValidationError");
+  });
+
+  it("happy: SET (value=true) sets suspendedAt to a Date + writes .suspend audit", async () => {
+    (prisma.store.update as any).mockResolvedValue({});
+    (prisma.auditLog.create as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .post("/admin/stores/11/suspend")
+      .set("Cookie", cookieFor(1, "admin"))
+      .send({ value: true });
+    expect(res.status).toBe(200);
+    const updateCall = (prisma.store.update as any).mock.calls[0][0];
+    expect(updateCall.where.storeId).toBe(11);
+    expect(updateCall.data.suspendedAt).toBeInstanceOf(Date);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "store.suspend",
+        targetType: "store",
+        targetId: 11,
+      }),
+    });
+  });
+
+  it("happy: CLEAR (value=false) sets suspendedAt to null + writes .unsuspend audit", async () => {
+    (prisma.store.update as any).mockResolvedValue({});
+    (prisma.auditLog.create as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .post("/admin/stores/11/suspend")
+      .set("Cookie", cookieFor(1, "admin"))
+      .send({ value: false });
+    expect(res.status).toBe(200);
+    const updateCall = (prisma.store.update as any).mock.calls[0][0];
+    expect(updateCall.data.suspendedAt).toBeNull();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "store.unsuspend",
+      }),
+    });
+  });
+});

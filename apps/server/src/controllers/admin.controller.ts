@@ -127,6 +127,32 @@ export const refundTransaction: RequestHandler<{ id: string }> = async (req, res
   }
 };
 
+// ── Store suspended toggle (Phase 16.1) ─────────────────────────────
+
+/**
+ * POST /admin/stores/:id/suspend
+ *
+ * Body: `{ value: boolean }`. true → set suspendedAt = NOW (store
+ * disappears from public surfaces immediately). false → clears
+ * suspendedAt back to NULL (store goes live again). Reversible
+ * — distinct from DELETE /admin/stores/:id which is permanent.
+ */
+export const setStoreSuspended: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const storeId = Number(req.params.id);
+    if (!Number.isFinite(storeId)) throw new AppError(400, "BadId");
+    const value = req.body?.value;
+    if (typeof value !== "boolean") {
+      throw new AppError(400, "ValidationError", "Body must be { value: boolean }");
+    }
+    await service.setStoreSuspended(storeId, auth.uid, value, req);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Force-password-reset (Phase 15.5) ───────────────────────────────
 
 /**

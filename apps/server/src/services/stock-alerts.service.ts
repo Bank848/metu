@@ -15,7 +15,8 @@ export async function subscribe(userId: number, productItemId: number): Promise<
   const exists = await prisma.productItem.findFirst({
     where: {
       productItemId,
-      product: { deletedAt: null, store: { deletedAt: null } },
+      // Phase 16.1 — also reject suspended stores.
+      product: { deletedAt: null, store: { deletedAt: null, suspendedAt: null } },
     },
     select: { productItemId: true },
   });

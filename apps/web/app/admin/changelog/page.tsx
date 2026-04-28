@@ -32,6 +32,29 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-16-1",
+    title: "Phase 16.1 · Suspended stores — reversible 'freeze' alternative to delete",
+    subtitle:
+      "First Phase 16 batch. Admins now have a middle ground between 'live' and 'gone': suspending a store hides it from every public surface (browse, /store/[id], product detail, featured grid, sitemap, q&a, reviews, favorites, stock-alerts) but leaves the row + products + history intact. Seller still sees the store in /seller dashboard with a banner explaining why. Reversible — clear the column to bring it back. Distinct from DELETE which is permanent.",
+    icon: ShieldAlert,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-16-1",
+    items: [
+      { title: "Migration 20260429050653_phase_16_1_store_suspended: ALTER store ADD suspended_at TIMESTAMP NULL + new partial index store_live_v2_idx ON (created_at DESC) WHERE deleted_at IS NULL AND suspended_at IS NULL (covers the public 'live stores' query plan)" },
+      { title: "schema.prisma: Store gains suspendedAt with @map. Distinct from deletedAt (permanent admin removal); suspendedAt is reversible 'freeze' state" },
+      { title: "service.setStoreSuspended(storeId, actorUserId, value, req): toggles suspendedAt to NOW or NULL + writes 'store.suspend' / 'store.unsuspend' AuditLog with IP+UA" },
+      { title: "controller + route: POST /admin/stores/:id/suspend with body { value: boolean }. 400 ValidationError on bad body" },
+      { title: "Public catalog filter sweep — every query that surfaces store data publicly now gates on suspendedAt:null AND deletedAt:null: stores.service.findStores + findStoreById, products.service.findProducts (browse) + findFeatured + findProductById, favorites.service.addFavorite, qna.service.askQuestion, reviews.service.createReview, stock-alerts.service.subscribe. Seller dashboard queries are unaffected — they still see suspended stores so the seller can fix things" },
+      { title: "products.service.findProductById special case: post-fetch reject (deletedAt OR store.deletedAt OR store.suspendedAt all checked AFTER the findUnique) because Prisma findUnique doesn't accept relation filters; cleaner than restructuring to findFirst" },
+      { title: "BFF: /api/admin/stores/[id]/suspend forwarder (~12 LOC)" },
+      { title: "StoreActions component: NEW menu item ABOVE Delete. Label flips between 'Suspend store' / 'Resume store' (tone primary vs safe). Confirm dialog explains reversibility — sets expectation correctly vs Delete's cascade-to-products warning" },
+      { title: "SellerLayout: persistent amber banner when store.suspendedAt set. Explains buyers can't see /browse + /store/X + product links (all 404), but seller can still edit products + run analytics + reply to questions. Cleared the moment admin un-suspends" },
+      { title: "Vitest 147 → 150 (3 new): 400 ValidationError on bad body, happy SET (suspendedAt becomes a Date + 'store.suspend' audit), happy CLEAR (suspendedAt becomes null + 'store.unsuspend' audit)" },
+      { title: "Build clean. Web shared First Load JS = 89.8 kB (unchanged). Phase 16.2 NEXT: 2FA TOTP enrolment via better-auth's twoFactor plugin (QR code in /profile/edit, login flow asks for 6-digit TOTP code after password if enrolled)" },
+    ],
+  },
+  {
     id: "phase-15-5",
     title: "Phase 15.5 · Admin force-password-reset (Phase 15 complete)",
     subtitle:
