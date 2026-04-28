@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,26 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-13-3",
+    title: "Phase 13.3 · Cart + coupons migrated to Express",
+    subtitle:
+      "GET /cart, POST/PATCH/DELETE /cart/items, and POST /coupons/validate now live as layered Express resources on metu-api. Cart line shape preserved (cartId + items[] with stock + computed unit price + lineTotal + subtotal). The Next /api/cart/** + /api/coupons/validate routes are now thin forwardToApi proxies.",
+    icon: ShoppingCart,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-3",
+    items: [
+      { title: "Layered cart resource: routes/cart.routes.ts → controllers/cart.controller.ts → services/cart.service.ts → models/cart.model.ts. requireAuth() applied at the router level (every endpoint authed)" },
+      { title: "GET /cart returns the same envelope as the legacy BFF: cartId + items[] (with stock snapshot for input-cap UX) + subtotal" },
+      { title: "POST /cart/items merges quantity on duplicate productItemId (no row duplication, single row + bumped qty)" },
+      { title: "PATCH/DELETE /cart/items/:id enforce ownership server-side — return 404 (not 403) when the item belongs to a different user, so we don't leak whether the id exists" },
+      { title: "Layered coupons resource: POST /coupons/validate. Always 200 with { valid, reason? } so the cart UI surfaces the rejection reason inline (not-found / not-active / expired / limit-reached)" },
+      { title: "Vitest 16 → 23 (added cart get + cart merge + cart ownership-404 + coupon validate happy / missing / limit-reached)" },
+      { title: "Next /api/cart/route.ts, /api/cart/items/route.ts, /api/cart/items/[id]/route.ts, /api/coupons/validate/route.ts converted to ~12-line forwarders via lib/server/proxy.ts" },
+      { title: "Legacy apps/server/src/routes/cart.ts + coupons.ts deleted. tsconfig exclusions narrowed — orders/seller/admin/stats are the remaining legacy flat routes (Phase 13.4+)" },
+    ],
+  },
   {
     id: "phase-13-2",
     title: "Phase 13.2 · Auth migrated to Express + cookie boundary",

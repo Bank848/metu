@@ -41,6 +41,10 @@ import tagsRoutes from "./routes/tags.routes.js";
 // Layered routes (Phase 13.2 — auth)
 import authRoutes from "./routes/auth.routes.js";
 
+// Layered routes (Phase 13.3 — cart + coupons)
+import cartRoutes from "./routes/cart.routes.js";
+import couponsRoutes from "./routes/coupons.routes.js";
+
 // Legacy flat routes that work today — will be migrated in later phases.
 import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
 
@@ -78,6 +82,10 @@ export function buildApp() {
 
   // ─── Layered routes (Phase 13.2 — auth) ──────────────────────────
   app.use("/auth",       authRoutes);
+
+  // ─── Layered routes (Phase 13.3 — cart + coupons) ────────────────
+  app.use("/cart",       cartRoutes);
+  app.use("/coupons",    couponsRoutes);
 
   // ─── Legacy flat routes (still working) ──────────────────────────
   // catalogRouter is mounted at /, so the URLs stay

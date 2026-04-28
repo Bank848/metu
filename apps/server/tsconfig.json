@@ -12,8 +12,6 @@
     "node_modules",
     "dist",
     "tests",
-    "src/routes/cart.ts",
-    "src/routes/coupons.ts",
     "src/routes/orders.ts",
     "src/routes/seller.ts",
     "src/routes/admin.ts",
