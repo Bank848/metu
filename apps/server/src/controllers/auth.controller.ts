@@ -226,6 +226,79 @@ export const verifyOtp: RequestHandler = async (req, res, next) => {
   }
 };
 
+// =============================================================================
+//  Phase 15.2 — sessions UI endpoints
+// =============================================================================
+
+/**
+ * Best-effort read of the current better-auth session id from the
+ * request headers. Returns null when the user is signed in via our
+ * legacy JWT cookie (no better-auth session row to identify).
+ */
+async function readBetterAuthSessionId(req: import("express").Request): Promise<number | null> {
+  try {
+    const { auth: betterAuth } = await import("../lib/auth.js");
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers)) {
+      if (typeof v === "string") headers.set(k, v);
+      else if (Array.isArray(v)) headers.set(k, v.join(", "));
+    }
+    const result = await betterAuth.api.getSession({ headers });
+    if (!result?.session?.id) return null;
+    const id = Number(result.session.id);
+    return Number.isFinite(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** GET /auth/sessions — list current user's active better-auth sessions. */
+export const listSessions: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const sessions = await service.listSessions(auth.uid);
+    // Surface which row is the "current" one so the UI can disable
+    // its Revoke button.
+    const currentSessionId = await readBetterAuthSessionId(req);
+    res.json({ sessions, currentSessionId });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** DELETE /auth/sessions/:id — revoke one session (ownership-checked). */
+export const revokeSession: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const sessionId = Number(req.params.id);
+    if (!Number.isFinite(sessionId)) throw new AppError(400, "BadId");
+    await service.revokeSession(auth.uid, sessionId);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * DELETE /auth/sessions/all-others — "Sign out everywhere".
+ * Revokes every better-auth session for the user EXCEPT the
+ * current one (so the actor doesn't sign themselves out by
+ * accident).
+ */
+export const revokeAllOtherSessions: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const currentSessionId = await readBetterAuthSessionId(req);
+    const result = await service.revokeAllOtherSessions(auth.uid, currentSessionId);
+    res.json({ ok: true, revoked: result.revoked });
+  } catch (err) {
+    next(err);
+  }
+};
+
 /**
  * POST /auth/forgot-password — accepts ANY input shape and ALWAYS
  * returns the same generic body so an attacker can't enumerate

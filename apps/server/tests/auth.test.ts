@@ -33,6 +33,11 @@ vi.mock("../src/db/prisma.js", () => ({
       delete: vi.fn(),
       deleteMany: vi.fn(),
     },
+    // Phase 15.2 — sessions UI reads/writes better-auth's session table.
+    session: {
+      findMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     auditLog: { create: vi.fn() },
   },
 }));
@@ -541,6 +546,124 @@ describe("Phase 14.4 — phone + OTP", () => {
           action: "user.phone_verified",
           targetType: "user",
           targetId: 7,
+        }),
+      });
+    });
+  });
+});
+
+// =============================================================================
+//  Phase 15.2 — sessions UI
+// =============================================================================
+describe("Phase 15.2 — sessions UI", () => {
+  const jwtToken = async (uid: number) => {
+    const jwt = await import("jsonwebtoken");
+    return jwt.default.sign(
+      { uid, role: "buyer" as const },
+      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
+      { expiresIn: "1h" },
+    );
+  };
+
+  describe("GET /auth/sessions", () => {
+    it("401 without auth", async () => {
+      const res = await request(buildApp()).get("/auth/sessions");
+      expect(res.status).toBe(401);
+    });
+
+    it("returns sessions ordered + current null when JWT-cookie auth", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+      (prisma.session.findMany as any).mockResolvedValue([
+        {
+          id: 1,
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          ipAddress: "10.0.0.1",
+          userAgent: "Test/1",
+        },
+      ]);
+      const res = await request(buildApp())
+        .get("/auth/sessions")
+        .set("Cookie", `metu_auth=${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.sessions).toHaveLength(1);
+      // JWT-cookie auth path → no better-auth session row → currentSessionId null
+      expect(res.body.currentSessionId).toBeNull();
+    });
+  });
+
+  describe("DELETE /auth/sessions/:id", () => {
+    it("401 without auth", async () => {
+      const res = await request(buildApp()).delete("/auth/sessions/1");
+      expect(res.status).toBe(401);
+    });
+
+    it("404 SessionNotFound when no row matches the user", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+      (prisma.session.deleteMany as any).mockResolvedValue({ count: 0 });
+      const res = await request(buildApp())
+        .delete("/auth/sessions/999")
+        .set("Cookie", `metu_auth=${token}`);
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe("SessionNotFound");
+    });
+
+    it("happy: deletes the session, ownership-checked via userId predicate", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+      (prisma.session.deleteMany as any).mockResolvedValue({ count: 1 });
+      const res = await request(buildApp())
+        .delete("/auth/sessions/42")
+        .set("Cookie", `metu_auth=${token}`);
+      expect(res.status).toBe(200);
+      expect(prisma.session.deleteMany).toHaveBeenCalledWith({
+        where: { id: 42, userId: 7 },
+      });
+    });
+  });
+
+  describe("DELETE /auth/sessions/all-others", () => {
+    it("revokes ALL when JWT-cookie auth (no current session id), audits with kept=0", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+      (prisma.session.deleteMany as any).mockResolvedValue({ count: 4 });
+      (prisma.auditLog.create as any).mockResolvedValue({});
+      const res = await request(buildApp())
+        .delete("/auth/sessions/all-others")
+        .set("Cookie", `metu_auth=${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.revoked).toBe(4);
+      // No id:{not:...} filter — JWT-cookie path can't identify the
+      // "current" better-auth session, so it nukes them all.
+      expect(prisma.session.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 7 },
+      });
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: "user.sessions_revoked",
+          meta: { revoked: 4, kept: 0 },
         }),
       });
     });

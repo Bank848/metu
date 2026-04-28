@@ -31,4 +31,13 @@ router.patch("/phone",            requireAuth(), ctrl.updatePhone);
 router.post("/request-otp",       requireAuth(), requestOtpLimiter, ctrl.requestOtp);
 router.post("/verify-otp",        requireAuth(), ctrl.verifyOtp);
 
+// Phase 15.2 — sessions UI. Lists + revokes better-auth's session
+// rows for the current user. The legacy JWT cookie path doesn't
+// have rows here; clearing it is "change your password" or "logout".
+// /all-others mounted BEFORE /:id so the literal path wins the
+// route match (Express matches by registration order within router).
+router.get("/sessions",                requireAuth(), ctrl.listSessions);
+router.delete("/sessions/all-others",  requireAuth(), ctrl.revokeAllOtherSessions);
+router.delete("/sessions/:id",         requireAuth(), ctrl.revokeSession);
+
 export default router;

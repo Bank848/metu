@@ -405,6 +405,78 @@ export async function verifyOtp(
   });
 }
 
+// =============================================================================
+//  PHASE 15.2 — sessions UI (better-auth's session table)
+// =============================================================================
+//
+// Phase 14.2's dual-stack means the User has two paths to be signed
+// in: our hand-rolled JWT cookie OR better-auth's session row in
+// the `session` table. The Sessions UI only manages the latter
+// (the JWT cookie can be revoked just by changing the password,
+// since requireAuth re-verifies on every request).
+
+/**
+ * GET /auth/sessions — list every active better-auth session for the
+ * current user. Ordered most-recent-first. Strips the bcrypt-style
+ * `token` field — even hashed it's user-secret, no UI need surfaces
+ * it (we identify rows by integer id).
+ */
+export async function listSessions(userId: number) {
+  const rows = await prisma.session.findMany({
+    where: { userId, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      createdAt: true,
+      expiresAt: true,
+      ipAddress: true,
+      userAgent: true,
+    },
+  });
+  return rows;
+}
+
+/**
+ * DELETE /auth/sessions/:id — revoke one session. Ownership check
+ * via the userId predicate so a malicious user can't enumerate +
+ * delete other users' sessions by guessing IDs.
+ */
+export async function revokeSession(userId: number, sessionId: number): Promise<void> {
+  const result = await prisma.session.deleteMany({
+    where: { id: sessionId, userId },
+  });
+  if (result.count === 0) throw new AppError(404, "SessionNotFound");
+}
+
+/**
+ * DELETE /auth/sessions/all-others — revoke every session for the
+ * user EXCEPT the current one. The "current" sessionId comes from
+ * the controller (which has access to auth.api.getSession headers).
+ *
+ * If currentSessionId is null (the user is logged in via the legacy
+ * JWT cookie, not better-auth), this revokes ALL better-auth sessions
+ * unconditionally — useful for a user who wants to nuke everything
+ * after a Google sign-in scare.
+ */
+export async function revokeAllOtherSessions(
+  userId: number,
+  currentSessionId: number | null,
+): Promise<{ revoked: number }> {
+  const where: { userId: number; id?: { not: number } } = { userId };
+  if (currentSessionId !== null) {
+    where.id = { not: currentSessionId };
+  }
+  const result = await prisma.session.deleteMany({ where });
+  await audit({
+    actorId: userId,
+    action: "user.sessions_revoked",
+    targetType: "user",
+    targetId: userId,
+    meta: { revoked: result.count, kept: currentSessionId !== null ? 1 : 0 },
+  });
+  return { revoked: result.count };
+}
+
 const RESET_TOKEN_TTL_MIN = 30;
 
 /**
