@@ -340,3 +340,81 @@ describe("GET /admin/reports/:name", () => {
     expect(res.body.rows[0].count).toBe(5);
   });
 });
+
+// =============================================================================
+//  Phase 15.5 — admin force-password-reset
+// =============================================================================
+describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
+  it("403 for non-admin", async () => {
+    // requireAuth's dual-stack does the user lookup BEFORE the role
+    // check (Phase 14.2), so the buyer needs a real prisma user to
+    // get past the 401 and reach the 403 forbidden gate.
+    (prisma.user.findUnique as any).mockResolvedValue({
+      userId: 7,
+      deletedAt: null,
+      stats: { role: "buyer" },
+      store: null,
+    });
+    const res = await request(buildApp())
+      .post("/admin/users/2/require-password-reset")
+      .set("Cookie", cookieFor(7, "buyer"))
+      .send({ value: true });
+    expect(res.status).toBe(403);
+  });
+
+  it("400 SelfToggleForbidden when admin tries to flag themselves", async () => {
+    // Admin id 1 toggling user 1 — caught by service-side guard.
+    (prisma.user.update as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .post("/admin/users/1/require-password-reset")
+      .set("Cookie", cookieFor(1, "admin"))
+      .send({ value: true });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("SelfToggleForbidden");
+  });
+
+  it("400 ValidationError when body.value is missing or wrong type", async () => {
+    const res = await request(buildApp())
+      .post("/admin/users/2/require-password-reset")
+      .set("Cookie", cookieFor(1, "admin"))
+      .send({}); // no value
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("ValidationError");
+  });
+
+  it("happy: SET (value=true) updates User + writes audit row", async () => {
+    (prisma.user.update as any).mockResolvedValue({});
+    (prisma.auditLog.create as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .post("/admin/users/2/require-password-reset")
+      .set("Cookie", cookieFor(1, "admin"))
+      .send({ value: true });
+    expect(res.status).toBe(200);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { userId: 2 },
+      data: { requirePasswordReset: true },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "user.require_password_reset.set",
+        targetType: "user",
+        targetId: 2,
+      }),
+    });
+  });
+
+  it("happy: CLEAR (value=false) writes the .clear audit variant", async () => {
+    (prisma.user.update as any).mockResolvedValue({});
+    (prisma.auditLog.create as any).mockResolvedValue({});
+    const res = await request(buildApp())
+      .post("/admin/users/2/require-password-reset")
+      .set("Cookie", cookieFor(1, "admin"))
+      .send({ value: false });
+    expect(res.status).toBe(200);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "user.require_password_reset.clear",
+      }),
+    });
+  });
+});

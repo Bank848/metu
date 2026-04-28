@@ -96,6 +96,11 @@ model User {
   // Phase 14.4 OTP scaffold — phone + verification timestamp.
   phone           String?   @db.VarChar(20)
   phoneVerifiedAt DateTime? @map("phone_verified_at")
+  // Phase 15.5 — admin force-password-reset flag. When true, the
+  // BFF redirects every authed page to /profile/edit until the
+  // user successfully changes their password (which clears the
+  // flag). Default false; admins flip it from /admin/users.
+  requirePasswordReset Boolean @default(false) @map("require_password_reset")
   createdDate   DateTime  @default(now()) @map("created_date")
 
   // Soft-delete: when set, public surfaces hide the user but admin /

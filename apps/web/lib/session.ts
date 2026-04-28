@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { apiFetch, ApiError } from "./server/api";
 
 /**
@@ -23,17 +24,46 @@ export async function getMe() {
       // missing → true to keep the legacy change-password flow
       // as the safe default for existing users.
       hasPassword?: boolean;
+      // Phase 15.5 — admin force-password-reset flag. When true, the
+      // app should redirect to /profile/edit until the user changes
+      // their password (which clears the flag server-side).
+      requirePasswordReset?: boolean;
     }>("/auth/me");
     if (!data?.user) return null;
     return {
       user: data.user,
       role: data.role,
       hasPassword: data.hasPassword ?? true,
+      requirePasswordReset: data.requirePasswordReset ?? false,
     };
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) return null;
     throw err;
   }
+}
+
+/**
+ * Phase 15.5 — when the user has been force-reset by an admin
+ * (User.requirePasswordReset=true), bounce them to /profile/edit
+ * with a banner. Server pages call this AFTER getMe() but before
+ * rendering anything else, so the user can't act on stale-state UI.
+ *
+ * Self-call: `requireResetGuard(me, currentPath)` where currentPath
+ * is the page's own path. We intentionally allow /profile/edit
+ * itself + /api/auth/* (for /change-password / /set-password) to
+ * pass through, otherwise the user couldn't actually clear the flag.
+ *
+ * Returns void on the happy path; throws (via Next's redirect()) on
+ * the must-reset path.
+ */
+export function requireResetGuard(
+  me: { requirePasswordReset?: boolean } | null,
+  currentPath: string,
+): void {
+  if (!me?.requirePasswordReset) return;
+  if (currentPath.startsWith("/profile/edit")) return;
+  if (currentPath.startsWith("/login") || currentPath.startsWith("/logout")) return;
+  redirect("/profile/edit?must-reset=1");
 }
 
 /**

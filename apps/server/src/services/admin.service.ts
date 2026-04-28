@@ -364,6 +364,45 @@ export async function refundTransaction(
   });
 }
 
+/**
+ * Phase 15.5 — admin force-password-reset toggle.
+ *
+ * Sets User.requirePasswordReset to `value` (boolean). When true,
+ * the BFF will redirect the user to /profile/edit on every authed
+ * page until they successfully change/set their password (which
+ * the auth service clears as a side effect).
+ *
+ * Self-toggle forbidden — admin couldn't undo it without locking
+ * themselves into the password-change flow first.
+ */
+export async function setRequirePasswordReset(
+  targetUserId: number,
+  actorUserId: number,
+  value: boolean,
+  req?: AuditReq,
+): Promise<void> {
+  if (targetUserId === actorUserId) {
+    throw new AppError(
+      400,
+      "SelfToggleForbidden",
+      "You cannot force-reset your own password from here.",
+    );
+  }
+  await prisma.user.update({
+    where: { userId: targetUserId },
+    data: { requirePasswordReset: value },
+  });
+  await audit({
+    actorId: actorUserId,
+    action: value
+      ? "user.require_password_reset.set"
+      : "user.require_password_reset.clear",
+    targetType: "user",
+    targetId: targetUserId,
+    req,
+  });
+}
+
 // =============================================================================
 //  REPORTS — five named queries, raw SQL with ?-name dispatch
 // =============================================================================

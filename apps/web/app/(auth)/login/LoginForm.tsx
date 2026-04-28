@@ -3,10 +3,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 
-// Phase 14.2 — Google sign-in via better-auth. Button only renders
-// when NEXT_PUBLIC_GOOGLE_ENABLED=true so dev environments without
-// Google OAuth credentials don't show a button that 404s on click.
-const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_ENABLED === "true";
+// Phase 14.2 — Google sign-in via better-auth.
+// Phase 15.5 follow-up — gate dropped. NEXT_PUBLIC_* requires a
+// rebuild to flip and was hiding the button on the live demo even
+// when the server-side OAuth credentials WERE configured. Now we
+// always render; if Google isn't wired (no GOOGLE_CLIENT_ID on
+// metu-api), better-auth surfaces a clean error and our existing
+// errorCallbackURL banner explains it. Better UX than "feature
+// silently invisible".
+const GOOGLE_ENABLED = true;
 
 // Phase 14.3.5 — Google sign-in error reasons surfaced in the URL.
 // better-auth redirects failed OAuth flows to errorCallbackURL with

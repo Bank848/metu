@@ -31,6 +31,8 @@ router.use(requireAuth(["admin"]));
 router.get("/users",                  ctrl.listUsers);
 router.patch("/users/:id",            ctrl.updateUserRole);
 router.delete("/users/:id",           ctrl.deleteUser);
+// Phase 15.5 — admin force-password-reset toggle.
+router.post("/users/:id/require-password-reset", ctrl.setRequirePasswordReset);
 
 // Stores
 router.get("/stores",                 ctrl.listStores);

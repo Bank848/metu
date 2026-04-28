@@ -98,7 +98,15 @@ export const me: RequestHandler = (req, res) => {
   // Phase 14.3 — surface a `hasPassword` boolean so the BFF UI can
   // render the SET-password flow (no current pw needed) for
   // OAuth-only users instead of the change-password flow.
-  res.json({ user: safe, role: auth?.role, hasPassword: Boolean(password) });
+  // Phase 15.5 — also surface requirePasswordReset so the BFF can
+  // redirect every authed page to /profile/edit when an admin has
+  // forced a reset. Cleared by successful change or set of password.
+  res.json({
+    user: safe,
+    role: auth?.role,
+    hasPassword: Boolean(password),
+    requirePasswordReset: Boolean((user as any).requirePasswordReset),
+  });
 };
 
 export const updateMe: RequestHandler = async (req, res, next) => {

@@ -10,11 +10,14 @@ type Country = { countryId: number; name: string };
 // don't render the widget at all and the server-side verify is a no-op.
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
-// Phase 14.2 — Google sign-up via better-auth. Same gate as the
-// login button; first-time Google users get a fresh User row + a
-// linked Account row. Existing-email collision handling is wired
-// in Phase 14.3 (databaseHooks.user.create.before).
-const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_ENABLED === "true";
+// Phase 14.2 — Google sign-up via better-auth. First-time Google
+// users get a fresh User row + a linked Account row. Existing-email
+// collision handling is wired in Phase 14.3.5
+// (databaseHooks.user.create.before).
+// Phase 15.5 follow-up — gate dropped (was NEXT_PUBLIC_GOOGLE_ENABLED).
+// Same reason as LoginForm: env required a rebuild to flip and was
+// hiding the button on the live demo. Always renders now.
+const GOOGLE_ENABLED = true;
 
 const TODAY = new Date();
 // Don't allow signups with a future or impossibly-recent birthday — gate the
