@@ -61,8 +61,11 @@ import stockAlertsRoutes from "./routes/stock-alerts.routes.js";
 // Layered routes (Phase 13.8 — messages)
 import messagesRoutes from "./routes/messages.routes.js";
 
-// Layered routes (Phase 13.9.1 — seller, read side)
+// Layered routes (Phase 13.9 — seller, read + write)
 import sellerRoutes from "./routes/seller.routes.js";
+
+// Layered routes (Phase 13.10 — admin)
+import adminRoutes from "./routes/admin.routes.js";
 
 // Legacy flat routes that work today — will be migrated in later phases.
 import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
@@ -135,12 +138,19 @@ export function buildApp() {
   // future MongoDB sidecar would swap services/messages.service.ts.
   app.use("/messages", messagesRoutes);
 
-  // ─── Layered routes (Phase 13.9.1 — seller, read side) ──────────
-  // store, products list/get, stats, orders list/export. Every endpoint
-  // requires (a) auth and (b) Store ownership — middleware stack
-  // applied at the router level. Phase 13.9.2 adds the write side
-  // (become-seller, product CRUD, refunds, etc.).
+  // ─── Layered routes (Phase 13.9 — seller, read + write) ─────────
+  // 16 endpoints total (read: store/products/stats/orders/export;
+  // write: become-seller, store PATCH, product CRUD + duplicate +
+  // variant nudge, coupon list/create, order status flip + refund).
+  // become-seller is the one auth-only endpoint (no requireStore);
+  // everything else inherits auth+store at the router level.
   app.use("/seller", sellerRoutes);
+
+  // ─── Layered routes (Phase 13.10 — admin) ───────────────────────
+  // Single role gate at the router level — every endpoint is
+  // requireAuth(["admin"]). 9 endpoints across users/stores/stats/
+  // transactions/reports.
+  app.use("/admin", adminRoutes);
 
   // ─── Legacy flat routes (still working) ──────────────────────────
   // catalogRouter is mounted at /, so the URLs stay
