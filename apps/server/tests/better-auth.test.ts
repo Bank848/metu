@@ -29,8 +29,8 @@ beforeEach(() => {
 });
 
 describe("Phase 14.1 — better-auth catch-all", () => {
-  it("GET /auth/better/get-session returns null session for anonymous request", async () => {
-    const res = await request(buildApp()).get("/auth/better/get-session");
+  it("GET /api/auth/better/get-session returns null session for anonymous request", async () => {
+    const res = await request(buildApp()).get("/api/auth/better/get-session");
     // better-auth returns 200 with { } or { session: null, user: null }
     // depending on version — accept either as long as it didn't 404.
     expect(res.status).toBe(200);
@@ -42,8 +42,8 @@ describe("Phase 14.1 — better-auth catch-all", () => {
     }
   });
 
-  it("404s for unknown /auth/better/<random> paths", async () => {
-    const res = await request(buildApp()).get("/auth/better/this-is-not-a-real-endpoint");
+  it("404s for unknown /api/auth/better/<random> paths", async () => {
+    const res = await request(buildApp()).get("/api/auth/better/this-is-not-a-real-endpoint");
     // better-auth's catch-all handles unknown paths with 404 (or
     // sometimes 405 method-not-allowed). Both are non-500.
     expect([404, 405]).toContain(res.status);

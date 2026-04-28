@@ -82,12 +82,14 @@ export function buildApp() {
   //    preflight OPTIONS gets the right headers.
   app.use(corsMiddleware);
 
-  // 3. Phase 14.1 — better-auth catch-all. MUST be before
-  //    express.json() per better-auth's Express integration docs:
-  //    the handler reads the raw request body itself; if json()
-  //    parsed it first the handler would hang waiting for a stream
-  //    that's already been consumed.
-  app.all("/auth/better/*", toNodeHandler(auth));
+  // 3. Phase 14.1+14.2 — better-auth catch-all mounted at the same
+  //    path the BFF uses (/api/auth/better/*) so OAuth callback URL
+  //    generation matches what the browser actually hits. MUST be
+  //    before express.json() per better-auth's Express integration
+  //    docs: the handler reads the raw request body itself; if
+  //    json() parsed it first the handler would hang waiting for a
+  //    stream that's already been consumed.
+  app.all("/api/auth/better/*", toNodeHandler(auth));
 
   // 4. Body + cookie parsers — every other route uses these.
   app.use(express.json({ limit: "1mb" }));
