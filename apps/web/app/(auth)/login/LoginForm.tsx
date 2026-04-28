@@ -1,5 +1,5 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 
@@ -8,7 +8,23 @@ import { Button } from "@/components/ui/Button";
 // Google OAuth credentials don't show a button that 404s on click.
 const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_ENABLED === "true";
 
+// Phase 14.3.5 — Google sign-in error reasons surfaced in the URL.
+// better-auth redirects failed OAuth flows to errorCallbackURL with
+// the failure code as a query param.
+function errorMessage(code: string | null): string | null {
+  if (!code) return null;
+  switch (code) {
+    case "email-exists":
+    case "EmailAlreadyRegistered":
+      return "An account already exists with that email. Sign in with your password below, then link Google from your profile settings.";
+    default:
+      return "Google sign-in didn't complete. Please try again or use email + password.";
+  }
+}
+
 export function LoginForm({ next }: { next?: string }) {
+  const searchParams = useSearchParams();
+  const oauthErrorBanner = errorMessage(searchParams.get("error"));
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -69,8 +85,12 @@ export function LoginForm({ next }: { next?: string }) {
   // Build the Google sign-in URL. better-auth's catch-all responds
   // to GET /api/auth/better/sign-in/google with a 302 to Google's
   // OAuth consent screen. After consent → callback → cookie set →
-  // redirect to `callbackURL` (default /).
-  const googleHref = `/api/auth/better/sign-in/google?callbackURL=${encodeURIComponent(next ?? "/")}`;
+  // redirect to `callbackURL` (default /). On failure (e.g. our
+  // databaseHooks email-collision throw) → `errorCallbackURL` with
+  // the error code.
+  const callbackURL = encodeURIComponent(next ?? "/");
+  const errorCallbackURL = encodeURIComponent("/login?error=email-exists");
+  const googleHref = `/api/auth/better/sign-in/google?callbackURL=${callbackURL}&errorCallbackURL=${errorCallbackURL}`;
 
   return (
     <form
@@ -78,6 +98,14 @@ export function LoginForm({ next }: { next?: string }) {
       onSubmit={onSubmit}
       className="rounded-2xl bg-surface-2 border border-white/8 p-6 max-w-md"
     >
+      {/* Phase 14.3.5 — OAuth error banner. Renders when Google sign-in
+          failed because the email is already registered locally; tells
+          the user to log in with password and link Google from settings. */}
+      {oauthErrorBanner && (
+        <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          {oauthErrorBanner}
+        </div>
+      )}
       {GOOGLE_ENABLED && (
         <>
           {/* Google sign-in is a plain navigation, not a fetch — better-auth's
