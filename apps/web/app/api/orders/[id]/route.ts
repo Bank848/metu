@@ -1,39 +1,14 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { prisma } from "@/lib/server/prisma";
-import { requireAuth } from "@/lib/server/auth";
+/**
+ * Phase 13.4 — forwarder to Express `GET /orders/:id`. Ownership
+ * gate (404 when the order belongs to a different user) is enforced
+ * server-side via the `cart.userId` join.
+ */
+import { type NextRequest } from "next/server";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const r = await requireAuth(req);
-  if (!r.ok) return r.response;
-  const id = Number(params.id);
-  const order = await prisma.order.findFirst({
-    where: { orderId: id, cart: { userId: r.auth.uid } },
-    include: {
-      items: {
-        include: {
-          productItem: {
-            include: {
-              product: {
-                include: {
-                  images: { take: 1, orderBy: { sortOrder: "asc" } },
-                  store: { select: { name: true, storeId: true } },
-                  // Pull tags so the receipt can chip them next to the product name.
-                  productNTags: {
-                    include: { tag: { select: { tagId: true, tagName: true } } },
-                  },
-                },
-              },
-            },
-          },
-          coupon: true,
-        },
-      },
-      transaction: true,
-    },
-  });
-  if (!order) return NextResponse.json({ error: "NotFound" }, { status: 404 });
-  return NextResponse.json(order);
+  return forwardToApi(req, `/orders/${params.id}`);
 }

@@ -12,7 +12,6 @@
     "node_modules",
     "dist",
     "tests",
-    "src/routes/orders.ts",
     "src/routes/seller.ts",
     "src/routes/admin.ts",
     "src/routes/stats.ts"
