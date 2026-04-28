@@ -40,4 +40,12 @@ router.get("/sessions",                requireAuth(), ctrl.listSessions);
 router.delete("/sessions/all-others",  requireAuth(), ctrl.revokeAllOtherSessions);
 router.delete("/sessions/:id",         requireAuth(), ctrl.revokeSession);
 
+// Phase 16.2 — TOTP 2FA enrolment + management. Three endpoints,
+// all auth-only. Login itself takes optional totpCode in body
+// (handled in the existing POST /login) — these three only
+// manage the secret + enabled flag.
+router.post("/totp/enroll-start",  requireAuth(), ctrl.totpEnrollStart);
+router.post("/totp/enroll-verify", requireAuth(), ctrl.totpEnrollVerify);
+router.post("/totp/disable",       requireAuth(), ctrl.totpDisable);
+
 export default router;

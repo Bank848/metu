@@ -74,6 +74,8 @@ export default async function EditProfilePage({
             // Phase 14.4 — phone + verification status drive the OTP UI.
             phone: me.user.phone ?? null,
             phoneVerified: Boolean(me.user.phoneVerifiedAt),
+            // Phase 16.2 — drives the TOTP section (Disable vs Enrol).
+            totpEnabled: me.totpEnabled,
           }}
         />
 

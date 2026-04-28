@@ -32,6 +32,32 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-16-2",
+    title: "Phase 16.2 · TOTP 2FA — authenticator-app two-factor sign-in",
+    subtitle:
+      "Second Phase 16 batch. Universal 2FA via TOTP (RFC 6238) using otplib. Works for both password users and Google-OAuth users — anyone with an account can enrol, scan the QR with Google Authenticator / 1Password / Authy, and from then on every login asks for the 6-digit code AFTER a successful password check. Profile page exposes a 3-state UI (not enrolled / mid-enrolment / enabled), and disabling requires the current password as defence-in-depth. Login form swaps into a clean 2-step prompt the moment the server returns 401 NeedsTotp.",
+    icon: KeyRound,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "PENDING",
+    items: [
+      { title: "Migration 20260429052827_phase_16_2_totp: ALTER users ADD totp_secret VARCHAR(64) NULL + totp_enabled BOOLEAN NOT NULL DEFAULT false. Secret stays NULL for users who never enrol; gets a fresh base32 string mid-enrolment that only flips to enabled after the first verify succeeds" },
+      { title: "schema.prisma: User.totpSecret + User.totpEnabled with @map" },
+      { title: "utils/totp.ts: thin wrapper over otplib v13's functional API. generateSecret() returns base32, buildOtpauthUri({secret,label,issuer}) builds the QR-payload string, verifyCode(code,secret) returns boolean (async; otplib v13 verify is async). Hides the {strategy:'totp',algorithm:'sha1',digits:6,step:30,epochTolerance:30} options from callers — single source of truth" },
+      { title: "auth.service.login: when user.totpEnabled && !totpCode → throw 401 NeedsTotp. When totpCode provided but verify fails → throw 401 InvalidTotp. Both before issuing the cookie. Distinct error codes so the UI can fork without parsing strings" },
+      { title: "auth.service.totpEnrollStart: refuses if user already enrolled (400 AlreadyEnabled). Generates new secret + persists to user.totpSecret. Returns { secret, otpauthUri } for the QR. Audit log: 'user.totp.enroll_start'" },
+      { title: "auth.service.totpEnrollVerify: requires the user to have a pending secret (400 NoEnrollment). Verifies the 6-digit code; on success flips totpEnabled=true. 401 InvalidCode on miss. Audit log: 'user.totp.enroll_verify'" },
+      { title: "auth.service.totpDisable: requires current password (defence in depth — phone alone isn't enough to drop 2FA). Wipes secret + sets totpEnabled=false. Audit log: 'user.totp.disable'" },
+      { title: "controller + 3 new routes: POST /auth/totp/{enroll-start,enroll-verify,disable} (all requireAuth). loginSchema gained optional totpCode: z.string().regex(/^\\d{6}$/).optional()" },
+      { title: "GET /auth/me extended with totpEnabled: Boolean(user.totpEnabled). lib/session.ts surfaces it for /profile/edit + the logged-in user's UI" },
+      { title: "BFF: 3 thin proxies via forwardToApi (~12 LOC each)" },
+      { title: "/profile/edit: NEW '2-factor authentication' card with three states. NOT ENROLLED → 'Enable 2FA' button. MID-ENROLMENT → QR-payload string + secret with copy-to-clipboard + 6-digit input + 'Verify & enable' button. ENABLED → green check + 'Disable 2FA' form requiring current password" },
+      { title: "LoginForm 2-step UI: when /api/auth/login returns 401 NeedsTotp, swap into 2-step mode — email + password fields lock (readOnly + opacity-60), a centered monospace 6-digit input with autoComplete='one-time-code' appears, and the submit button label flips to 'Verify & continue →'. Submit re-fires with the same email + password + the new totpCode in the body" },
+      { title: "Vitest 150 → 158 (8 new): TOTP enroll-start happy + AlreadyEnabled, enroll-verify NoEnrollment + InvalidCode + happy enable, disable wrong-password + happy + idempotent (already disabled), login NeedsTotp + InvalidTotp + happy with valid TOTP" },
+      { title: "Build clean. Web shared First Load JS = 89.8 kB (unchanged). Phase 16.3 NEXT (deferred as high-risk): Mode A swap — drop our hand-rolled JWT cookie middleware in favour of better-auth's session model end-to-end. Would rewrite every auth test but cuts ~200 LOC of hand-rolled crypto" },
+    ],
+  },
+  {
     id: "phase-16-1",
     title: "Phase 16.1 · Suspended stores — reversible 'freeze' alternative to delete",
     subtitle:

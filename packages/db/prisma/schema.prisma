@@ -96,6 +96,12 @@ model User {
   // Phase 14.4 OTP scaffold — phone + verification timestamp.
   phone           String?   @db.VarChar(20)
   phoneVerifiedAt DateTime? @map("phone_verified_at")
+  // Phase 16.2 — TOTP 2FA. totpSecret is the base32-encoded shared
+  // secret stored at enrol-start; totpEnabled flips to true on first
+  // successful verify. When true, /auth/login requires a 6-digit
+  // code in the body. NULL secret = never enrolled.
+  totpSecret      String?   @map("totp_secret") @db.VarChar(64)
+  totpEnabled     Boolean   @default(false) @map("totp_enabled")
   // Phase 15.5 — admin force-password-reset flag. When true, the
   // BFF redirects every authed page to /profile/edit until the
   // user successfully changes their password (which clears the

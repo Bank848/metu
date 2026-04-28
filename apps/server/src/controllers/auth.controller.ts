@@ -7,6 +7,9 @@ import {
   requestOtpSchema,
   resetPasswordSchema,
   setPasswordSchema,
+  totpDisableSchema,
+  totpEnrollStartSchema,
+  totpEnrollVerifySchema,
   updatePhoneSchema,
   updateProfileSchema,
   verifyOtpSchema,
@@ -101,11 +104,16 @@ export const me: RequestHandler = (req, res) => {
   // Phase 15.5 — also surface requirePasswordReset so the BFF can
   // redirect every authed page to /profile/edit when an admin has
   // forced a reset. Cleared by successful change or set of password.
+  // Phase 16.2 — also surface totpEnabled so /profile/edit can
+  // render Disable vs Enrol-start. We deliberately DON'T leak the
+  // totpSecret over /me — it's enrolment-only and lives in the
+  // enroll-start response body only.
   res.json({
     user: safe,
     role: auth?.role,
     hasPassword: Boolean(password),
     requirePasswordReset: Boolean((user as any).requirePasswordReset),
+    totpEnabled: Boolean((user as any).totpEnabled),
   });
 };
 
@@ -340,6 +348,80 @@ export const resetPassword: RequestHandler = async (req, res, next) => {
       throw new AppError(400, "ValidationError", parsed.error.message);
     }
     await service.resetPassword(parsed.data);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// =============================================================================
+//  Phase 16.2 — TOTP 2FA enrolment + management
+// =============================================================================
+
+/**
+ * POST /auth/totp/enroll-start — Phase 16.2.
+ *
+ * Returns { secret, otpauthUri }. UI renders the otpauth:// as a QR
+ * for authenticator apps. The base32 secret is also returned so the
+ * UI can offer manual entry as a fallback (low-vision users, broken
+ * camera). Both pieces are sensitive — surface them in the response
+ * body but never log them.
+ *
+ * 400 AlreadyEnrolled when totpEnabled=true (must disable first).
+ */
+export const totpEnrollStart: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = totpEnrollStartSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const result = await service.totpEnrollStart(auth.uid);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/totp/enroll-verify — Phase 16.2.
+ *
+ * Confirms the user holds the secret with the first 6-digit code.
+ * Flips totpEnabled=true server-side. From then on /auth/login
+ * requires a code in the body.
+ */
+export const totpEnrollVerify: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = totpEnrollVerifySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    await service.totpEnrollVerify(auth.uid, parsed.data.code);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/totp/disable — Phase 16.2.
+ *
+ * Disables 2FA + wipes the secret. Requires the user's CURRENT
+ * password (defence in depth — even a stolen session can't strip
+ * 2FA without knowing the password too).
+ */
+export const totpDisable: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = totpDisableSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    await service.totpDisable(auth.uid, parsed.data.password);
     res.json({ ok: true });
   } catch (err) {
     next(err);

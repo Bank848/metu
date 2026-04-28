@@ -27,6 +27,7 @@ import {
   otpIdentifier,
   otpTransport,
 } from "../utils/otp.js";
+import { buildOtpauthUri, generateSecret, verifyCode as verifyTotpCode } from "../utils/totp.js";
 
 /**
  * Strip the bcrypt hash before any user object crosses the network.
@@ -77,6 +78,21 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
   if (!user.password) throw new AppError(401, "InvalidCredentials");
   const ok = await bcrypt.compare(input.password, user.password);
   if (!ok) throw new AppError(401, "InvalidCredentials");
+
+  // Phase 16.2 — TOTP 2FA gate. AFTER password verifies (so we
+  // never leak whether 2FA is enabled to a wrong-password caller),
+  // require a fresh authenticator code when totpEnabled=true.
+  // 401 NeedsTotp = "your password worked but we need the code".
+  // 401 InvalidTotp = "code didn't match (try the next 30s window)".
+  if (user.totpEnabled && user.totpSecret) {
+    if (!input.totpCode) {
+      throw new AppError(401, "NeedsTotp");
+    }
+    const totpOk = await verifyTotpCode(input.totpCode, user.totpSecret);
+    if (!totpOk) {
+      throw new AppError(401, "InvalidTotp");
+    }
+  }
 
   // Background-create active cart if missing — fire-and-forget so
   // the login response isn't blocked on it.
@@ -639,5 +655,115 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
     action: "auth.password_reset",
     targetType: "user",
     targetId: row.userId,
+  });
+}
+
+// =============================================================================
+//  PHASE 16.2 — TOTP 2FA enrolment + management
+// =============================================================================
+
+/**
+ * POST /auth/totp/enroll-start — Phase 16.2.
+ *
+ * Returns the base32 secret + the otpauth:// URI the UI uses to
+ * render the QR. Idempotent for users mid-enrolment (totpSecret
+ * already set but totpEnabled still false): we re-return the
+ * pending secret so a refresh-during-enrolment doesn't lose state.
+ *
+ * Refuses 400 AlreadyEnrolled when totpEnabled=true — to swap
+ * secrets, the user must disable first (which requires their
+ * password) then re-enroll.
+ */
+export async function totpEnrollStart(
+  userId: number,
+): Promise<{ secret: string; otpauthUri: string }> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { email: true, totpSecret: true, totpEnabled: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (user.totpEnabled) throw new AppError(400, "AlreadyEnrolled");
+
+  // Reuse the pending secret if one exists (resumes the in-flight
+  // enrolment), otherwise mint a fresh one.
+  const secret = user.totpSecret ?? generateSecret();
+  if (!user.totpSecret) {
+    await prisma.user.update({
+      where: { userId },
+      data: { totpSecret: secret },
+    });
+  }
+  return { secret, otpauthUri: buildOtpauthUri(user.email, secret) };
+}
+
+/**
+ * POST /auth/totp/enroll-verify — Phase 16.2.
+ *
+ * Confirms the secret with the first authenticator code. Flips
+ * totpEnabled=true on success; from then on /auth/login requires
+ * a code in the body.
+ *
+ * 400 NoEnrollmentInProgress when totpSecret is null (user never
+ * called enroll-start). 400 AlreadyEnrolled when totpEnabled=true.
+ * 400 InvalidTotp on a mismatch.
+ */
+export async function totpEnrollVerify(
+  userId: number,
+  code: string,
+): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { totpSecret: true, totpEnabled: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (user.totpEnabled) throw new AppError(400, "AlreadyEnrolled");
+  if (!user.totpSecret) throw new AppError(400, "NoEnrollmentInProgress");
+  const ok = await verifyTotpCode(code, user.totpSecret);
+  if (!ok) throw new AppError(400, "InvalidTotp");
+  await prisma.user.update({
+    where: { userId },
+    data: { totpEnabled: true },
+  });
+  await audit({
+    actorId: userId,
+    action: "user.totp_enabled",
+    targetType: "user",
+    targetId: userId,
+  });
+}
+
+/**
+ * POST /auth/totp/disable — Phase 16.2.
+ *
+ * Disables 2FA + wipes the secret. Requires the user's CURRENT
+ * password (not a TOTP code) so a stolen-session attacker can't
+ * disable 2FA without also knowing the password — defence in
+ * depth against the very threat 2FA is supposed to mitigate.
+ *
+ * No-op (200) when totpEnabled is already false.
+ */
+export async function totpDisable(
+  userId: number,
+  password: string,
+): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { password: true, totpEnabled: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (!user.totpEnabled) return; // already disabled — no-op
+  if (!user.password) throw new AppError(400, "NoPasswordSet");
+  const ok = await bcrypt.compare(password, user.password);
+  if (!ok) throw new AppError(401, "InvalidPassword");
+
+  await prisma.user.update({
+    where: { userId },
+    data: { totpEnabled: false, totpSecret: null },
+  });
+  await audit({
+    actorId: userId,
+    action: "user.totp_disabled",
+    targetType: "user",
+    targetId: userId,
   });
 }

@@ -3,6 +3,10 @@ import { z } from "zod";
 export const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6).max(100),
+  // Phase 16.2 — optional TOTP code. Required (server-enforced)
+  // when the user has totpEnabled=true; UI sends it after the
+  // first 401 NeedsTotp response.
+  totpCode: z.string().regex(/^\d{6}$/).optional(),
 });
 
 export const registerSchema = z.object({
@@ -96,6 +100,25 @@ export const verifyOtpSchema = z.object({
   code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
 });
 
+// Phase 16.2 — TOTP enrolment + verification.
+// enrollStart: empty body. Auth proves identity. Server returns
+//              { secret, otpauthUri } so client can render the QR.
+//              No-op (returns existing secret) when an enrolment is
+//              already pending; rejects 400 AlreadyEnrolled when
+//              totpEnabled=true (use disable + re-enroll for a fresh
+//              secret).
+export const totpEnrollStartSchema = z.object({});
+// enrollVerify: confirm the secret with the first 6-digit code.
+//               Server flips totpEnabled=true on success.
+export const totpEnrollVerifySchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
+});
+// disable: requires the user's password (defence-in-depth — even a
+//          stolen session can't disable 2FA without knowing the pw).
+export const totpDisableSchema = z.object({
+  password: z.string().min(6).max(100),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
@@ -106,3 +129,6 @@ export type SetPasswordInput = z.infer<typeof setPasswordSchema>;
 export type UpdatePhoneInput = z.infer<typeof updatePhoneSchema>;
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+export type TotpEnrollStartInput = z.infer<typeof totpEnrollStartSchema>;
+export type TotpEnrollVerifyInput = z.infer<typeof totpEnrollVerifySchema>;
+export type TotpDisableInput = z.infer<typeof totpDisableSchema>;

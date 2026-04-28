@@ -705,6 +705,230 @@ describe("Phase 14.4 — phone + OTP", () => {
 });
 
 // =============================================================================
+//  Phase 16.2 — TOTP 2FA
+// =============================================================================
+describe("Phase 16.2 — TOTP 2FA", () => {
+  const jwtToken = async (uid: number) => {
+    const jwt = await import("jsonwebtoken");
+    return jwt.default.sign(
+      { uid, role: "buyer" as const },
+      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
+      { expiresIn: "1h" },
+    );
+  };
+
+  describe("POST /auth/totp/enroll-start", () => {
+    it("401 without auth", async () => {
+      const res = await request(buildApp())
+        .post("/auth/totp/enroll-start")
+        .send({});
+      expect(res.status).toBe(401);
+    });
+
+    it("400 AlreadyEnrolled when totpEnabled=true", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.totpSecret) {
+          return Promise.resolve({
+            email: "buyer@metu.dev",
+            totpSecret: "OLDSECRET",
+            totpEnabled: true,
+          });
+        }
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      const res = await request(buildApp())
+        .post("/auth/totp/enroll-start")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("AlreadyEnrolled");
+    });
+
+    it("happy: returns secret + otpauth URI for fresh enrolment", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.totpSecret) {
+          return Promise.resolve({
+            email: "buyer@metu.dev",
+            totpSecret: null,
+            totpEnabled: false,
+          });
+        }
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      (prisma.user.update as any).mockResolvedValue({});
+      const res = await request(buildApp())
+        .post("/auth/totp/enroll-start")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.secret).toMatch(/^[A-Z2-7]+$/); // base32
+      expect(res.body.otpauthUri).toMatch(/^otpauth:\/\/totp\/METU/);
+      // user.update was called to persist the new pending secret.
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { userId: 7 },
+        data: { totpSecret: expect.any(String) },
+      });
+    });
+
+    it("resumes pending enrolment (returns existing secret + does NOT re-update)", async () => {
+      const token = await jwtToken(7);
+      const existingSecret = "JBSWY3DPEHPK3PXP";
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.totpSecret) {
+          return Promise.resolve({
+            email: "buyer@metu.dev",
+            totpSecret: existingSecret,
+            totpEnabled: false,
+          });
+        }
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      const res = await request(buildApp())
+        .post("/auth/totp/enroll-start")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.secret).toBe(existingSecret);
+      // No re-update: idempotent for refresh-during-enrolment.
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /auth/totp/enroll-verify", () => {
+    it("400 NoEnrollmentInProgress when totpSecret is null", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.totpSecret) {
+          return Promise.resolve({ totpSecret: null, totpEnabled: false });
+        }
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      const res = await request(buildApp())
+        .post("/auth/totp/enroll-verify")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ code: "123456" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("NoEnrollmentInProgress");
+    });
+
+    it("happy: matching code → totpEnabled true + audit row", async () => {
+      // Use a known seed so we can compute a valid TOTP code.
+      const token = await jwtToken(7);
+      const totpUtil = await import("../src/utils/totp.js");
+      const secret = totpUtil.generateSecret();
+      // otplib doesn't expose a direct "what's the current code"
+      // helper from our wrapper, but `verifyCode` is the predicate
+      // we trust. Generate a code with the same library directly.
+      const otplib = await import("otplib");
+      // generate is async in otplib v13.
+      const code = await otplib.generate({
+        strategy: "totp",
+        secret,
+        digits: 6,
+        period: 30,
+      });
+
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.totpSecret) {
+          return Promise.resolve({ totpSecret: secret, totpEnabled: false });
+        }
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      (prisma.user.update as any).mockResolvedValue({});
+      (prisma.auditLog.create as any).mockResolvedValue({});
+
+      const res = await request(buildApp())
+        .post("/auth/totp/enroll-verify")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ code });
+      expect(res.status).toBe(200);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { userId: 7 },
+        data: { totpEnabled: true },
+      });
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: "user.totp_enabled",
+        }),
+      });
+    });
+  });
+
+  describe("POST /auth/login (Phase 16.2 NeedsTotp gate)", () => {
+    it("401 NeedsTotp when password ok + totpEnabled=true + no totpCode in body", async () => {
+      const bcrypt = await import("bcryptjs");
+      vi.spyOn(bcrypt.default, "compare").mockResolvedValue(true as any);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        email: "buyer@metu.dev",
+        password: "$2a$10$existinghash",
+        totpEnabled: true,
+        totpSecret: "JBSWY3DPEHPK3PXP",
+        deletedAt: null,
+        stats: { role: "buyer" },
+        carts: [],
+      });
+      const res = await request(buildApp())
+        .post("/auth/login")
+        .send({ email: "buyer@metu.dev", password: "rightpw1" });
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe("NeedsTotp");
+    });
+
+    it("401 InvalidTotp when password ok + totp wrong", async () => {
+      const bcrypt = await import("bcryptjs");
+      vi.spyOn(bcrypt.default, "compare").mockResolvedValue(true as any);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        email: "buyer@metu.dev",
+        password: "$2a$10$existinghash",
+        totpEnabled: true,
+        totpSecret: "JBSWY3DPEHPK3PXP",
+        deletedAt: null,
+        stats: { role: "buyer" },
+        carts: [],
+      });
+      const res = await request(buildApp())
+        .post("/auth/login")
+        .send({
+          email: "buyer@metu.dev",
+          password: "rightpw1",
+          totpCode: "999999",
+        });
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe("InvalidTotp");
+    });
+  });
+});
+
+// =============================================================================
 //  Phase 15.2 — sessions UI
 // =============================================================================
 describe("Phase 15.2 — sessions UI", () => {
