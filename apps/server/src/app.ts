@@ -60,6 +60,12 @@ import adminRoutes from "./routes/admin.routes.js";
 // dropdowns (become-seller + register).
 import referenceRoutes from "./routes/reference.routes.js";
 
+// Phase 14.1 — better-auth instance + Express handler bridge.
+// Mounted at /auth/better/* BEFORE express.json so the request body
+// reaches the handler unparsed (per better-auth Express docs).
+import { auth } from "./lib/auth.js";
+import { toNodeHandler } from "better-auth/node";
+
 // Middleware — order matters in the buildApp() call below.
 import { corsMiddleware } from "./middleware/cors.js";
 import { loggerMiddleware } from "./middleware/logger.js";
@@ -75,7 +81,15 @@ export function buildApp() {
   // 2. CORS — must run before route handlers + before json so the
   //    preflight OPTIONS gets the right headers.
   app.use(corsMiddleware);
-  // 3. Body + cookie parsers.
+
+  // 3. Phase 14.1 — better-auth catch-all. MUST be before
+  //    express.json() per better-auth's Express integration docs:
+  //    the handler reads the raw request body itself; if json()
+  //    parsed it first the handler would hang waiting for a stream
+  //    that's already been consumed.
+  app.all("/auth/better/*", toNodeHandler(auth));
+
+  // 4. Body + cookie parsers — every other route uses these.
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
 

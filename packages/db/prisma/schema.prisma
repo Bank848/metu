@@ -78,14 +78,24 @@ model Country {
 model User {
   userId        Int       @id @default(autoincrement()) @map("user_id")
   countryId     Int?      @map("country_id")
-  password      String    @db.Text
+  // Phase 14.1 — nullable so future Google-only signups can have
+  // NULL passwords until they Set Password from /profile/edit.
+  password      String?   @db.Text
   username      String    @unique @db.VarChar(20)
   firstName     String    @map("first_name") @db.VarChar(40)
   lastName      String    @map("last_name") @db.VarChar(40)
   email         String    @unique @db.VarChar(80)
+  // Phase 14.1 — better-auth's `emailVerified` flag, mapped via
+  // user.fields.emailVerified config in apps/server/src/lib/auth.ts.
+  // Defaults false; password-login flow doesn't gate on it but
+  // Google sign-in flips it true on create.
+  emailVerified Boolean   @default(false) @map("email_verified")
   gender        Gender?
   profileImage  String?   @map("profile_image") @db.Text
   dateOfBirth   DateTime? @map("date_of_birth")
+  // Phase 14.4 OTP scaffold — phone + verification timestamp.
+  phone           String?   @db.VarChar(20)
+  phoneVerifiedAt DateTime? @map("phone_verified_at")
   createdDate   DateTime  @default(now()) @map("created_date")
 
   // Soft-delete: when set, public surfaces hide the user but admin /
@@ -117,6 +127,10 @@ model User {
   stockAlerts        StockAlert[]
   passwordResetTokens PasswordResetToken[]
   auditLogs          AuditLog[]
+
+  // Phase 14.1 — better-auth relations (managed by its Prisma adapter).
+  accounts          Account[]
+  sessions          Session[]
 
   @@index([countryId])
   @@index([createdDate])
@@ -593,4 +607,70 @@ model AuditLog {
   @@index([targetType, targetId])
   @@index([createdAt])
   @@map("audit_log")
+}
+
+// ============================================================================
+//  PHASE 14 — better-auth tables (Prisma adapter)
+//
+//  Three tables better-auth's adapter expects. We configure
+//  `advanced.database.generateId = "serial"` so every PK is Int
+//  (not the default cuid string) — that way Account.userId +
+//  Session.userId are clean Int → Int FKs into our existing
+//  `users.user_id`. Field names use camelCase + @map to match
+//  the snake_case columns in the migration.
+// ============================================================================
+
+model Account {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @map("user_id")
+  providerId            String    @map("provider_id") @db.VarChar(40)
+  accountId             String    @map("account_id") @db.VarChar(255)
+  accessToken           String?   @map("access_token") @db.Text
+  refreshToken          String?   @map("refresh_token") @db.Text
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?   @db.VarChar(255)
+  idToken               String?   @map("id_token") @db.Text
+  // For credential providers (email+password) better-auth stores
+  // the bcrypt hash here too. We keep the legacy User.password
+  // column populated as well so existing JWT login keeps working
+  // until Phase 14.2 swaps the middleware.
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt       @map("updated_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  token     String   @unique @db.VarChar(120)
+  expiresAt DateTime @map("expires_at")
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt       @map("updated_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("session")
+}
+
+model Verification {
+  id         Int      @id @default(autoincrement())
+  identifier String   @db.VarChar(120)
+  value      String   @db.Text
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt       @map("updated_at")
+
+  @@index([identifier])
+  @@map("verification")
 }

@@ -32,6 +32,26 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-14-1",
+    title: "Phase 14.1 · better-auth plumbing (schema + catch-all)",
+    subtitle:
+      "Foundation for Phase 14's Google login. Pure plumbing — no UI references better-auth yet, no middleware swap. Migration adds the three tables better-auth's Prisma adapter expects (account / session / verification), makes User.password nullable for future Google-only signups, and adds emailVerified + phone + phoneVerifiedAt fields. better-auth instance configured for Mode A (cookie-owned sessions) with serial Int IDs matching our existing User.userId PK + field mapping onto the existing column names. Phase 14.2 swaps middleware/auth.ts to read better-auth's session cookie via Mode A; until then the legacy /auth/login + /auth/register continue to mint our metu_auth JWT cookie unchanged.",
+    icon: KeyRound,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-14-1",
+    items: [
+      { title: "npm install better-auth in apps/server (v0.x). Two transitive vulnerabilities flagged by audit but they're in dev-only paths; tracked separately, not blocking" },
+      { title: "Migration 20260428185803_phase_14_1_better_auth: ALTER users (password DROP NOT NULL + ADD email_verified BOOL + phone VARCHAR(20) + phone_verified_at TIMESTAMP), CREATE 3 tables (account / session / verification) with SERIAL Int PKs + Int FKs to users.user_id (clean Int → Int joins, no string-id pain)" },
+      { title: "schema.prisma: User.password is now String? (was String). New Account/Session/Verification models with @map annotations bridging better-auth's camelCase API to our snake_case DB columns" },
+      { title: "NEW apps/server/src/lib/auth.ts: betterAuth({...}) instance with prismaAdapter + advanced.database.generateId=false (Postgres serial owns IDs) + user.fields mapping (id→userId, name→firstName, emailVerified→emailVerified, image→profileImage). emailAndPassword.enabled true. Google provider mounts conditionally on GOOGLE_CLIENT_ID env so dev boots without OAuth credentials" },
+      { title: "app.ts mount: app.all('/auth/better/*', toNodeHandler(auth)) registered BEFORE express.json() per better-auth's Express docs (handler reads raw body itself; json() would consume the stream first and the handler would hang)" },
+      { title: "auth.service.ts: nullable-password guards added at both bcrypt.compare callsites. Login surfaces 401 InvalidCredentials when password is null (no info leak about why); changePassword surfaces 400 NoPasswordSet to direct Google-only users to the future POST /auth/set-password flow (Phase 14.3)" },
+      { title: "Vitest 110 → 112 (2 new): GET /auth/better/get-session returns 200 with no session for anonymous request; unknown /auth/better/<random> paths return 404/405 not 500. Real flow tests deferred to 14.2 when middleware swap lands and we can mock the session table" },
+      { title: "Build clean (server + web, 89.8 kB shared First Load JS unchanged). Local dev: BETTER_AUTH_SECRET / BETTER_AUTH_URL fall back sensibly; production needs explicit secrets via flyctl secrets set" },
+    ],
+  },
+  {
     id: "phase-13-11",
     title: "Phase 13.11 · Backend separation cleanup — last legacy routers gone",
     subtitle:
