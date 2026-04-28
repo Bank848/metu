@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart, Mail, Receipt } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,43 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-13-4",
+    title: "Phase 13.4 · Orders + checkout migrated to Express",
+    subtitle:
+      "POST /orders (checkout — pulls cart + coupon + transaction together in one Prisma transaction), GET /orders (history), GET /orders/:id (receipt). Ownership gate via cart.userId join — another user's orderId returns 404, not 403, so we don't leak existence.",
+    icon: Receipt,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-4",
+    items: [
+      { title: "Layered orders resource: routes/orders.routes.ts → controllers/orders.controller.ts → services/orders.service.ts → models/orders.model.ts. requireAuth() at the router level — every endpoint authed" },
+      { title: "Checkout: 7-step single Prisma transaction — resolve active cart + selected vs unselected lines (partial checkout) → resolve coupon (active + within date window) → Decimal arithmetic for unit price + subtotal + coupon-eligible subtotal (only lines from coupon's store count) → create transaction + order + order_items (couponId stamped only on eligible lines) → flip cart to checked_out + create fresh active cart → re-parent unselected items → record CouponUsage" },
+      { title: "Discount cap: coupon discount can never exceed the eligible subtotal (e.g. ฿1000 off ฿200 → capped at ฿200)" },
+      { title: "Vitest 25 → 29 (added orders 401, EmptyCart 400, list happy, ownership 404)" },
+      { title: "Next /api/orders/route.ts + /api/orders/[id]/route.ts converted to forwardToApi proxies. POST /api/orders still calls revalidatePath('/', '/health', '/admin') BFF-side after a 2xx so the public KPI tiles bump immediately (Express has no notion of Next's data cache)" },
+      { title: "Legacy apps/server/src/routes/orders.ts deleted. tsconfig exclusions narrowed to seller/admin/stats only — Phase 13.5+ picks them up" },
+    ],
+  },
+  {
+    id: "phase-13-2-1",
+    title: "Phase 13.2.1 · forgot/reset password migrated",
+    subtitle:
+      "Closes the Phase 13.2 deferral — the auth module is complete on the layered server. Tokens hashed with SHA-256 before storage, 30-min TTL, no email enumeration on /forgot-password, single failure code (InvalidToken) on /reset-password so attackers can't tell consumed/expired/missing apart.",
+    icon: Mail,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-2-1",
+    items: [
+      { title: "POST /auth/forgot-password — silent no-op for unknown / soft-deleted emails. Always returns the same generic message so an attacker can't probe whether an account exists" },
+      { title: "POST /auth/reset-password — 3-statement transaction marks the consumed token + invalidates other outstanding tokens for the same user (so an attacker who grabbed a separate fresh token can't use it after the password rotates)" },
+      { title: "utils/email.ts ported from BFF — console provider by default, Resend when RESEND_API_KEY set, falls back to console on Resend failure" },
+      { title: "utils/audit.ts ported — fire-and-forget AuditLog row writes 'auth.password_reset' on a successful reset" },
+      { title: "@metu/shared schemas: forgotPasswordSchema, resetPasswordSchema (token min 20 max 200 + newPassword)" },
+      { title: "Vitest 23 → 25 (added forgot-password no-enum-leak + reset-password InvalidToken)" },
+      { title: "Next /api/auth/forgot-password + /api/auth/reset-password converted to forwardToApi proxies" },
+    ],
+  },
   {
     id: "phase-13-3",
     title: "Phase 13.3 · Cart + coupons migrated to Express",
