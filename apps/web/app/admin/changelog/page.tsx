@@ -32,6 +32,30 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-13-10",
+    title: "Phase 13.10 · Admin module migrated to Express",
+    subtitle:
+      "All 9 admin endpoints (users list/role/delete-or-ban, stores list/delete, KPI stats, transactions delete/refund, named reports) now live on the layered Express server. Single role gate at the router level (router.use(requireAuth(['admin']))) so every handler can assume admin context. With Phase 13.10 the entire /api/admin/** surface (8 BFF route files) is fully proxied. Combined with 13.7 (favorites/stock), 13.8 (messages), 13.9 (seller), Next now holds zero business logic for any feature module — only rendering + thin proxy forwarders.",
+    icon: ShieldAlert,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-10",
+    items: [
+      { title: "Layered admin resource: routes/admin.routes.ts → controllers/admin.controller.ts → services/admin.service.ts → models/admin.model.ts. zod schemas for every input (userListQuerySchema, updateUserRoleSchema, deleteUserSchema, ReportName enum)" },
+      { title: "GET /admin/users: zod-coerced page/pageSize, pagination meta in response, password STRIPPED from every row even if hashed (admin UI never needs it; accidental log-leak risk too real)" },
+      { title: "PATCH /admin/users/:id (role change): captures previous role for the audit trail meta (so we can answer 'what changed?' not just 'what is it now?'). 400 SelfDemoteForbidden when admin tries to remove own admin role (would lock themselves out)" },
+      { title: "DELETE /admin/users/:id: TWO behaviours by body — empty body = soft-delete only ('user.delete' audit), `{ reason: 'X' }` = full BAN (deletedAt + bannedAt + bannedReason all set + 'user.ban' audit). Reason capped to VARCHAR(120). Phase 12.2 self-vs-admin distinction preserved" },
+      { title: "GET /admin/stores: filters deletedAt:null at the row level AND at the nested _count.products predicate so per-store product counts agree with /browse (Phase 11 / F1, F12, F14, F20 invariant)" },
+      { title: "DELETE /admin/stores/:id: soft-delete + 'store.delete' audit" },
+      { title: "GET /admin/stats: composite KPI (users/stores/products/reviews/orders + gmv coerced from $queryRaw text + pendingOrders + 30 recent transactions + 14-day daily revenue series). All Promise.all parallelised, daily SQL uses generate_series so empty days still appear in the sparkline" },
+      { title: "DELETE /admin/transactions/:id: snapshot BEFORE delete so the audit row keeps amount + type. No deletedAt column on transactions — money records are either there or not" },
+      { title: "POST /admin/transactions/:id/refund: $transaction = updateMany linked orders to status:refunded + transaction.create with refund type/same buyer/same amount. 400 NotPurchase if target isn't a purchase (refunding a refund makes no sense)" },
+      { title: "GET /admin/reports/:name: five named raw-SQL queries (revenue-by-category, top-stores, orders-by-status, signups-per-day, coupon-usage). Service returns { sql, rows } so the admin page can render 'here's what we ran' for the demo viva" },
+      { title: "Vitest 92 → 108 (16 new): 401 sweep + 403 buyer; users list password-strip + pagination; role-change 400 SelfDemote + happy with audit meta; user delete 400 SelfDelete + no-reason audit + with-reason ban audit; stores list deletedAt:null on both query AND _count predicate; store delete audit; stats composite (gmv text→number coercion); transaction delete snapshot audit; refund 400 NotPurchase + happy $transaction + audit; reports 404 UnknownReport + orders-by-status happy" },
+      { title: "8 BFF routes converted to forwardToApi proxies (~12 LOC each). Combined with 13.9 + 13.8 + 13.7, Next no longer touches Prisma for any module endpoint — only the legacy /api/auth/sso passthrough + /api/health" },
+    ],
+  },
+  {
     id: "phase-13-9-2",
     title: "Phase 13.9.2 · Seller dashboard writes migrated",
     subtitle:

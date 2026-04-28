@@ -1,60 +1,15 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { prisma } from "@/lib/server/prisma";
-import { requireAuth } from "@/lib/server/auth";
+/**
+ * Phase 13.10 — forwarder to Express `GET /admin/stats`.
+ * Composite KPI dashboard payload (users / stores / products /
+ * reviews / orders / gmv / pendingOrders / recentTransactions /
+ * 14-day daily revenue).
+ */
+import { type NextRequest } from "next/server";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const r = await requireAuth(req, ["admin"]);
-  if (!r.ok) return r.response;
-
-  // Phase 11 / F10 (CEO Decision 3) — counters across `/`, `/health`,
-  // and `/admin` must agree. We filter soft-deleted users + stores +
-  // products here so /admin matches the public /api/stats output;
-  // orders + reviews stay unfiltered (no soft-delete column on those
-  // tables today).
-  //
-  // Phase 11 run #2 / F14 (CEO Decision 2) — products count also gates
-  // on live store, so the four surfaces (/, /health, /admin overview,
-  // /admin/stores) read the same number for "products."
-  const [users, stores, products, reviews, orders, gmv, pendingOrders, recentTx, daily] = await Promise.all([
-    prisma.user.count({ where: { deletedAt: null } }),
-    prisma.store.count({ where: { deletedAt: null } }),
-    prisma.product.count({ where: { deletedAt: null, store: { deletedAt: null } } }),
-    prisma.productReview.count(),
-    prisma.order.count(),
-    prisma.$queryRaw<Array<{ total: string }>>`
-      SELECT COALESCE(SUM(total_price), 0)::text AS total
-      FROM orders
-      WHERE status IN ('paid', 'fulfilled')
-    `,
-    prisma.order.count({ where: { status: "pending" } }),
-    prisma.transaction.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      include: {
-        user: { select: { username: true, firstName: true, lastName: true, profileImage: true } },
-      },
-    }),
-    // Daily revenue for the last 14 days — drives the dashboard sparkline.
-    prisma.$queryRaw<Array<{ day: string; revenue: string; order_count: bigint }>>`
-      SELECT
-        TO_CHAR(d::date, 'YYYY-MM-DD')                                    AS day,
-        COALESCE(SUM(o.total_price) FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::text AS revenue,
-        COUNT(o.order_id) FILTER (WHERE o.status IN ('paid','fulfilled')) AS order_count
-      FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') d
-      LEFT JOIN orders o
-        ON DATE(o.created_at) = d::date
-      GROUP BY d
-      ORDER BY d ASC
-    `,
-  ]);
-  return NextResponse.json({
-    users, stores, products, reviews, orders,
-    gmv: Number(gmv[0]?.total ?? 0),
-    pendingOrders,
-    recentTransactions: recentTx,
-    daily: daily.map((d) => ({ day: d.day, revenue: Number(d.revenue), orderCount: Number(d.order_count) })),
-  });
+  return forwardToApi(req, `/admin/stats`);
 }
