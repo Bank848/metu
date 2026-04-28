@@ -44,7 +44,18 @@ export const reviewInputSchema = z.object({
   comment: z.string().min(1).max(255),
 });
 
+/**
+ * Partial-edit shape for PATCH /reviews/:id (admin moderation OR the
+ * review's author). Both fields optional — the controller rejects
+ * 400 if BOTH end up undefined (no-op edits aren't useful).
+ */
+export const reviewEditSchema = z.object({
+  rating: z.number().int().min(1).max(5).optional(),
+  comment: z.string().min(1).max(255).optional(),
+});
+
 export type BrowseQuery = z.infer<typeof browseQuerySchema>;
 export type ProductInput = z.infer<typeof productInputSchema>;
 export type ProductItemInput = z.infer<typeof productItemInputSchema>;
 export type ReviewInput = z.infer<typeof reviewInputSchema>;
+export type ReviewEditInput = z.infer<typeof reviewEditSchema>;
