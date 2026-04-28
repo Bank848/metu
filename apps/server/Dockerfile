@@ -48,6 +48,17 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
+# Phase 14.1 fix — npm 7+ workspaces install per-workspace deps
+# under apps/<name>/node_modules + packages/<name>/node_modules
+# when there's a version conflict or workspace-only dep
+# (better-auth lives at apps/server/node_modules/better-auth in
+# our case). The previous Dockerfile only copied the hoisted root
+# node_modules, so tsc couldn't resolve any workspace-local
+# package. Bringing across the entire deps tree (which at this
+# stage is just package.json + node_modules) lets the subsequent
+# `COPY . .` overlay the real source on top.
+COPY --from=deps /app/apps ./apps
+COPY --from=deps /app/packages ./packages
 COPY . .
 
 # Generate Prisma Client against our schema.
