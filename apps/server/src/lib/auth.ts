@@ -36,7 +36,14 @@
  *   local dev without OAuth credentials still boots cleanly.
  */
 import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
+// Import the prisma adapter from its own package instead of the
+// `better-auth/adapters/prisma` subpath. The subpath form re-exports
+// from `@better-auth/prisma-adapter` via better-auth's dist .d.mts
+// files; resolving that re-export through Node's module lookup was
+// flaky in the Fly Docker build (worked locally, failed under
+// `npm ci --ignore-scripts`). Direct import is identical at runtime
+// and dodges the resolution chain entirely.
+import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { prisma } from "../db/prisma.js";
 
 const ENABLE_GOOGLE = Boolean(process.env.GOOGLE_CLIENT_ID);
