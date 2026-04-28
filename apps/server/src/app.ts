@@ -51,6 +51,9 @@ import ordersRoutes from "./routes/orders.routes.js";
 // Layered routes (Phase 13.5 — reviews)
 import reviewsRoutes, { productReviewsRouter } from "./routes/reviews.routes.js";
 
+// Layered routes (Phase 13.6 — q&a)
+import qnaRoutes, { productQuestionsRouter } from "./routes/qna.routes.js";
+
 // Legacy flat routes that work today — will be migrated in later phases.
 import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
 
@@ -102,6 +105,13 @@ export function buildApp() {
   // the products router's /:id catch-all (Express orders by mount).
   app.use("/products/:productId/reviews", productReviewsRouter);
   app.use("/reviews",    reviewsRoutes);
+
+  // ─── Layered routes (Phase 13.6 — q&a) ───────────────────────────
+  // Same two-router shape as reviews. /questions/:id/answer is
+  // declared on the default router so it shares the /questions
+  // mount prefix.
+  app.use("/products/:productId/questions", productQuestionsRouter);
+  app.use("/questions",  qnaRoutes);
 
   // ─── Legacy flat routes (still working) ──────────────────────────
   // catalogRouter is mounted at /, so the URLs stay

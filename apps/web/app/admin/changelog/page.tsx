@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart, Mail, Receipt, Star } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart, Mail, Receipt, Star, HelpCircle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,27 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-13-6",
+    title: "Phase 13.6 · Q&A + admin moderation migrated",
+    subtitle:
+      "Public list / ask / edit / delete / answer all live as a layered Express resource. Field-level permission gates: question body (admin OR asker), answer field via PATCH (admin only — sellers must use the dedicated /answer endpoint so answeredAt + answererId stamp correctly), answer endpoint (product's seller OR admin).",
+    icon: HelpCircle,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-6",
+    items: [
+      { title: "Layered q&a resource: routes/qna.routes.ts (TWO routers — productQuestionsRouter for /products/:productId/questions, default for /questions/:id family) → controllers/qna.controller.ts → services/qna.service.ts → models/qna.model.ts" },
+      { title: "GET /products/:productId/questions: PUBLIC (no auth). Includes answerer.stats.role so the UI can render 'Admin answered' vs 'Seller answered' without a follow-up call (Phase 10 / F23)" },
+      { title: "POST /products/:productId/questions: 404 for soft-deleted/orphan products" },
+      { title: "PATCH /questions/:id: field-level gate — admin OR asker for body, admin-only for answer (sellers must use /answer to stamp answeredAt + answererId)" },
+      { title: "PATCH /questions/:id/answer: only the product's seller (verified via auth-loaded req.user.store.storeId) OR admin may answer. Stamps answer + answeredAt + answererId together" },
+      { title: "DELETE /questions/:id: admin OR asker. Admin deletes write 'question.delete' AuditLog with full snapshot. Admin edits write 'question.edit' with before/after" },
+      { title: "@metu/shared: new questionAskSchema + questionEditSchema + questionAnswerSchema (in new packages/shared/src/schemas/qna.ts)" },
+      { title: "Vitest 34 → 42 (added public list + 401 + 404 + non-admin/non-asker 403 + non-admin-cant-edit-answer 403 + non-seller cant answer + admin can answer ANY + admin delete writes audit)" },
+      { title: "Next /api/products/[id]/questions/route.ts + /api/questions/[id]/route.ts + /api/questions/[id]/answer/route.ts converted to forwardToApi proxies" },
+    ],
+  },
   {
     id: "phase-13-5",
     title: "Phase 13.5 · Reviews + admin moderation migrated",

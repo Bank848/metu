@@ -4,3 +4,4 @@ export * from "./cart.js";
 export * from "./coupon.js";
 export * from "./seller.js";
 export * from "./message.js";
+export * from "./qna.js";
