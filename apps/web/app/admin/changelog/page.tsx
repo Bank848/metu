@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: Monitor,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-15-2",
+    commitSha: "2247f9a",
     items: [
       { title: "service: listSessions (filters expiresAt > now, strips token field), revokeSession (ownership-checked via userId predicate, 404 SessionNotFound if no row matches — guards against ID-enumeration attacks), revokeAllOtherSessions (deleteMany except currentSessionId; if null because user is on JWT-cookie path, deletes ALL)" },
       { title: "controller: 3 handlers + readBetterAuthSessionId() helper that calls auth.api.getSession({ headers }) to identify the current row. JWT-cookie users get currentSessionId=null surfaced to the UI" },
