@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: KeyRound,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-14-2",
+    commitSha: "02b6035",
     items: [
       { title: "middleware/auth.ts: requireAuth + softAuth now try the JWT cookie first (no DB hit), fall back to readBetterAuthUserId() which wraps auth.api.getSession({ headers }). Synthesises a TokenPayload-shaped req.auth for downstream controllers regardless of which path resolved the user — handlers don't need to know" },
       { title: "Role check changed: uses jwtPayload.role when JWT path resolves, otherwise UserStats.role from the DB. Handles Google sign-in users (no JWT to read role from) and admin demote-mid-session edge cases" },
