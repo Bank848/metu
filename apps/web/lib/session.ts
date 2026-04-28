@@ -1,23 +1,30 @@
 import { cookies } from "next/headers";
-import { readAuth, loadUser } from "./server/auth";
+import { apiFetch, ApiError } from "./server/api";
 
 /**
- * Server-side auth — read JWT cookie, load user from Prisma directly.
- * No HTTP roundtrip, works the same on Vercel and local dev.
+ * Phase 13.2 — `getMe()` now calls `GET /auth/me` on the Express
+ * server instead of reading the JWT cookie + loading from Prisma
+ * directly. The cookie itself is forwarded by `apiFetch()` — it
+ * reads `headers().get("cookie")` and threads it through.
+ *
+ * Return shape preserved 1:1 so consumer pages (`app/admin/layout.tsx`,
+ * every server component that gates on role, etc.) keep working
+ * unchanged. 401 from the API → caller sees `null` (logged-out
+ * surface). Anything else propagates so genuine outages don't get
+ * swallowed.
  */
 export async function getMe() {
-  const auth = readAuth();
-  if (!auth) return null;
-  const user = await loadUser(auth.uid);
-  // Soft-deleted users are surfaced as logged-out — page renders the
-  // public/anonymous variant rather than a half-broken authed state.
-  if (!user || (user as any).deletedAt) return null;
-  const { password: _, ...safe } = user as any;
-  // Prefer the DB role (always current) over the JWT role (stale until
-  // re-login). If for some reason stats are missing, fall back to JWT
-  // and finally to "buyer" so the type is still narrow.
-  const role = ((safe.stats?.role as string | undefined) ?? auth.role ?? "buyer") as typeof auth.role;
-  return { user: safe, role };
+  try {
+    const data = await apiFetch<{
+      user: any;
+      role: "buyer" | "seller" | "admin";
+    }>("/auth/me");
+    if (!data?.user) return null;
+    return { user: data.user, role: data.role };
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) return null;
+    throw err;
+  }
 }
 
 /**

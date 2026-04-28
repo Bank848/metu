@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,26 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-13-2",
+    title: "Phase 13.2 · Auth migrated to Express + cookie boundary",
+    subtitle:
+      "Login / register / me / logout / change-password now live as a layered Express resource on metu-api. Express owns the JWT cookie; the Next /api/auth/* routes became thin proxies that forward Set-Cookie back to the browser so the cookie scopes correctly to metu.fly.dev. getMe() in server components delegates to GET /auth/me on the API.",
+    icon: KeyRound,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-2",
+    items: [
+      { title: "Layered auth resource: routes/auth.routes.ts → controllers/auth.controller.ts → services/auth.service.ts → models/auth.model.ts (re-exports zod from @metu/shared)" },
+      { title: "Endpoints live: POST /auth/login, POST /auth/register, POST /auth/logout, GET /auth/me, PATCH /auth/me, POST /auth/change-password" },
+      { title: "middleware/auth.ts rewritten to throw AppError (was returning 401 directly). Server-side helpers preserved: issueToken / clearToken / readToken / requireAuth(roles) / softAuth() / currentUser / currentAuth" },
+      { title: "Profanity guard + Turnstile verify ported to apps/server/src/utils — same dictionary as Phase 11/F3, no-op when TURNSTILE_SECRET unset" },
+      { title: "Next /api/auth/{login,register,logout,me,change-password} converted to thin forwarders via lib/server/proxy.ts. Set-Cookie passed through using Headers#getSetCookie() so the browser scopes the cookie to metu.fly.dev (not metu-api)" },
+      { title: "lib/session.ts getMe() now calls /auth/me on Express via apiFetch (cookie forwarded server-side). Return shape preserved 1:1 — every page that gates on me?.role works unchanged" },
+      { title: "Vitest: 5 new auth tests (login happy, login wrong-password, login unknown-email, register dupe-email 409, register profanity 400, /me 401). Server suite 9 → 15 tests" },
+      { title: "Deferred to Phase 13.2.1: forgot-password + reset-password (need a tiny email/token module of their own)" },
+    ],
+  },
   {
     id: "phase-13-1",
     title: "Phase 13.1 · Backend separation — Express API + Next BFF",
