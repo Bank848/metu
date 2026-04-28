@@ -48,6 +48,9 @@ import couponsRoutes from "./routes/coupons.routes.js";
 // Layered routes (Phase 13.4 — orders)
 import ordersRoutes from "./routes/orders.routes.js";
 
+// Layered routes (Phase 13.5 — reviews)
+import reviewsRoutes, { productReviewsRouter } from "./routes/reviews.routes.js";
+
 // Legacy flat routes that work today — will be migrated in later phases.
 import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
 
@@ -92,6 +95,13 @@ export function buildApp() {
 
   // ─── Layered routes (Phase 13.4 — orders) ────────────────────────
   app.use("/orders",     ordersRoutes);
+
+  // ─── Layered routes (Phase 13.5 — reviews) ───────────────────────
+  // Two URL families share one resource (see reviews.routes.ts).
+  // POST /products/:productId/reviews mounted FIRST so it wins over
+  // the products router's /:id catch-all (Express orders by mount).
+  app.use("/products/:productId/reviews", productReviewsRouter);
+  app.use("/reviews",    reviewsRoutes);
 
   // ─── Legacy flat routes (still working) ──────────────────────────
   // catalogRouter is mounted at /, so the URLs stay

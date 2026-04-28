@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart, Mail, Receipt } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart, Mail, Receipt, Star } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,25 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-13-5",
+    title: "Phase 13.5 · Reviews + admin moderation migrated",
+    subtitle:
+      "Create / edit / delete reviews now live as a layered Express resource. Admin-OR-author gate enforced server-side; admin moderation actions write AuditLog rows with before/after snapshots so the moderation paper trail survives even after a hard delete.",
+    icon: Star,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-5",
+    items: [
+      { title: "Layered reviews resource: routes/reviews.routes.ts (TWO routers — POST nested at /products/:productId/reviews via mergeParams, PATCH/DELETE at /reviews/:id) → controllers/reviews.controller.ts → services/reviews.service.ts → models/reviews.model.ts" },
+      { title: "POST /products/:productId/reviews: 404 for soft-deleted / orphan products (store removed). Author + product info included in the response so the moderation UI doesn't need a refetch" },
+      { title: "PATCH /reviews/:id + DELETE /reviews/:id: admin OR author can act. Sellers explicitly CANNOT edit reviews on their own products (would be obvious manipulation)" },
+      { title: "Audit trail: when admin reaches into someone else's review, services/reviews.service.ts writes 'review.edit' with before/after snapshot OR 'review.delete' with the full row snapshot in meta. Self-edits / self-deletes are NOT audited (not moderation events)" },
+      { title: "@metu/shared: new reviewEditSchema (rating + comment both optional; controller rejects 400 when both are undefined — no-op edits aren't useful)" },
+      { title: "Vitest 29 → 34 (added 401 + 404 + happy create + 403 non-admin/non-author + admin-delete-writes-audit)" },
+      { title: "Next /api/products/[id]/reviews/route.ts + /api/reviews/[id]/route.ts converted to forwardToApi proxies (~12 lines each)" },
+    ],
+  },
   {
     id: "phase-13-4",
     title: "Phase 13.4 · Orders + checkout migrated to Express",
