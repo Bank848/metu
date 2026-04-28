@@ -96,6 +96,13 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 # `prisma migrate deploy` in the Fly release_command.
 COPY --from=builder /app/packages/db/prisma ./packages/db/prisma
 COPY --from=builder /app/node_modules ./node_modules
+# Phase 14.1 fix — workspace-local node_modules (e.g.
+# apps/server/node_modules/better-auth) need to ship to the runner
+# too. Same root cause as the builder fix: npm 7+ workspaces store
+# per-workspace deps under apps/<name>/node_modules when the dep
+# can't hoist (better-auth has nested @better-auth/* peer chains
+# so it lands at apps/server/node_modules/better-auth).
+COPY --from=builder /app/apps/server/node_modules ./apps/server/node_modules
 
 # Non-root user.
 RUN addgroup --system --gid 1001 nodejs \
