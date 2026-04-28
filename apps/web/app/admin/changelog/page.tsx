@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: ShieldAlert,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-15-5",
+    commitSha: "7bc2daf",
     items: [
       { title: "Migration 20260428235733_phase_15_5_require_password_reset: ALTER users ADD require_password_reset BOOLEAN NOT NULL DEFAULT false. Backfills every existing user with false; admins flip on demand" },
       { title: "schema.prisma: User.requirePasswordReset field with @map to the snake_case column" },
