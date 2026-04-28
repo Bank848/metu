@@ -32,6 +32,26 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-13-6-5",
+    title: "Phase 13.6.5 · CPE241 rubric retrofit (Lecture 10)",
+    subtitle:
+      "Plugs the four classical RDBMS topics from Lecture 10 (Triggers, Views, Permissions, Check Constraints) that the codebase had zero coverage for. One additive SQL migration — no API change, no test churn, all 42 server tests stay green. Demo viva can now answer 'where do you do X?' for every Lecture 10 slide in one sentence (see docs/rubric-coverage.md).",
+    icon: Database,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-6-5",
+    items: [
+      { title: "Trigger 1 — touch_updated_at: BEFORE UPDATE on product, auto-maintains the new product.updated_at column at the database level. Schema annotation explicitly notes the trigger owns the column (no Prisma @updatedAt — the trigger is the only writer)" },
+      { title: "Trigger 2 — review_delete_audit: AFTER DELETE on product_review, writes a fallback 'review.delete.trigger' row to audit_log. Two-layer audit — app writes the rich row (with actor + before-snapshot), trigger writes the safety net only when a manual SQL DELETE bypasses the API" },
+      { title: "View 1 — live_stores_view: reifies the soft-delete predicate (deleted_at IS NULL) so analytics consumers don't have to remember it. Single source of truth for 'public stores'" },
+      { title: "View 2 — product_with_avg_rating_view: denormalised JOIN+AGGREGATE so 'WHERE avg_rating > 4' becomes one clause. Solves the Phase 11 bug #1 minRating problem at the database layer" },
+      { title: "Permissions — three-role separation: existing 'metu' (Neon admin, migrations only), new 'metu_app' (runtime SELECT/INSERT/UPDATE/DELETE on app tables), new 'metu_analytics' (read-only + explicitly DENIED audit_log so reporting can't see who did what). Both new roles created NOLOGIN — migration carries no secret; runbook in docs/rubric-coverage.md covers post-migration password rotation" },
+      { title: "Check constraints — defence-in-depth bounds: product.name non-empty, product_item.price ≥ 0, product_item.quantity ≥ 0, product_item.discount_percent in 0–100, product_review.rating in 1–5, order_item.quantity > 0. Database refuses garbage even if zod is bypassed" },
+      { title: "New file: docs/rubric-coverage.md — one-page matrix mapping every Lecture 9 + 10 topic to file:line. Designed for the demo viva: examiner asks 'where do you do triggers?', you read the row" },
+      { title: "schema.prisma: adds Product.updatedAt (DateTime, @default(now()), no @updatedAt — owned by the touch_updated_at trigger). Triggers + views + roles + check constraints all live in the migration SQL only (Prisma-invisible, doesn't introspect them — that's fine)" },
+    ],
+  },
+  {
     id: "phase-13-6",
     title: "Phase 13.6 · Q&A + admin moderation migrated",
     subtitle:
