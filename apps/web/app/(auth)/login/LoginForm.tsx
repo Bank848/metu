@@ -36,6 +36,12 @@ export function LoginForm({ next }: { next?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // Phase 16.2 — when the server returns 401 NeedsTotp after a
+  // successful password check, swap the form into 2-step mode:
+  // password fields lock to their already-typed values, a 6-digit
+  // TOTP input appears, and submit re-sends with the totpCode.
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
 
   useEffect(() => {
     const nodes = document.querySelectorAll<HTMLButtonElement>(".metu-demo-chip");
@@ -61,16 +67,49 @@ export function LoginForm({ next }: { next?: string }) {
       setError("Please fill in both fields");
       return;
     }
+    // Phase 16.2 — if we're already in step-2 mode, the user must have
+    // typed the 6-digit TOTP code in the dedicated input. Validate it
+    // here so we don't bounce off the server with an obviously bad body.
+    if (needsTotp && !/^\d{6}$/.test(totpCode)) {
+      setError("Enter the 6-digit code from your authenticator app");
+      return;
+    }
     setBusy(true);
     try {
+      const body: { email: string; password: string; totpCode?: string } = {
+        email: submittedEmail,
+        password: submittedPassword,
+      };
+      if (needsTotp) body.totpCode = totpCode;
       const res = await fetch(`/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: submittedEmail, password: submittedPassword }),
+        body: JSON.stringify(body),
         credentials: "include",
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        // Phase 16.2 — server replies 401 NeedsTotp after a successful
+        // password check when the account has 2FA enabled. Swap the form
+        // into 2-step mode rather than surfacing it as a hard error.
+        if (data?.error === "NeedsTotp") {
+          setNeedsTotp(true);
+          setError(null);
+          setBusy(false);
+          // Defer focus so the new input has mounted by the time we ask
+          // the browser to focus it.
+          setTimeout(() => {
+            formRef.current
+              ?.querySelector<HTMLInputElement>('input[name="totpCode"]')
+              ?.focus();
+          }, 0);
+          return;
+        }
+        if (data?.error === "InvalidTotp") {
+          setError("Code didn't match. Try a fresh one from your app.");
+          setBusy(false);
+          return;
+        }
         setError(data?.error === "InvalidCredentials" ? "Invalid email or password" : "Login failed");
         setBusy(false);
         return;
@@ -155,7 +194,13 @@ export function LoginForm({ next }: { next?: string }) {
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-4 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
+        // Phase 16.2 — lock the credentials in step-2 so the user can't
+        // accidentally retype them while focused on the TOTP code. The
+        // value stays in `email` state so the next submit re-sends it.
+        readOnly={needsTotp}
+        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-4 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none ${
+          needsTotp ? "opacity-60 cursor-not-allowed" : ""
+        }`}
         required
         autoComplete="email"
       />
@@ -165,13 +210,46 @@ export function LoginForm({ next }: { next?: string }) {
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-2 text-white focus:border-metu-yellow outline-none"
+        readOnly={needsTotp}
+        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-2 text-white focus:border-metu-yellow outline-none ${
+          needsTotp ? "opacity-60 cursor-not-allowed" : ""
+        }`}
         required
         autoComplete="current-password"
       />
+      {needsTotp && (
+        <div className="mt-4 mb-2 rounded-xl border border-metu-yellow/30 bg-metu-yellow/5 p-4">
+          <label className="block text-sm font-semibold text-white mb-1">
+            Two-factor code
+          </label>
+          <p className="text-xs text-ink-dim mb-3">
+            Open your authenticator app and enter the 6-digit code for METU.
+          </p>
+          <input
+            name="totpCode"
+            type="text"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            value={totpCode}
+            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="123456"
+            className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 text-white text-center tracking-[0.4em] font-mono text-lg focus:border-metu-yellow outline-none"
+            autoComplete="one-time-code"
+            autoFocus
+            required
+          />
+        </div>
+      )}
       {error && <p className="text-sm text-red-400 my-2">{error}</p>}
       <Button type="submit" variant="primary" size="lg" className="w-full mt-3" disabled={busy}>
-        {busy ? "Logging in…" : "Log in →"}
+        {busy
+          ? needsTotp
+            ? "Verifying…"
+            : "Logging in…"
+          : needsTotp
+          ? "Verify & continue →"
+          : "Log in →"}
       </Button>
     </form>
   );

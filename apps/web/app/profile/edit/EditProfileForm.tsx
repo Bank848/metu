@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { User, Lock, Save, Phone, ShieldCheck, Monitor, Trash2 } from "lucide-react";
+import { User, Lock, Save, Phone, ShieldCheck, Monitor, Trash2, Smartphone, Copy } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
 
@@ -35,6 +35,9 @@ type Initial = {
   // Phase 14.4 — phone + verification status drive the OTP UI.
   phone: string | null;
   phoneVerified: boolean;
+  // Phase 16.2 — when true, TOTP is active for this user; UI shows
+  // Disable instead of the enrol-start flow.
+  totpEnabled: boolean;
 };
 
 const TODAY = new Date();
@@ -66,6 +69,103 @@ export function EditProfileForm({
   // but for UX we don't auto-show the input on a fresh page load —
   // user has to click "Send code" again.
   const [otpRequested, setOtpRequested] = useState(false);
+
+  // Phase 16.2 — TOTP enrolment state. Three-step UI:
+  //   1. Click "Enable 2FA" → POST enroll-start → server returns
+  //      { secret, otpauthUri }. UI shows secret + scannable URI.
+  //   2. User scans/types into Google Authenticator etc.
+  //   3. Types first 6-digit code → POST enroll-verify → on success,
+  //      router.refresh() so initial.totpEnabled becomes true and
+  //      the section flips to Disable.
+  const [totpBusy, setTotpBusy] = useState<null | "enroll-start" | "enroll-verify" | "disable">(null);
+  const [totpEnrollment, setTotpEnrollment] = useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [totpVerifyCode, setTotpVerifyCode] = useState("");
+  const [totpDisablePw, setTotpDisablePw] = useState("");
+  const [totpMsg, setTotpMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function totpEnrollStart() {
+    setTotpMsg(null);
+    setTotpBusy("enroll-start");
+    try {
+      const res = await fetch("/api/auth/totp/enroll-start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTotpMsg({ ok: false, text: data?.message ?? "Failed to start enrolment" });
+        return;
+      }
+      setTotpEnrollment({ secret: data.secret, otpauthUri: data.otpauthUri });
+    } catch {
+      setTotpMsg({ ok: false, text: "Network error" });
+    } finally {
+      setTotpBusy(null);
+    }
+  }
+
+  async function totpEnrollVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setTotpMsg(null);
+    setTotpBusy("enroll-verify");
+    try {
+      const res = await fetch("/api/auth/totp/enroll-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ code: totpVerifyCode }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const hint =
+          data?.error === "InvalidTotp"
+            ? "Code didn't match. Check your authenticator app's clock + try again."
+            : data?.message ?? "Failed to verify";
+        setTotpMsg({ ok: false, text: hint });
+        return;
+      }
+      setTotpMsg({ ok: true, text: "2FA enabled. You'll need a code at next sign-in." });
+      setTotpEnrollment(null);
+      setTotpVerifyCode("");
+      router.refresh();
+    } catch {
+      setTotpMsg({ ok: false, text: "Network error" });
+    } finally {
+      setTotpBusy(null);
+    }
+  }
+
+  async function totpDisable(e: React.FormEvent) {
+    e.preventDefault();
+    setTotpMsg(null);
+    setTotpBusy("disable");
+    try {
+      const res = await fetch("/api/auth/totp/disable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ password: totpDisablePw }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const hint =
+          data?.error === "InvalidPassword"
+            ? "Wrong password."
+            : data?.message ?? "Failed to disable";
+        setTotpMsg({ ok: false, text: hint });
+        return;
+      }
+      setTotpMsg({ ok: true, text: "2FA disabled." });
+      setTotpDisablePw("");
+      router.refresh();
+    } catch {
+      setTotpMsg({ ok: false, text: "Network error" });
+    } finally {
+      setTotpBusy(null);
+    }
+  }
 
   // Phase 15.2 — sessions UI state. Loaded lazily on mount via
   // useEffect; no SSR hydration so the page renders fast and the
@@ -640,6 +740,143 @@ export function EditProfileForm({
           </GlassButton>
         </div>
       </form>
+
+      {/* ───── Two-factor authentication (Phase 16.2) ─────
+          Three-state UI:
+            1. NOT enrolled → "Enable 2FA" button (calls enroll-start)
+            2. Mid-enrolment (totpEnrollment set) → show secret +
+               otpauth:// URI + first-code verify form
+            3. ENABLED → show Disable form (requires current password) */}
+      <section className="rounded-2xl glass-morphism p-6 space-y-4">
+        <h2 className="font-display font-bold text-white flex items-center gap-2">
+          <Smartphone className="h-4 w-4 text-metu-yellow" />
+          Two-factor authentication
+          {initial.totpEnabled && (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-400/10 border border-emerald-400/20">
+              <ShieldCheck className="h-3 w-3" />
+              Enabled
+            </span>
+          )}
+        </h2>
+        <p className="text-sm text-ink-secondary -mt-2">
+          Add a 6-digit code from an authenticator app (Google Authenticator,
+          Authy, 1Password, Bitwarden) on top of your password.
+        </p>
+
+        {/* State 3 — already enrolled, show Disable form */}
+        {initial.totpEnabled && (
+          <form onSubmit={totpDisable} className="border-t border-white/10 pt-4 space-y-3">
+            <p className="text-xs text-ink-dim">
+              To disable 2FA, confirm your current password (defence in depth — even
+              a stolen session can't strip 2FA without knowing the password).
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="password"
+                value={totpDisablePw}
+                onChange={(e) => setTotpDisablePw(e.target.value)}
+                placeholder="Current password"
+                required
+                autoComplete="current-password"
+                className={`flex-1 ${inputCls}`}
+              />
+              <GlassButton tone="glass" size="md" type="submit" disabled={totpBusy !== null || !totpDisablePw}>
+                {totpBusy === "disable" ? "Disabling…" : "Disable 2FA"}
+              </GlassButton>
+            </div>
+          </form>
+        )}
+
+        {/* State 1 — not enrolled, no pending — show Enable button */}
+        {!initial.totpEnabled && !totpEnrollment && (
+          <button
+            type="button"
+            onClick={totpEnrollStart}
+            disabled={totpBusy !== null}
+            className="rounded-xl border border-white/15 bg-surface-2 px-4 py-2 text-sm font-semibold text-white hover:border-metu-yellow disabled:opacity-50"
+          >
+            {totpBusy === "enroll-start" ? "Loading…" : "Enable 2FA"}
+          </button>
+        )}
+
+        {/* State 2 — mid-enrolment, show secret + verify form */}
+        {!initial.totpEnabled && totpEnrollment && (
+          <div className="border-t border-white/10 pt-4 space-y-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">
+                Step 1 — add to your authenticator app
+              </div>
+              <div className="text-sm text-white">
+                Open your app and either:
+                <ul className="list-disc list-inside text-ink-secondary mt-1 space-y-0.5">
+                  <li>
+                    Tap the URI on this device:{" "}
+                    <a
+                      href={totpEnrollment.otpauthUri}
+                      className="text-metu-yellow underline hover:no-underline break-all"
+                    >
+                      open in authenticator
+                    </a>
+                  </li>
+                  <li>
+                    Or paste this secret manually:{" "}
+                    <code className="font-mono text-xs bg-surface-3 px-2 py-0.5 rounded">
+                      {totpEnrollment.secret}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(totpEnrollment.secret)}
+                      className="ml-1 inline-flex items-center text-ink-dim hover:text-metu-yellow"
+                      title="Copy secret"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <form onSubmit={totpEnrollVerify} className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim">
+                Step 2 — enter the first 6-digit code
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  value={totpVerifyCode}
+                  onChange={(e) => setTotpVerifyCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="123456"
+                  className={`w-32 text-center font-mono tracking-widest ${inputCls}`}
+                  required
+                />
+                <GlassButton tone="glass" size="md" type="submit" disabled={totpBusy !== null || totpVerifyCode.length !== 6}>
+                  {totpBusy === "enroll-verify" ? "Verifying…" : "Verify + enable"}
+                </GlassButton>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTotpEnrollment(null);
+                    setTotpVerifyCode("");
+                    setTotpMsg(null);
+                  }}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-sm text-ink-dim hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {totpMsg && (
+          <p className={`text-sm ${totpMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
+            {totpMsg.text}
+          </p>
+        )}
+      </section>
 
       {/* ───── Active sessions (Phase 15.2) ─────
           Lists better-auth session rows for the current user. The

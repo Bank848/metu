@@ -28,6 +28,9 @@ export async function getMe() {
       // app should redirect to /profile/edit until the user changes
       // their password (which clears the flag server-side).
       requirePasswordReset?: boolean;
+      // Phase 16.2 — drives the TOTP section in /profile/edit
+      // (Disable vs Enrol-start) and the LoginForm 2-step prompt.
+      totpEnabled?: boolean;
     }>("/auth/me");
     if (!data?.user) return null;
     return {
@@ -35,6 +38,7 @@ export async function getMe() {
       role: data.role,
       hasPassword: data.hasPassword ?? true,
       requirePasswordReset: data.requirePasswordReset ?? false,
+      totpEnabled: data.totpEnabled ?? false,
     };
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) return null;

@@ -16,6 +16,9 @@ export {
   updatePhoneSchema,
   requestOtpSchema,
   verifyOtpSchema,
+  totpEnrollStartSchema,
+  totpEnrollVerifySchema,
+  totpDisableSchema,
   type LoginInput,
   type RegisterInput,
   type UpdateProfileInput,
@@ -26,6 +29,9 @@ export {
   type UpdatePhoneInput,
   type RequestOtpInput,
   type VerifyOtpInput,
+  type TotpEnrollStartInput,
+  type TotpEnrollVerifyInput,
+  type TotpDisableInput,
 } from "@metu/shared";
 
 import type { User, UserStats } from "@prisma/client";
