@@ -15,6 +15,10 @@ type Initial = {
   countryId: number | null;
   gender: "male" | "female" | "other" | null;
   dateOfBirth: string; // YYYY-MM-DD or ""
+  // Phase 14.3 — when false (Google-only signups), the password
+  // section renders the SET-password flow instead of the
+  // change-password flow (no currentPassword required).
+  hasPassword: boolean;
 };
 
 const TODAY = new Date();
@@ -93,19 +97,37 @@ export function EditProfileForm({
     }
     setBusy("password");
     try {
-      const res = await fetch("/api/auth/change-password", {
+      // Phase 14.3 — Google-only users (initial.hasPassword=false)
+      // hit /set-password (no currentPassword check); existing users
+      // hit /change-password (verifies the current password first).
+      const url = initial.hasPassword
+        ? "/api/auth/change-password"
+        : "/api/auth/set-password";
+      const body = initial.hasPassword
+        ? pw
+        : { newPassword: pw.newPassword, confirmPassword: pw.confirmPassword };
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(pw),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setPasswordMsg({ ok: false, text: data?.message ?? "Failed to change password" });
+        const fallback = initial.hasPassword
+          ? "Failed to change password"
+          : "Failed to set password";
+        setPasswordMsg({ ok: false, text: data?.message ?? fallback });
         return;
       }
-      setPasswordMsg({ ok: true, text: "Password updated." });
+      const successText = initial.hasPassword
+        ? "Password updated."
+        : "Password set. You can now sign in with email + password too.";
+      setPasswordMsg({ ok: true, text: successText });
       setPw({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      // Refresh so the next render reads hasPassword=true and the
+      // form switches back to the change-password flow.
+      router.refresh();
     } catch {
       setPasswordMsg({ ok: false, text: "Network error" });
     } finally {
@@ -220,24 +242,36 @@ export function EditProfileForm({
         </div>
       </form>
 
-      {/* ───── Change password ───── */}
+      {/* ───── Account & security: password ─────
+          Phase 14.3 — UI flips between SET (no current pw required,
+          shown to Google-only users) and CHANGE (verifies current
+          first) based on the initial.hasPassword flag the page sets
+          from the User row's password column. */}
       <form onSubmit={changePassword} className="rounded-2xl glass-morphism p-6 space-y-4">
         <h2 className="font-display font-bold text-white flex items-center gap-2">
           <Lock className="h-4 w-4 text-metu-yellow" />
-          Change password
+          {initial.hasPassword ? "Change password" : "Set a password"}
         </h2>
+        {!initial.hasPassword && (
+          <p className="text-sm text-ink-secondary -mt-2">
+            You signed up with Google. Set a password here so you can also sign in
+            with email + password — both will work from then on.
+          </p>
+        )}
 
-        <label className="block">
-          <span className="text-sm font-semibold text-white">Current password</span>
-          <input
-            type="password"
-            value={pw.currentPassword}
-            onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })}
-            required
-            autoComplete="current-password"
-            className={`mt-1 ${inputCls}`}
-          />
-        </label>
+        {initial.hasPassword && (
+          <label className="block">
+            <span className="text-sm font-semibold text-white">Current password</span>
+            <input
+              type="password"
+              value={pw.currentPassword}
+              onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })}
+              required
+              autoComplete="current-password"
+              className={`mt-1 ${inputCls}`}
+            />
+          </label>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <label className="block">
             <span className="text-sm font-semibold text-white">New password</span>
@@ -273,7 +307,9 @@ export function EditProfileForm({
 
         <div className="flex justify-end">
           <GlassButton tone="glass" size="lg" type="submit" disabled={busy !== null}>
-            {busy === "password" ? "Updating…" : "Update password"}
+            {busy === "password"
+              ? (initial.hasPassword ? "Updating…" : "Setting…")
+              : (initial.hasPassword ? "Update password" : "Set password")}
           </GlassButton>
         </div>
       </form>

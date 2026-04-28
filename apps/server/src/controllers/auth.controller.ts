@@ -5,6 +5,7 @@ import {
   loginSchema,
   registerSchema,
   resetPasswordSchema,
+  setPasswordSchema,
   updateProfileSchema,
 } from "../models/auth.model.js";
 import * as service from "../services/auth.service.js";
@@ -91,7 +92,10 @@ export const me: RequestHandler = (req, res) => {
     return;
   }
   const { password, ...safe } = user;
-  res.json({ user: safe, role: auth?.role });
+  // Phase 14.3 — surface a `hasPassword` boolean so the BFF UI can
+  // render the SET-password flow (no current pw needed) for
+  // OAuth-only users instead of the change-password flow.
+  res.json({ user: safe, role: auth?.role, hasPassword: Boolean(password) });
 };
 
 export const updateMe: RequestHandler = async (req, res, next) => {
@@ -121,6 +125,32 @@ export const changePassword: RequestHandler = async (req, res, next) => {
     if (!auth) throw new AppError(401, "Unauthorized");
 
     await service.changePassword(auth.uid, parsed.data);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/set-password — Phase 14.3.
+ *
+ * First-time password set for OAuth-only users (no existing
+ * password to verify). Refuses with 400 PasswordAlreadySet when
+ * the user already has one — those should call changePassword.
+ *
+ * Auth required. Doesn't issue a fresh cookie — the user is
+ * already signed in via Google when they hit this.
+ */
+export const setPassword: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = setPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+
+    await service.setPassword(auth.uid, parsed.data);
     res.json({ ok: true });
   } catch (err) {
     next(err);

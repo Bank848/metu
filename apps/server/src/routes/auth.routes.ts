@@ -15,5 +15,7 @@ router.post("/reset-password",   ctrl.resetPassword);    // 13.2.1
 router.get("/me",                 requireAuth(), ctrl.me);
 router.patch("/me",               requireAuth(), ctrl.updateMe);
 router.post("/change-password",   requireAuth(), ctrl.changePassword);
+// Phase 14.3 — first-time password set for OAuth-only users.
+router.post("/set-password",      requireAuth(), ctrl.setPassword);
 
 export default router;

@@ -187,3 +187,99 @@ describe("GET /auth/me", () => {
     expect(res.body.user.password).toBeUndefined();
   });
 });
+
+// =============================================================================
+//  Phase 14.3 — POST /auth/set-password
+// =============================================================================
+describe("POST /auth/set-password (Phase 14.3)", () => {
+  const jwtToken = async (uid: number, role: "buyer" | "seller" | "admin" = "buyer") => {
+    const jwt = await import("jsonwebtoken");
+    return jwt.default.sign(
+      { uid, role },
+      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
+      { expiresIn: "1h" },
+    );
+  };
+
+  it("returns 401 without auth", async () => {
+    const res = await request(buildApp())
+      .post("/auth/set-password")
+      .send({ newPassword: "newpass1", confirmPassword: "newpass1" });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 PasswordAlreadySet when user has a password", async () => {
+    const token = await jwtToken(7);
+    // requireAuth() resolves the user (with its existing password).
+    (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+      // Two findUnique calls happen: one in requireAuth (no select),
+      // one in service.setPassword (select: { password: true }).
+      if (select?.password)
+        return Promise.resolve({ password: "$2a$10$existinghash" });
+      return Promise.resolve({
+        userId: where.userId,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+    });
+    const res = await request(buildApp())
+      .post("/auth/set-password")
+      .set("Cookie", `metu_auth=${token}`)
+      .send({ newPassword: "newpass1", confirmPassword: "newpass1" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("PasswordAlreadySet");
+  });
+
+  it("happy: hashes + persists + writes audit row when password was NULL", async () => {
+    const token = await jwtToken(7);
+    (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+      if (select?.password) return Promise.resolve({ password: null });
+      return Promise.resolve({
+        userId: where.userId,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+    });
+    (prisma.user.update as any).mockResolvedValue({});
+    (prisma.auditLog.create as any).mockResolvedValue({});
+
+    const res = await request(buildApp())
+      .post("/auth/set-password")
+      .set("Cookie", `metu_auth=${token}`)
+      .send({ newPassword: "newpass1", confirmPassword: "newpass1" });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    // user.update was called with a bcrypt hash (not the raw password).
+    const updateCall = (prisma.user.update as any).mock.calls[0][0];
+    expect(updateCall.where.userId).toBe(7);
+    expect(updateCall.data.password).toMatch(/^\$2[ab]\$/);
+
+    // audit log captures the action.
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "user.set_password",
+        targetType: "user",
+        targetId: 7,
+      }),
+    });
+  });
+
+  it("400 when newPassword + confirmPassword don't match", async () => {
+    const token = await jwtToken(7);
+    (prisma.user.findUnique as any).mockResolvedValue({
+      userId: 7,
+      deletedAt: null,
+      stats: { role: "buyer" },
+      store: null,
+    });
+    const res = await request(buildApp())
+      .post("/auth/set-password")
+      .set("Cookie", `metu_auth=${token}`)
+      .send({ newPassword: "newpass1", confirmPassword: "different" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("ValidationError");
+  });
+});

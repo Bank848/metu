@@ -18,9 +18,18 @@ export async function getMe() {
     const data = await apiFetch<{
       user: any;
       role: "buyer" | "seller" | "admin";
+      // Phase 14.3 — present when the server resolved the user.
+      // Older API responses (pre-14.3) won't include it; coerce
+      // missing → true to keep the legacy change-password flow
+      // as the safe default for existing users.
+      hasPassword?: boolean;
     }>("/auth/me");
     if (!data?.user) return null;
-    return { user: data.user, role: data.role };
+    return {
+      user: data.user,
+      role: data.role,
+      hasPassword: data.hasPassword ?? true,
+    };
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) return null;
     throw err;
