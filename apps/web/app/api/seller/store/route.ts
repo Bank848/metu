@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateStoreSchema } from "@metu/shared";
 import { prisma } from "@/lib/server/prisma";
 import { withStore } from "@/lib/server/seller";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,13 +52,10 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ ok: true, store: updated });
 }
 
-/** GET /api/seller/store — current seller's store (handy for client hydrate). */
+/**
+ * Phase 13.9.1 — GET forwards to Express. PATCH stays here until
+ * Phase 13.9.2 migrates the write side.
+ */
 export async function GET(req: NextRequest) {
-  const r = await withStore(req);
-  if (!r.ok) return r.response;
-  const store = await prisma.store.findUnique({
-    where: { storeId: r.store.storeId },
-    include: { businessType: true, stats: true },
-  });
-  return NextResponse.json(store);
+  return forwardToApi(req, `/seller/store`);
 }

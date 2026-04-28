@@ -3,26 +3,17 @@ import { Prisma } from "@prisma/client";
 import { productInputSchema } from "@metu/shared";
 import { prisma } from "@/lib/server/prisma";
 import { withStore } from "@/lib/server/seller";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Phase 13.9.1 — GET forwards to Express. POST stays here until
+ * Phase 13.9.2 migrates the write side.
+ */
 export async function GET(req: NextRequest) {
-  const r = await withStore(req);
-  if (!r.ok) return r.response;
-  // Sellers manage their live catalog — soft-deleted rows stay out of
-  // their dashboard. (Admin /admin/audit can still surface the deletion.)
-  const rows = await prisma.product.findMany({
-    where: { storeId: r.store.storeId, deletedAt: null },
-    orderBy: { productId: "desc" },
-    include: {
-      category: true,
-      items: { orderBy: { price: "asc" } },
-      images: { take: 1, orderBy: { sortOrder: "asc" } },
-      _count: { select: { reviews: true } },
-    },
-  });
-  return NextResponse.json(rows);
+  return forwardToApi(req, `/seller/products`);
 }
 
 export async function POST(req: NextRequest) {

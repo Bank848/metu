@@ -46,6 +46,13 @@ export async function forwardToApi(
         upstream.headers.get("content-type") ?? "application/json",
     },
   });
+  // Phase 13.9.1 — pass through download-related headers so the
+  // /seller/orders/export CSV proxy keeps its file-download behaviour.
+  // Set-Cookie still uses getSetCookie() because cookies can repeat.
+  for (const h of ["content-disposition", "cache-control"] as const) {
+    const v = upstream.headers.get(h);
+    if (v) res.headers.set(h, v);
+  }
   const cookies = (upstream.headers as any).getSetCookie?.() ?? [];
   for (const c of cookies) res.headers.append("set-cookie", c);
   return res;

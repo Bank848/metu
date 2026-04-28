@@ -4,6 +4,7 @@ import { productInputSchema } from "@metu/shared";
 import { prisma } from "@/lib/server/prisma";
 import { withStore } from "@/lib/server/seller";
 import { audit } from "@/lib/server/audit";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,26 +17,12 @@ async function assertOwnership(productId: number, storeId: number) {
   return { ok: true as const, product };
 }
 
-/** GET: fetch one of the seller's own products with all editable fields. */
+/**
+ * Phase 13.9.1 — GET forwards to Express. PATCH + DELETE stay here
+ * until Phase 13.9.2 migrates the write side.
+ */
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const r = await withStore(req);
-  if (!r.ok) return r.response;
-  const productId = Number(params.id);
-  if (!Number.isFinite(productId)) return NextResponse.json({ error: "BadId" }, { status: 400 });
-
-  const own = await assertOwnership(productId, r.store.storeId);
-  if (!own.ok) return NextResponse.json({ error: own.error }, { status: own.status });
-
-  const product = await prisma.product.findUnique({
-    where: { productId },
-    include: {
-      category: true,
-      items: { orderBy: { productItemId: "asc" } },
-      images: { orderBy: { sortOrder: "asc" } },
-      productNTags: { include: { tag: true } },
-    },
-  });
-  return NextResponse.json(product);
+  return forwardToApi(req, `/seller/products/${params.id}`);
 }
 
 /** PATCH: either flip the `isActive` flag (lightweight pause toggle) or

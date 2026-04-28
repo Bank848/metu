@@ -61,6 +61,9 @@ import stockAlertsRoutes from "./routes/stock-alerts.routes.js";
 // Layered routes (Phase 13.8 — messages)
 import messagesRoutes from "./routes/messages.routes.js";
 
+// Layered routes (Phase 13.9.1 — seller, read side)
+import sellerRoutes from "./routes/seller.routes.js";
+
 // Legacy flat routes that work today — will be migrated in later phases.
 import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
 
@@ -131,6 +134,13 @@ export function buildApp() {
   // POST /messages. All auth-only. Postgres-only path for now;
   // future MongoDB sidecar would swap services/messages.service.ts.
   app.use("/messages", messagesRoutes);
+
+  // ─── Layered routes (Phase 13.9.1 — seller, read side) ──────────
+  // store, products list/get, stats, orders list/export. Every endpoint
+  // requires (a) auth and (b) Store ownership — middleware stack
+  // applied at the router level. Phase 13.9.2 adds the write side
+  // (become-seller, product CRUD, refunds, etc.).
+  app.use("/seller", sellerRoutes);
 
   // ─── Legacy flat routes (still working) ──────────────────────────
   // catalogRouter is mounted at /, so the URLs stay
