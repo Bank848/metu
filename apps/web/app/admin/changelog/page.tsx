@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: Store,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-9-2",
+    commitSha: "73a33ca",
     items: [
       { title: "POST /seller/become-seller: create store + promote buyer→seller (admin stays admin) in one $transaction. 409 StoreExists if the user already owns one. Mounted BEFORE router.use(requireStore) so the auth-only gate applies; everything below reuses the auth+store stack from 13.9.1" },
       { title: "PATCH /seller/store: partial update — controller only forwards keys the user sent (Prisma treats undefined as no-op). Sending {} returns ok:true noop:true without touching the DB" },
@@ -64,7 +64,7 @@ const BATCHES: Batch[] = [
     icon: Store,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-9-1",
+    commitSha: "0fc388f",
     items: [
       { title: "New middleware/seller.ts: requireStore() reads req.user.store (loaded by requireAuth's include) and returns 403 NoStore if the user hasn't onboarded. Mounted once at the router level via router.use(requireAuth(), requireStore()) — every read endpoint inherits both gates without per-route stacking" },
       { title: "Layered seller resource: routes/seller.routes.ts → controllers/seller.controller.ts → services/seller.service.ts → models/seller.model.ts. Service functions take storeId (not the request) so they're pure + unit-testable" },
@@ -86,7 +86,7 @@ const BATCHES: Batch[] = [
     icon: MessageSquare,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-8",
+    commitSha: "0cbfa72",
     items: [
       { title: "Layered messages resource: routes/messages.routes.ts → controllers/messages.controller.ts → services/messages.service.ts → models/messages.model.ts" },
       { title: "GET /messages: behaviour fork on the ?with query param. With it = thread between auth user + the partner, plus side-effect 'mark all the partner's messages to me as read'. Without it = inbox view (last message per partner + unread count, sorted by most-recent activity)" },
@@ -106,7 +106,7 @@ const BATCHES: Batch[] = [
     icon: Star,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-7",
+    commitSha: "bc5709c",
     items: [
       { title: "Layered favorites resource: routes/favorites.routes.ts → controllers/favorites.controller.ts → services/favorites.service.ts → models/favorites.model.ts" },
       { title: "GET /favorites: auth-only, returns { productIds: number[] } so client components can pre-fill heart icons without hydrating full products" },
@@ -125,7 +125,7 @@ const BATCHES: Batch[] = [
     icon: Database,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-6-5",
+    commitSha: "1bdc9bf",
     items: [
       { title: "Trigger 1 — touch_updated_at: BEFORE UPDATE on product, auto-maintains the new product.updated_at column at the database level. Schema annotation explicitly notes the trigger owns the column (no Prisma @updatedAt — the trigger is the only writer)" },
       { title: "Trigger 2 — review_delete_audit: AFTER DELETE on product_review, writes a fallback 'review.delete.trigger' row to audit_log. Two-layer audit — app writes the rich row (with actor + before-snapshot), trigger writes the safety net only when a manual SQL DELETE bypasses the API" },
@@ -145,7 +145,7 @@ const BATCHES: Batch[] = [
     icon: HelpCircle,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-6",
+    commitSha: "80f60ba",
     items: [
       { title: "Layered q&a resource: routes/qna.routes.ts (TWO routers — productQuestionsRouter for /products/:productId/questions, default for /questions/:id family) → controllers/qna.controller.ts → services/qna.service.ts → models/qna.model.ts" },
       { title: "GET /products/:productId/questions: PUBLIC (no auth). Includes answerer.stats.role so the UI can render 'Admin answered' vs 'Seller answered' without a follow-up call (Phase 10 / F23)" },
@@ -166,7 +166,7 @@ const BATCHES: Batch[] = [
     icon: Star,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-5",
+    commitSha: "9fba3a1",
     items: [
       { title: "Layered reviews resource: routes/reviews.routes.ts (TWO routers — POST nested at /products/:productId/reviews via mergeParams, PATCH/DELETE at /reviews/:id) → controllers/reviews.controller.ts → services/reviews.service.ts → models/reviews.model.ts" },
       { title: "POST /products/:productId/reviews: 404 for soft-deleted / orphan products (store removed). Author + product info included in the response so the moderation UI doesn't need a refetch" },
@@ -185,7 +185,7 @@ const BATCHES: Batch[] = [
     icon: Receipt,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-4",
+    commitSha: "3f63d88",
     items: [
       { title: "Layered orders resource: routes/orders.routes.ts → controllers/orders.controller.ts → services/orders.service.ts → models/orders.model.ts. requireAuth() at the router level — every endpoint authed" },
       { title: "Checkout: 7-step single Prisma transaction — resolve active cart + selected vs unselected lines (partial checkout) → resolve coupon (active + within date window) → Decimal arithmetic for unit price + subtotal + coupon-eligible subtotal (only lines from coupon's store count) → create transaction + order + order_items (couponId stamped only on eligible lines) → flip cart to checked_out + create fresh active cart → re-parent unselected items → record CouponUsage" },
@@ -203,7 +203,7 @@ const BATCHES: Batch[] = [
     icon: Mail,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-2-1",
+    commitSha: "accf4bd",
     items: [
       { title: "POST /auth/forgot-password — silent no-op for unknown / soft-deleted emails. Always returns the same generic message so an attacker can't probe whether an account exists" },
       { title: "POST /auth/reset-password — 3-statement transaction marks the consumed token + invalidates other outstanding tokens for the same user (so an attacker who grabbed a separate fresh token can't use it after the password rotates)" },
@@ -222,7 +222,7 @@ const BATCHES: Batch[] = [
     icon: ShoppingCart,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-3",
+    commitSha: "95b0194",
     items: [
       { title: "Layered cart resource: routes/cart.routes.ts → controllers/cart.controller.ts → services/cart.service.ts → models/cart.model.ts. requireAuth() applied at the router level (every endpoint authed)" },
       { title: "GET /cart returns the same envelope as the legacy BFF: cartId + items[] (with stock snapshot for input-cap UX) + subtotal" },
@@ -242,7 +242,7 @@ const BATCHES: Batch[] = [
     icon: KeyRound,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-2",
+    commitSha: "0942fcd",
     items: [
       { title: "Layered auth resource: routes/auth.routes.ts → controllers/auth.controller.ts → services/auth.service.ts → models/auth.model.ts (re-exports zod from @metu/shared)" },
       { title: "Endpoints live: POST /auth/login, POST /auth/register, POST /auth/logout, GET /auth/me, PATCH /auth/me, POST /auth/change-password" },
@@ -262,7 +262,7 @@ const BATCHES: Batch[] = [
     icon: Layers,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-1",
+    commitSha: "22b79ba",
     items: [
       { title: "New @metu/server workspace at apps/server with the routes/controllers/services/models/middleware/db/utils layout. One file per resource per layer (products.routes.ts → products.controller.ts → products.service.ts → products.model.ts)" },
       { title: "5 layered resources live: GET /health, GET /products[?…], GET /products/:id, GET /products/featured, GET /stores[?limit=N], GET /stores/:id, GET /categories, GET /tags" },
@@ -387,7 +387,7 @@ const BATCHES: Batch[] = [
     icon: FlaskConical,
     tone: "success",
     shippedAt: "yesterday",
-    commitSha: "phase-11-r2",
+    commitSha: "bbf7fdf",
     items: [
       { title: "F1 + F12 + F14 — Surgical deletedAt:null predicate on every admin query that surfaces stores/products (admin/stores, reports, stats, /health). Counts now agree across pages." },
       { title: "F2 — POST /api/orders revalidates / and /health so the homepage trending counts refresh without a manual reload" },
@@ -416,7 +416,7 @@ const BATCHES: Batch[] = [
     icon: FlaskConical,
     tone: "success",
     shippedAt: "yesterday",
-    commitSha: "phase-11",
+    commitSha: "d8825f5",
     items: [
       { title: "F1 — Soft-deleted offensive review on /product/100 (user 53 + cascade fix on getProduct reviews include)" },
       { title: "F2 — /admin/audit empty-state copy + verified the audit pipeline writes (1 → 6 rows from this run alone)" },
@@ -439,7 +439,7 @@ const BATCHES: Batch[] = [
     icon: MessageSquare,
     tone: "info",
     shippedAt: "yesterday",
-    commitSha: "phase-10",
+    commitSha: "55d6aa5",
     items: [
       { title: "Q&A admin replies now show 'Admin answered' (was hard-coded 'Seller answered')" },
       { title: "Admin can edit/delete reviews + Q&A from product pages — coral 'MOD' pip + audit log" },
