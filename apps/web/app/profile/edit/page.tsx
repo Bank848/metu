@@ -43,6 +43,9 @@ export default async function EditProfilePage() {
               ? new Date(me.user.dateOfBirth).toISOString().slice(0, 10)
               : "",
             hasPassword: me.hasPassword,
+            // Phase 14.4 — phone + verification status drive the OTP UI.
+            phone: me.user.phone ?? null,
+            phoneVerified: Boolean(me.user.phoneVerifiedAt),
           }}
         />
 

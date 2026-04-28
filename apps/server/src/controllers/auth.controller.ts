@@ -4,9 +4,12 @@ import {
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  requestOtpSchema,
   resetPasswordSchema,
   setPasswordSchema,
+  updatePhoneSchema,
   updateProfileSchema,
+  verifyOtpSchema,
 } from "../models/auth.model.js";
 import * as service from "../services/auth.service.js";
 import {
@@ -151,6 +154,72 @@ export const setPassword: RequestHandler = async (req, res, next) => {
     if (!auth) throw new AppError(401, "Unauthorized");
 
     await service.setPassword(auth.uid, parsed.data);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// =============================================================================
+//  Phase 14.4 — phone + OTP
+// =============================================================================
+
+/** PATCH /auth/phone — set/update phone, clears phoneVerifiedAt. */
+export const updatePhone: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = updatePhoneSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+
+    await service.updatePhone(auth.uid, parsed.data);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/request-otp — issue 6-digit code via configured
+ * transport (console in dev, Twilio when env set). Body always
+ * empty; auth-gate proves identity.
+ */
+export const requestOtp: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = requestOtpSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+
+    const result = await service.requestOtp(auth.uid, parsed.data);
+    // Surface transport so the dev/demo UI can hint where the code
+    // landed ("check server logs" vs "check your phone"). Production
+    // should treat this as ephemeral metadata, not a security signal.
+    res.json({ ok: true, transport: result.transport });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/verify-otp — consume the pending code, set
+ * phoneVerifiedAt. Distinct error codes (NoPendingOtp / OtpExpired
+ * / InvalidOtp) so the UI can render helpful hints.
+ */
+export const verifyOtp: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = verifyOtpSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+
+    await service.verifyOtp(auth.uid, parsed.data);
     res.json({ ok: true });
   } catch (err) {
     next(err);

@@ -26,6 +26,13 @@ vi.mock("../src/db/prisma.js", () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    // Phase 14.4 — OTP storage uses better-auth's verification table.
+    verification: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     auditLog: { create: vi.fn() },
   },
 }));
@@ -281,5 +288,261 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
       .send({ newPassword: "newpass1", confirmPassword: "different" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("ValidationError");
+  });
+});
+
+// =============================================================================
+//  Phase 14.4 — phone + OTP scaffold
+// =============================================================================
+describe("Phase 14.4 — phone + OTP", () => {
+  const jwtToken = async (uid: number) => {
+    const jwt = await import("jsonwebtoken");
+    return jwt.default.sign(
+      { uid, role: "buyer" as const },
+      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
+      { expiresIn: "1h" },
+    );
+  };
+
+  describe("PATCH /auth/phone", () => {
+    it("401 without auth", async () => {
+      const res = await request(buildApp())
+        .patch("/auth/phone")
+        .send({ phone: "+66912345678" });
+      expect(res.status).toBe(401);
+    });
+
+    it("400 ValidationError for non-phone-shaped string", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+      const res = await request(buildApp())
+        .patch("/auth/phone")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ phone: "abc" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("ValidationError");
+    });
+
+    it("happy: normalises (strips non-digits) + clears phoneVerifiedAt", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+      (prisma.user.update as any).mockResolvedValue({});
+      const res = await request(buildApp())
+        .patch("/auth/phone")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ phone: "+66 (91) 234-5678" });
+      expect(res.status).toBe(200);
+      const call = (prisma.user.update as any).mock.calls[0][0];
+      expect(call.where.userId).toBe(7);
+      expect(call.data.phone).toBe("+66912345678"); // normalised
+      expect(call.data.phoneVerifiedAt).toBeNull();
+    });
+  });
+
+  describe("POST /auth/request-otp", () => {
+    it("401 without auth", async () => {
+      const res = await request(buildApp()).post("/auth/request-otp").send({});
+      expect(res.status).toBe(401);
+    });
+
+    it("400 NoPhoneOnFile when user hasn't set a phone yet", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.phone) return Promise.resolve({ phone: null });
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      const res = await request(buildApp())
+        .post("/auth/request-otp")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("NoPhoneOnFile");
+    });
+
+    it("happy: wipes pending OTP + creates fresh row", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      (prisma.verification.deleteMany as any).mockResolvedValue({ count: 0 });
+      (prisma.verification.create as any).mockResolvedValue({});
+      const res = await request(buildApp())
+        .post("/auth/request-otp")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({});
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(prisma.verification.deleteMany).toHaveBeenCalledWith({
+        where: { identifier: "phone-otp:7" },
+      });
+      const create = (prisma.verification.create as any).mock.calls[0][0];
+      expect(create.data.identifier).toBe("phone-otp:7");
+      expect(create.data.value).toMatch(/^[a-f0-9]{64}$/); // sha256 hex
+    });
+  });
+
+  describe("POST /auth/verify-otp", () => {
+    it("401 without auth", async () => {
+      const res = await request(buildApp())
+        .post("/auth/verify-otp")
+        .send({ code: "123456" });
+      expect(res.status).toBe(401);
+    });
+
+    it("400 ValidationError for non-6-digit code", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 7,
+        deletedAt: null,
+        stats: { role: "buyer" },
+        store: null,
+      });
+      const res = await request(buildApp())
+        .post("/auth/verify-otp")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ code: "abc" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("ValidationError");
+    });
+
+    it("400 NoPendingOtp when nothing was requested", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      (prisma.verification.findFirst as any).mockResolvedValue(null);
+      const res = await request(buildApp())
+        .post("/auth/verify-otp")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ code: "123456" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("NoPendingOtp");
+    });
+
+    it("400 OtpExpired + sweeps the stale row", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      (prisma.verification.findFirst as any).mockResolvedValue({
+        id: 99,
+        identifier: "phone-otp:7",
+        value: "deadbeef",
+        expiresAt: new Date(Date.now() - 1000), // 1s in the past
+      });
+      (prisma.verification.delete as any).mockResolvedValue({});
+      const res = await request(buildApp())
+        .post("/auth/verify-otp")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ code: "123456" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("OtpExpired");
+      expect(prisma.verification.delete).toHaveBeenCalledWith({ where: { id: 99 } });
+    });
+
+    it("400 InvalidOtp on hash mismatch", async () => {
+      const token = await jwtToken(7);
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      (prisma.verification.findFirst as any).mockResolvedValue({
+        id: 99,
+        identifier: "phone-otp:7",
+        value: "wrong-hash",
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      const res = await request(buildApp())
+        .post("/auth/verify-otp")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ code: "123456" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("InvalidOtp");
+    });
+
+    it("happy: matching code → phoneVerifiedAt set + audit row + verification deleted (atomic)", async () => {
+      const token = await jwtToken(7);
+      const phone = "+66912345678";
+      const code = "654321";
+      // Pre-compute the expected hash so the service comparison passes.
+      const crypto = await import("node:crypto");
+      const expected = crypto.default
+        .createHash("sha256")
+        .update(`7:${phone}:${code}`)
+        .digest("hex");
+      (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+        if (select?.phone) return Promise.resolve({ phone });
+        return Promise.resolve({
+          userId: where.userId,
+          deletedAt: null,
+          stats: { role: "buyer" },
+          store: null,
+        });
+      });
+      (prisma.verification.findFirst as any).mockResolvedValue({
+        id: 99,
+        identifier: "phone-otp:7",
+        value: expected,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      (prisma.user.update as any).mockResolvedValue({});
+      (prisma.verification.delete as any).mockResolvedValue({});
+      (prisma.auditLog.create as any).mockResolvedValue({});
+
+      const res = await request(buildApp())
+        .post("/auth/verify-otp")
+        .set("Cookie", `metu_auth=${token}`)
+        .send({ code });
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      // $transaction was called with [user.update, verification.delete] —
+      // we mocked it to Promise.all so both inner mocks were invoked.
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: "user.phone_verified",
+          targetType: "user",
+          targetId: 7,
+        }),
+      });
+    });
   });
 });

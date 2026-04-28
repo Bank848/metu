@@ -18,4 +18,9 @@ router.post("/change-password",   requireAuth(), ctrl.changePassword);
 // Phase 14.3 — first-time password set for OAuth-only users.
 router.post("/set-password",      requireAuth(), ctrl.setPassword);
 
+// Phase 14.4 — phone + OTP scaffold.
+router.patch("/phone",            requireAuth(), ctrl.updatePhone);
+router.post("/request-otp",       requireAuth(), ctrl.requestOtp);
+router.post("/verify-otp",        requireAuth(), ctrl.verifyOtp);
+
 export default router;
