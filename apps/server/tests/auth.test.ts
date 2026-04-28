@@ -503,6 +503,158 @@ describe("Phase 14.4 — phone + OTP", () => {
       expect(res.body.error).toBe("InvalidOtp");
     });
 
+    // =============================================================
+    //  Phase 15.3 — OTP enforcement on sensitive password ops
+    // =============================================================
+    describe("OTP-on-password-change (Phase 15.3)", () => {
+      const phone = "+66912345678";
+
+      it("change-password: 400 OtpRequired when phone is verified but no otpCode in body", async () => {
+        const token = await jwtToken(7);
+        // requireAuth findUnique (no select) returns the full user;
+        // changePassword's findUnique uses select for password+phone+
+        // phoneVerifiedAt. Differentiate by `select`.
+        (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+          if (select?.password) {
+            return Promise.resolve({
+              password: "$2a$10$existinghash",
+              phone,
+              phoneVerifiedAt: new Date(), // verified
+            });
+          }
+          return Promise.resolve({
+            userId: where.userId,
+            deletedAt: null,
+            stats: { role: "buyer" },
+            store: null,
+          });
+        });
+        // bcrypt.compare needs to pass for currentPassword check first.
+        const bcrypt = await import("bcryptjs");
+        vi.spyOn(bcrypt.default, "compare").mockResolvedValue(true as any);
+
+        const res = await request(buildApp())
+          .post("/auth/change-password")
+          .set("Cookie", `metu_auth=${token}`)
+          .send({ currentPassword: "old", newPassword: "newpass1", confirmPassword: "newpass1" });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("OtpRequired");
+      });
+
+      it("change-password: 400 InvalidOtp on wrong code (verified phone)", async () => {
+        const token = await jwtToken(7);
+        (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+          if (select?.password)
+            return Promise.resolve({
+              password: "$2a$10$existinghash",
+              phone,
+              phoneVerifiedAt: new Date(),
+            });
+          return Promise.resolve({
+            userId: where.userId,
+            deletedAt: null,
+            stats: { role: "buyer" },
+            store: null,
+          });
+        });
+        (prisma.verification.findFirst as any).mockResolvedValue({
+          id: 99,
+          identifier: "phone-otp:7",
+          value: "wrong-hash",
+          expiresAt: new Date(Date.now() + 60_000),
+        });
+        const bcrypt = await import("bcryptjs");
+        vi.spyOn(bcrypt.default, "compare").mockResolvedValue(true as any);
+
+        const res = await request(buildApp())
+          .post("/auth/change-password")
+          .set("Cookie", `metu_auth=${token}`)
+          .send({
+            currentPassword: "old",
+            newPassword: "newpass1",
+            confirmPassword: "newpass1",
+            otpCode: "999999",
+          });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("InvalidOtp");
+      });
+
+      it("change-password: happy with correct OTP → consumes verification + updates password", async () => {
+        const token = await jwtToken(7);
+        const code = "123456";
+        const crypto = await import("node:crypto");
+        const expected = crypto.default
+          .createHash("sha256")
+          .update(`7:${phone}:${code}`)
+          .digest("hex");
+        (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+          if (select?.password)
+            return Promise.resolve({
+              password: "$2a$10$existinghash",
+              phone,
+              phoneVerifiedAt: new Date(),
+            });
+          return Promise.resolve({
+            userId: where.userId,
+            deletedAt: null,
+            stats: { role: "buyer" },
+            store: null,
+          });
+        });
+        (prisma.verification.findFirst as any).mockResolvedValue({
+          id: 99,
+          identifier: "phone-otp:7",
+          value: expected,
+          expiresAt: new Date(Date.now() + 60_000),
+        });
+        (prisma.verification.delete as any).mockResolvedValue({});
+        (prisma.user.update as any).mockResolvedValue({});
+        const bcrypt = await import("bcryptjs");
+        vi.spyOn(bcrypt.default, "compare").mockResolvedValue(true as any);
+
+        const res = await request(buildApp())
+          .post("/auth/change-password")
+          .set("Cookie", `metu_auth=${token}`)
+          .send({
+            currentPassword: "old",
+            newPassword: "newpass1",
+            confirmPassword: "newpass1",
+            otpCode: code,
+          });
+        expect(res.status).toBe(200);
+        // Verification row consumed so the same code can't be replayed.
+        expect(prisma.verification.delete).toHaveBeenCalledWith({ where: { id: 99 } });
+      });
+
+      it("change-password: still works WITHOUT otpCode when phone is NOT verified (no-op gate)", async () => {
+        const token = await jwtToken(7);
+        (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
+          if (select?.password)
+            return Promise.resolve({
+              password: "$2a$10$existinghash",
+              phone: null,
+              phoneVerifiedAt: null,
+            });
+          return Promise.resolve({
+            userId: where.userId,
+            deletedAt: null,
+            stats: { role: "buyer" },
+            store: null,
+          });
+        });
+        (prisma.user.update as any).mockResolvedValue({});
+        const bcrypt = await import("bcryptjs");
+        vi.spyOn(bcrypt.default, "compare").mockResolvedValue(true as any);
+        vi.spyOn(bcrypt.default, "hash").mockResolvedValue("$2a$10$newhash" as any);
+
+        const res = await request(buildApp())
+          .post("/auth/change-password")
+          .set("Cookie", `metu_auth=${token}`)
+          .send({ currentPassword: "old", newPassword: "newpass1", confirmPassword: "newpass1" });
+        expect(res.status).toBe(200);
+      });
+    });
+
     it("happy: matching code → phoneVerifiedAt set + audit row + verification deleted (atomic)", async () => {
       const token = await jwtToken(7);
       const phone = "+66912345678";

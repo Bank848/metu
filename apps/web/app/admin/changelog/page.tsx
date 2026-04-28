@@ -32,6 +32,26 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-15-3",
+    title: "Phase 15.3 · Sensitive ops require fresh OTP when phone is verified",
+    subtitle:
+      "Stolen-session defence in depth. Once a user verifies their phone (Phase 14.4), every password change AND first-time password set require a fresh 6-digit OTP from SMS to confirm. Users WITHOUT a verified phone keep the legacy flow (no OTP needed) — Phase 15.3's gate is opt-in by design. Verification rows consumed on success so the same code can't be replayed against a second sensitive op.",
+    icon: ShieldAlert,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-15-3",
+    items: [
+      { title: "@metu/shared: changePasswordSchema + setPasswordSchema gain optional otpCode (6-digit regex). Optional in the schema so users without phone verification still pass parse; service-side guard enforces presence + freshness when needed" },
+      { title: "auth.service.ensureSensitiveOtpIfVerified() helper — central enforcement point. No-op when phone unset OR phoneVerifiedAt null; otherwise requires + verifies + consumes the verification row. Distinct error codes (OtpRequired / InvalidOtp / NoPendingOtp / OtpExpired) so the UI can render helpful hints" },
+      { title: "changePassword + setPassword services both call ensureSensitiveOtpIfVerified() AFTER the existing checks (currentPassword + PasswordAlreadySet) so the user gets useful errors in priority order" },
+      { title: "EditProfileForm: when initial.phoneVerified=true, the password section sprouts an SMS-code panel with 'Send code' button + 6-digit input. Reuses the Phase 14.4 /request-otp flow. Hint text: 'SMS code required (phone verified)'. Reset on success" },
+      { title: "Helpful error mapping in onFailure: OtpRequired → 'Phone verified — enter a fresh SMS code'; InvalidOtp → 'Wrong code, try again'; OtpExpired → 'Expired, request a new one'; NoPendingOtp → 'Click Send code first'" },
+      { title: "Vitest 138 → 142 (4 new): change-password 400 OtpRequired when phone verified but no code, 400 InvalidOtp on wrong code, happy with correct code (verifies verification.delete called → row consumed → can't replay), legacy path still works without otpCode when phone NOT verified" },
+      { title: "Build clean, web shared First Load JS = 89.8 kB (unchanged). Existing 138 tests untouched (they all use users without phoneVerifiedAt set, so the Phase 15.3 gate is a no-op in those scenarios)" },
+      { title: "Phase 15.5 NEXT: admin force-password-reset (admin clicks button on /admin/users/:id → User.requirePasswordReset=true → login middleware redirects to /profile/edit until cleared)" },
+    ],
+  },
+  {
     id: "phase-15-4",
     title: "Phase 15.4 · Audit log captures IP + User-Agent",
     subtitle:
