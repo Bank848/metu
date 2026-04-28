@@ -12,13 +12,11 @@
     "node_modules",
     "dist",
     "tests",
-    "src/routes/auth.ts",
     "src/routes/cart.ts",
     "src/routes/coupons.ts",
     "src/routes/orders.ts",
     "src/routes/seller.ts",
     "src/routes/admin.ts",
-    "src/routes/stats.ts",
-    "src/middleware/auth.ts"
+    "src/routes/stats.ts"
   ]
 }

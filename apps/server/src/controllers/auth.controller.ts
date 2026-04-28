@@ -1,0 +1,115 @@
+import type { RequestHandler } from "express";
+import {
+  changePasswordSchema,
+  loginSchema,
+  registerSchema,
+  updateProfileSchema,
+} from "../models/auth.model.js";
+import * as service from "../services/auth.service.js";
+import {
+  clearToken,
+  currentAuth,
+  currentUser,
+  issueToken,
+} from "../middleware/auth.js";
+import { AppError } from "../utils/errors.js";
+import { verifyTurnstile } from "../utils/turnstile.js";
+
+/**
+ * Each handler: parse with the model's zod schema, delegate to the
+ * service for business logic + Prisma, set / clear cookie via the
+ * middleware helpers, return JSON.
+ *
+ * Errors flow through `next(err)` to `middleware/error.ts`, which
+ * serialises `AppError` to `{ error: code, message }`.
+ */
+
+export const login: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const { user, role } = await service.login(parsed.data);
+    issueToken(res, { uid: user.userId, role });
+    res.json({ user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const register: RequestHandler = async (req, res, next) => {
+  try {
+    // CAPTCHA — runs BEFORE zod parse so a bot flood spends Cloudflare
+    // siteverify quota, not our Neon round-trips. No-op when
+    // `TURNSTILE_SECRET` is unset (local dev).
+    const captchaToken =
+      typeof req.body?.captchaToken === "string" ? req.body.captchaToken : undefined;
+    const ip =
+      (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+      (req.headers["x-real-ip"] as string | undefined) ??
+      undefined;
+    const captcha = await verifyTurnstile(captchaToken, ip);
+    if (!captcha.ok) {
+      throw new AppError(
+        400,
+        "CaptchaFailed",
+        "Please complete the CAPTCHA and try again.",
+      );
+    }
+
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const { user, role } = await service.register(parsed.data);
+    issueToken(res, { uid: user.userId, role });
+    res.json({ user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const logout: RequestHandler = (_req, res) => {
+  clearToken(res);
+  res.json({ ok: true });
+};
+
+export const me: RequestHandler = (req, res) => {
+  const user = currentUser(req);
+  const auth = currentAuth(req);
+  res.json({ user, role: auth?.role });
+};
+
+export const updateMe: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = updateProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    const user = currentUser(req);
+    if (!auth || !user) throw new AppError(401, "Unauthorized");
+
+    const updated = await service.updateProfile(auth.uid, parsed.data, user.email);
+    res.json({ ok: true, user: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const changePassword: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+
+    await service.changePassword(auth.uid, parsed.data);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};

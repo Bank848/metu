@@ -38,19 +38,17 @@ import storesRoutes from "./routes/stores.routes.js";
 import categoriesRoutes from "./routes/categories.routes.js";
 import tagsRoutes from "./routes/tags.routes.js";
 
+// Layered routes (Phase 13.2 — auth)
+import authRoutes from "./routes/auth.routes.js";
+
 // Legacy flat routes that work today — will be migrated in later phases.
 import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
 
-// NOTE — the rest of the legacy flat scaffold (auth, cart, coupons,
-// orders, seller, admin, stats) is intentionally NOT imported during
-// Phase 13.1. Those files reference zod schemas in @metu/shared
-// (registerSchema, addToCartSchema, etc.) that were drafted but
-// never finished, so importing them today breaks the build. Phase
-// 13.2 will migrate auth into the layered structure (and add the
-// missing schema), then 13.3 cart, etc. — each migration replaces
-// one of those legacy files with a proper routes/controller/service
-// /model quartet. Until then, Next.js owns those endpoints under
-// `apps/web/app/api/**`, so users see no functional gap.
+// NOTE — the remaining legacy flat scaffold (cart, coupons, orders,
+// seller, admin, stats) is intentionally NOT imported. Those files
+// reference zod schemas in @metu/shared (addToCartSchema, etc.) that
+// were drafted but never finished. Each subsequent phase (13.3 cart,
+// 13.4 orders, …) replaces one of them with a proper layered quartet.
 
 // Middleware — order matters in the buildApp() call below.
 import { corsMiddleware } from "./middleware/cors.js";
@@ -77,6 +75,9 @@ export function buildApp() {
   app.use("/stores",     storesRoutes);
   app.use("/categories", categoriesRoutes);
   app.use("/tags",       tagsRoutes);
+
+  // ─── Layered routes (Phase 13.2 — auth) ──────────────────────────
+  app.use("/auth",       authRoutes);
 
   // ─── Legacy flat routes (still working) ──────────────────────────
   // catalogRouter is mounted at /, so the URLs stay
