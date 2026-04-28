@@ -32,6 +32,28 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-14-2",
+    title: "Phase 14.2 · Google sign-in + dual-stack auth middleware",
+    subtitle:
+      "Continue with Google now works end-to-end on /login and /register (gated on NEXT_PUBLIC_GOOGLE_ENABLED so dev shows the form-only UX). middleware/auth.ts is now DUAL-STACK: requireAuth() tries the legacy JWT cookie first (every existing test passes unchanged) then falls back to better-auth's session via auth.api.getSession({ headers }). Google users get better-auth's cookie via the OAuth callback; password users keep getting JWTs via /auth/login. Pure Mode A swap (drop the JWT entirely) stays an option for a later phase — dual-stack lets us ship Google login without rewriting any of the 112 existing server tests.",
+    icon: KeyRound,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-14-2",
+    items: [
+      { title: "middleware/auth.ts: requireAuth + softAuth now try the JWT cookie first (no DB hit), fall back to readBetterAuthUserId() which wraps auth.api.getSession({ headers }). Synthesises a TokenPayload-shaped req.auth for downstream controllers regardless of which path resolved the user — handlers don't need to know" },
+      { title: "Role check changed: uses jwtPayload.role when JWT path resolves, otherwise UserStats.role from the DB. Handles Google sign-in users (no JWT to read role from) and admin demote-mid-session edge cases" },
+      { title: "lib/auth.ts: basePath swapped from /auth/better to /api/auth/better. Browser only ever talks to https://metu.fly.dev (BFF host); BFF proxies /api/auth/better/* to Express's catch-all at the same path. better-auth's OAuth callback URL generation matches what Google redirects to" },
+      { title: "app.ts: Express catch-all moved from app.all('/auth/better/*') to app.all('/api/auth/better/*'). Still mounted BEFORE express.json() per better-auth Express docs" },
+      { title: "NEW BFF catch-all: apps/web/app/api/auth/better/[...all]/route.ts forwards every method (GET/POST/PATCH/DELETE) to Express. Same file shape as Phase 13's per-resource proxies but with [...all] dynamic segment so all better-auth paths resolve through one route handler" },
+      { title: "lib/server/proxy.ts: redirect:'manual' on the upstream fetch + Location header passthrough so OAuth 302s survive the BFF hop intact. Critical for the Google flow (sign-in start redirects to Google's authorize URL, callback redirects to the app)" },
+      { title: "/login + /register: 'Continue with Google' button rendered only when NEXT_PUBLIC_GOOGLE_ENABLED=true. Plain anchor (top-level navigation) — fetch() wouldn't preserve the cookie set by the OAuth callback. Google brand SVG inline, divider with 'or sign in/up with email' below" },
+      { title: "Tests still 112 server / 37 web (zero rewrite cost from the dual-stack approach). Better-auth smoke test path updated from /auth/better/get-session → /api/auth/better/get-session to match the new mount" },
+      { title: "Build clean. Web shared First Load JS = 89.8 kB (unchanged — Google button is plain HTML+SVG, no client JS). Production needs flyctl secrets set: BETTER_AUTH_SECRET, BETTER_AUTH_URL=https://metu.fly.dev, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET. Until those are set, the button is hidden and dual-stack just ignores the better-auth fallback path" },
+      { title: "Phase 14.3 NEXT: linking fork (existing-email collision: 409 + hint to log in via password and link from /profile/edit), set-password endpoint for Google-only users, OAuth profile picture sync. databaseHooks.user.create.before is the natural home for the linking logic" },
+    ],
+  },
+  {
     id: "phase-14-1",
     title: "Phase 14.1 · better-auth plumbing (schema + catch-all)",
     subtitle:

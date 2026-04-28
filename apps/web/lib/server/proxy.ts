@@ -37,7 +37,12 @@ export async function forwardToApi(
     init.body = await req.text();
   }
 
-  const upstream = await fetch(`${API_BASE}${apiPath}`, init);
+  // Phase 14.2 — `redirect: "manual"` so we forward 302s straight to
+  // the browser instead of letting fetch follow them. Critical for
+  // OAuth flows: better-auth redirects to Google's authorize URL
+  // and then back to the BFF callback path; we need the browser to
+  // see each hop, not collapse them into a final 200.
+  const upstream = await fetch(`${API_BASE}${apiPath}`, { ...init, redirect: "manual" });
   const text = await upstream.text();
   const res = new NextResponse(text, {
     status: upstream.status,
@@ -48,8 +53,9 @@ export async function forwardToApi(
   });
   // Phase 13.9.1 — pass through download-related headers so the
   // /seller/orders/export CSV proxy keeps its file-download behaviour.
+  // Phase 14.2 — added `location` so OAuth redirects survive the hop.
   // Set-Cookie still uses getSetCookie() because cookies can repeat.
-  for (const h of ["content-disposition", "cache-control"] as const) {
+  for (const h of ["content-disposition", "cache-control", "location"] as const) {
     const v = upstream.headers.get(h);
     if (v) res.headers.set(h, v);
   }

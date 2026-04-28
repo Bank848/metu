@@ -56,17 +56,27 @@ const SECRET =
   process.env.JWT_SECRET ??
   "dev-only-fallback-secret-change-in-production";
 
+// Phase 14.2 — base URL is the BFF, not Express. better-auth uses
+// this to generate OAuth callback URLs that Google must redirect
+// to. The browser only ever talks to https://metu.fly.dev (or
+// http://localhost:3000 in dev); the BFF then proxies
+// /api/auth/better/* to Express. Cookies set in the response are
+// scoped to the BFF host so they're sent on subsequent BFF
+// requests (same scoping trick as our JWT cookie from Phase 13.2).
 const BASE_URL =
   process.env.BETTER_AUTH_URL ??
-  // Useful for local dev — Express on :4000 owns the OAuth callback.
-  // In production we set BETTER_AUTH_URL=https://metu-api.fly.dev.
-  `http://localhost:${process.env.PORT ?? process.env.API_PORT ?? 4000}`;
+  // Local dev: Next on :3000 BFF-proxies to Express on :4000.
+  "http://localhost:3000";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   secret: SECRET,
   baseURL: BASE_URL,
-  basePath: "/auth/better",
+  // basePath matches the BFF-side path the browser hits; Express
+  // mounts its catch-all at the same path so the routes resolve
+  // identically inside better-auth regardless of which side of the
+  // proxy hop we're on.
+  basePath: "/api/auth/better",
 
   // Use auto-incrementing Int PKs across all better-auth tables to
   // match our existing User.user_id column type. Per the better-auth
