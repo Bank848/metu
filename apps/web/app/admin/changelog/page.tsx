@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: ShieldAlert,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-13-10",
+    commitSha: "400e95e",
     items: [
       { title: "Layered admin resource: routes/admin.routes.ts → controllers/admin.controller.ts → services/admin.service.ts → models/admin.model.ts. zod schemas for every input (userListQuerySchema, updateUserRoleSchema, deleteUserSchema, ReportName enum)" },
       { title: "GET /admin/users: zod-coerced page/pageSize, pagination meta in response, password STRIPPED from every row even if hashed (admin UI never needs it; accidental log-leak risk too real)" },
