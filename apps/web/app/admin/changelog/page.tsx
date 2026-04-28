@@ -32,6 +32,29 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-13-11",
+    title: "Phase 13.11 · Backend separation cleanup — last legacy routers gone",
+    subtitle:
+      "Closes the Phase 13 migration. Four legacy flat routers deleted (1190 LOC of dead code), their last live endpoints (business-types + countries) replaced by a layered reference module, eight remaining public BFF routes converted to forwardToApi proxies. Every Express route now follows the same routes/controllers/services/models quartet — zero hand-rolled router files remain. Decision documented inline: SSR pages with direct Prisma reads (lib/server/queries.ts) STAY — server components doing direct DB reads is a valid Next pattern, doesn't violate the BFF concept since they never reach the browser anyway.",
+    icon: Layers,
+    tone: "success",
+    shippedAt: "today",
+    commitSha: "phase-13-11",
+    items: [
+      { title: "NEW layered reference module: routes/reference.routes.ts → controllers/reference.controller.ts → services/reference.service.ts → models/reference.model.ts. Two endpoints (GET /business-types + GET /countries) — public reads driving the become-seller + register form dropdowns" },
+      { title: "DELETED: apps/server/src/routes/catalog.ts (33 LOC) — last legacy flat router. Replaced by reference.routes.ts" },
+      { title: "DELETED: apps/server/src/routes/seller.ts (370 LOC) — superseded by Phase 13.9.1 + 13.9.2 layered seller module" },
+      { title: "DELETED: apps/server/src/routes/admin.ts (250 LOC) — superseded by Phase 13.10 layered admin module" },
+      { title: "DELETED: apps/server/src/routes/stats.ts (20 LOC) — never mounted; admin/stats lived under admin.ts. Reference module covers no stats" },
+      { title: "tsconfig.json exclusions dropped — `src/routes/{seller,admin,stats}.ts` removed from the exclude list now that the files don't exist. tsc compiles the entire src tree clean" },
+      { title: "BFF: 8 public routes converted to forwardToApi (~10 LOC each) — /api/business-types, /api/countries, /api/categories, /api/tags, /api/products (browse, with query passthrough), /api/products/[id], /api/stores (with limit passthrough), /api/stores/[id]" },
+      { title: "INTENTIONALLY KEPT (documented decision): apps/web/lib/server/queries.ts + every server component that imports @/lib/server/prisma directly (~17 files: product detail, store storefront, seller pages, admin audit, /health, sitemap, etc.). SSR direct-Prisma reads are a valid Next pattern — the BFF mixes some direct DB reads (for SSR) with HTTP API calls (for mutations + client-side data fetching). Migrating these to apiFetch would add an HTTP roundtrip to every page render with no architectural gain since SSR already runs server-side" },
+      { title: "INTENTIONALLY DEFERRED: /api/products/by-ids, /api/products/featured, /api/stats, /api/profile/export, /api/health — these need NEW Express endpoints (don't exist yet). Tracked as future work; today they keep working via direct Prisma calls in their current Next route handlers" },
+      { title: "Vitest 108 → 110 (2 new) — reference module GET /business-types + GET /countries happy paths" },
+      { title: "Server build clean (entire src tree, no exclusions). Web build clean, shared First Load JS = 89.8 kB (unchanged). app.ts banner updated: 'Phase 13.11 — every resource is layered, no flat routers remain'" },
+    ],
+  },
+  {
     id: "phase-13-10",
     title: "Phase 13.10 · Admin module migrated to Express",
     subtitle:

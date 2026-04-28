@@ -1,28 +1,14 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/server/prisma";
+/**
+ * Phase 13.11 — forwarder to Express `GET /stores/:id`.
+ * Public storefront — Express handles the soft-deleted 404 + filters
+ * soft-deleted products from the embedded list.
+ */
+import { type NextRequest } from "next/server";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const id = Number(params.id);
-  // Public — soft-deleted stores 404, soft-deleted products are filtered out.
-  const store = await prisma.store.findFirst({
-    where: { storeId: id, deletedAt: null },
-    include: {
-      owner: { select: { firstName: true, lastName: true, profileImage: true, username: true } },
-      businessType: true,
-      stats: true,
-      products: {
-        where: { deletedAt: null },
-        include: {
-          items: { select: { price: true, discountPercent: true } },
-          images: { take: 1, orderBy: { sortOrder: "asc" } },
-          reviews: { select: { rating: true } },
-        },
-      },
-    },
-  });
-  if (!store) return NextResponse.json({ error: "NotFound" }, { status: 404 });
-  return NextResponse.json(store);
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  return forwardToApi(req, `/stores/${params.id}`);
 }
