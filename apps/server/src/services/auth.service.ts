@@ -13,6 +13,7 @@ import type {
   RegisterInput,
   ResetPasswordInput,
   SafeUser,
+  SetPasswordInput,
   UpdateProfileInput,
 } from "../models/auth.model.js";
 
@@ -214,6 +215,46 @@ export async function changePassword(
   await prisma.user.update({
     where: { userId },
     data: { password: hash },
+  });
+}
+
+/**
+ * POST /auth/set-password — Phase 14.3.
+ *
+ * First-time password set for OAuth-only users (User.password is
+ * NULL because they signed up via Google). No `currentPassword`
+ * required — there is none. Once set, the user can sign in via
+ * either Google OR email+password from then on.
+ *
+ * Refuses (400 PasswordAlreadySet) if the user already has a
+ * password — those calls should go through changePassword instead,
+ * which protects the password-change with the existing-password
+ * check.
+ *
+ * Audit row written so admins can see when a Google-only account
+ * promoted to a hybrid (Google + password) account.
+ */
+export async function setPassword(
+  userId: number,
+  input: SetPasswordInput,
+): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { password: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (user.password) throw new AppError(400, "PasswordAlreadySet");
+
+  const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+  await prisma.user.update({
+    where: { userId },
+    data: { password: hash },
+  });
+  await audit({
+    actorId: userId,
+    action: "user.set_password",
+    targetType: "user",
+    targetId: userId,
   });
 }
 

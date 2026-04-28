@@ -49,9 +49,23 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(6).max(100),
 });
 
+// Phase 14.3 — first-time password set for OAuth-only users (no
+// existing password to verify against). Endpoint refuses if the
+// user already has a password — those go through changePassword.
+export const setPasswordSchema = z
+  .object({
+    newPassword: z.string().min(6).max(100),
+    confirmPassword: z.string().min(6).max(100),
+  })
+  .refine((d) => d.newPassword === d.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type SetPasswordInput = z.infer<typeof setPasswordSchema>;

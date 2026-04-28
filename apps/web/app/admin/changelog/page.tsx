@@ -32,6 +32,28 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-14-3",
+    title: "Phase 14.3 · Set-password flow for Google-only users",
+    subtitle:
+      "Google sign-in users have NULL passwords (Phase 14.1 made the column nullable). Phase 14.3 lets them set a first password from /profile/edit so they can also sign in with email + password from then on. New POST /auth/set-password endpoint refuses with 400 PasswordAlreadySet for users who already have one (those should call /change-password instead). EditProfileForm flips between SET-password and CHANGE-password UI based on a new hasPassword boolean surfaced by GET /auth/me. Linking-fork (existing-email collision via Google) deferred to Phase 14.3.5 as a separate batch — needs better-auth's databaseHooks wired up.",
+    icon: KeyRound,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-14-3",
+    items: [
+      { title: "@metu/shared: new setPasswordSchema = { newPassword + confirmPassword } with the same min(6).max(100) bounds + match refinement as changePasswordSchema, but NO currentPassword field" },
+      { title: "auth.service.setPassword(): looks up user.password, throws 400 PasswordAlreadySet if non-null, hashes + updates + writes 'user.set_password' AuditLog row. Same bcrypt rounds as changePassword for hash consistency" },
+      { title: "auth.controller.setPassword + POST /auth/set-password (requireAuth gate). Doesn't issue a fresh cookie — caller is already authed via Google when they hit this" },
+      { title: "GET /auth/me extended with hasPassword: Boolean(user.password). Older clients pre-14.3 don't break (field is optional in the response shape)" },
+      { title: "lib/session.ts getMe() now returns { user, role, hasPassword }. Defaults missing field to true so the legacy change-password flow stays the safe default if a stale Express deploy answers the call" },
+      { title: "EditProfileForm: hasPassword prop drives a UI fork — heading 'Change password' vs 'Set a password', explanation paragraph for Google-only users, current-password field hidden in SET mode, button label + busy text + success toast all switch. Hits /api/auth/set-password instead of /api/auth/change-password when hasPassword=false. router.refresh() after success so the next render picks up hasPassword=true and the form switches back" },
+      { title: "BFF: /api/auth/set-password forwarder (~12 LOC, mirrors /api/auth/change-password)" },
+      { title: "Vitest 112 → 116 (4 new): 401 without auth, 400 PasswordAlreadySet when password exists, happy first-set verifies bcrypt hash + audit row written, 400 ValidationError when newPassword + confirmPassword don't match" },
+      { title: "Build clean, web shared First Load JS = 89.8 kB (unchanged — UI fork is small JSX delta)" },
+      { title: "Phase 14.3.5 NEXT: linking fork via better-auth databaseHooks.user.create.before — when a Google sign-in's email matches an existing User, return 409 + redirect with hint instead of auto-linking (security: Google email creation is too easy for impersonation auto-link to be safe)" },
+    ],
+  },
+  {
     id: "phase-14-2",
     title: "Phase 14.2 · Google sign-in + dual-stack auth middleware",
     subtitle:

@@ -12,12 +12,14 @@ export {
   changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  setPasswordSchema,
   type LoginInput,
   type RegisterInput,
   type UpdateProfileInput,
   type ChangePasswordInput,
   type ForgotPasswordInput,
   type ResetPasswordInput,
+  type SetPasswordInput,
 } from "@metu/shared";
 
 import type { User, UserStats } from "@prisma/client";

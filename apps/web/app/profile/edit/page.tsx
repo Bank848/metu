@@ -42,6 +42,7 @@ export default async function EditProfilePage() {
             dateOfBirth: me.user.dateOfBirth
               ? new Date(me.user.dateOfBirth).toISOString().slice(0, 10)
               : "",
+            hasPassword: me.hasPassword,
           }}
         />
 
