@@ -32,6 +32,27 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-14-3-5",
+    title: "Phase 14.3.5 · Linking fork — Google email collision rejected with hint",
+    subtitle:
+      "Closes the security gap left by Phase 14.2's default behaviour (silently create a new User on every Google sign-in). Now: when a Google sign-in's email matches an existing local account, the OAuth flow is rejected with 409 EmailAlreadyRegistered, the user lands on /login?error=email-exists, and a banner tells them to sign in with their password and link Google from /profile/edit. Plus: better-auth's default User row now satisfies our schema's NOT NULL constraints (firstName + lastName split from Google's name field, unique username derived from email local-part with collision-retry).",
+    icon: KeyRound,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-14-3-5",
+    items: [
+      { title: "lib/auth.ts: databaseHooks.user.create.before checks for email collision (User.email match where deletedAt:null) and throws APIError('CONFLICT', 'EmailAlreadyRegistered') when found. better-auth surfaces this as the OAuth flow's error and redirects to errorCallbackURL" },
+      { title: "Same hook now ALSO populates the NOT NULL fields better-auth doesn't know about: firstName + lastName split from Google's name string (single name → '—' surname placeholder), unique username derived via deriveUsername() helper" },
+      { title: "deriveUsername(): take the email's local-part, strip non-alphanumeric, lowercase, slice to 14 chars, append a 4-digit nonce on collision (5 retries before timestamp-suffix fallback). Always fits in our VARCHAR(20) column" },
+      { title: "splitName(): Google's name is a single string ('Jane Doe'); split on whitespace, first token → firstName, rest → lastName. Both clamped to VARCHAR(40). Empty surname (single-word names like 'Madonna') → '—' placeholder so NOT NULL is satisfied — user can fix from /profile/edit" },
+      { title: "LoginForm: new errorMessage() helper reads the ?error= query param. Renders an amber banner above the form when 'email-exists' (or 'EmailAlreadyRegistered') is present, telling the user to log in with their password and link Google from settings" },
+      { title: "Google button now sets errorCallbackURL=/login?error=email-exists alongside the existing callbackURL. better-auth redirects there on the OAuth-flow failure (vs the success URL on happy path)" },
+      { title: "Soft-deleted accounts deliberately don't trigger the collision (uses deletedAt:null guard) — admin can re-enable a deleted account, and matching against the ghost would block legitimate fresh signups by the same person" },
+      { title: "Server tests still 116/116 (no new tests yet — the better-auth flow needs real Postgres to exercise the hook end-to-end; will add integration coverage in a separate batch). Web tests still 37/37, bundle 89.8 kB unchanged" },
+      { title: "Phase 14.4 NEXT: OTP scaffold — phone field already in schema (Phase 14.1), need POST /auth/request-otp + POST /auth/verify-otp + transport adapter (default to console-stub for dev, real SMS via Twilio if budget allows for the live demo)" },
+    ],
+  },
+  {
     id: "phase-14-3",
     title: "Phase 14.3 · Set-password flow for Google-only users",
     subtitle:
