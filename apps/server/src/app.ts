@@ -54,6 +54,10 @@ import reviewsRoutes, { productReviewsRouter } from "./routes/reviews.routes.js"
 // Layered routes (Phase 13.6 — q&a)
 import qnaRoutes, { productQuestionsRouter } from "./routes/qna.routes.js";
 
+// Layered routes (Phase 13.7 — favorites + stock alerts)
+import favoritesRoutes from "./routes/favorites.routes.js";
+import stockAlertsRoutes from "./routes/stock-alerts.routes.js";
+
 // Legacy flat routes that work today — will be migrated in later phases.
 import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
 
@@ -112,6 +116,12 @@ export function buildApp() {
   // mount prefix.
   app.use("/products/:productId/questions", productQuestionsRouter);
   app.use("/questions",  qnaRoutes);
+
+  // ─── Layered routes (Phase 13.7 — favorites + stock alerts) ─────
+  // Two single-router resources. Both auth-only; idempotent toggle
+  // semantics on the join tables (ProductFavorite, StockAlert).
+  app.use("/favorites",    favoritesRoutes);
+  app.use("/stock-alerts", stockAlertsRoutes);
 
   // ─── Legacy flat routes (still working) ──────────────────────────
   // catalogRouter is mounted at /, so the URLs stay
