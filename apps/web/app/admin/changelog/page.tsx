@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: Shield,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-15-4",
+    commitSha: "0440c83",
     items: [
       { title: "Migration 20260428233425_phase_15_4_audit_ip_ua: ALTER audit_log ADD ip_address VARCHAR(45) + user_agent VARCHAR(255). Both nullable so pre-15.4 rows + system actions don't violate" },
       { title: "schema.prisma: AuditLog gains ipAddress + userAgent fields with @map to the snake_case columns" },
