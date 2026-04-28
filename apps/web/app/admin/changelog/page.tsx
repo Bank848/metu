@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: ShieldAlert,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-15-1",
+    commitSha: "68980ea",
     items: [
       { title: "NEW middleware/rate-limit.ts: sliding window (not fixed window — no edge-of-window bursts), per-IP keying via req.ip, prune-on-check + opportunistic 1%-of-requests sweep keeps the Map bounded by traffic not uptime" },
       { title: "Per-route limiters exported as singletons (loginLimiter, registerLimiter, requestOtpLimiter, forgotPasswordLimiter) — fresh rateLimit({...}) per route would build new WeakMap entries every time and counters would never accumulate" },
