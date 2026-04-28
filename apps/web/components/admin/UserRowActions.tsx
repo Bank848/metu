@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Trash2, ShieldCheck, Store, User } from "lucide-react";
+import { Trash2, ShieldCheck, Store, User, KeyRound } from "lucide-react";
 import { ActionRow, type ActionRowItem } from "./ActionRow";
 import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 
@@ -28,14 +28,18 @@ export function UserRowActions({
   currentRole,
   username,
   isSelf,
+  // Phase 15.5 — drives the Force-reset action label (set vs clear)
+  // and disables the menu item when toggling against the same value.
+  requirePasswordReset = false,
 }: {
   userId: number;
   currentRole: Role;
   username: string;
   isSelf: boolean;
+  requirePasswordReset?: boolean;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<"role" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"role" | "delete" | "force-reset" | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Phase 12.2 — separate dialog state from the dropdown's built-in
   // confirm. We need a reason textarea inside the dialog body which
@@ -57,6 +61,29 @@ export function UserRowActions({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.message ?? "Failed to update role");
+        setBusy(null);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Network error");
+    }
+    setBusy(null);
+  }
+
+  async function toggleForceReset() {
+    setError(null);
+    setBusy("force-reset");
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/require-password-reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ value: !requirePasswordReset }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.message ?? "Failed to update force-reset flag");
         setBusy(null);
         return;
       }
@@ -120,6 +147,17 @@ export function UserRowActions({
       icon: User,
       onClick: () => changeRole("buyer"),
       disabled: disabled || currentRole === "buyer",
+    },
+    {
+      // Phase 15.5 — admin force-password-reset toggle. Forces the
+      // user to change their password before any other authed action
+      // surfaces. Cleared on next successful change/set. Self-toggle
+      // is server-side rejected; we just disable the row anyway.
+      label: requirePasswordReset ? "Clear forced reset" : "Force password reset",
+      icon: KeyRound,
+      tone: requirePasswordReset ? "safe" : "primary",
+      onClick: toggleForceReset,
+      disabled,
     },
     {
       // Phase 12.2 — relabelled "Delete user" → "Remove user" to match

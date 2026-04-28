@@ -32,6 +32,31 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-15-5",
+    title: "Phase 15.5 · Admin force-password-reset (Phase 15 complete)",
+    subtitle:
+      "Last Phase 15 batch. Admins can flag any other user with a force-password-reset from /admin/users → triple-dots → 'Force password reset'. The flagged user gets bounced to /profile/edit on every authed page (admin layout, seller layout) until they successfully change/set their password — which clears the flag server-side as a side effect of the existing changePassword/setPassword services. Banner explains why. Self-toggle forbidden. PLUS a fix for the missing Google button on /login + /register: dropped the NEXT_PUBLIC_GOOGLE_ENABLED build-time env gate that was hiding the button on the live demo.",
+    icon: ShieldAlert,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-15-5",
+    items: [
+      { title: "Migration 20260428235733_phase_15_5_require_password_reset: ALTER users ADD require_password_reset BOOLEAN NOT NULL DEFAULT false. Backfills every existing user with false; admins flip on demand" },
+      { title: "schema.prisma: User.requirePasswordReset field with @map to the snake_case column" },
+      { title: "service.setRequirePasswordReset(targetUserId, actorUserId, value, req): updates the User row + writes 'user.require_password_reset.set|.clear' AuditLog with IP+UA. 400 SelfToggleForbidden when admin tries to flag themselves (would lock themselves into the password-change UI without recourse)" },
+      { title: "controller.setRequirePasswordReset + POST /admin/users/:id/require-password-reset (body: { value: boolean }). 400 ValidationError when body shape is wrong" },
+      { title: "auth.service: changePassword + setPassword services BOTH clear requirePasswordReset on success. Single line added to the user.update data — idempotent for users who didn't have it set" },
+      { title: "GET /auth/me extended with requirePasswordReset: Boolean(user.requirePasswordReset). Old clients pre-15.5 default to false in lib/session.ts (safe default — no false redirects)" },
+      { title: "lib/session.ts requireResetGuard(me, currentPath) helper: NextJS redirect() to /profile/edit?must-reset=1 when flag set, allows /profile/edit + /login + /logout through. Wired into apps/web/app/admin/layout.tsx + apps/web/app/seller/layout.tsx" },
+      { title: "/profile/edit page: amber banner when me.requirePasswordReset OR ?must-reset=1 — explains the situation and that changing the password will clear the flag automatically" },
+      { title: "UserRowActions component: NEW menu item between role-change and remove. Label flips between 'Force password reset' (when not set) and 'Clear forced reset' (when already set). Tone primary/safe matches the action" },
+      { title: "BFF: /api/admin/users/[id]/require-password-reset forwarder (~12 LOC)" },
+      { title: "Vitest 142 → 147 (5 new): 403 non-admin (with proper user mock so requireAuth gets past the dual-stack lookup), 400 SelfToggleForbidden, 400 ValidationError on bad body, happy SET writes audit row 'user.require_password_reset.set', happy CLEAR writes the .clear variant" },
+      { title: "BONUS: dropped NEXT_PUBLIC_GOOGLE_ENABLED gate from LoginForm + RegisterForm. NEXT_PUBLIC_* env vars require a rebuild to flip and were hiding the Google button on the live demo even though Phase 14.2's flow was wired correctly. Always renders now; if Google isn't configured server-side, better-auth surfaces a clean error and our Phase 14.3.5 errorCallbackURL banner explains it. Better UX than 'feature silently invisible'" },
+      { title: "Build clean. Web shared First Load JS = 89.8 kB (unchanged). Phase 15 COMPLETE — 5 batches across rate-limit, sessions UI, OTP enforcement, audit IP+UA, force-reset" },
+    ],
+  },
+  {
     id: "phase-15-3",
     title: "Phase 15.3 · Sensitive ops require fresh OTP when phone is verified",
     subtitle:

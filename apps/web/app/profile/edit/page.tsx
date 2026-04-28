@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, ShieldAlert } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -10,13 +10,25 @@ import { EditProfileForm } from "./EditProfileForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditProfilePage() {
+export default async function EditProfilePage({
+  searchParams,
+}: {
+  searchParams?: { "must-reset"?: string };
+}) {
+  const mustReset = searchParams?.["must-reset"] === "1";
   // Run the auth check and the cached country list in parallel — countries
   // are reference data that never change within a session, so the cached
   // helper short-circuits the second DB hit on warm requests and removes
   // the blocking serial wait that produced the F28 skeleton flash.
   const [me, countries] = await Promise.all([getMe(), getCountries()]);
   if (!me) redirect("/login?next=/profile/edit");
+
+  // Phase 15.5 — show the must-reset banner whenever the user is
+  // here because an admin forced a reset, OR they got bounced here
+  // by requireResetGuard from another page (?must-reset=1). Both
+  // cases hit me.requirePasswordReset=true; the URL param just
+  // affirms the reason if the link came from the redirect.
+  const showResetBanner = me.requirePasswordReset || mustReset;
 
   return (
     <>
@@ -30,6 +42,22 @@ export default async function EditProfilePage() {
           Back to profile
         </Link>
         <PageHeader title="Edit profile" subtitle="Update your name, contact, and password." />
+
+        {showResetBanner && (
+          <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 flex items-start gap-3">
+            <ShieldAlert className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <div className="font-semibold text-amber-100 mb-0.5">
+                Password reset required
+              </div>
+              <div className="text-amber-100/80">
+                An administrator has flagged your account for a password reset
+                (suspicious sign-in attempt or routine security check). Set a
+                new password below to continue using the marketplace.
+              </div>
+            </div>
+          </div>
+        )}
         <EditProfileForm
           countries={countries}
           initial={{

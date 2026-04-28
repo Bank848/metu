@@ -193,6 +193,7 @@ export default async function AdminUsers({
             currentRole={u.stats?.role ?? "buyer"}
             username={u.username}
             isSelf={u.userId === myUserId}
+            requirePasswordReset={Boolean((u as any).requirePasswordReset)}
           />
         )}
       />

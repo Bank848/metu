@@ -232,9 +232,12 @@ export async function changePassword(
   await ensureSensitiveOtpIfVerified(userId, user.phone, user.phoneVerifiedAt, input.otpCode);
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+  // Phase 15.5 — successful change clears the admin-imposed
+  // force-reset flag (if it was set). Idempotent for users who
+  // didn't have it set; net cost is one extra column in the UPDATE.
   await prisma.user.update({
     where: { userId },
-    data: { password: hash },
+    data: { password: hash, requirePasswordReset: false },
   });
 }
 
