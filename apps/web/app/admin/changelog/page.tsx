@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: KeyRound,
     tone: "info",
     shippedAt: "today",
-    commitSha: "PENDING",
+    commitSha: "e595e17",
     items: [
       { title: "Migration 20260429052827_phase_16_2_totp: ALTER users ADD totp_secret VARCHAR(64) NULL + totp_enabled BOOLEAN NOT NULL DEFAULT false. Secret stays NULL for users who never enrol; gets a fresh base32 string mid-enrolment that only flips to enabled after the first verify succeeds" },
       { title: "schema.prisma: User.totpSecret + User.totpEnabled with @map" },
