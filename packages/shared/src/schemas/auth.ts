@@ -62,6 +62,30 @@ export const setPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+// Phase 14.4 — phone + OTP scaffold.
+//
+// Phone format: liberal — international numbers vary wildly. Accept
+// digits, leading +, spaces, hyphens, parens. Cap to VARCHAR(20)
+// minus a margin so a normalised version always fits. Server-side
+// will strip non-digits before storing.
+export const updatePhoneSchema = z.object({
+  phone: z
+    .string()
+    .min(7)
+    .max(20)
+    .regex(/^[+()\d\s-]+$/, "Use digits, +, spaces, hyphens, or parens"),
+});
+
+// requestOtp: empty body — auth-gate proves identity, server reads
+// User.phone to know where to send. Returns 400 NoPhoneOnFile if
+// the user hasn't set one.
+export const requestOtpSchema = z.object({});
+
+// verifyOtp: 6-digit numeric code typed by the user from SMS.
+export const verifyOtpSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
@@ -69,3 +93,6 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type SetPasswordInput = z.infer<typeof setPasswordSchema>;
+export type UpdatePhoneInput = z.infer<typeof updatePhoneSchema>;
+export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
+export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;

@@ -11,11 +11,22 @@ import type {
   ForgotPasswordInput,
   LoginInput,
   RegisterInput,
+  RequestOtpInput,
   ResetPasswordInput,
   SafeUser,
   SetPasswordInput,
+  UpdatePhoneInput,
   UpdateProfileInput,
+  VerifyOtpInput,
 } from "../models/auth.model.js";
+import {
+  deliverCode,
+  expiresAt as otpExpiresAt,
+  generateCode,
+  hashCode,
+  otpIdentifier,
+  otpTransport,
+} from "../utils/otp.js";
 
 /**
  * Strip the bcrypt hash before any user object crosses the network.
@@ -255,6 +266,142 @@ export async function setPassword(
     action: "user.set_password",
     targetType: "user",
     targetId: userId,
+  });
+}
+
+// =============================================================================
+//  PHASE 14.4 — phone + OTP scaffold
+// =============================================================================
+
+/**
+ * PATCH /auth/phone — set/update the user's phone number.
+ *
+ * Clears phoneVerifiedAt because the new number hasn't been verified
+ * yet. Strips non-digits + leading + before storage so the value is
+ * normalised and OTP delivery doesn't choke on stray whitespace.
+ *
+ * Doesn't auto-trigger OTP delivery — the caller hits POST
+ * /auth/request-otp explicitly. Two-step flow keeps the cost
+ * boundary (Twilio SMS credits) in the user's hands.
+ */
+export async function updatePhone(
+  userId: number,
+  input: UpdatePhoneInput,
+): Promise<void> {
+  const normalised = input.phone.replace(/[^\d+]/g, "");
+  if (normalised.length < 7) throw new AppError(400, "PhoneTooShort");
+
+  await prisma.user.update({
+    where: { userId },
+    data: { phone: normalised, phoneVerifiedAt: null },
+  });
+}
+
+/**
+ * POST /auth/request-otp — issue a 6-digit code to the user's phone.
+ *
+ * Reads User.phone (set via PATCH /auth/phone). Returns 400
+ * NoPhoneOnFile if missing. Wipes any pending code for the same
+ * user before inserting a new one (so the latest code always wins;
+ * stops attackers replaying a stale code if they intercept it).
+ *
+ * Returns the transport name so the dev/demo flow can show "Code
+ * was logged to console" vs "Code was SMS-ed". Production stays
+ * silent on transport (server logs cover the audit need).
+ */
+export async function requestOtp(
+  userId: number,
+  _input: RequestOtpInput,
+): Promise<{ transport: typeof otpTransport }> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { phone: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (!user.phone) throw new AppError(400, "NoPhoneOnFile");
+
+  const code = generateCode();
+  const hash = hashCode(userId, user.phone, code);
+  const identifier = otpIdentifier(userId);
+
+  // Wipe any pending code for this user (only one active OTP at a
+  // time). deleteMany so an absent row doesn't throw.
+  await prisma.verification.deleteMany({ where: { identifier } });
+  await prisma.verification.create({
+    data: { identifier, value: hash, expiresAt: otpExpiresAt() },
+  });
+
+  // Fire delivery; surface failures as 502 so the client knows the
+  // code didn't actually go out (not the user's fault).
+  try {
+    await deliverCode(user.phone, code);
+  } catch (err) {
+    throw new AppError(
+      502,
+      "OtpDeliveryFailed",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  return { transport: otpTransport };
+}
+
+/**
+ * POST /auth/verify-otp — consume the pending code and set
+ * phoneVerifiedAt.
+ *
+ * Failure modes (all 400 with distinct error codes so the UI can
+ * surface helpful messages):
+ *   • NoPendingOtp — user never requested or it expired+swept
+ *   • OtpExpired — found one but past TTL (5 min)
+ *   • InvalidOtp — hash mismatch (wrong code or wrong phone)
+ *
+ * Always deletes the verification row on a successful verify so
+ * a code can't be replayed.
+ */
+export async function verifyOtp(
+  userId: number,
+  input: VerifyOtpInput,
+): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { phone: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (!user.phone) throw new AppError(400, "NoPhoneOnFile");
+
+  const identifier = otpIdentifier(userId);
+  const pending = await prisma.verification.findFirst({
+    where: { identifier },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!pending) throw new AppError(400, "NoPendingOtp");
+  if (pending.expiresAt.getTime() < Date.now()) {
+    // Sweep the stale row so the next request gets a clean slate.
+    await prisma.verification.delete({ where: { id: pending.id } });
+    throw new AppError(400, "OtpExpired");
+  }
+
+  const expected = hashCode(userId, user.phone, input.code);
+  if (expected !== pending.value) {
+    throw new AppError(400, "InvalidOtp");
+  }
+
+  // Atomic: mark phone verified + drop the pending row in one tx.
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { userId },
+      data: { phoneVerifiedAt: new Date() },
+    }),
+    prisma.verification.delete({ where: { id: pending.id } }),
+  ]);
+
+  await audit({
+    actorId: userId,
+    action: "user.phone_verified",
+    targetType: "user",
+    targetId: userId,
+    meta: { phone: user.phone.slice(-4) }, // last 4 digits only — PII
   });
 }
 

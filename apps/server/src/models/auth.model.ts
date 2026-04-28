@@ -13,6 +13,9 @@ export {
   forgotPasswordSchema,
   resetPasswordSchema,
   setPasswordSchema,
+  updatePhoneSchema,
+  requestOtpSchema,
+  verifyOtpSchema,
   type LoginInput,
   type RegisterInput,
   type UpdateProfileInput,
@@ -20,6 +23,9 @@ export {
   type ForgotPasswordInput,
   type ResetPasswordInput,
   type SetPasswordInput,
+  type UpdatePhoneInput,
+  type RequestOtpInput,
+  type VerifyOtpInput,
 } from "@metu/shared";
 
 import type { User, UserStats } from "@prisma/client";

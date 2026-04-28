@@ -32,6 +32,30 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-14-4",
+    title: "Phase 14.4 · Phone + OTP scaffold (Phase 14 complete)",
+    subtitle:
+      "Last batch of Phase 14. Users can set a phone number from /profile/edit, request a 6-digit code, and verify it. OTP storage uses better-auth's verification table from Phase 14.1; transport adapter is pluggable (console-stub for dev, Twilio when env present, hard-disable via OTP_TRANSPORT=disabled). 5-minute TTL, SHA-256 hashed at rest, distinct error codes (NoPendingOtp / OtpExpired / InvalidOtp) so the UI can surface helpful messages. Phase 15 will enforce OTP on sensitive actions; Phase 14.4 is just the scaffold.",
+    icon: ShieldAlert,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-14-4",
+    items: [
+      { title: "@metu/shared: 3 new schemas — updatePhoneSchema (liberal phone format, server normalises), requestOtpSchema (empty body, auth proves identity), verifyOtpSchema (6-digit numeric)" },
+      { title: "NEW utils/otp.ts: generateCode (crypto.randomInt, no modulo bias), hashCode (SHA-256 of userId:phone:code so leaked codes can't be replayed against a different user/phone), otpIdentifier, expiresAt. deliverCode() routes to console (default) / twilio (env-gated) / disabled" },
+      { title: "service.updatePhone: strips non-digits, clamps to length, clears phoneVerifiedAt (phone change invalidates verification). Doesn't auto-trigger OTP — caller hits /request-otp explicitly so SMS cost stays in user's hands" },
+      { title: "service.requestOtp: reads User.phone (400 NoPhoneOnFile if missing), generates code, wipes any pending OTP for the user (one active code at a time), inserts hash into verification table, dispatches via transport (502 OtpDeliveryFailed on transport throw)" },
+      { title: "service.verifyOtp: looks up pending OTP, distinguishes NoPendingOtp / OtpExpired (sweeps stale row) / InvalidOtp (hash mismatch). Atomic $transaction sets phoneVerifiedAt + deletes verification row. Audit row 'user.phone_verified' with last-4-digits PII guard" },
+      { title: "controller + routes: PATCH /auth/phone, POST /auth/request-otp, POST /auth/verify-otp — all requireAuth. requestOtp surfaces transport name in response (helpful for the dev/demo flow to know if code went via SMS vs server logs)" },
+      { title: "BFF: 3 new forwarder routes (~12 LOC each) — /api/auth/phone, /api/auth/request-otp, /api/auth/verify-otp" },
+      { title: "EditProfileForm: NEW Phone section above the password section. Three-step UI: enter phone → 'Save phone' → 'Send code' button reveals the 6-digit input + 'Verify' button. Verified state shown as a green ✓ pill in the heading. Helpful inline error messages route from the distinct error codes (InvalidOtp → 'Try again or request a new one' etc)" },
+      { title: "page.tsx threads me.user.phone + Boolean(me.user.phoneVerifiedAt) into EditProfileForm props" },
+      { title: "Vitest 116 → 128 (12 new): updatePhone 401/400 ValidationError/happy-with-normalisation; requestOtp 401/400 NoPhoneOnFile/happy with deleteMany+create both fired and value matches sha256 hex pattern; verifyOtp 401/400 ValidationError/400 NoPendingOtp/400 OtpExpired+row swept/400 InvalidOtp/happy hash-match → $transaction + audit row" },
+      { title: "Build clean, web shared First Load JS = 89.8 kB (unchanged — phone section is plain JSX, no new client deps)" },
+      { title: "Phase 14 COMPLETE. Phase 15 NEXT: enforce OTP on sensitive actions (password change, email change), session management UI (list active sessions, sign-out everywhere), rate-limit /login + /register + /request-otp, optional 2FA enrolment" },
+    ],
+  },
+  {
     id: "phase-14-3-5",
     title: "Phase 14.3.5 · Linking fork — Google email collision rejected with hint",
     subtitle:
