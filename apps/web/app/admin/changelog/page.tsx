@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: KeyRound,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-14-1",
+    commitSha: "a49c2ec",
     items: [
       { title: "npm install better-auth in apps/server (v0.x). Two transitive vulnerabilities flagged by audit but they're in dev-only paths; tracked separately, not blocking" },
       { title: "Migration 20260428185803_phase_14_1_better_auth: ALTER users (password DROP NOT NULL + ADD email_verified BOOL + phone VARCHAR(20) + phone_verified_at TIMESTAMP), CREATE 3 tables (account / session / verification) with SERIAL Int PKs + Int FKs to users.user_id (clean Int → Int joins, no string-id pain)" },
