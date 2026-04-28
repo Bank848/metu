@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: ShieldAlert,
     tone: "info",
     shippedAt: "today",
-    commitSha: "phase-15-3",
+    commitSha: "36f9de3",
     items: [
       { title: "@metu/shared: changePasswordSchema + setPasswordSchema gain optional otpCode (6-digit regex). Optional in the schema so users without phone verification still pass parse; service-side guard enforces presence + freshness when needed" },
       { title: "auth.service.ensureSensitiveOtpIfVerified() helper — central enforcement point. No-op when phone unset OR phoneVerifiedAt null; otherwise requires + verifies + consumes the verification row. Distinct error codes (OtpRequired / InvalidOtp / NoPendingOtp / OtpExpired) so the UI can render helpful hints" },
