@@ -58,6 +58,9 @@ import qnaRoutes, { productQuestionsRouter } from "./routes/qna.routes.js";
 import favoritesRoutes from "./routes/favorites.routes.js";
 import stockAlertsRoutes from "./routes/stock-alerts.routes.js";
 
+// Layered routes (Phase 13.8 — messages)
+import messagesRoutes from "./routes/messages.routes.js";
+
 // Legacy flat routes that work today — will be migrated in later phases.
 import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
 
@@ -122,6 +125,12 @@ export function buildApp() {
   // semantics on the join tables (ProductFavorite, StockAlert).
   app.use("/favorites",    favoritesRoutes);
   app.use("/stock-alerts", stockAlertsRoutes);
+
+  // ─── Layered routes (Phase 13.8 — messages) ─────────────────────
+  // GET /messages (inbox + thread via ?with=N), GET /messages/unread,
+  // POST /messages. All auth-only. Postgres-only path for now;
+  // future MongoDB sidecar would swap services/messages.service.ts.
+  app.use("/messages", messagesRoutes);
 
   // ─── Legacy flat routes (still working) ──────────────────────────
   // catalogRouter is mounted at /, so the URLs stay

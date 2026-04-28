@@ -32,6 +32,26 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-13-8",
+    title: "Phase 13.8 · Messages migrated to Express",
+    subtitle:
+      "Buyer ↔ seller direct messaging now lives on the layered server. Three endpoints: GET /messages (inbox + thread fork via ?with=N, marks read on thread open), POST /messages (self-send rejected with 400), GET /messages/unread (cheap COUNT for the TopNav dot, polled client-side every few seconds — no realtime infra). Postgres-only path for now; the MongoDB sidecar pilot recommended by Lecture 11 stays a follow-up so we keep zero new infra dependencies + every existing test green.",
+    icon: MessageSquare,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-8",
+    items: [
+      { title: "Layered messages resource: routes/messages.routes.ts → controllers/messages.controller.ts → services/messages.service.ts → models/messages.model.ts" },
+      { title: "GET /messages: behaviour fork on the ?with query param. With it = thread between auth user + the partner, plus side-effect 'mark all the partner's messages to me as read'. Without it = inbox view (last message per partner + unread count, sorted by most-recent activity)" },
+      { title: "Inbox grouping: pull recent slice (max 200 messages) and group in JS. Fine for the demo dataset; production-grade would push the GROUP BY into raw SQL with a window function" },
+      { title: "POST /messages: re-uses the existing @metu/shared sendMessageSchema (zod). Self-send rejected at the controller (returns 400 SelfSend) before the service is called" },
+      { title: "GET /messages/unread: single COUNT query, mounted BEFORE the wildcard so the literal /unread path always wins (Express matches by mount order)" },
+      { title: "Vitest 54 → 63 (added: inbox 401 + happy grouping with unread, thread happy + verifies updateMany was called for marking-as-read, send 401 + 400 ValidationError + 400 SelfSend + happy create, unread 401 + happy count)" },
+      { title: "Next /api/messages/route.ts + /api/messages/unread/route.ts converted to forwardToApi proxies. The inbox route preserves the inbound query string (req.nextUrl.search) so ?with=N still routes correctly to Express" },
+      { title: "Service file deliberately small + side-effect-free except for getThread's read marker. A future MongoDB sidecar (the Lecture 11 polyglot pilot) would swap services/messages.service.ts only — controllers, routes, models, and DTOs stay identical, network contract unchanged" },
+    ],
+  },
+  {
     id: "phase-13-7",
     title: "Phase 13.7 · Favorites + Stock alerts migrated",
     subtitle:
