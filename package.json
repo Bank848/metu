@@ -8,7 +8,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "concurrently -n web,api -c blue,magenta \"npm run dev -w @metu/web\" \"npm run dev -w @metu/server\"",
+    "dev:web": "npm run dev -w @metu/web",
+    "dev:server": "npm run dev -w @metu/server",
     "build": "npm run build --workspaces --if-present",
     "db:generate": "npm run -w @metu/db generate",
     "db:migrate": "npm run -w @metu/db migrate",

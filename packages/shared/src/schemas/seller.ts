@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ORDER_STATUS } from "../enums";
+import { ORDER_STATUS } from "../enums.js";
 
 export const becomeSellerSchema = z.object({
   name: z.string().min(2).max(60),

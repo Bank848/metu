@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sI *)",
+      "Bash(npm test)",
+      "Bash(npm test *)",
+      "Bash(flyctl logs *)",
+      "Bash(flyctl status *)",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "mcp__Claude_in_Chrome__tabs_context_mcp"
+    ]
+  }
+}

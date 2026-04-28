@@ -1,11 +1,22 @@
 /**
- * Direct Prisma queries used by server components — bypasses HTTP round-trip
- * to /api routes (which fails on Vercel preview URLs that have deployment
- * protection, and is generally faster).
+ * Server-component data layer.
+ *
+ * Phase 13.1 — the catalog-read functions (getCategories, getTags,
+ * getFeaturedProducts, browseProducts, getProduct, getStore) now
+ * delegate to the Express API server via `apiFetch()`. Their public
+ * signatures + return shapes are preserved 1:1 so consumer pages
+ * (`app/page.tsx`, `app/browse/page.tsx`, `app/product/[id]/page.tsx`,
+ * `app/store/[id]/page.tsx`) keep working unchanged.
+ *
+ * Functions NOT yet migrated (favorites, recent purchases, related
+ * products, business-types, countries, admin queries, …) still talk
+ * to Prisma directly. They'll move to the API server in their
+ * respective Phase 13.X module migrations.
  */
 import { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
+import { apiFetch, qs } from "./api";
 
 const VALID_DELIVERY = ["download", "email", "license_key", "streaming"] as const;
 type DeliveryMethod = (typeof VALID_DELIVERY)[number];
@@ -90,40 +101,17 @@ export async function getFavoriteProducts(userId: number) {
   });
 }
 
+// Phase 13.1 — delegated to GET /products/featured. The server's
+// products.service.findFeatured() applies the same isActive +
+// deletedAt + store.deletedAt gates the BFF used to inline.
 export async function getFeaturedProducts(take = 8) {
-  const products = await prisma.product.findMany({
-    // Public-facing carousel — exclude paused, soft-deleted, and products
-    // belonging to a deleted store.
-    where: { isActive: true, deletedAt: null, store: { deletedAt: null } },
-    orderBy: { reviews: { _count: "desc" } },
-    take,
-    include: {
-      store: { select: { name: true, storeId: true } },
-      items: { select: { price: true, discountPercent: true } },
-      images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
-      productNTags: { include: { tag: { select: { tagName: true } } } },
-      reviews: { select: { rating: true } },
-    },
-  });
-  return products.map((p) => {
-    const prices = p.items.map((i) => Number(i.price));
-    const ratings = p.reviews.map((r) => r.rating);
-    const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
-    return {
-      productId: p.productId,
-      name: p.name,
-      description: p.description,
-      image: p.images[0]?.productImage ?? `https://picsum.photos/seed/p${p.productId}/800/600`,
-      minPrice: prices.length ? Math.min(...prices) : 0,
-      maxPrice: prices.length ? Math.max(...prices) : 0,
-      storeName: p.store.name,
-      storeId: p.store.storeId,
-      avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
-      reviewCount: ratings.length,
-      discountPercent: maxDiscount || undefined,
-      tags: p.productNTags.map((nt) => nt.tag.tagName),
-    };
-  });
+  // The server endpoint hardcodes 8 (matches every BFF caller today).
+  // We slice client-side for the rare caller that asks for a
+  // different N — cheap because the response is already capped at 8.
+  const items = await apiFetch<Array<Awaited<ReturnType<typeof apiFetch<unknown[]>>>[number]>>(
+    "/products/featured",
+  );
+  return (items as any[]).slice(0, take);
 }
 
 export async function getFeaturedStores(take = 4) {
@@ -144,58 +132,27 @@ export async function getFeaturedStores(take = 4) {
   });
 }
 
-/** Public store page: store + owner + products grid + aggregate ratings. */
+/**
+ * Public store page: store + owner + products grid + aggregate ratings.
+ *
+ * Phase 13.1 — delegated to GET /stores/:id. The server's
+ * stores.service.findStoreById() returns the same envelope shape
+ * (`{store, products, productCount, reviewCount, avgRating}`) so
+ * server pages don't need re-shaping.
+ */
 export async function getStore(storeId: number) {
-  // Both queries depend only on storeId — run them in parallel to halve
-  // round-trip latency to Neon.
-  const [store, products] = await Promise.all([
-    prisma.store.findFirst({
-      // Soft-deleted stores are off-limits to the public store page.
-      where: { storeId, deletedAt: null },
-      include: {
-        owner: { select: { firstName: true, lastName: true, profileImage: true, username: true, createdDate: true } },
-        businessType: true,
-        stats: true,
-      },
-    }),
-    prisma.product.findMany({
-      // Public store page only shows active, non-deleted products.
-      where: { storeId, isActive: true, deletedAt: null },
-      orderBy: { productId: "desc" },
-      include: {
-        items: { select: { price: true, discountPercent: true } },
-        images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
-        productNTags: { include: { tag: { select: { tagName: true } } } },
-        reviews: { select: { rating: true } },
-      },
-    }),
-  ]);
-  if (!store) return null;
-
-  const items = products.map((p) => {
-    const prices = p.items.map((i) => Number(i.price));
-    const ratings = p.reviews.map((r) => r.rating);
-    const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
-    return {
-      productId: p.productId,
-      name: p.name,
-      description: p.description,
-      image: p.images[0]?.productImage ?? `https://picsum.photos/seed/p${p.productId}/800/600`,
-      minPrice: prices.length ? Math.min(...prices) : 0,
-      maxPrice: prices.length ? Math.max(...prices) : 0,
-      storeName: store.name,
-      storeId: store.storeId,
-      avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
-      reviewCount: ratings.length,
-      discountPercent: maxDiscount || undefined,
-      tags: p.productNTags.map((nt) => nt.tag.tagName),
-    };
-  });
-
-  const allRatings = products.flatMap((p) => p.reviews.map((r) => r.rating));
-  const avgRating = allRatings.length ? allRatings.reduce((a, b) => a + b, 0) / allRatings.length : undefined;
-
-  return { store, products: items, productCount: products.length, reviewCount: allRatings.length, avgRating };
+  try {
+    return await apiFetch<{
+      store: any;
+      products: any[];
+      productCount: number;
+      reviewCount: number;
+      avgRating?: number;
+    } | null>(`/stores/${storeId}`);
+  } catch (err: any) {
+    if (err?.status === 404) return null;
+    throw err;
+  }
 }
 
 /**
@@ -277,14 +234,30 @@ export async function getReviewsForStore(storeId: number) {
 
 // Reference data that ~never changes within a session. Cached for 1 hour so
 // `/` and `/browse` stop hitting Neon on every render.
+// Phase 13.1 — delegated to GET /categories on the API server.
+// Cached at the BFF layer for an hour because reference data
+// changes ~never — a cold call per hour against the API server is
+// the right trade-off vs serving stale links across 1000 page
+// loads.
+// `skipAuth: true` so `apiFetch` doesn't call `headers()` inside the
+// `unstable_cache` scope (Next forbids dynamic sources there).
+// These endpoints are public reference data — no cookie needed.
 export const getCategories = unstable_cache(
-  async () => prisma.category.findMany({ orderBy: { categoryName: "asc" } }),
+  async () =>
+    apiFetch<Array<{ categoryId: number; categoryName: string; description: string }>>(
+      "/categories",
+      { skipAuth: true },
+    ),
   ["categories"],
   { revalidate: 3600, tags: ["categories"] },
 );
 
 export const getTags = unstable_cache(
-  async () => prisma.productTag.findMany({ orderBy: { tagName: "asc" } }),
+  async () =>
+    apiFetch<Array<{ tagId: number; tagName: string; tagDescription: string }>>(
+      "/tags",
+      { skipAuth: true },
+    ),
   ["tags"],
   { revalidate: 3600, tags: ["tags"] },
 );
@@ -308,6 +281,15 @@ export const getCountries = unstable_cache(
   { revalidate: 3600, tags: ["countries"] },
 );
 
+/**
+ * Phase 13.1 — delegated to GET /products on the API server.
+ *
+ * The API does the heavy lifting (filters + sort + pagination +
+ * shaping). The BFF still owns the `minRating` HAVING-clause logic
+ * because the server's catalog service hasn't ported it yet — once
+ * the Reviews module lands in Phase 13.X, that filter moves
+ * server-side and this BFF wrapper drops the HAVING workaround.
+ */
 export async function browseProducts(params: {
   category?: number;
   tags?: string;
@@ -319,17 +301,67 @@ export async function browseProducts(params: {
   page?: number;
   pageSize?: number;
   // 1..5 — keeps only products whose average review rating is at least this.
-  // When set, we push the threshold into a HAVING clause via $queryRaw so
-  // pagination totals stay correct (a JS post-filter would lie about
-  // total/totalPages).
+  // Still BFF-side until Reviews migrates (see comment above).
   minRating?: number;
 }) {
   const sort = params.sort ?? "newest";
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 16;
 
-  // Public browse — never surface paused, soft-deleted, or stores that
-  // were soft-deleted (orphan products).
+  const minRating = params.minRating && params.minRating > 0 ? params.minRating : null;
+
+  // Build the base API query string. minRating is excluded — applied
+  // BFF-side below.
+  const baseQuery = qs({
+    category: params.category,
+    tags: params.tags,
+    minPrice: params.minPrice,
+    maxPrice: params.maxPrice,
+    delivery: safeDelivery(params.delivery),
+    q: params.q,
+    sort,
+    page,
+    pageSize,
+  });
+
+  type ApiResp = {
+    items: Array<{
+      productId: number;
+      name: string;
+      description: string;
+      image: string;
+      minPrice: number;
+      maxPrice: number;
+      storeName: string;
+      storeId: number;
+      avgRating?: number;
+      reviewCount: number;
+      discountPercent?: number;
+      tags: string[];
+    }>;
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+
+  // No rating filter — straight pass-through.
+  if (minRating === null) {
+    return apiFetch<ApiResp>(`/products${baseQuery}`);
+  }
+
+  // Rating filter active: ask the API for the unfiltered candidate
+  // set (no pagination yet) so we can apply the HAVING-clause
+  // post-filter without lying about total/totalPages. We over-fetch
+  // pageSize × pageCount worth of pages from the API… too expensive.
+  // Instead: pull the qualifying productIds via raw SQL (BFF still
+  // has Prisma until the Reviews module migrates), then ask the API
+  // for the page restricted to those ids via the same /products
+  // endpoint. The API doesn't accept an `id IN (…)` filter today, so
+  // for now we keep the original direct-Prisma path for this branch
+  // ONLY. Once Reviews lands server-side, this whole branch deletes
+  // and the function returns the simple `apiFetch` above.
+
   const where: Prisma.ProductWhereInput = {
     isActive: true,
     deletedAt: null,
@@ -358,7 +390,6 @@ export async function browseProducts(params: {
       },
     };
   }
-
   const orderBy: Prisma.ProductOrderByWithRelationInput =
     sort === "newest"
       ? { createdAt: "desc" }
@@ -368,38 +399,31 @@ export async function browseProducts(params: {
       ? { productId: "asc" }
       : { productId: "desc" };
 
-  // Rating filter active: gather the qualifying productIds via a HAVING
-  // raw query so total / totalPages reflect the *post-filter* universe.
-  // We narrow the candidate set to products that already match the base
-  // `where` (so the IN-list stays small) before aggregating reviews.
-  const minRating = params.minRating && params.minRating > 0 ? params.minRating : null;
-  let qualifyingIds: Set<number> | null = null;
-  if (minRating !== null) {
-    const candidateRows = await prisma.product.findMany({
-      where,
-      orderBy,
-      select: { productId: true },
-    });
-    if (candidateRows.length === 0) {
-      return { items: [], page, pageSize, total: 0, totalPages: 1 };
-    }
-    const candidateIds = candidateRows.map((r) => r.productId);
-    const ratingRows = await prisma.$queryRaw<Array<{ product_id: number }>>`
-      SELECT product_id
-        FROM product_review
-       WHERE product_id IN (${Prisma.join(candidateIds)})
-       GROUP BY product_id
-      HAVING AVG(rating::float) >= ${minRating}
-    `;
-    qualifyingIds = new Set(ratingRows.map((r) => Number(r.product_id)));
-    if (qualifyingIds.size === 0) {
-      return { items: [], page, pageSize, total: 0, totalPages: 1 };
-    }
+  const candidateRows = await prisma.product.findMany({
+    where,
+    orderBy,
+    select: { productId: true },
+  });
+  if (candidateRows.length === 0) {
+    return { items: [], page, pageSize, total: 0, totalPages: 1 };
+  }
+  const candidateIds = candidateRows.map((r) => r.productId);
+  const ratingRows = await prisma.$queryRaw<Array<{ product_id: number }>>`
+    SELECT product_id
+      FROM product_review
+     WHERE product_id IN (${Prisma.join(candidateIds)})
+     GROUP BY product_id
+    HAVING AVG(rating::float) >= ${minRating}
+  `;
+  const qualifyingIds = new Set(ratingRows.map((r) => Number(r.product_id)));
+  if (qualifyingIds.size === 0) {
+    return { items: [], page, pageSize, total: 0, totalPages: 1 };
   }
 
-  const effectiveWhere: Prisma.ProductWhereInput = qualifyingIds
-    ? { ...where, productId: { in: [...qualifyingIds] } }
-    : where;
+  const effectiveWhere: Prisma.ProductWhereInput = {
+    ...where,
+    productId: { in: [...qualifyingIds] },
+  };
 
   const [rows, total] = await Promise.all([
     prisma.product.findMany({
@@ -450,6 +474,18 @@ export async function browseProducts(params: {
   };
 }
 
+/**
+ * NOT YET MIGRATED — Phase 13.1 leaves `getProduct` on direct Prisma.
+ *
+ * The BFF needs review-author soft-delete cascade (`reviews.where:
+ * { user: { deletedAt: null } }`), specific select fields on the
+ * store (ownerId for "Ask the seller", responseTime), and a
+ * different review take limit (5 vs the API server's 20). Once
+ * Phase 13.X (Reviews) ports the soft-delete-cascade logic
+ * server-side, the API's `GET /products/:id` envelope can be
+ * widened to match and this function becomes a one-liner
+ * `apiFetch("/products/" + id)`. Until then, BFF stays direct.
+ */
 export async function getProduct(id: number) {
   // Public product detail must hide soft-deleted products and products
   // whose store was soft-deleted (orphans).
