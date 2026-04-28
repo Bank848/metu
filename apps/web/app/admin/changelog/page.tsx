@@ -32,6 +32,25 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-15-1",
+    title: "Phase 15.1 · Rate limit middleware (sliding window, in-memory)",
+    subtitle:
+      "First Phase 15 batch — closes the credential-stuffing + signup-bot + SMS-spend gaps left by Phase 14. Sliding-window in-memory limiter (Map keyed by IP) mounted on /auth/login (5/min), /auth/register (3/min), /auth/request-otp (3/min), /auth/forgot-password (3/5min). Returns 429 RateLimited + Retry-After header. No Redis — Phase D + Phase 15 plan both voted in-memory for the demo (restart-resets are acceptable). app.set('trust proxy', true) so Fly's X-Forwarded-For surfaces the real client IP via req.ip.",
+    icon: ShieldAlert,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-15-1",
+    items: [
+      { title: "NEW middleware/rate-limit.ts: sliding window (not fixed window — no edge-of-window bursts), per-IP keying via req.ip, prune-on-check + opportunistic 1%-of-requests sweep keeps the Map bounded by traffic not uptime" },
+      { title: "Per-route limiters exported as singletons (loginLimiter, registerLimiter, requestOtpLimiter, forgotPasswordLimiter) — fresh rateLimit({...}) per route would build new WeakMap entries every time and counters would never accumulate" },
+      { title: "429 RateLimited response carries Retry-After header rounded UP to the nearest second (so curl -i + every HTTP client honours it; some choke on fractional seconds). X-RateLimit-Limit + X-RateLimit-Remaining headers also set on success for debugging" },
+      { title: "app.set('trust proxy', true): Fly sits behind a proxy that sets X-Forwarded-For — without trust proxy req.ip = the proxy's IP and every limited request would share the same bucket, blocking legitimate traffic instantly. Local dev: req.ip stays 127.0.0.1 (no proxy header to consult)" },
+      { title: "auth.routes.ts mounts: POST /login → loginLimiter, POST /register → registerLimiter, POST /forgot-password → forgotPasswordLimiter, POST /request-otp → requireAuth + requestOtpLimiter (the auth gate runs first; rate-limit only counts authed callers since the catch-all 401 wouldn't have hit prisma anyway)" },
+      { title: "Vitest 128 → 132 (4 new): boundary check (Nth ok, N+1 → 429 + Retry-After ≥ 1), per-limiter isolation (separate routes don't share buckets), per-IP isolation (different X-Forwarded-For = separate buckets), window slide (after windowMs the bucket clears + requests are allowed again — uses 50ms window for a sub-second test)" },
+      { title: "Build clean. No new deps. Phase 15.2 NEXT: sessions UI (list + revoke active better-auth sessions in /profile/edit + 3 endpoints)" },
+    ],
+  },
+  {
     id: "phase-14-4",
     title: "Phase 14.4 · Phone + OTP scaffold (Phase 14 complete)",
     subtitle:

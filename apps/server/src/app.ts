@@ -74,6 +74,14 @@ import { errorHandler } from "./middleware/error.js";
 export function buildApp() {
   const app = express();
 
+  // Phase 15.1 — trust the Fly proxy's X-Forwarded-For so req.ip is
+  // the real client IP, not the proxy's. The rate limiter keys on
+  // req.ip; without this every limited request would share the same
+  // bucket (the proxy's IP) and the limiter would block legitimate
+  // traffic almost immediately. Local dev: req.ip stays 127.0.0.1
+  // since there's no proxy header to consult.
+  app.set("trust proxy", true);
+
   // 1. Logging FIRST so we always see the request even if cors / json
   //    parsing rejects it. Skipping the log when running tests would
   //    be nice but not worth the env-var dance for now.
