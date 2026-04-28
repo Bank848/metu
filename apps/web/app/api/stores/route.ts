@@ -1,20 +1,15 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { prisma } from "@/lib/server/prisma";
+/**
+ * Phase 13.11 — forwarder to Express `GET /stores`.
+ * Public store list (live stores only). Preserves the `?limit=N`
+ * query param.
+ */
+import { type NextRequest } from "next/server";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") ?? 20), 60);
-  const stores = await prisma.store.findMany({
-    where: { deletedAt: null },
-    take: limit,
-    orderBy: { createdAt: "desc" },
-    include: {
-      businessType: true,
-      stats: true,
-      _count: { select: { products: { where: { deletedAt: null } } } },
-    },
-  });
-  return NextResponse.json(stores);
+  const search = req.nextUrl.search || "";
+  return forwardToApi(req, `/stores${search}`);
 }

@@ -1,30 +1,17 @@
 /**
  * Express app factory + entry point.
  *
- * Phase 13.1 — restructured from the original flat `server.ts`. The
- * file now serves two purposes:
+ * Phase 13.1 → 13.11 — every resource now lives in a layered
+ * `<resource>.routes.ts` → `<resource>.controller.ts` →
+ * `<resource>.service.ts` → `<resource>.model.ts` quartet. The
+ * legacy flat scaffold (catalog.ts, seller.ts, admin.ts, stats.ts)
+ * was deleted in Phase 13.11 once every endpoint had a layered
+ * replacement — see git log for the migration history.
  *
- *   1. `buildApp()` returns a configured Express instance that
- *      tests can drive via `supertest(buildApp())` without binding
- *      a port.
- *   2. When this file is the module entry (`import.meta.url ===
- *      pathToFileURL(process.argv[1]).href`), it boots the listener.
- *      That guard is required because we need `buildApp()` to be
- *      importable from tests without side-effects.
- *
- * Routes are split into two groups:
- *
- *   • LAYERED (Phase 13.1 catalog migration) — products, stores,
- *     categories, tags, health. Each lives in its own
- *     `<resource>.routes.ts` → `<resource>.controller.ts` →
- *     `<resource>.service.ts` → `<resource>.model.ts` quartet.
- *
- *   • LEGACY FLAT (waiting for migration in Phase 13.2+) — auth,
- *     cart, coupons, orders, seller, admin, stats, plus the
- *     business-types + countries leftovers in `catalog.ts`. These
- *     keep working unchanged so the BFF can switch to the API
- *     server for catalog reads now and we can migrate the rest
- *     incrementally without breaking anything.
+ * `buildApp()` returns a configured Express instance that tests
+ * can drive via `supertest(buildApp())` without binding a port.
+ * When this file is the module entry (`import.meta.url ===
+ * pathToFileURL(process.argv[1]).href`), it boots the listener.
  */
 import "dotenv/config";
 import express from "express";
@@ -67,14 +54,11 @@ import sellerRoutes from "./routes/seller.routes.js";
 // Layered routes (Phase 13.10 — admin)
 import adminRoutes from "./routes/admin.routes.js";
 
-// Legacy flat routes that work today — will be migrated in later phases.
-import { catalogRouter } from "./routes/catalog.js"; // /business-types, /countries
-
-// NOTE — the remaining legacy flat scaffold (cart, coupons, orders,
-// seller, admin, stats) is intentionally NOT imported. Those files
-// reference zod schemas in @metu/shared (addToCartSchema, etc.) that
-// were drafted but never finished. Each subsequent phase (13.3 cart,
-// 13.4 orders, …) replaces one of them with a proper layered quartet.
+// Layered routes (Phase 13.11 — reference data)
+// Last legacy flat router (`catalog.ts`) replaced by this layered
+// module. business-types + countries — public reads driving form
+// dropdowns (become-seller + register).
+import referenceRoutes from "./routes/reference.routes.js";
 
 // Middleware — order matters in the buildApp() call below.
 import { corsMiddleware } from "./middleware/cors.js";
@@ -152,17 +136,18 @@ export function buildApp() {
   // transactions/reports.
   app.use("/admin", adminRoutes);
 
-  // ─── Legacy flat routes (still working) ──────────────────────────
-  // catalogRouter is mounted at /, so the URLs stay
-  // GET /business-types and GET /countries.
-  app.use("/", catalogRouter);
+  // ─── Layered routes (Phase 13.11 — reference data) ──────────────
+  // Mounted at `/` so the URLs stay GET /business-types + GET
+  // /countries (matches the BFF's /api/business-types + /api/countries
+  // proxies). Replaces the deleted legacy `catalog.ts` flat router.
+  app.use("/", referenceRoutes);
 
   // Service banner — useful when curl-ing the root manually.
   app.get("/", (_req, res) => {
     res.json({
       name: "METU API",
       version: "0.1.0",
-      docs: "Phase 13.1 — catalog migrated to layered structure",
+      docs: "Phase 13.11 — every resource is layered, no flat routers remain",
     });
   });
 
