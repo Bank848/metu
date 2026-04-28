@@ -40,7 +40,9 @@ export const updateUserRole: RequestHandler<{ id: string }> = async (req, res, n
     if (!parsed.success) {
       throw new AppError(400, "ValidationError", parsed.error.message);
     }
-    await service.updateUserRole(targetUserId, auth.uid, parsed.data);
+    // Phase 15.4 — pass req so the audit row captures IP + UA
+    // (security-sensitive admin actions get full request context).
+    await service.updateUserRole(targetUserId, auth.uid, parsed.data, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -58,7 +60,7 @@ export const deleteUser: RequestHandler<{ id: string }> = async (req, res, next)
     if (!parsed.success) {
       throw new AppError(400, "ValidationError", parsed.error.message);
     }
-    await service.deleteUser(targetUserId, auth.uid, parsed.data);
+    await service.deleteUser(targetUserId, auth.uid, parsed.data, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -81,7 +83,7 @@ export const deleteStore: RequestHandler<{ id: string }> = async (req, res, next
     const auth = currentAuth(req)!;
     const storeId = Number(req.params.id);
     if (!Number.isFinite(storeId)) throw new AppError(400, "BadId");
-    await service.deleteStore(storeId, auth.uid);
+    await service.deleteStore(storeId, auth.uid, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -106,7 +108,7 @@ export const deleteTransaction: RequestHandler<{ id: string }> = async (req, res
     const auth = currentAuth(req)!;
     const transactionId = Number(req.params.id);
     if (!Number.isFinite(transactionId)) throw new AppError(400, "BadId");
-    await service.deleteTransaction(transactionId, auth.uid);
+    await service.deleteTransaction(transactionId, auth.uid, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -118,7 +120,7 @@ export const refundTransaction: RequestHandler<{ id: string }> = async (req, res
     const auth = currentAuth(req)!;
     const transactionId = Number(req.params.id);
     if (!Number.isFinite(transactionId)) throw new AppError(400, "BadId");
-    await service.refundTransaction(transactionId, auth.uid);
+    await service.refundTransaction(transactionId, auth.uid, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);

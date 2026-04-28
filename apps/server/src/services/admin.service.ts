@@ -1,3 +1,4 @@
+import type { Request } from "express";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
@@ -8,6 +9,11 @@ import {
   type AdminStatsResponse,
   type ReportName,
 } from "../models/admin.model.js";
+
+// Phase 15.4 — narrow type for the request shape audit() needs.
+// Lets services accept "anything req-shaped" without dragging the
+// full Express.Request into their signatures.
+type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 
 /**
  * Phase 13.10 — admin service. Pure functions taking IDs / params,
@@ -69,6 +75,7 @@ export async function updateUserRole(
   targetUserId: number,
   actorUserId: number,
   input: UpdateUserRoleInput,
+  req?: AuditReq,
 ) {
   if (targetUserId === actorUserId && input.role !== "admin") {
     throw new AppError(
@@ -97,6 +104,7 @@ export async function updateUserRole(
     targetType: "user",
     targetId: targetUserId,
     meta: { from: prev?.role ?? null, to: input.role },
+    req,
   });
 }
 
@@ -112,6 +120,7 @@ export async function deleteUser(
   targetUserId: number,
   actorUserId: number,
   input: DeleteUserInput,
+  req?: AuditReq,
 ) {
   if (targetUserId === actorUserId) {
     throw new AppError(
@@ -139,6 +148,7 @@ export async function deleteUser(
     targetType: "user",
     targetId: targetUserId,
     meta: reason ? { reason } : undefined,
+    req,
   });
 }
 
@@ -177,7 +187,7 @@ export async function listStores() {
 }
 
 /** Soft-delete a store + audit row. Order/review history stays valid. */
-export async function deleteStore(storeId: number, actorUserId: number) {
+export async function deleteStore(storeId: number, actorUserId: number, req?: AuditReq) {
   await prisma.store.update({
     where: { storeId },
     data: { deletedAt: new Date() },
@@ -187,6 +197,7 @@ export async function deleteStore(storeId: number, actorUserId: number) {
     action: "store.delete",
     targetType: "store",
     targetId: storeId,
+    req,
   });
 }
 
@@ -279,6 +290,7 @@ export async function getStats(): Promise<AdminStatsResponse> {
 export async function deleteTransaction(
   transactionId: number,
   actorUserId: number,
+  req?: AuditReq,
 ) {
   const snap = await prisma.transaction.findUnique({
     where: { transactionId },
@@ -297,6 +309,7 @@ export async function deleteTransaction(
           amount: Number(snap.totalAmount),
         }
       : null,
+    req,
   });
 }
 
@@ -308,6 +321,7 @@ export async function deleteTransaction(
 export async function refundTransaction(
   transactionId: number,
   actorUserId: number,
+  req?: AuditReq,
 ) {
   const tx = await prisma.transaction.findUnique({
     where: { transactionId },
@@ -346,6 +360,7 @@ export async function refundTransaction(
       amount: Number(tx.totalAmount),
       ordersAffected: tx.orders.length,
     },
+    req,
   });
 }
 

@@ -1,4 +1,4 @@
-import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart, Mail, Receipt, Star, HelpCircle } from "lucide-react";
+import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalLink, Palette, Activity, FlaskConical, MessageSquare, Database, Bug, Filter, Wallet, ShieldAlert, AlertTriangle, Layers, KeyRound, ShoppingCart, Mail, Receipt, Star, HelpCircle, Monitor } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
@@ -31,6 +31,26 @@ type Batch = {
 };
 
 const BATCHES: Batch[] = [
+  {
+    id: "phase-15-4",
+    title: "Phase 15.4 · Audit log captures IP + User-Agent",
+    subtitle:
+      "Migration adds nullable ip_address (VARCHAR 45 — IPv6-sized) + user_agent (VARCHAR 255) to audit_log. audit() helper grows an optional `req` argument that extracts both from the Express request when supplied. Five admin destructive flows (user.role_change, user.delete, user.ban, store.delete, transaction.delete, transaction.refund) plumb the request through. Pre-15.4 rows + system actions (cron) stay NULL, surfaced as em-dashes in the new /admin/audit Origin column.",
+    icon: Shield,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-15-4",
+    items: [
+      { title: "Migration 20260428233425_phase_15_4_audit_ip_ua: ALTER audit_log ADD ip_address VARCHAR(45) + user_agent VARCHAR(255). Both nullable so pre-15.4 rows + system actions don't violate" },
+      { title: "schema.prisma: AuditLog gains ipAddress + userAgent fields with @map to the snake_case columns" },
+      { title: "audit() helper signature: new optional `req: Pick<Request, 'ip' | 'headers'> | null` argument. Extracts req.ip (sliced to 45 chars), req.headers['user-agent'] (handles string | string[] | undefined, sliced to 255). Backwards compatible — every existing callsite keeps working without passing req" },
+      { title: "Plumbed `req` through 5 high-value admin actions in admin.controller.ts → admin.service.ts: updateUserRole, deleteUser, deleteStore, deleteTransaction, refundTransaction. AuditReq type alias keeps the service signatures clean (no full Request import)" },
+      { title: "Other audit() callers (seller.service.ts, reviews/qna admin moderation, etc.) NOT plumbed in this PR — backwards compat lets them migrate gradually as touched. The migration + helper change is the actual infrastructure" },
+      { title: "/admin/audit DataTable: new 'Origin' column between Target and When. Renders ip + first 30 chars of UA in monospace. Em-dash placeholder when both are NULL (pre-15.4 rows + system actions). Truncated UA gets a title attr for full hover" },
+      { title: "Server tests still 138/138 (zero rewrites — backwards-compat helper signature). app.set('trust proxy', true) from Phase 15.1 already ensures req.ip is the real client IP through Fly's proxy" },
+      { title: "Build clean, web shared First Load JS = 89.8 kB (unchanged). Phase 15.3 NEXT: OTP-on-password-change (when phoneVerifiedAt set, change-password requires fresh OTP code)" },
+    ],
+  },
   {
     id: "phase-15-2",
     title: "Phase 15.2 · Active sessions UI (list + revoke + sign-out-everywhere)",

@@ -30,6 +30,10 @@ type AuditRow = {
   targetId: number | string;
   createdAt: Date;
   meta: unknown;
+  // Phase 15.4 — request context. NULL on pre-15.4 rows + on system
+  // actions (cron, scripts) that don't originate from an HTTP request.
+  ipAddress: string | null;
+  userAgent: string | null;
   actor: {
     userId: number;
     username: string;
@@ -45,6 +49,10 @@ const columns: DataTableColumn<AuditRow>[] = [
   { key: "action",    header: "Action" },
   { key: "actor",     header: "Actor" },
   { key: "target",    header: "Target" },
+  // Phase 15.4 — Origin column shows captured IP + first ~30 chars
+  // of UA. Kept narrow because most callsites haven't passed `req`
+  // yet so most rows render an em-dash.
+  { key: "origin",    header: "Origin" },
   { key: "when",      header: "When" },
   { key: "meta",      header: "Meta" },
 ];
@@ -211,6 +219,21 @@ export default async function AuditLogPage({
                   <span className="text-ink-dim">#</span>
                   {String(e.targetId)}
                 </span>
+              );
+            case "origin":
+              if (!e.ipAddress && !e.userAgent) {
+                return <span className="text-xs text-ink-mute">—</span>;
+              }
+              return (
+                <div className="text-[11px] text-ink-dim font-mono leading-tight">
+                  {e.ipAddress && <div>{e.ipAddress}</div>}
+                  {e.userAgent && (
+                    <div className="truncate max-w-[180px]" title={e.userAgent}>
+                      {e.userAgent.slice(0, 30)}
+                      {e.userAgent.length > 30 ? "…" : ""}
+                    </div>
+                  )}
+                </div>
               );
             case "when":
               return (
