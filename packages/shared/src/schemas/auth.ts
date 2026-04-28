@@ -38,7 +38,20 @@ export const changePasswordSchema = z
     path: ["confirmPassword"],
   });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  // Raw token (URL-safe base64, ~43 chars for 32 bytes). Capped
+  // generously to allow future formats without breaking the server.
+  token: z.string().min(20).max(200),
+  newPassword: z.string().min(6).max(100),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
