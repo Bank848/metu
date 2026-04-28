@@ -32,6 +32,31 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-13-9-2",
+    title: "Phase 13.9.2 · Seller dashboard writes migrated",
+    subtitle:
+      "Second half of the largest module migration. All 10 write-side seller endpoints (become-seller, store PATCH, product CRUD, duplicate, variant nudge, coupon create, order status flip, refund) now live on the layered Express server. Combined with Phase 13.9.1 the entire /api/seller/** surface (12 BFF routes) is fully proxied — Next no longer touches Prisma for any seller flow. become-seller is special: it's the one endpoint that needs auth but NOT requireStore (the user doesn't have one yet), mounted with a tier-1 middleware exception in the router.",
+    icon: Store,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-9-2",
+    items: [
+      { title: "POST /seller/become-seller: create store + promote buyer→seller (admin stays admin) in one $transaction. 409 StoreExists if the user already owns one. Mounted BEFORE router.use(requireStore) so the auth-only gate applies; everything below reuses the auth+store stack from 13.9.1" },
+      { title: "PATCH /seller/store: partial update — controller only forwards keys the user sent (Prisma treats undefined as no-op). Sending {} returns ok:true noop:true without touching the DB" },
+      { title: "POST /seller/products: full create with variants, images, tags. Reuses the existing productInputSchema from @metu/shared so the create form payload doesn't change" },
+      { title: "PATCH /seller/products/:id: TWO paths kept — fast-path `{ isActive: boolean }` (single Prisma update, no transaction) for the pause toggle, full-edit path (transactional name/desc/category + delete-and-recreate images/tags + UPDATE-OR-CREATE variants — never deletes existing variants because OrderItem + CartItem FK into ProductItem)" },
+      { title: "DELETE /seller/products/:id: soft-delete + AuditLog 'product.delete' with pre-delete name snapshot in meta. Order history + reviews + favourites stay valid" },
+      { title: "POST /seller/products/:id/duplicate: clone variants + images + tags, skip reviews + sales history. Created PAUSED so seller can polish before exposing" },
+      { title: "PATCH /seller/product-items/:id: targeted variant nudge (price/discountPercent/quantity). 404/403 ownership distinct so bulk-edit page tells stale rows apart from cross-store attempts" },
+      { title: "GET + POST /seller/coupons: list (with usage count) + create. The GET was missed in Phase 13.9.1 (lives in the same file as POST); both ship together here" },
+      { title: "PATCH /seller/orders/:id: fulfilled/cancelled. Guardrails — 403 Forbidden when no line from this store, 409 AlreadyRefunded, 409 InvalidTransition when fulfilling a non-paid order. Audit row written ('order.fulfilled' or 'order.cancelled')" },
+      { title: "POST /seller/orders/:id/refund: $transaction = order.update {status:refunded} + transaction.create {refund + buyer + amount}. Audit row 'order.refund'. Refuses pending/cancelled/already-refunded with 409 InvalidTransition" },
+      { title: "Vitest 73 → 92 (19 new): become-seller 401/409/400; store noop + partial-update keys check; product fast-path doesn't open a $transaction; product DELETE 404/403/audit-write; duplicate 404 + 'Copy of ' prefix + isActive:false; variant nudge 403 + only-sent-keys check; coupon create scoped to store; order PATCH 409 AlreadyRefunded + 409 InvalidTransition + happy 'order.fulfilled' audit; refund 403 + happy $transaction + 'order.refund' audit" },
+      { title: "BFF: 9 remaining routes converted to forwardToApi proxies. Combined with 13.9.1, /api/seller/** is fully proxied (12 routes total) and Next holds no seller business logic" },
+      { title: "Bonus: lib/server/proxy.ts updated in 13.9.1 to forward Content-Disposition + Cache-Control survives unchanged here — POST refund + PATCH endpoints don't need download headers but the change harms nothing" },
+    ],
+  },
+  {
     id: "phase-13-9-1",
     title: "Phase 13.9.1 · Seller dashboard reads migrated",
     subtitle:

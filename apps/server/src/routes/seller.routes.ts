@@ -4,39 +4,74 @@ import { requireAuth } from "../middleware/auth.js";
 import { requireStore } from "../middleware/seller.js";
 
 /**
- * Phase 13.9.1 — seller resource (read side).
+ * Phase 13.9 — seller resource. Read side (13.9.1) + write side
+ * (13.9.2) co-exist on this router.
  *
- * Every endpoint requires (a) a logged-in user and (b) ownership of
- * a Store row. requireAuth() loads req.user with the store relation,
- * then requireStore() returns 403 NoStore if the user hasn't
- * onboarded.
+ * Two middleware tiers:
+ *   1. become-seller is the ONE endpoint that needs auth but NOT a
+ *      store (the user doesn't have one yet — that's the point).
+ *      Mounted FIRST, before the router.use() line.
+ *   2. Everything else needs both auth + store. Single router.use()
+ *      applies both gates to every route registered AFTER it.
  *
- *   GET /seller/store              — current store (with stats + bizType)
- *   GET /seller/products           — own products (live, soft-deleted hidden)
- *   GET /seller/products/:id       — single product, full edit-form payload
- *   GET /seller/stats              — analytics dashboard data
- *   GET /seller/orders?status=     — orders containing seller's lines
- *   GET /seller/orders/export      — CSV download
+ * Route order matters for /orders/export vs /orders/:id (literal
+ * wins because Express matches by mount order).
  *
- * Mount at /seller in app.ts.
+ * Endpoints
+ *   POST   /seller/become-seller         (auth only)
  *
- * `/orders/export` is declared BEFORE `/orders` so the literal path
- * always wins the route match (Express matches by registration order
- * within the router; static segments would normally trump dynamic
- * but `:id` here doesn't even exist, so listing /export first is
- * just defensive).
+ *   ── below requires auth + store ────────────────────────────
+ *   GET    /seller/store
+ *   PATCH  /seller/store
+ *   GET    /seller/products
+ *   POST   /seller/products
+ *   GET    /seller/products/:id
+ *   PATCH  /seller/products/:id          fast-path { isActive } OR full
+ *   DELETE /seller/products/:id          soft-delete + audit
+ *   POST   /seller/products/:id/duplicate clone (paused)
+ *   PATCH  /seller/product-items/:id     targeted variant nudge
+ *   GET    /seller/coupons
+ *   POST   /seller/coupons
+ *   GET    /seller/stats
+ *   GET    /seller/orders/export         CSV
+ *   GET    /seller/orders                ?status= filter
+ *   PATCH  /seller/orders/:id            fulfilled / cancelled
+ *   POST   /seller/orders/:id/refund     refund + transaction
  */
 const router = Router();
 
-// Apply both gates once, at the router level — every read endpoint
-// needs them, and stacking them per-route would be noise.
+// Tier 1 — become-seller needs auth ONLY (no store yet).
+router.post("/become-seller", requireAuth(), ctrl.becomeSeller);
+
+// Tier 2 — everything below requires both gates. Apply once.
 router.use(requireAuth(), requireStore());
 
-router.get("/store",          ctrl.getStore);
-router.get("/products",       ctrl.listProducts);
-router.get("/products/:id",   ctrl.getProduct);
-router.get("/stats",          ctrl.getStats);
-router.get("/orders/export",  ctrl.exportOrders);
-router.get("/orders",         ctrl.listOrders);
+// Store
+router.get("/store",                      ctrl.getStore);
+router.patch("/store",                    ctrl.updateStore);
+
+// Products
+router.get("/products",                   ctrl.listProducts);
+router.post("/products",                  ctrl.createProduct);
+router.get("/products/:id",               ctrl.getProduct);
+router.patch("/products/:id",             ctrl.updateProduct);
+router.delete("/products/:id",            ctrl.deleteProduct);
+router.post("/products/:id/duplicate",    ctrl.duplicateProduct);
+
+// Product variants
+router.patch("/product-items/:id",        ctrl.patchVariant);
+
+// Coupons
+router.get("/coupons",                    ctrl.listCoupons);
+router.post("/coupons",                   ctrl.createCoupon);
+
+// Stats / Orders (read)
+router.get("/stats",                      ctrl.getStats);
+router.get("/orders/export",              ctrl.exportOrders);
+router.get("/orders",                     ctrl.listOrders);
+
+// Orders (write)
+router.patch("/orders/:id",               ctrl.updateOrderStatus);
+router.post("/orders/:id/refund",         ctrl.refundOrder);
 
 export default router;

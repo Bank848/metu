@@ -1,6 +1,22 @@
+import { Prisma } from "@prisma/client";
+import type { z } from "zod";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
-import type { SellerStatsResponse } from "../models/seller.model.js";
+import { audit } from "../utils/audit.js";
+import {
+  type SellerStatsResponse,
+  type PatchVariantInput,
+  type UpdateOrderStatusInput,
+  type becomeSellerSchema,
+  type updateStoreSchema,
+  type productInputSchema,
+  type couponInputSchema,
+} from "../models/seller.model.js";
+
+type BecomeSellerInput = z.infer<typeof becomeSellerSchema>;
+type UpdateStoreInput  = z.infer<typeof updateStoreSchema>;
+type ProductInput      = z.infer<typeof productInputSchema>;
+type CouponInput       = z.infer<typeof couponInputSchema>;
 
 /**
  * Phase 13.9 — seller service. Read-side functions in 13.9.1; the
@@ -286,3 +302,452 @@ function escapeCsv(value: unknown): string {
   }
   return s;
 }
+
+// =============================================================================
+//  WRITE SIDE (Phase 13.9.2)
+// =============================================================================
+
+/**
+ * POST /seller/become-seller — create the user's first store +
+ * promote their role buyer→seller in the same transaction.
+ * 409 StoreExists if they already own one (Stores have @unique
+ * ownerId so re-onboarding would crash anyway).
+ *
+ * Admin owners stay admin (we never demote admin→seller — admins
+ * can own a store for testing without losing admin powers).
+ */
+export async function becomeSeller(userId: number, input: BecomeSellerInput) {
+  const existing = await prisma.store.findUnique({ where: { ownerId: userId } });
+  if (existing) {
+    throw new AppError(409, "StoreExists", `storeId=${existing.storeId}`);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const store = await tx.store.create({
+      data: {
+        ownerId: userId,
+        businessTypeId: input.businessTypeId,
+        name: input.name,
+        description: input.description,
+        profileImage: input.profileImage,
+        coverImage: input.coverImage,
+        stats: { create: {} },
+      },
+      include: { stats: true },
+    });
+    const existingStats = await tx.userStats.findUnique({ where: { userId } });
+    const nextRole = existingStats?.role === "admin" ? "admin" : "seller";
+    await tx.userStats.upsert({
+      where: { userId },
+      update: { role: nextRole },
+      create: { userId, role: nextRole },
+    });
+    return store;
+  });
+}
+
+/**
+ * PATCH /seller/store — partial update of the seller's own store.
+ * Body keys not present are not touched (Prisma treats `undefined`
+ * as no-op). The controller passes only the keys the user sent so
+ * blanking an image (sending null) actually clears it.
+ */
+export async function updateStore(storeId: number, input: UpdateStoreInput) {
+  const data: Record<string, unknown> = {};
+  if (input.name !== undefined) data.name = input.name;
+  if (input.description !== undefined) data.description = input.description;
+  if (input.businessTypeId !== undefined) data.businessTypeId = input.businessTypeId;
+  if (input.profileImage !== undefined) data.profileImage = input.profileImage;
+  if (input.coverImage !== undefined) data.coverImage = input.coverImage;
+
+  if (Object.keys(data).length === 0) return { noop: true as const };
+
+  const updated = await prisma.store.update({
+    where: { storeId },
+    data,
+    include: { businessType: true },
+  });
+  return { noop: false as const, store: updated };
+}
+
+/** POST /seller/products — create a product (with variants, images, tags). */
+export async function createProduct(storeId: number, input: ProductInput) {
+  return prisma.product.create({
+    data: {
+      storeId,
+      categoryId: input.categoryId,
+      name: input.name,
+      description: input.description,
+      items: {
+        create: input.items.map((it) => ({
+          deliveryMethod: it.deliveryMethod,
+          quantity: it.quantity,
+          price: new Prisma.Decimal(it.price),
+          discountPercent: it.discountPercent,
+          discountAmount: new Prisma.Decimal(it.discountAmount),
+          sampleUrl: it.sampleUrl,
+        })),
+      },
+      images: {
+        create: input.images.map((url, i) => ({
+          productImage: url,
+          sortOrder: i,
+        })),
+      },
+      productNTags: {
+        create: input.tagIds.map((tagId) => ({ tagId })),
+      },
+    },
+  });
+}
+
+/**
+ * PATCH /seller/products/:id — fast-path for the pause toggle
+ * ({ isActive: boolean } only) AND the full edit replacing
+ * name/description/category + images + variants + tags.
+ *
+ * Variants are tricky — OrderItem + CartItem FK into ProductItem,
+ * so we don't blindly delete. Existing variants get UPDATEd in
+ * order; extra incoming variants get CREATEd. Removing variants
+ * is intentionally not supported (matches the legacy BFF route).
+ */
+export async function updateProduct(
+  productId: number,
+  storeId: number,
+  body: { isActive?: boolean } | ProductInput,
+) {
+  // Pause-toggle fast path: { isActive: boolean } and ONE key only.
+  if (
+    typeof (body as any).isActive === "boolean" &&
+    Object.keys(body).length === 1
+  ) {
+    await prisma.product.update({
+      where: { productId },
+      data: { isActive: (body as { isActive: boolean }).isActive },
+    });
+    return { isActive: (body as { isActive: boolean }).isActive };
+  }
+
+  const input = body as ProductInput;
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { productId },
+      data: {
+        name: input.name,
+        description: input.description,
+        categoryId: input.categoryId,
+      },
+    });
+    await tx.productImage.deleteMany({ where: { productId } });
+    await tx.productImage.createMany({
+      data: input.images.map((url, i) => ({
+        productId,
+        productImage: url,
+        sortOrder: i,
+      })),
+    });
+    await tx.productNTag.deleteMany({ where: { productId } });
+    if (input.tagIds.length) {
+      await tx.productNTag.createMany({
+        data: input.tagIds.map((tagId) => ({ productId, tagId })),
+      });
+    }
+    const existing = await tx.productItem.findMany({
+      where: { productId },
+      orderBy: { productItemId: "asc" },
+    });
+    for (let i = 0; i < input.items.length; i++) {
+      const it = input.items[i];
+      const target = existing[i];
+      if (target) {
+        await tx.productItem.update({
+          where: { productItemId: target.productItemId },
+          data: {
+            deliveryMethod: it.deliveryMethod,
+            quantity: it.quantity,
+            price: new Prisma.Decimal(it.price),
+            discountPercent: it.discountPercent,
+            discountAmount: new Prisma.Decimal(it.discountAmount),
+            sampleUrl: it.sampleUrl,
+          },
+        });
+      } else {
+        await tx.productItem.create({
+          data: {
+            productId,
+            deliveryMethod: it.deliveryMethod,
+            quantity: it.quantity,
+            price: new Prisma.Decimal(it.price),
+            discountPercent: it.discountPercent,
+            discountAmount: new Prisma.Decimal(it.discountAmount),
+            sampleUrl: it.sampleUrl,
+          },
+        });
+      }
+    }
+  });
+  return { ok: true as const };
+}
+
+/**
+ * DELETE /seller/products/:id — soft-delete (sets deletedAt). Order
+ * history + reviews + favourites stay valid; public queries filter
+ * by `deletedAt: null` so the product disappears immediately.
+ * Writes a `product.delete` AuditLog row with the pre-delete name
+ * snapshot so the audit feed reads cleanly.
+ */
+export async function deleteProduct(
+  productId: number,
+  storeId: number,
+  actorId: number,
+  productName: string,
+) {
+  await prisma.product.update({
+    where: { productId },
+    data: { deletedAt: new Date() },
+  });
+  await audit({
+    actorId,
+    action: "product.delete",
+    targetType: "product",
+    targetId: productId,
+    meta: { storeId, productName },
+  });
+}
+
+/**
+ * POST /seller/products/:id/duplicate — clone a product (variants +
+ * images + tags) but skip reviews + sales history. The clone is
+ * created PAUSED (isActive=false) so the seller can polish before
+ * exposing.
+ */
+export async function duplicateProduct(sourceId: number, storeId: number) {
+  const source = await prisma.product.findFirst({
+    where: { productId: sourceId, deletedAt: null },
+    include: {
+      items: true,
+      images: { orderBy: { sortOrder: "asc" } },
+      productNTags: true,
+    },
+  });
+  if (!source) throw new AppError(404, "NotFound");
+  if (source.storeId !== storeId) throw new AppError(403, "Forbidden");
+
+  const newName = `Copy of ${source.name}`.slice(0, 100);
+
+  return prisma.product.create({
+    data: {
+      storeId: source.storeId,
+      categoryId: source.categoryId,
+      name: newName,
+      description: source.description,
+      isActive: false,
+      items: {
+        create: source.items.map((it) => ({
+          deliveryMethod: it.deliveryMethod,
+          quantity: it.quantity,
+          price: new Prisma.Decimal(it.price),
+          discountPercent: it.discountPercent,
+          discountAmount: new Prisma.Decimal(it.discountAmount),
+        })),
+      },
+      images: {
+        create: source.images.map((im) => ({
+          productImage: im.productImage,
+          sortOrder: im.sortOrder,
+        })),
+      },
+      productNTags: {
+        create: source.productNTags.map((nt) => ({ tagId: nt.tagId })),
+      },
+    },
+  });
+}
+
+/**
+ * PATCH /seller/product-items/:id — targeted variant patch. Used
+ * by the bulk-edit page to nudge price / discount / stock without
+ * resending the whole product payload.
+ */
+export async function patchVariant(
+  productItemId: number,
+  storeId: number,
+  input: PatchVariantInput,
+) {
+  const item = await prisma.productItem.findUnique({
+    where: { productItemId },
+    include: { product: { select: { storeId: true } } },
+  });
+  if (!item) throw new AppError(404, "NotFound");
+  if (item.product.storeId !== storeId) throw new AppError(403, "Forbidden");
+
+  const data: Record<string, unknown> = {};
+  if (input.price !== undefined) data.price = new Prisma.Decimal(input.price);
+  if (input.discountPercent !== undefined) data.discountPercent = input.discountPercent;
+  if (input.quantity !== undefined) data.quantity = input.quantity;
+
+  const updated = await prisma.productItem.update({
+    where: { productItemId },
+    data,
+  });
+  return { ...updated, price: Number(updated.price) };
+}
+
+/** GET /seller/coupons — list seller's coupons (with usage count). */
+export async function listCoupons(storeId: number) {
+  return prisma.coupon.findMany({
+    where: { storeId },
+    orderBy: { couponId: "desc" },
+    include: { _count: { select: { usages: true } } },
+  });
+}
+
+/** POST /seller/coupons — create a coupon for the seller's store. */
+export async function createCoupon(storeId: number, input: CouponInput) {
+  return prisma.coupon.create({
+    data: {
+      storeId,
+      code: input.code,
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+      startDate: new Date(input.startDate),
+      endDate: new Date(input.endDate),
+      usageLimit: input.usageLimit,
+      isActive: input.isActive,
+    },
+  });
+}
+
+/**
+ * PATCH /seller/orders/:id — flip an order to fulfilled OR cancelled.
+ *
+ * Guardrails (mirror the legacy BFF route):
+ *   • Order must contain at least one line from the seller's store
+ *   • Refunded orders can never be re-flipped (409 AlreadyRefunded)
+ *   • fulfilled requires status='paid' (409 InvalidTransition otherwise)
+ */
+export async function updateOrderStatus(
+  orderId: number,
+  storeId: number,
+  actorId: number,
+  input: UpdateOrderStatusInput,
+) {
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    include: {
+      items: {
+        include: {
+          productItem: { select: { product: { select: { storeId: true } } } },
+        },
+      },
+    },
+  });
+  if (!order) throw new AppError(404, "NotFound");
+
+  const hasOwnedItem = order.items.some(
+    (it) => it.productItem.product.storeId === storeId,
+  );
+  if (!hasOwnedItem) throw new AppError(403, "Forbidden");
+
+  if (order.status === "refunded") {
+    throw new AppError(409, "AlreadyRefunded");
+  }
+  if (input.status === "fulfilled" && order.status !== "paid") {
+    throw new AppError(
+      409,
+      "InvalidTransition",
+      "Only paid orders can be fulfilled.",
+    );
+  }
+
+  await prisma.order.update({
+    where: { orderId },
+    data: { status: input.status },
+  });
+  await audit({
+    actorId,
+    action: input.status === "fulfilled" ? "order.fulfilled" : "order.cancelled",
+    targetType: "order",
+    targetId: orderId,
+    meta: { from: order.status, to: input.status, storeId },
+  });
+}
+
+/**
+ * POST /seller/orders/:id/refund — mark refunded + create a `refund`
+ * Transaction in one atomic write.
+ *
+ * Sellers can only refund (a) orders containing one of their lines
+ * AND (b) currently paid or fulfilled. Pending orders have no money
+ * yet; cancelled / already-refunded shouldn't double-refund.
+ */
+export async function refundOrder(
+  orderId: number,
+  storeId: number,
+  actorId: number,
+) {
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    include: {
+      cart: { select: { userId: true } },
+      items: {
+        include: {
+          productItem: { select: { product: { select: { storeId: true } } } },
+        },
+      },
+    },
+  });
+  if (!order) throw new AppError(404, "NotFound");
+
+  const hasOwnedItem = order.items.some(
+    (it) => it.productItem.product.storeId === storeId,
+  );
+  if (!hasOwnedItem) throw new AppError(403, "Forbidden");
+
+  if (!["paid", "fulfilled"].includes(order.status)) {
+    throw new AppError(
+      409,
+      "InvalidTransition",
+      `Can't refund an order that's ${order.status}.`,
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.order.update({ where: { orderId }, data: { status: "refunded" } }),
+    prisma.transaction.create({
+      data: {
+        userId: order.cart.userId,
+        transactionType: "refund",
+        totalAmount: order.totalPrice,
+      },
+    }),
+  ]);
+  await audit({
+    actorId,
+    action: "order.refund",
+    targetType: "order",
+    targetId: orderId,
+    meta: {
+      buyerId: order.cart.userId,
+      amount: Number(order.totalPrice),
+      storeId,
+      from: order.status,
+    },
+  });
+}
+
+/**
+ * Helper for product-related write controllers — confirm the product
+ * exists and belongs to the seller's store. 404 vs 403 distinct so
+ * dashboard UI can tell stale links from bug attempts.
+ */
+export async function assertProductOwnership(
+  productId: number,
+  storeId: number,
+) {
+  const product = await prisma.product.findUnique({ where: { productId } });
+  if (!product) throw new AppError(404, "NotFound");
+  if (product.storeId !== storeId) throw new AppError(403, "Forbidden");
+  return product;
+}
+

@@ -1,46 +1,13 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { becomeSellerSchema } from "@metu/shared";
-import { prisma } from "@/lib/server/prisma";
-import { requireAuth } from "@/lib/server/auth";
+/**
+ * Phase 13.9.2 — forwarder to Express `POST /seller/become-seller`.
+ * Auth-only (no requireStore — that's the point).
+ */
+import { type NextRequest } from "next/server";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const r = await requireAuth(req);
-  if (!r.ok) return r.response;
-  const body = await req.json().catch(() => ({}));
-  const parsed = becomeSellerSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });
-  }
-  const existing = await prisma.store.findUnique({ where: { ownerId: r.auth.uid } });
-  if (existing) return NextResponse.json({ error: "StoreExists", storeId: existing.storeId }, { status: 409 });
-
-  const store = await prisma.$transaction(async (tx) => {
-    const store = await tx.store.create({
-      data: {
-        ownerId: r.auth.uid,
-        businessTypeId: parsed.data.businessTypeId,
-        name: parsed.data.name,
-        description: parsed.data.description,
-        profileImage: parsed.data.profileImage,
-        coverImage: parsed.data.coverImage,
-        stats: { create: {} },
-      },
-      include: { stats: true },
-    });
-    // Promote buyer → seller, but never demote admin → seller. Admins are
-    // allowed to own a store (e.g. for testing) without losing their
-    // admin powers.
-    const existingStats = await tx.userStats.findUnique({ where: { userId: r.auth.uid } });
-    const nextRole = existingStats?.role === "admin" ? "admin" : "seller";
-    await tx.userStats.upsert({
-      where: { userId: r.auth.uid },
-      update: { role: nextRole },
-      create: { userId: r.auth.uid, role: nextRole },
-    });
-    return store;
-  });
-  return NextResponse.json(store);
+  return forwardToApi(req, `/seller/become-seller`);
 }

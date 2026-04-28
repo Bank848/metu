@@ -1,41 +1,21 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { couponInputSchema } from "@metu/shared";
-import { prisma } from "@/lib/server/prisma";
-import { withStore } from "@/lib/server/seller";
+/**
+ * Phase 13.9.2 — full forwarders to Express:
+ *   GET  /seller/coupons   list (with usage count)
+ *   POST /seller/coupons   create
+ *
+ * The GET endpoint was missed in Phase 13.9.1 (it lives in the same
+ * file as POST); both ship together here.
+ */
+import { type NextRequest } from "next/server";
+import { forwardToApi } from "@/lib/server/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const r = await withStore(req);
-  if (!r.ok) return r.response;
-  const coupons = await prisma.coupon.findMany({
-    where: { storeId: r.store.storeId },
-    orderBy: { couponId: "desc" },
-    include: { _count: { select: { usages: true } } },
-  });
-  return NextResponse.json(coupons);
+  return forwardToApi(req, `/seller/coupons`);
 }
 
 export async function POST(req: NextRequest) {
-  const r = await withStore(req);
-  if (!r.ok) return r.response;
-  const body = await req.json().catch(() => ({}));
-  const parsed = couponInputSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "ValidationError", details: parsed.error.flatten() }, { status: 400 });
-  }
-  const created = await prisma.coupon.create({
-    data: {
-      storeId: r.store.storeId,
-      code: parsed.data.code,
-      discountType: parsed.data.discountType,
-      discountValue: parsed.data.discountValue,
-      startDate: new Date(parsed.data.startDate),
-      endDate: new Date(parsed.data.endDate),
-      usageLimit: parsed.data.usageLimit,
-      isActive: parsed.data.isActive,
-    },
-  });
-  return NextResponse.json(created);
+  return forwardToApi(req, `/seller/coupons`);
 }
