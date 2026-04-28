@@ -32,6 +32,25 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-13-7",
+    title: "Phase 13.7 · Favorites + Stock alerts migrated",
+    subtitle:
+      "Two thin join-table resources move to the Express layered server. Both endpoints idempotent via the existing @@unique constraints — re-hearting and re-subscribing are no-ops, and re-subscribing also clears notifiedAt so a buyer can re-arm an alert after they've already been notified once. Recently-viewed stays client-side (localStorage helper in lib/recentlyViewed.ts) — no schema or backend touch needed for that yet.",
+    icon: Star,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "phase-13-7",
+    items: [
+      { title: "Layered favorites resource: routes/favorites.routes.ts → controllers/favorites.controller.ts → services/favorites.service.ts → models/favorites.model.ts" },
+      { title: "GET /favorites: auth-only, returns { productIds: number[] } so client components can pre-fill heart icons without hydrating full products" },
+      { title: "POST /favorites/:productId: idempotent upsert via the (userId, productId) unique. 404 for soft-deleted/orphan products (same hygiene as reviews + Q&A)" },
+      { title: "DELETE /favorites/:productId: silent no-op via deleteMany — re-clicking the heart never errors" },
+      { title: "Layered stock-alerts resource: same 4-file shape. POST /stock-alerts/:productItemId subscribes (404 on orphan variant), upsert sets notifiedAt back to null on update so re-subscribers get pinged again next restock. DELETE unsubscribes" },
+      { title: "Vitest 42 → 54 (added favorites: 401 list, happy list, 401 add, 404 add, happy add, 401 delete, happy delete; stock-alerts: 401 sub, 404 sub, happy re-arm, 401 unsub, happy unsub)" },
+      { title: "Next /api/favorites/route.ts + /api/favorites/[productId]/route.ts + /api/stock-alerts/[productItemId]/route.ts converted to forwardToApi proxies (~12 lines each)" },
+    ],
+  },
+  {
     id: "phase-13-6-5",
     title: "Phase 13.6.5 · CPE241 rubric retrofit (Lecture 10)",
     subtitle:
