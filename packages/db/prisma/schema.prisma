@@ -154,6 +154,10 @@ model User {
   walletTxs         WalletTransaction[]
   topups            Topup[]              @relation("TopupOwner")
   topupsReviewed    Topup[]              @relation("TopupReviewer")
+  // Phase 20.2 — admin-side relation (User → reviewed Withdrawal[]).
+  // The owning seller relation lives on Store, not User, because a
+  // Store has at most one owner and withdrawals are per-store.
+  withdrawalsReviewed Withdrawal[]       @relation("WithdrawalReviewer")
 
   @@index([countryId])
   @@index([createdDate])
@@ -218,6 +222,14 @@ model Store {
   products     Product[]
   coupons      Coupon[]
   stats        StoreStats?
+  /// Phase 20.2 — payout requests. One store may have many; deletion
+  /// cascades so removing a store wipes its payout history.
+  withdrawals  Withdrawal[]
+  /// Phase 20.2 — per-store ledger. earn / withdraw / withdraw_reverse
+  /// / refund_clawback / adjustment. Mirrors WalletTransaction shape
+  /// at the Store level so the seller-wallet UI doesn't need to merge
+  /// derived rows from order_item + withdrawal.
+  transactions StoreTransaction[]
 
   @@index([businessTypeId])
   @@index([createdAt])
@@ -816,4 +828,73 @@ model Topup {
   @@index([userId])
   @@index([status, createdAt(sort: Desc)])
   @@map("topup")
+}
+
+/// Phase 20.2 — seller payout requests. Coins debited from
+/// `Store.coinBalance` at REQUEST time so two simultaneous requests
+/// can't double-spend the balance. `feePercentBp` snapshots the
+/// global rate so changing the system setting later doesn't
+/// retroactively shift open requests. Admin reviews each row;
+/// approval marks status=paid + attaches a base64 bank-transfer slip.
+/// Rejection refunds the deducted coins back to the store via a
+/// `withdraw_reverse` StoreTransaction row.
+enum WithdrawalStatus {
+  pending
+  paid
+  rejected
+}
+
+model Withdrawal {
+  withdrawalId    Int               @id @default(autoincrement()) @map("withdrawal_id")
+  storeId         Int               @map("store_id")
+  amountCoins     Int               @map("amount_coins")
+  feePercentBp    Int               @map("fee_percent_bp")
+  feeCoins        Int               @map("fee_coins")
+  netCoins        Int               @map("net_coins")
+  netBaht         Decimal           @map("net_baht") @db.Decimal(10, 2)
+  bankName        String            @map("bank_name") @db.VarChar(60)
+  bankAccountNo   String            @map("bank_account_no") @db.VarChar(20)
+  bankAccountName String            @map("bank_account_name") @db.VarChar(80)
+  status          WithdrawalStatus  @default(pending)
+  requestedAt     DateTime          @default(now()) @map("requested_at")
+  reviewedBy      Int?              @map("reviewed_by")
+  reviewedAt      DateTime?         @map("reviewed_at")
+  paidProofImage  String?           @map("paid_proof_image") @db.Text
+  rejectionReason String?           @map("rejection_reason") @db.VarChar(200)
+
+  store    Store @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
+  reviewer User? @relation("WithdrawalReviewer", fields: [reviewedBy], references: [userId], onDelete: SetNull)
+
+  @@index([storeId, requestedAt(sort: Desc)])
+  @@index([status, requestedAt])
+  @@map("withdrawal")
+}
+
+/// Phase 20.2 — per-store ledger. Mirrors WalletTransaction shape but
+/// scoped to a Store. Phase 20.2 only writes `withdraw` and
+/// `withdraw_reverse` rows. earn / refund_clawback / adjustment are
+/// scaffolded for later phases (Phase 22 refund work, admin manual
+/// corrections).
+enum StoreTxType {
+  earn
+  withdraw
+  withdraw_reverse
+  refund_clawback
+  adjustment
+}
+
+model StoreTransaction {
+  storeTxId    Int          @id @default(autoincrement()) @map("store_tx_id")
+  storeId      Int          @map("store_id")
+  type         StoreTxType
+  amount       Int
+  balanceAfter Int          @map("balance_after")
+  reference    String?      @db.VarChar(80)
+  meta         Json?
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
+
+  @@index([storeId, createdAt(sort: Desc)])
+  @@map("store_transaction")
 }

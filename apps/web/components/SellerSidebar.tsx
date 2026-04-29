@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Package, Ticket, ShoppingBag, Store, BarChart3, Mail } from "lucide-react";
+import { LayoutDashboard, Package, Ticket, ShoppingBag, Store, BarChart3, Mail, Wallet } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,8 @@ const ALL_ITEMS = [
   { href: "/seller/products",  label: "Products",   icon: Package },
   { href: "/seller/coupons",   label: "Coupons",    icon: Ticket },
   { href: "/seller/orders",    label: "Orders",     icon: ShoppingBag },
+  // Phase 20.2 — coin balance + payout history + request form
+  { href: "/seller/wallet",    label: "Wallet",     icon: Wallet },
   { href: "/seller/messages",  label: "Messages",   icon: Mail },
 ];
 
