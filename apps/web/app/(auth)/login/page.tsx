@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { StarField } from "@/components/DotGrid";
 import { LoginForm } from "./LoginForm";
+import { DemoChip } from "./DemoChip";
 
 export const metadata = { title: "Log in — METU" };
 
@@ -15,6 +16,12 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
         className="pointer-events-none absolute -right-40 -top-40 h-[560px] w-[560px] rounded-full opacity-60"
         style={{ background: "radial-gradient(circle, rgba(212,168,75,0.35), transparent 65%)" }}
       />
+      {/* mint accent on the opposite side — Phase 16.3 visual refresh */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-32 bottom-0 h-[420px] w-[420px] rounded-full opacity-30"
+        style={{ background: "radial-gradient(circle, rgba(78,201,176,0.22), transparent 65%)" }}
+      />
       <div className="relative mx-auto max-w-5xl px-6 py-12">
         <Logo size="lg" />
 
@@ -24,7 +31,7 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
               Welcome back.
             </h1>
             <p className="text-ink-secondary mb-6 max-w-md">
-              Log in to browse the marketplace, manage your store, or check on your orders.
+              Sign in to browse the marketplace, manage your store, or check on your orders. Two-factor codes are required after the password if you've turned 2FA on in your profile.
             </p>
             <LoginForm next={searchParams.next} />
             <p className="mt-4 text-sm text-ink-secondary">
@@ -32,6 +39,13 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
               <Link href="/register" className="font-semibold text-brand-yellow hover:underline">
                 Create an account →
               </Link>
+            </p>
+            <p className="mt-2 text-xs text-ink-dim">
+              Forgot your password?{" "}
+              <Link href="/forgot-password" className="text-ink-secondary hover:text-metu-yellow underline">
+                Reset it
+              </Link>
+              .
             </p>
           </div>
 
@@ -54,26 +68,19 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
                 a realistic marketplace overview for the admin).
               </p>
             </div>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-surface-2/60 p-5">
+              <h3 className="font-display text-sm font-bold text-white mb-2">
+                What's new in your account
+              </h3>
+              <ul className="text-xs text-ink-secondary space-y-1.5">
+                <li>· One-click sign-in with Google</li>
+                <li>· Authenticator-app 2FA from your profile page</li>
+                <li>· Manage every active session — sign out everywhere with one click</li>
+              </ul>
+            </div>
           </aside>
         </div>
       </div>
     </main>
-  );
-}
-
-function DemoChip({ label, email, password }: { label: string; email: string; password: string }) {
-  return (
-    <button
-      type="button"
-      data-demo-email={email}
-      data-demo-password={password}
-      className="metu-demo-chip w-full flex items-center justify-between rounded-xl bg-white/5 border border-line px-4 py-3 text-left hover:bg-white/10 hover:border-brand-yellow/40 transition"
-    >
-      <div>
-        <div className="text-xs font-semibold text-brand-yellow">{label}</div>
-        <div className="text-sm font-mono text-white">{email}</div>
-      </div>
-      <span className="text-xs font-mono text-ink-dim">{password}</span>
-    </button>
   );
 }

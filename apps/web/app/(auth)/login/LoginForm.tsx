@@ -1,21 +1,25 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ArrowRight, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
-// Phase 14.2 — Google sign-in via better-auth.
-// Phase 15.5 follow-up — gate dropped. NEXT_PUBLIC_* requires a
-// rebuild to flip and was hiding the button on the live demo even
-// when the server-side OAuth credentials WERE configured. Now we
-// always render; if Google isn't wired (no GOOGLE_CLIENT_ID on
-// metu-api), better-auth surfaces a clean error and our existing
-// errorCallbackURL banner explains it. Better UX than "feature
-// silently invisible".
+// Phase 16.3 — frontend rebuild for the better-auth Mode A backend.
+//
+// Same external surface (POST /api/auth/login → BFF → Express →
+// better-auth.signInEmail), refreshed UI:
+//   • single-card layout instead of stacked sections
+//   • visible 2-step indicator when TOTP kicks in
+//   • clearer state for each loading/error case
+//   • DOM-listener for demo chips replaced with a window event
+//     channel so the page can prefill via dispatchEvent rather than
+//     scraping `data-*` attrs
+
+// Phase 14.2 — Google sign-in is always rendered; better-auth surfaces
+// "Google not configured" via the errorCallbackURL banner.
 const GOOGLE_ENABLED = true;
 
 // Phase 14.3.5 — Google sign-in error reasons surfaced in the URL.
-// better-auth redirects failed OAuth flows to errorCallbackURL with
-// the failure code as a query param.
 function errorMessage(code: string | null): string | null {
   if (!code) return null;
   switch (code) {
@@ -27,39 +31,52 @@ function errorMessage(code: string | null): string | null {
   }
 }
 
+type Step = "credentials" | "totp";
+
 export function LoginForm({ next }: { next?: string }) {
   const searchParams = useSearchParams();
   const oauthErrorBanner = errorMessage(searchParams.get("error"));
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [step, setStep] = useState<Step>("credentials");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-  // Phase 16.2 — when the server returns 401 NeedsTotp after a
-  // successful password check, swap the form into 2-step mode:
-  // password fields lock to their already-typed values, a 6-digit
-  // TOTP input appears, and submit re-sends with the totpCode.
-  const [needsTotp, setNeedsTotp] = useState(false);
-  const [totpCode, setTotpCode] = useState("");
 
+  const formRef = useRef<HTMLFormElement>(null);
+  const totpInputRef = useRef<HTMLInputElement>(null);
+
+  // Demo chip → form prefill via a window event. The page mounts
+  // <DemoChip> buttons that dispatch `metu:prefill-login` with
+  // {email, password} in the detail; we listen and apply.
   useEffect(() => {
-    const nodes = document.querySelectorAll<HTMLButtonElement>(".metu-demo-chip");
-    const handler = (ev: Event) => {
-      const el = ev.currentTarget as HTMLButtonElement;
-      setEmail(el.dataset.demoEmail ?? "");
-      setPassword(el.dataset.demoPassword ?? "");
+    function onPrefill(ev: Event) {
+      const detail = (ev as CustomEvent<{ email: string; password: string }>).detail;
+      if (!detail) return;
+      setEmail(detail.email);
+      setPassword(detail.password);
+      setStep("credentials");
+      setTotpCode("");
+      setError(null);
       formRef.current?.querySelector<HTMLInputElement>('input[name="email"]')?.focus();
-    };
-    nodes.forEach((n) => n.addEventListener("click", handler));
-    return () => nodes.forEach((n) => n.removeEventListener("click", handler));
+    }
+    window.addEventListener("metu:prefill-login", onPrefill);
+    return () => window.removeEventListener("metu:prefill-login", onPrefill);
   }, []);
+
+  // When we transition into the TOTP step, autofocus its input.
+  useEffect(() => {
+    if (step === "totp") totpInputRef.current?.focus();
+  }, [step]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    // Read directly from the form so chip-click → submit races never see
-    // stale React state. Falls back to controlled state if refs are missing.
+
+    // Read directly from the form so chip-click → submit races never
+    // see stale React state.
     const fd = new FormData(e.currentTarget);
     const submittedEmail = String(fd.get("email") ?? email).trim();
     const submittedPassword = String(fd.get("password") ?? password);
@@ -67,42 +84,35 @@ export function LoginForm({ next }: { next?: string }) {
       setError("Please fill in both fields");
       return;
     }
-    // Phase 16.2 — if we're already in step-2 mode, the user must have
-    // typed the 6-digit TOTP code in the dedicated input. Validate it
-    // here so we don't bounce off the server with an obviously bad body.
-    if (needsTotp && !/^\d{6}$/.test(totpCode)) {
+    if (step === "totp" && !/^\d{6}$/.test(totpCode)) {
       setError("Enter the 6-digit code from your authenticator app");
       return;
     }
+
     setBusy(true);
     try {
       const body: { email: string; password: string; totpCode?: string } = {
         email: submittedEmail,
         password: submittedPassword,
       };
-      if (needsTotp) body.totpCode = totpCode;
+      if (step === "totp") body.totpCode = totpCode;
+
       const res = await fetch(`/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         credentials: "include",
       });
+
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        // Phase 16.2 — server replies 401 NeedsTotp after a successful
-        // password check when the account has 2FA enabled. Swap the form
-        // into 2-step mode rather than surfacing it as a hard error.
+        // Phase 16.2 — TOTP 2-step prompt. Server surfaces a clean
+        // 401 NeedsTotp after a successful password check; flip the
+        // form into step 2 instead of treating it as a hard error.
         if (data?.error === "NeedsTotp") {
-          setNeedsTotp(true);
+          setStep("totp");
           setError(null);
           setBusy(false);
-          // Defer focus so the new input has mounted by the time we ask
-          // the browser to focus it.
-          setTimeout(() => {
-            formRef.current
-              ?.querySelector<HTMLInputElement>('input[name="totpCode"]')
-              ?.focus();
-          }, 0);
           return;
         }
         if (data?.error === "InvalidTotp") {
@@ -110,15 +120,19 @@ export function LoginForm({ next }: { next?: string }) {
           setBusy(false);
           return;
         }
-        setError(data?.error === "InvalidCredentials" ? "Invalid email or password" : "Login failed");
+        setError(
+          data?.error === "InvalidCredentials"
+            ? "Invalid email or password"
+            : "Login failed",
+        );
         setBusy(false);
         return;
       }
-      setBusy(false);
+
+      // Done — Mode A: better-auth's session cookie is now set by the
+      // server's /auth/login → signInEmail bridge. Force the
+      // destination's RSC re-render so TopNav reflects logged-in state.
       router.push(next ?? "/");
-      // Force the destination's server components to re-read the freshly-set
-      // auth cookie — without this, TopNav still renders the logged-out state
-      // until the user manually refreshes.
       router.refresh();
     } catch {
       setError("Network error");
@@ -126,57 +140,58 @@ export function LoginForm({ next }: { next?: string }) {
     }
   }
 
-  // Build the Google sign-in URL. better-auth's catch-all responds
-  // to GET /api/auth/better/sign-in/google with a 302 to Google's
-  // OAuth consent screen. After consent → callback → cookie set →
-  // redirect to `callbackURL` (default /). On failure (e.g. our
-  // databaseHooks email-collision throw) → `errorCallbackURL` with
-  // the error code.
+  // Build the Google sign-in URL. Phase 14.2: better-auth's catch-all
+  // responds to GET /api/auth/better/sign-in/google with a 302 to
+  // Google's OAuth consent screen.
   const callbackURL = encodeURIComponent(next ?? "/");
   const errorCallbackURL = encodeURIComponent("/login?error=email-exists");
   const googleHref = `/api/auth/better/sign-in/google?callbackURL=${callbackURL}&errorCallbackURL=${errorCallbackURL}`;
+
+  const isCredentialsStep = step === "credentials";
+  const submitLabel = busy
+    ? isCredentialsStep
+      ? "Signing in…"
+      : "Verifying…"
+    : isCredentialsStep
+      ? "Sign in"
+      : "Verify & continue";
 
   return (
     <form
       ref={formRef}
       onSubmit={onSubmit}
-      className="rounded-2xl bg-surface-2 border border-white/8 p-6 max-w-md"
+      className="rounded-2xl border border-white/10 bg-surface-2/95 backdrop-blur p-7 max-w-md shadow-floating"
     >
-      {/* Phase 14.3.5 — OAuth error banner. Renders when Google sign-in
-          failed because the email is already registered locally; tells
-          the user to log in with password and link Google from settings. */}
       {oauthErrorBanner && (
-        <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+        <div
+          role="alert"
+          className="mb-5 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100"
+        >
           {oauthErrorBanner}
         </div>
       )}
-      {GOOGLE_ENABLED && (
+
+      {/* Step indicator — only shown when we've crossed into 2FA, so
+          the credentials-only path stays uncluttered. */}
+      {step === "totp" && (
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-metu-yellow/25 bg-metu-yellow/5 px-4 py-3 text-sm">
+          <ShieldCheck className="h-4 w-4 text-metu-yellow shrink-0" />
+          <div>
+            <div className="font-semibold text-white">Two-factor required</div>
+            <div className="text-ink-dim text-xs mt-0.5">
+              Password accepted. Enter the 6-digit code from your authenticator app to finish signing in.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {GOOGLE_ENABLED && step === "credentials" && (
         <>
-          {/* Google sign-in is a plain navigation, not a fetch — better-auth's
-              flow needs a top-level redirect so the cookie set by the OAuth
-              callback is sent on subsequent requests. */}
           <a
             href={googleHref}
             className="flex items-center justify-center gap-2 w-full rounded-xl border border-white/10 bg-white text-gray-900 px-4 py-2.5 mb-4 font-semibold hover:bg-gray-100 transition-colors"
           >
-            <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-              />
-              <path
-                fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-              />
-            </svg>
+            <GoogleGlyph />
             Continue with Google
           </a>
           <div className="relative my-4 flex items-center">
@@ -188,44 +203,51 @@ export function LoginForm({ next }: { next?: string }) {
           </div>
         </>
       )}
-      <label className="block text-sm font-semibold text-white mb-1">Email</label>
+
+      <label className="block text-sm font-semibold text-white mb-1" htmlFor="login-email">
+        Email
+      </label>
       <input
+        id="login-email"
         name="email"
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        // Phase 16.2 — lock the credentials in step-2 so the user can't
-        // accidentally retype them while focused on the TOTP code. The
-        // value stays in `email` state so the next submit re-sends it.
-        readOnly={needsTotp}
-        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-4 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none ${
-          needsTotp ? "opacity-60 cursor-not-allowed" : ""
+        readOnly={step === "totp"}
+        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-4 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none transition ${
+          step === "totp" ? "opacity-60 cursor-not-allowed" : ""
         }`}
         required
         autoComplete="email"
       />
-      <label className="block text-sm font-semibold text-white mb-1">Password</label>
+      <label className="block text-sm font-semibold text-white mb-1" htmlFor="login-password">
+        Password
+      </label>
       <input
+        id="login-password"
         name="password"
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        readOnly={needsTotp}
-        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-2 text-white focus:border-metu-yellow outline-none ${
-          needsTotp ? "opacity-60 cursor-not-allowed" : ""
+        readOnly={step === "totp"}
+        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-2 text-white focus:border-metu-yellow outline-none transition ${
+          step === "totp" ? "opacity-60 cursor-not-allowed" : ""
         }`}
         required
         autoComplete="current-password"
       />
-      {needsTotp && (
+
+      {step === "totp" && (
         <div className="mt-4 mb-2 rounded-xl border border-metu-yellow/30 bg-metu-yellow/5 p-4">
-          <label className="block text-sm font-semibold text-white mb-1">
-            Two-factor code
-          </label>
-          <p className="text-xs text-ink-dim mb-3">
-            Open your authenticator app and enter the 6-digit code for METU.
-          </p>
+          <div className="flex items-center gap-2 mb-2">
+            <KeyRound className="h-4 w-4 text-metu-yellow" />
+            <label className="block text-sm font-semibold text-white" htmlFor="login-totp">
+              Authenticator code
+            </label>
+          </div>
           <input
+            id="login-totp"
+            ref={totpInputRef}
             name="totpCode"
             type="text"
             inputMode="numeric"
@@ -234,23 +256,58 @@ export function LoginForm({ next }: { next?: string }) {
             value={totpCode}
             onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="123456"
-            className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 text-white text-center tracking-[0.4em] font-mono text-lg focus:border-metu-yellow outline-none"
+            className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-white text-center tracking-[0.4em] font-mono text-xl focus:border-metu-yellow outline-none"
             autoComplete="one-time-code"
-            autoFocus
             required
           />
+          <button
+            type="button"
+            onClick={() => {
+              setStep("credentials");
+              setTotpCode("");
+              setError(null);
+            }}
+            className="mt-2 text-xs text-ink-dim hover:text-metu-yellow"
+          >
+            ← Use a different account
+          </button>
         </div>
       )}
-      {error && <p className="text-sm text-red-400 my-2">{error}</p>}
+
+      {error && (
+        <p role="alert" className="text-sm text-red-400 my-2">
+          {error}
+        </p>
+      )}
+
       <Button type="submit" variant="primary" size="lg" className="w-full mt-3" disabled={busy}>
-        {busy
-          ? needsTotp
-            ? "Verifying…"
-            : "Logging in…"
-          : needsTotp
-          ? "Verify & continue →"
-          : "Log in →"}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {submitLabel}
+        {!busy && <ArrowRight className="h-4 w-4" />}
       </Button>
     </form>
+  );
+}
+
+function GoogleGlyph() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+      />
+    </svg>
   );
 }

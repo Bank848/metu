@@ -32,6 +32,30 @@ type Batch = {
 
 const BATCHES: Batch[] = [
   {
+    id: "phase-16-3",
+    title: "Phase 16.3 · Mode A swap — better-auth owns every cookie",
+    subtitle:
+      "Third Phase 16 batch + the architectural cleanup we deferred from the original Phase 16 plan. The hand-rolled JWT cookie is gone — better-auth's session_token is now the ONLY auth cookie, and every login (password OR Google) writes into better-auth's session table. The Sessions UI from Phase 15.2 finally sees every login. ~120 LOC of crypto code deleted from middleware/auth.ts. Frontend login page got a visual polish to celebrate. Backend test mocks rewritten to mock better-auth's API instead of the JWT helpers; 158/158 still green.",
+    icon: KeyRound,
+    tone: "info",
+    shippedAt: "today",
+    commitSha: "PENDING",
+    items: [
+      { title: "Migration 20260429070000_phase_16_3_credential_account_backfill: backfills better-auth's `account` table with one credential row per User that has a non-null password (id auto-increment, accountId = email, password = the existing bcrypt hash kept verbatim). Idempotent ON CONFLICT (provider_id, account_id) DO NOTHING. Note: legacy `users` table uses `created_date` not `created_at` — first deploy attempt failed on that column name, fixed in commit ae56d89" },
+      { title: "lib/auth.ts: emailAndPassword.password.{verify,hash} adapters now point at bcryptjs so signInEmail() can verify against the legacy bcrypt hashes we've been storing since Phase 13.2 (default scrypt would reject every existing account)" },
+      { title: "auth.service.syncCredentialAccount(uid, email, hash) helper: upserts into the credential account row. Wired into ALL FOUR password write paths: register / changePassword / setPassword / resetPassword. Plus updateProfile mirrors email changes onto account.accountId so the credential row's lookup key follows" },
+      { title: "auth.service.setPassword + resetPassword now ALSO clear requirePasswordReset on success (matches changePassword's Phase 15.5 semantics — fixed a missing branch)" },
+      { title: "controllers/auth.controller.ts: login/register/logout swap. Our service.login still owns the bcrypt + TOTP gate (canonical InvalidCredentials/NeedsTotp/InvalidTotp error codes) BEFORE delegating session creation to auth.api.signInEmail({ asResponse: true }) and forwarding the Set-Cookie via the new forwardSetCookieHeaders helper. Logout calls auth.api.signOut + forwards the cookie clear" },
+      { title: "middleware/auth.ts: requireAuth + softAuth now read better-auth session ONLY (no JWT fallback). issueToken/clearToken/readToken + the jwt import are deleted. ~120 LOC removed; one-time logout for any user holding a stale Phase 14 JWT cookie (better-auth never issued one for them, so they get treated as anonymous on the next request)" },
+      { title: "tests/_authMock.ts shared helper: cookieFor(uid)/signedInAs(uid)/signedOut() that mock better-auth's API with vi.fn so tests never hit better-auth's actual session table or cookie signing. Every test file's prisma mock + vi.mock(\"../src/lib/auth.js\", ...) added so requireAuth's getSession resolves predictably; beforeEach in every auth-using file resets to anonymous so test isolation holds" },
+      { title: "auth.test.ts updates: login cookie assertion (metu_auth → better-auth.session_token), 'JWT-cookie auth' sessions tests renamed + adjusted to Mode A semantics (currentSessionId resolves to the mocked session.id, not null), prisma.account upsert mock added so syncCredentialAccount calls succeed inside change/set/resetPassword paths" },
+      { title: "better-auth.test.ts uniquely keeps the REAL auth instance (not mocked) — that file specifically tests the catch-all integration is mounted; mocking would break the test's purpose" },
+      { title: "Frontend: rebuilt /login page + LoginForm. New visual treatment with a mint accent radial + 'What's new in your account' card. LoginForm refactored: cleaner state machine (Step = 'credentials' | 'totp'), visible step indicator card when 2FA kicks in, autofocus + keyboard shortcuts on the TOTP input, '← Use a different account' back button, demo-chip prefill via window CustomEvent('metu:prefill-login') instead of querying data-* attrs from the DOM" },
+      { title: "/profile/edit unchanged — already reads /auth/me which still works in Mode A. Verified: linked Google card, set/change password, TOTP enrol/disable, sessions UI, force-reset banner all surface correctly because the BFF helpers (getMe, requireResetGuard) talk to /auth/me which the new requireAuth still resolves" },
+      { title: "Vitest 158/158 still green. Web shared First Load JS = 89.8 kB (unchanged — frontend rebuild was structural, no new deps)" },
+    ],
+  },
+  {
     id: "phase-16-2",
     title: "Phase 16.2 · TOTP 2FA — authenticator-app two-factor sign-in",
     subtitle:
