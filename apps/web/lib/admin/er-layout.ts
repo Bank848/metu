@@ -53,11 +53,17 @@ export function layoutEr(
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setGraph({
     rankdir: "LR",
-    nodesep: 60,
-    ranksep: 90,
-    edgesep: 20,
-    marginx: 40,
-    marginy: 40,
+    // Generous spacing — 35 entities + 47 edges produce a lot of
+    // crossing lines on default settings. Bumping nodesep/ranksep
+    // gives dagre room to route connectors without overlapping.
+    nodesep: 120,
+    ranksep: 180,
+    edgesep: 40,
+    // Spline routing — dagre's default is undirected straight lines,
+    // "polyline" produces orthogonal-ish bends that match Lucidchart.
+    ranker: "tight-tree",
+    marginx: 60,
+    marginy: 60,
   });
   g.setDefaultEdgeLabel(() => ({}));
 
