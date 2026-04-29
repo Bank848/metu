@@ -19,6 +19,14 @@ export interface PublicSettings {
   /** Phase 17.x — favourites surfaces hide when false. */
   favoritesEnabled: boolean;
   promptpayId: string;
+  /** Phase 20.1 — % the platform keeps from each store-line subtotal at
+   *  credit time (default 5 = sellers earn 95%). Surfaced publicly so
+   *  the cart UI can preview the effective fee at checkout. */
+  platformFeePercent: number;
+  /** Phase 20.1 — % deducted from a withdrawal request's amountCoins.
+   *  Default 0. Surfaced publicly so the seller's withdrawal request
+   *  form can preview the net payout. */
+  withdrawalFeePercent: number;
   updatedAt: string;
   /** Phase 17.x — true only when GOOGLE_CLIENT_ID is set on the API.
    *  LoginForm hides the "Continue with Google" button when false so
@@ -31,6 +39,8 @@ const DEFAULT_SETTINGS: PublicSettings = {
   chatEnabled: true,
   favoritesEnabled: true,
   promptpayId: "",
+  platformFeePercent: 5,
+  withdrawalFeePercent: 0,
   updatedAt: new Date(0).toISOString(),
   googleEnabled: false,
 };

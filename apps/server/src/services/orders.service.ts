@@ -1,12 +1,17 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
+import { debitTx } from "./wallet.service.js";
+import { getSettings } from "./settings.service.js";
 import type {
   CheckoutInput,
   CheckoutResponse,
   OrderDetail,
   OrderListItem,
 } from "../models/orders.model.js";
+
+/** Phase 20.1 — coin/baht ratio. Mirrors wallet.service.ts COINS_PER_BAHT. */
+const COINS_PER_BAHT = 10;
 
 /**
  * Checkout — the headline business-logic endpoint.
@@ -109,6 +114,17 @@ export async function checkout(
   }
   const total = subtotal.sub(couponDiscount);
 
+  // Phase 20.1 — wallet enforcement. Read settings ONCE outside the
+  // transaction (cheap cache hit) so we can decide whether to debit
+  // the buyer's wallet + credit the sellers'. When walletEnabled=false
+  // we skip wallet ops entirely and fall through to the demo-mode
+  // checkout flow (no balance check, no coin movement).
+  const settings = await getSettings();
+  const totalCoins = Math.round(Number(total) * COINS_PER_BAHT);
+  // Convert percent → basis-points integer to avoid float drift on
+  // fractional fees (e.g. 5.5% → 550 → divisor 10000).
+  const platformFeeBp = Math.round(settings.platformFeePercent * 100);
+
   const result = await prisma.$transaction(async (tx) => {
     const txn = await tx.transaction.create({
       data: {
@@ -140,6 +156,59 @@ export async function checkout(
         },
       },
     });
+
+    // Phase 20.1 — wallet debit + per-store credit. Skipped wholesale
+    // when wallet is disabled (demo mode) so a fresh checkout still
+    // works without a top-up. The debit uses the same `coinPrice`
+    // ledger the rest of the wallet ledger speaks; sellers earn
+    // (line subtotal × (1 - platformFeePercent / 100)) per store.
+    if (settings.walletEnabled && totalCoins > 0) {
+      try {
+        await debitTx(tx, userId, totalCoins, `order:${order.orderId}`, {
+          orderId: order.orderId,
+        });
+      } catch (e) {
+        // Map wallet's 400 InsufficientBalance to HTTP 402 so the
+        // checkout client can render a clear "top up first" CTA
+        // without sniffing message strings.
+        if (e instanceof AppError && e.code === "InsufficientBalance") {
+          throw new AppError(402, "InsufficientBalance", e.message);
+        }
+        throw e;
+      }
+
+      // Per-store credit. Group selected items by storeId; for each
+      // store, compute its baht subtotal AFTER applying the coupon
+      // share (proportional within the coupon's store), convert to
+      // coins, apply platform fee, then increment Store.coinBalance.
+      const byStore = new Map<number, Prisma.Decimal>();
+      for (const ci of selectedItems) {
+        const sid = ci.productItem.product.storeId;
+        let line = unitPrice(ci).mul(ci.quantity);
+        if (
+          resolvedCoupon &&
+          sid === resolvedCoupon.storeId &&
+          couponEligibleSubtotal.gt(0)
+        ) {
+          // Allocate the coupon discount proportionally to lines
+          // within the coupon's store. (Single-store coupon model — if
+          // ever multi-store, allocation needs revisiting.)
+          const lineShare = line.div(couponEligibleSubtotal);
+          line = line.sub(couponDiscount.mul(lineShare));
+        }
+        byStore.set(sid, (byStore.get(sid) ?? new Prisma.Decimal(0)).add(line));
+      }
+      for (const [storeId, storeSubtotal] of byStore) {
+        const storeCoins = Math.round(Number(storeSubtotal) * COINS_PER_BAHT);
+        const credited = Math.floor((storeCoins * (10000 - platformFeeBp)) / 10000);
+        if (credited <= 0) continue;
+        await tx.store.update({
+          where: { storeId },
+          data: { coinBalance: { increment: credited } },
+        });
+      }
+    }
+
     await tx.cart.update({
       where: { cartId: cart.cartId },
       data: { status: "checked_out" },

@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Wallet, MessageSquare, QrCode, Heart } from "lucide-react";
+import { Settings as SettingsIcon, Wallet, MessageSquare, QrCode, Heart, Percent } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { getSettings } from "@/lib/settings";
 import { SettingsForm } from "./SettingsForm";
@@ -65,6 +65,23 @@ export default async function AdminSettingsPage() {
                 <span className="font-semibold text-white">PromptPay ID —</span>{" "}
                 The phone number / national ID that top-up QR codes will charge. Use a real PromptPay-registered ID for production demo;
                 the default seed value is a placeholder.
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <Percent className="h-4 w-4 text-metu-yellow shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-white">Platform fee % —</span>{" "}
+                The cut the platform takes from every store-line subtotal at checkout.
+                Default 5 means a seller earns 95 coins for every 100-coin sale.
+                Applied at credit time, NOT stored on the order row, so changing this only affects future orders.
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <Percent className="h-4 w-4 text-mint shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-white">Withdrawal fee % —</span>{" "}
+                Deducted from a withdrawal request's coin amount when the seller submits it. Default 0 — most demos cash out at full value.
+                Snapshotted onto the Withdrawal row at request time so changing this later doesn't retroactively shift open requests.
               </div>
             </li>
           </ul>
