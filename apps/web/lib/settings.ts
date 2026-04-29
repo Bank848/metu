@@ -18,6 +18,10 @@ export interface PublicSettings {
   chatEnabled: boolean;
   promptpayId: string;
   updatedAt: string;
+  /** Phase 17.x — true only when GOOGLE_CLIENT_ID is set on the API.
+   *  LoginForm hides the "Continue with Google" button when false so
+   *  users don't get a 404 / PROVIDER_NOT_FOUND on click. */
+  googleEnabled: boolean;
 }
 
 const DEFAULT_SETTINGS: PublicSettings = {
@@ -25,6 +29,7 @@ const DEFAULT_SETTINGS: PublicSettings = {
   chatEnabled: true,
   promptpayId: "",
   updatedAt: new Date(0).toISOString(),
+  googleEnabled: false,
 };
 
 export async function getSettings(): Promise<PublicSettings> {

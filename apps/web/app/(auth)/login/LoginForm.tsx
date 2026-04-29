@@ -15,9 +15,12 @@ import { Button } from "@/components/ui/Button";
 //     channel so the page can prefill via dispatchEvent rather than
 //     scraping `data-*` attrs
 
-// Phase 14.2 — Google sign-in is always rendered; better-auth surfaces
-// "Google not configured" via the errorCallbackURL banner.
-const GOOGLE_ENABLED = true;
+// Phase 17.x — Google button visibility is gated by the live
+// `googleEnabled` flag from /api/settings, computed server-side from
+// the presence of GOOGLE_CLIENT_ID on the API. Earlier code had a
+// `const GOOGLE_ENABLED = true` that always rendered the button,
+// which caused a hard 404 / PROVIDER_NOT_FOUND on deployments
+// without the OAuth credentials configured.
 
 // Phase 14.3.5 — Google sign-in error reasons surfaced in the URL.
 function errorMessage(code: string | null): string | null {
@@ -26,6 +29,8 @@ function errorMessage(code: string | null): string | null {
     case "email-exists":
     case "EmailAlreadyRegistered":
       return "An account already exists with that email. Sign in with your password below, then link Google from your profile settings.";
+    case "google-not-configured":
+      return "Google sign-in is temporarily unavailable on this deployment. Use email + password below, or contact admin.";
     default:
       return "Google sign-in didn't complete. Please try again or use email + password.";
   }
@@ -33,7 +38,17 @@ function errorMessage(code: string | null): string | null {
 
 type Step = "credentials" | "totp";
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({
+  next,
+  /** Phase 17.x — when false, the "Continue with Google" button is
+   *  hidden entirely and the OR-divider is dropped. The page server
+   *  component reads /api/settings.googleEnabled and threads it
+   *  through here. */
+  googleEnabled = false,
+}: {
+  next?: string;
+  googleEnabled?: boolean;
+}) {
   const searchParams = useSearchParams();
   const oauthErrorBanner = errorMessage(searchParams.get("error"));
   const router = useRouter();
@@ -185,7 +200,7 @@ export function LoginForm({ next }: { next?: string }) {
         </div>
       )}
 
-      {GOOGLE_ENABLED && step === "credentials" && (
+      {googleEnabled && step === "credentials" && (
         <>
           <a
             href={googleHref}

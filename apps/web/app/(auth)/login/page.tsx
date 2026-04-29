@@ -3,10 +3,17 @@ import { Logo } from "@/components/Logo";
 import { StarField } from "@/components/DotGrid";
 import { LoginForm } from "./LoginForm";
 import { DemoChip } from "./DemoChip";
+import { safeGetSettings } from "@/lib/settings";
 
 export const metadata = { title: "Log in — METU" };
+export const dynamic = "force-dynamic";
 
-export default function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
+export default async function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
+  // Phase 17.x — only render the "Continue with Google" button when
+  // the API actually has Google credentials configured. Otherwise
+  // clicking the button takes the user to a hard 404 (better-auth
+  // throws PROVIDER_NOT_FOUND) with zero UX indication of what's wrong.
+  const settings = await safeGetSettings();
   return (
     <main id="main" className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
@@ -33,7 +40,7 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
             <p className="text-ink-secondary mb-6 max-w-md">
               Sign in to browse the marketplace, manage your store, or check on your orders. Two-factor codes are required after the password if you've turned 2FA on in your profile.
             </p>
-            <LoginForm next={searchParams.next} />
+            <LoginForm next={searchParams.next} googleEnabled={settings.googleEnabled} />
             <p className="mt-4 text-sm text-ink-secondary">
               New to METU?{" "}
               <Link href="/register" className="font-semibold text-brand-yellow hover:underline">

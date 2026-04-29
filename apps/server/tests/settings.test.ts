@@ -70,6 +70,9 @@ describe("GET /settings", () => {
       walletEnabled: false,
       chatEnabled: true,
       promptpayId: "0812345678",
+      // Phase 17.x — derived from env at request time. In the test
+      // env GOOGLE_CLIENT_ID is unset → googleEnabled is false.
+      googleEnabled: false,
     });
   });
 });

@@ -10,14 +10,10 @@ type Country = { countryId: number; name: string };
 // don't render the widget at all and the server-side verify is a no-op.
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
-// Phase 14.2 — Google sign-up via better-auth. First-time Google
-// users get a fresh User row + a linked Account row. Existing-email
-// collision handling is wired in Phase 14.3.5
-// (databaseHooks.user.create.before).
-// Phase 15.5 follow-up — gate dropped (was NEXT_PUBLIC_GOOGLE_ENABLED).
-// Same reason as LoginForm: env required a rebuild to flip and was
-// hiding the button on the live demo. Always renders now.
-const GOOGLE_ENABLED = true;
+// Phase 17.x — Google sign-up button visibility now reads the live
+// `googleEnabled` flag (computed server-side from GOOGLE_CLIENT_ID
+// presence). Earlier hard-coded `true` produced a hard 404 /
+// PROVIDER_NOT_FOUND on deployments without OAuth credentials.
 
 const TODAY = new Date();
 // Don't allow signups with a future or impossibly-recent birthday — gate the
@@ -26,7 +22,14 @@ const MAX_DOB = new Date(TODAY.getFullYear() - 13, TODAY.getMonth(), TODAY.getDa
   .toISOString()
   .slice(0, 10);
 
-export function RegisterForm({ countries }: { countries: Country[] }) {
+export function RegisterForm({
+  countries,
+  googleEnabled = false,
+}: {
+  countries: Country[];
+  /** Phase 17.x — gates the "Continue with Google" button. */
+  googleEnabled?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +95,7 @@ export function RegisterForm({ countries }: { countries: Country[] }) {
 
   return (
     <form onSubmit={onSubmit} className="rounded-2xl bg-space-850 border border-line p-6 space-y-4">
-      {GOOGLE_ENABLED && (
+      {googleEnabled && (
         <>
           <a
             href="/api/auth/better/sign-in/google?callbackURL=/"

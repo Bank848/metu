@@ -53,11 +53,19 @@ export async function getSettings(): Promise<PublicSettings> {
     // forgot to run it we still want the server to boot.
     row = await prisma.systemSetting.create({ data: { id: 1 } });
   }
+  // googleEnabled is derived from the env at request time so we don't
+  // have to re-cache the settings row when secrets get rotated. The
+  // check matches the same condition lib/auth.ts uses to decide
+  // whether to mount the Google social provider — keeping them in
+  // sync means the BFF never advertises a Google button when the
+  // backend can't actually accept Google sign-ins.
+  const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID);
   const value: PublicSettings = {
     walletEnabled: row.walletEnabled,
     chatEnabled: row.chatEnabled,
     promptpayId: row.promptpayId,
     updatedAt: row.updatedAt,
+    googleEnabled,
   };
   cache = { value, expiresAt: now + CACHE_TTL_MS };
   return value;
@@ -109,5 +117,6 @@ export async function updateSettings(
     chatEnabled: row.chatEnabled,
     promptpayId: row.promptpayId,
     updatedAt: row.updatedAt,
+    googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID),
   };
 }
