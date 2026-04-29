@@ -136,40 +136,8 @@ export const forgotPasswordLimiter = rateLimit({
 });
 
 // ──────────────────────────────────────────────────────────────────
-//  Phase 22 — extend the rate-limit surface to coin movement +
-//  abuse-prone write paths. All three are user-keyed (not IP-keyed)
-//  because the gate is meaningful only when applied per actor —
-//  multiple users behind one office IP shouldn't share a single
-//  message-send budget.
-//
-//  `req.auth?.uid` is set by requireAuth() which mounts BEFORE every
-//  route below. We fall back to req.ip when auth somehow hasn't run
-//  (defence in depth — never trust an undefined caller to bypass).
+//  Phase 26 — removed: sendMessageLimiter (messages cut),
+//  submitTopupLimiter + submitWithdrawLimiter (PromptPay/coin layer
+//  cut). Stripe writes (payment intent, refund) get their own
+//  user-keyed limiters in Phase 27.
 // ──────────────────────────────────────────────────────────────────
-
-function userKey(req: Request): string {
-  const auth = (req as { auth?: { uid?: number } }).auth;
-  if (auth?.uid !== undefined) return `user:${auth.uid}`;
-  return `ip:${req.ip ?? "unknown"}`;
-}
-
-/** Phase 22 — buyer ↔ seller messaging. 30 sends/min/user. */
-export const sendMessageLimiter = rateLimit({
-  max: 30,
-  windowMs: 60_000,
-  keyFn: userKey,
-});
-
-/** Phase 22 — PromptPay top-up submission. 10 attempts/hr/user. */
-export const submitTopupLimiter = rateLimit({
-  max: 10,
-  windowMs: 60 * 60_000,
-  keyFn: userKey,
-});
-
-/** Phase 22 — seller withdrawal request. 3 attempts/hr/user. */
-export const submitWithdrawLimiter = rateLimit({
-  max: 3,
-  windowMs: 60 * 60_000,
-  keyFn: userKey,
-});

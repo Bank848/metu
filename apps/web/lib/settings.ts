@@ -1,7 +1,7 @@
 import { apiFetch, ApiError } from "./server/api";
 
 /**
- * Phase 17.1 — BFF-side settings helper.
+ * Phase 17.1 / 26 — BFF-side settings helper (slimmed down).
  *
  * Server components call this to read the live feature flags. The
  * Express side already caches in-memory for 30 s, so calling this
@@ -9,24 +9,20 @@ import { apiFetch, ApiError } from "./server/api";
  * `safeGetSettings` variant which returns sensible defaults on
  * any error so a transient API outage doesn't kill page rendering.
  *
+ * Phase 26 dropped: walletEnabled, chatEnabled, promptpayId,
+ * withdrawalFeePercent (PromptPay/coin layer removed in favour of
+ * Stripe Connect, scheduled for Phase 27).
+ *
  * Example:
- *   const { walletEnabled, chatEnabled } = await getSettings();
- *   if (!chatEnabled) return null;
+ *   const { favoritesEnabled } = await getSettings();
+ *   if (!favoritesEnabled) return null;
  */
 export interface PublicSettings {
-  walletEnabled: boolean;
-  chatEnabled: boolean;
   /** Phase 17.x — favourites surfaces hide when false. */
   favoritesEnabled: boolean;
-  promptpayId: string;
-  /** Phase 20.1 — % the platform keeps from each store-line subtotal at
-   *  credit time (default 5 = sellers earn 95%). Surfaced publicly so
-   *  the cart UI can preview the effective fee at checkout. */
+  /** Phase 20.1 / 26 — % the platform keeps from each order. Phase 27
+   *  wires this into Stripe's `application_fee_amount` parameter. */
   platformFeePercent: number;
-  /** Phase 20.1 — % deducted from a withdrawal request's amountCoins.
-   *  Default 0. Surfaced publicly so the seller's withdrawal request
-   *  form can preview the net payout. */
-  withdrawalFeePercent: number;
   updatedAt: string;
   /** Phase 17.x — true only when GOOGLE_CLIENT_ID is set on the API.
    *  LoginForm hides the "Continue with Google" button when false so
@@ -35,12 +31,8 @@ export interface PublicSettings {
 }
 
 const DEFAULT_SETTINGS: PublicSettings = {
-  walletEnabled: false,
-  chatEnabled: true,
   favoritesEnabled: true,
-  promptpayId: "",
   platformFeePercent: 5,
-  withdrawalFeePercent: 0,
   updatedAt: new Date(0).toISOString(),
   googleEnabled: false,
 };

@@ -4,25 +4,20 @@ import { AppError } from "../utils/errors.js";
 import type { PublicSettings, SettingsPatch } from "../models/settings.model.js";
 
 /**
- * Phase 17.1 — system settings service.
+ * Phase 17.1 / 26 — system settings service (slimmed down).
  *
  * The settings row is single-row by SQL CHECK constraint (id=1).
- * Reads are cached in-memory for 30 s so every request to /browse,
- * /messages, /admin/* doesn't pay a round-trip just to check the
- * walletEnabled / chatEnabled flags.
+ * Reads are cached in-memory for 30 s so every request to /browse
+ * doesn't pay a round-trip just to check the favouritesEnabled flag.
  *
  * Writes go through `updateSettings(actor, patch)` which:
  *   1. Patches the row.
  *   2. Invalidates the cache.
- *   3. Writes a structured AuditLog row capturing the diff —
- *      every flag flip leaves a trail so admins can later see who
- *      turned wallet on/off and when.
+ *   3. Writes a structured AuditLog row capturing the diff.
  *
- * The cache is process-local. Since we run two Fly machines, a
- * flip is observed by the OTHER machine within 30 s. That's
- * acceptable for feature flags (no atomic-flip requirement); if
- * we ever need true cross-machine flip we can add a Postgres
- * `LISTEN/NOTIFY` channel, but for the demo the 30-s skew is fine.
+ * Phase 26 dropped walletEnabled, chatEnabled, promptpayId, and
+ * withdrawalFeePercent from the row (PromptPay/coin layer removed —
+ * Stripe Connect takes over in Phase 27).
  */
 
 interface CachedSettings {
@@ -37,39 +32,20 @@ function bustCache() {
   cache = null;
 }
 
-/**
- * Read the current settings (cached). Reads through cache; on
- * cache miss, hits the DB and refills. Always returns a value —
- * if the row is missing for some reason we lazily insert defaults
- * so a fresh DB without the migration's seed insert still boots.
- */
 export async function getSettings(): Promise<PublicSettings> {
   const now = Date.now();
   if (cache && cache.expiresAt > now) return cache.value;
 
   let row = await prisma.systemSetting.findUnique({ where: { id: 1 } });
   if (!row) {
-    // Defensive — the migration seeds id=1, but if a future env
-    // forgot to run it we still want the server to boot.
     row = await prisma.systemSetting.create({ data: { id: 1 } });
   }
   // googleEnabled is derived from the env at request time so we don't
-  // have to re-cache the settings row when secrets get rotated. The
-  // check matches the same condition lib/auth.ts uses to decide
-  // whether to mount the Google social provider — keeping them in
-  // sync means the BFF never advertises a Google button when the
-  // backend can't actually accept Google sign-ins.
+  // have to re-cache the settings row when secrets get rotated.
   const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID);
   const value: PublicSettings = {
-    walletEnabled: row.walletEnabled,
-    chatEnabled: row.chatEnabled,
     favoritesEnabled: row.favoritesEnabled,
-    promptpayId: row.promptpayId,
-    // Phase 20.1 — Decimal columns return as string-shaped Decimal in
-    // Prisma. Number() rounds to native float which is fine for a
-    // percent in the 0..100 range.
     platformFeePercent: Number(row.platformFeePercent),
-    withdrawalFeePercent: Number(row.withdrawalFeePercent),
     updatedAt: row.updatedAt,
     googleEnabled,
   };
@@ -77,11 +53,6 @@ export async function getSettings(): Promise<PublicSettings> {
   return value;
 }
 
-/**
- * Admin-only update. Accepts a partial patch; only touches the
- * keys provided. Writes an AuditLog row showing exactly which
- * fields changed (old → new) so the audit trail is searchable.
- */
 export async function updateSettings(
   actorUserId: number,
   patch: SettingsPatch,
@@ -92,12 +63,8 @@ export async function updateSettings(
   }
   const before = await getSettings();
   const data: Record<string, unknown> = {};
-  if (patch.walletEnabled !== undefined) data.walletEnabled = patch.walletEnabled;
-  if (patch.chatEnabled !== undefined) data.chatEnabled = patch.chatEnabled;
   if (patch.favoritesEnabled !== undefined) data.favoritesEnabled = patch.favoritesEnabled;
-  if (patch.promptpayId !== undefined) data.promptpayId = patch.promptpayId;
   if (patch.platformFeePercent !== undefined) data.platformFeePercent = patch.platformFeePercent;
-  if (patch.withdrawalFeePercent !== undefined) data.withdrawalFeePercent = patch.withdrawalFeePercent;
 
   const row = await prisma.systemSetting.update({ where: { id: 1 }, data });
   bustCache();
@@ -122,12 +89,8 @@ export async function updateSettings(
   }
 
   return {
-    walletEnabled: row.walletEnabled,
-    chatEnabled: row.chatEnabled,
     favoritesEnabled: row.favoritesEnabled,
-    promptpayId: row.promptpayId,
     platformFeePercent: Number(row.platformFeePercent),
-    withdrawalFeePercent: Number(row.withdrawalFeePercent),
     updatedAt: row.updatedAt,
     googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID),
   };

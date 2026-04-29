@@ -551,8 +551,6 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
-          // Phase 17.2 — duplicate the existing coinPrice on the source variant.
-          coinPrice: it.coinPrice,
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
         })),

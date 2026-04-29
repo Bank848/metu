@@ -61,40 +61,31 @@ export function moneyCompact(n: number | string | null | undefined): string {
  * "in-app token", and a plain word avoids the "is that ฿ or M?"
  * ambiguity at small font sizes.
  *
- * coins(1234) → "1,234 coins"
- * coins(1)    → "1 coin"
- * coins(0)    → "Free"
+ * Phase 26 — coin layer removed. The `coins()` / `coinsCompact()` /
+ * `thbToCoins()` helpers stay as thin shims around `money()` so the
+ * 19 existing call-sites keep working without a sweep — each one now
+ * emits a baht string. A future codemod can rewrite the imports
+ * directly, but the demo doesn't need it and the shim avoids a 60-
+ * file diff dropped on the day before the presentation.
  *
- * Compact variant for KPI tiles: coinsCompact(45623) → "45.6K coins".
+ * coins(1234)        → "฿1,234.00" (was: "1,234 coins")
+ * coins(0)           → "Free"
+ * coinsCompact(...)  → moneyCompact(...)
+ * thbToCoins(thb)    → thb (passthrough — coin/baht ratio is now 1:1)
  */
 export function coins(n: number | string | null | undefined): string {
   const num = typeof n === "string" ? Number(n) : (n ?? 0);
-  if (!Number.isFinite(num)) return "0 coins";
+  if (!Number.isFinite(num)) return money(0);
   if (num === 0) return "Free";
-  const formatted = new Intl.NumberFormat("en-US").format(num);
-  return `${formatted} ${num === 1 ? "coin" : "coins"}`;
+  return money(num);
 }
 
 export function coinsCompact(n: number | string | null | undefined): string {
-  const num = typeof n === "string" ? Number(n) : (n ?? 0);
-  if (!Number.isFinite(num)) return "0 coins";
-  if (num === 0) return "Free";
-  if (Math.abs(num) < 1000) return coins(num);
-  const compact = new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(num);
-  return `${compact} coins`;
+  return moneyCompact(n);
 }
 
-/**
- * Convert THB → coins for any callers that still hold a baht number
- * (e.g. legacy seller analytics that haven't migrated yet). 1 baht
- * = 10 coins; we round to integer so the ledger never carries
- * fractional coin amounts.
- */
 export function thbToCoins(thb: number | string | null | undefined): number {
   const num = typeof thb === "string" ? Number(thb) : (thb ?? 0);
   if (!Number.isFinite(num)) return 0;
-  return Math.round(num * 10);
+  return num;
 }

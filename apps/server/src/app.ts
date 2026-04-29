@@ -38,15 +38,9 @@ import ordersRoutes from "./routes/orders.routes.js";
 // Layered routes (Phase 13.5 — reviews)
 import reviewsRoutes, { productReviewsRouter } from "./routes/reviews.routes.js";
 
-// Layered routes (Phase 13.6 — q&a)
-import qnaRoutes, { productQuestionsRouter } from "./routes/qna.routes.js";
-
-// Layered routes (Phase 13.7 — favorites + stock alerts)
+// Layered routes (Phase 13.7 — favorites)
+//   Phase 26 — stock-alerts router removed.
 import favoritesRoutes from "./routes/favorites.routes.js";
-import stockAlertsRoutes from "./routes/stock-alerts.routes.js";
-
-// Layered routes (Phase 13.8 — messages)
-import messagesRoutes from "./routes/messages.routes.js";
 
 // Layered routes (Phase 13.9 — seller, read + write)
 import sellerRoutes from "./routes/seller.routes.js";
@@ -54,21 +48,18 @@ import sellerRoutes from "./routes/seller.routes.js";
 // Layered routes (Phase 13.10 — admin)
 import adminRoutes from "./routes/admin.routes.js";
 
-// Layered routes (Phase 20.2 — seller withdrawals + admin queue)
-import withdrawalSellerRoutes, { adminWithdrawalsRouter } from "./routes/withdrawals.routes.js";
-
 // Layered routes (Phase 13.11 — reference data)
 // Last legacy flat router (`catalog.ts`) replaced by this layered
 // module. business-types + countries — public reads driving form
 // dropdowns (become-seller + register).
 import referenceRoutes from "./routes/reference.routes.js";
 
-// Layered routes (Phase 17.1 — settings + wallet foundation)
+// Layered routes (Phase 17.1 / 26 — settings, slimmed down)
 // settings.routes.ts exports both the public router (default) and an
-// `adminSettingsRouter` mounted under /admin. wallet.routes.ts does
-// the same for /wallet + admin grant.
+// `adminSettingsRouter` mounted under /admin. Wallet/Topup/Withdrawal
+// routes were removed in Phase 26 ; payment integration moves to
+// Stripe Connect in Phase 27.
 import settingsRoutes, { adminSettingsRouter } from "./routes/settings.routes.js";
-import walletRoutes,   { adminWalletRouter   } from "./routes/wallet.routes.js";
 
 // Phase 14.1 — better-auth instance + Express handler bridge.
 // Mounted at /auth/better/* BEFORE express.json so the request body
@@ -175,24 +166,9 @@ export function buildApp() {
   app.use("/products/:productId/reviews", productReviewsRouter);
   app.use("/reviews",    reviewsRoutes);
 
-  // ─── Layered routes (Phase 13.6 — q&a) ───────────────────────────
-  // Same two-router shape as reviews. /questions/:id/answer is
-  // declared on the default router so it shares the /questions
-  // mount prefix.
-  app.use("/products/:productId/questions", productQuestionsRouter);
-  app.use("/questions",  qnaRoutes);
-
-  // ─── Layered routes (Phase 13.7 — favorites + stock alerts) ─────
-  // Two single-router resources. Both auth-only; idempotent toggle
-  // semantics on the join tables (ProductFavorite, StockAlert).
+  // ─── Layered routes (Phase 13.7 — favorites) ────────────────────
+  // Phase 26 — stock-alerts removed alongside the messaging layer.
   app.use("/favorites",    favoritesRoutes);
-  app.use("/stock-alerts", stockAlertsRoutes);
-
-  // ─── Layered routes (Phase 13.8 — messages) ─────────────────────
-  // GET /messages (inbox + thread via ?with=N), GET /messages/unread,
-  // POST /messages. All auth-only. Postgres-only path for now;
-  // future MongoDB sidecar would swap services/messages.service.ts.
-  app.use("/messages", messagesRoutes);
 
   // ─── Layered routes (Phase 13.9 — seller, read + write) ─────────
   // 16 endpoints total (read: store/products/stats/orders/export;
@@ -214,28 +190,16 @@ export function buildApp() {
   // proxies). Replaces the deleted legacy `catalog.ts` flat router.
   app.use("/", referenceRoutes);
 
-  // ─── Layered routes (Phase 17.1 — settings + wallet) ────────────
+  // ─── Layered routes (Phase 17.1 / 26 — settings) ────────────────
   // - /settings (public read) — BFF caches it
-  // - /wallet  (auth-gated read) — balance + ledger
   // - /admin/settings (admin write) — flag toggles
-  // - /admin/users/:id/grant-coins (admin write) — magic-grant coins
-  // The admin-scoped routers mount UNDER the existing /admin prefix
-  // so they inherit the same role gate convention as the rest of
+  // The admin-scoped router mounts UNDER the existing /admin prefix
+  // so it inherits the same role gate convention as the rest of
   // /admin (each individual handler still re-asserts role for safety).
+  // Phase 26 dropped the wallet/topup/withdrawal routers ; Stripe
+  // Connect (Phase 27) replaces the seller-payout surface.
   app.use("/settings", settingsRoutes);
-  app.use("/wallet",   walletRoutes);
   app.use("/admin",    adminSettingsRouter);
-  app.use("/admin",    adminWalletRouter);
-
-  // ─── Layered routes (Phase 20.2 — seller withdrawals) ───────────
-  // Two-router split — seller-side endpoints (/seller/wallet,
-  // /seller/withdrawals POST + GET) inherit auth + store gates; the
-  // named adminWithdrawalsRouter mounts under /admin and re-asserts
-  // role inside each handler. Mounted at /seller AFTER seller.routes
-  // so the new endpoints are in scope but don't overwrite existing
-  // routes (Express matches by registration order across mount points).
-  app.use("/seller", withdrawalSellerRoutes);
-  app.use("/admin",  adminWithdrawalsRouter);
 
   // Service banner — useful when curl-ing the root manually.
   app.get("/", (_req, res) => {

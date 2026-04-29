@@ -76,49 +76,49 @@ model Country {
 }
 
 model User {
-  userId        Int       @id @default(autoincrement()) @map("user_id")
-  countryId     Int?      @map("country_id")
+  userId               Int       @id @default(autoincrement()) @map("user_id")
+  countryId            Int?      @map("country_id")
   // Phase 14.1 — nullable so future Google-only signups can have
   // NULL passwords until they Set Password from /profile/edit.
-  password      String?   @db.Text
-  username      String    @unique @db.VarChar(20)
-  firstName     String    @map("first_name") @db.VarChar(40)
-  lastName      String    @map("last_name") @db.VarChar(40)
-  email         String    @unique @db.VarChar(80)
+  password             String?   @db.Text
+  username             String    @unique @db.VarChar(20)
+  firstName            String    @map("first_name") @db.VarChar(40)
+  lastName             String    @map("last_name") @db.VarChar(40)
+  email                String    @unique @db.VarChar(80)
   // Phase 14.1 — better-auth's `emailVerified` flag, mapped via
   // user.fields.emailVerified config in apps/server/src/lib/auth.ts.
   // Defaults false; password-login flow doesn't gate on it but
   // Google sign-in flips it true on create.
-  emailVerified Boolean   @default(false) @map("email_verified")
-  gender        Gender?
-  profileImage  String?   @map("profile_image") @db.Text
-  dateOfBirth   DateTime? @map("date_of_birth")
+  emailVerified        Boolean   @default(false) @map("email_verified")
+  gender               Gender?
+  profileImage         String?   @map("profile_image") @db.Text
+  dateOfBirth          DateTime? @map("date_of_birth")
   // Phase 14.4 OTP scaffold — phone + verification timestamp.
-  phone           String?   @db.VarChar(20)
-  phoneVerifiedAt DateTime? @map("phone_verified_at")
+  phone                String?   @db.VarChar(20)
+  phoneVerifiedAt      DateTime? @map("phone_verified_at")
   // Phase 16.2 — TOTP 2FA. totpSecret is the base32-encoded shared
   // secret stored at enrol-start; totpEnabled flips to true on first
   // successful verify. When true, /auth/login requires a 6-digit
   // code in the body. NULL secret = never enrolled.
-  totpSecret      String?   @map("totp_secret") @db.VarChar(64)
-  totpEnabled     Boolean   @default(false) @map("totp_enabled")
+  totpSecret           String?   @map("totp_secret") @db.VarChar(64)
+  totpEnabled          Boolean   @default(false) @map("totp_enabled")
   // Phase 15.5 — admin force-password-reset flag. When true, the
   // BFF redirects every authed page to /profile/edit until the
   // user successfully changes their password (which clears the
   // flag). Default false; admins flip it from /admin/users.
-  requirePasswordReset Boolean @default(false) @map("require_password_reset")
-  createdDate   DateTime  @default(now()) @map("created_date")
+  requirePasswordReset Boolean   @default(false) @map("require_password_reset")
+  createdDate          DateTime  @default(now()) @map("created_date")
   // Phase 16.3 — better-auth's user schema requires `updatedAt` on
   // every model; without it the Prisma adapter throws "Unknown
   // argument" on findUserByEmail and returns an empty accounts array,
   // which signInEmail surfaces as the misleading "Credential account
   // not found" error. Migration 20260429090000 added + backfilled.
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   // Soft-delete: when set, public surfaces hide the user but admin /
   // audit queries can still see them. Used by /api/admin/users/[id]
   // DELETE so order history and reviews don't FK-cascade away.
-  deletedAt          DateTime?         @map("deleted_at")
+  deletedAt DateTime? @map("deleted_at")
 
   // Phase 12.2 — moderation metadata. NULL when:
   //   (a) user is active, OR
@@ -126,38 +126,23 @@ model User {
   // Populated only by admin-driven removals (profanity, fraud, abuse).
   // Decoupled from deletedAt so we can later support "ban without
   // delete" (account stays visible in moderation queue) if needed.
-  bannedAt           DateTime?         @map("banned_at")
-  bannedReason       String?           @map("banned_reason") @db.VarChar(120)
+  bannedAt     DateTime? @map("banned_at")
+  bannedReason String?   @map("banned_reason") @db.VarChar(120)
 
-  country            Country?          @relation(fields: [countryId], references: [countryId])
-  stats              UserStats?
-  store              Store?
-  carts              Cart[]
-  transactions       Transaction[]
-  reviews            ProductReview[]
-  couponUsages       CouponUsage[]
-  favorites          ProductFavorite[]
-  messagesSent       Message[]         @relation("MessageSender")
-  messagesReceived   Message[]         @relation("MessageRecipient")
-  questionsAsked     ProductQuestion[] @relation("QuestionAsker")
-  questionsAnswered  ProductQuestion[] @relation("QuestionAnswerer")
-  stockAlerts        StockAlert[]
+  country             Country?             @relation(fields: [countryId], references: [countryId])
+  stats               UserStats?
+  store               Store?
+  carts               Cart[]
+  transactions        Transaction[]
+  reviews             ProductReview[]
+  couponUsages        CouponUsage[]
+  favorites           ProductFavorite[]
   passwordResetTokens PasswordResetToken[]
-  auditLogs          AuditLog[]
+  auditLogs           AuditLog[]
 
   // Phase 14.1 — better-auth relations (managed by its Prisma adapter).
-  accounts          Account[]
-  sessions          Session[]
-
-  // Phase 17.1 — wallet (1:1) + transaction ledger + topup history.
-  wallet            Wallet?
-  walletTxs         WalletTransaction[]
-  topups            Topup[]              @relation("TopupOwner")
-  topupsReviewed    Topup[]              @relation("TopupReviewer")
-  // Phase 20.2 — admin-side relation (User → reviewed Withdrawal[]).
-  // The owning seller relation lives on Store, not User, because a
-  // Store has at most one owner and withdrawals are per-store.
-  withdrawalsReviewed Withdrawal[]       @relation("WithdrawalReviewer")
+  accounts Account[]
+  sessions Session[]
 
   @@index([countryId])
   @@index([createdDate])
@@ -210,26 +195,12 @@ model Store {
   // sees the store in /seller dashboard with a banner. Reversible by
   // clearing the column. NULL = live.
   suspendedAt    DateTime? @map("suspended_at")
-  /// Phase 20.1 — accumulated unwithdrawn coin earnings. Bumped inside
-  /// the checkout transaction (line subtotal × (1 - platformFeePercent))
-  /// per store and decremented at withdrawal request time (Phase 20.2).
-  /// CHECK constraint at SQL level pins this >= 0 — refunds (Phase 22)
-  /// will need a clawback path before they can cross the floor.
-  coinBalance    Int       @default(0) @map("coin_balance")
 
   owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
   businessType BusinessType @relation(fields: [businessTypeId], references: [typeId])
   products     Product[]
   coupons      Coupon[]
   stats        StoreStats?
-  /// Phase 20.2 — payout requests. One store may have many; deletion
-  /// cascades so removing a store wipes its payout history.
-  withdrawals  Withdrawal[]
-  /// Phase 20.2 — per-store ledger. earn / withdraw / withdraw_reverse
-  /// / refund_clawback / adjustment. Mirrors WalletTransaction shape
-  /// at the Store level so the seller-wallet UI doesn't need to merge
-  /// derived rows from order_item + withdrawal.
-  transactions StoreTransaction[]
 
   @@index([businessTypeId])
   @@index([createdAt])
@@ -275,15 +246,15 @@ model ProductTag {
 }
 
 model Product {
-  productId   Int    @id @default(autoincrement()) @map("product_id")
-  storeId     Int    @map("store_id")
-  categoryId  Int    @map("category_id")
-  name        String @db.VarChar(100)
-  description String @db.VarChar(255)
+  productId   Int       @id @default(autoincrement()) @map("product_id")
+  storeId     Int       @map("store_id")
+  categoryId  Int       @map("category_id")
+  name        String    @db.VarChar(100)
+  description String    @db.VarChar(255)
   // Soft-hide flag — paused products vanish from public catalogue
   // (browse, store page, featured) but remain visible in the seller
   // dashboard and in any order history that already references them.
-  isActive    Boolean @default(true) @map("is_active")
+  isActive    Boolean   @default(true) @map("is_active")
   // Soft-delete: when set, the product is removed from every public
   // surface AND the seller dashboard, but order history, reviews, and
   // favourites still resolve to a real row (no orphan FKs).
@@ -304,8 +275,6 @@ model Product {
   reviews      ProductReview[]
   productNTags ProductNTag[]
   favorites    ProductFavorite[]
-  messages     Message[]
-  questions    ProductQuestion[]
 
   @@index([storeId])
   @@index([categoryId])
@@ -320,9 +289,6 @@ model ProductItem {
   deliveryMethod  DeliveryMethod @map("delivery_method")
   quantity        Int            @default(0)
   price           Decimal        @db.Decimal(10, 2)
-  /// Phase 17.2 — canonical buyer-facing price. 1 THB = 10 coins.
-  /// Backfilled from price * 10 in migration 20260429110000.
-  coinPrice       Int            @default(0) @map("coin_price")
   discountPercent Int            @default(0) @map("discount_percent")
   discountAmount  Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
   // Optional URL to a free preview / sample (e.g. low-res PDF, audio
@@ -330,10 +296,9 @@ model ProductItem {
   sampleUrl       String?        @map("sample_url") @db.Text
   createdDate     DateTime       @default(now()) @map("created_date")
 
-  product     Product      @relation(fields: [productId], references: [productId], onDelete: Cascade)
-  orderItems  OrderItem[]
-  cartItems   CartItem[]
-  stockAlerts StockAlert[]
+  product    Product     @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  orderItems OrderItem[]
+  cartItems  CartItem[]
 
   @@index([productId])
   @@map("product_item")
@@ -457,23 +422,22 @@ model Transaction {
 }
 
 model Order {
-  orderId             Int         @id @default(autoincrement()) @map("order_id")
-  cartId              Int         @unique @map("cart_id")
-  totalPrice          Decimal     @map("total_price") @db.Decimal(12, 2)
-  status              OrderStatus @default(pending)
-  transactionId       Int?        @map("transaction_id")
-  createdAt           DateTime    @default(now()) @map("created_at")
-  updatedAt           DateTime    @updatedAt @map("updated_at")
-  expiredAt           DateTime?   @map("expired_at")
+  orderId            Int         @id @default(autoincrement()) @map("order_id")
+  cartId             Int         @unique @map("cart_id")
+  totalPrice         Decimal     @map("total_price") @db.Decimal(12, 2)
+  status             OrderStatus @default(pending)
+  transactionId      Int?        @map("transaction_id")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+  expiredAt          DateTime?   @map("expired_at")
   // Gift checkout — when set, the receipt shows the recipient instead of
   // the buyer + (in a future batch) emails the recipient a redeem link.
-  giftRecipientEmail  String?     @map("gift_recipient_email") @db.VarChar(80)
-  giftMessage         String?     @map("gift_message")          @db.VarChar(500)
+  giftRecipientEmail String?     @map("gift_recipient_email") @db.VarChar(80)
+  giftMessage        String?     @map("gift_message") @db.VarChar(500)
 
   cart        Cart         @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
   items       OrderItem[]
-  messages    Message[]
 
   @@index([status])
   @@index([createdAt])
@@ -537,81 +501,10 @@ model CouponUsage {
 }
 
 // ============================================================================
-//  MESSAGES — buyer ↔ seller direct messaging, optionally pinned to an
-//  order or product. No conversation table; threads are derived from the
-//  pair (senderId, recipientId) at query time. Polling-based UI (no
-//  realtime).
+// Phase 26 — Removed: Message, ProductQuestion, StockAlert.
+// Backup snapshot at git tag pre-feature-trim-2026-04-30 + branch
+// archive/messages-qna-stockalert-promptpay.
 // ============================================================================
-
-model Message {
-  messageId   Int       @id @default(autoincrement()) @map("message_id")
-  senderId    Int       @map("sender_id")
-  recipientId Int       @map("recipient_id")
-  orderId     Int?      @map("order_id")
-  productId   Int?      @map("product_id")
-  body        String    @db.VarChar(1000)
-  readAt      DateTime? @map("read_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-
-  sender    User     @relation("MessageSender",    fields: [senderId],    references: [userId], onDelete: Cascade)
-  recipient User     @relation("MessageRecipient", fields: [recipientId], references: [userId], onDelete: Cascade)
-  order     Order?   @relation(fields: [orderId],   references: [orderId],   onDelete: SetNull)
-  product   Product? @relation(fields: [productId], references: [productId], onDelete: SetNull)
-
-  @@index([senderId])
-  @@index([recipientId])
-  // Composite index for the inbox query — "unread messages for me".
-  @@index([recipientId, readAt])
-  @@index([createdAt])
-  @@map("message")
-}
-
-// ============================================================================
-//  PRODUCT Q&A — public questions buyers ask, sellers answer in-line.
-//  Lives below the reviews section on /product/[id].
-// ============================================================================
-
-model ProductQuestion {
-  questionId  Int      @id @default(autoincrement()) @map("question_id")
-  productId   Int      @map("product_id")
-  askerId     Int      @map("asker_id")
-  body        String   @db.VarChar(500)
-  // Inline answer — when present, the seller (or admin) has replied.
-  answer      String?  @db.VarChar(500)
-  answeredAt  DateTime? @map("answered_at")
-  answererId  Int?     @map("answerer_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  product  Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
-  asker    User    @relation("QuestionAsker",    fields: [askerId],    references: [userId], onDelete: Cascade)
-  answerer User?   @relation("QuestionAnswerer", fields: [answererId], references: [userId], onDelete: SetNull)
-
-  @@index([productId])
-  @@index([productId, createdAt])
-  @@index([askerId])
-  @@map("product_question")
-}
-
-// ============================================================================
-//  STOCK ALERT — buyer asks to be notified when an out-of-stock variant
-//  comes back. Unique per (user, variant) so re-clicking the bell is a
-//  no-op. Fired off by the seller's inventory bump (see Batch D email).
-// ============================================================================
-
-model StockAlert {
-  alertId       Int       @id @default(autoincrement()) @map("alert_id")
-  userId        Int       @map("user_id")
-  productItemId Int       @map("product_item_id")
-  notifiedAt    DateTime? @map("notified_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-
-  user        User        @relation(fields: [userId],        references: [userId],        onDelete: Cascade)
-  productItem ProductItem @relation(fields: [productItemId], references: [productItemId], onDelete: Cascade)
-
-  @@unique([userId, productItemId])
-  @@index([productItemId, notifiedAt])
-  @@map("stock_alert")
-}
 
 // ============================================================================
 //  PASSWORD RESET — token-based flow. Token stored as a SHA-256 hex hash so
@@ -619,14 +512,14 @@ model StockAlert {
 // ============================================================================
 
 model PasswordResetToken {
-  tokenId     Int       @id @default(autoincrement()) @map("token_id")
-  userId      Int       @map("user_id")
+  tokenId    Int       @id @default(autoincrement()) @map("token_id")
+  userId     Int       @map("user_id")
   // SHA-256 hash of the random token sent in the URL — never store the
   // raw value so a leaked DB row can't be replayed.
-  tokenHash   String    @unique @map("token_hash") @db.VarChar(64)
-  expiresAt   DateTime  @map("expires_at")
-  consumedAt  DateTime? @map("consumed_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  tokenHash  String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
@@ -641,20 +534,20 @@ model PasswordResetToken {
 // ============================================================================
 
 model AuditLog {
-  logId       Int      @id @default(autoincrement()) @map("log_id")
+  logId      Int      @id @default(autoincrement()) @map("log_id")
   // Nullable: a system action (e.g. cleanup cron) may not have an actor.
-  actorId     Int?     @map("actor_id")
-  action      String   @db.VarChar(60)            // e.g. "user.delete", "store.delete", "order.refund"
-  targetType  String   @map("target_type") @db.VarChar(40)  // e.g. "user", "store", "order"
-  targetId    Int      @map("target_id")
-  meta        Json?    // optional JSON snapshot of pre-change state or extra context
+  actorId    Int?     @map("actor_id")
+  action     String   @db.VarChar(60) // e.g. "user.delete", "store.delete", "order.refund"
+  targetType String   @map("target_type") @db.VarChar(40) // e.g. "user", "store", "order"
+  targetId   Int      @map("target_id")
+  meta       Json? // optional JSON snapshot of pre-change state or extra context
   // Phase 15.4 — request context. NULL for pre-15.4 rows + system
   // actions that don't originate from an HTTP request. VARCHAR(45)
   // sized for IPv6 worst case; VARCHAR(255) for UA per existing
   // session table convention.
-  ipAddress   String?  @map("ip_address") @db.VarChar(45)
-  userAgent   String?  @map("user_agent") @db.VarChar(255)
-  createdAt   DateTime @default(now()) @map("created_at")
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at")
 
   actor User? @relation(fields: [actorId], references: [userId], onDelete: SetNull)
 
@@ -692,7 +585,7 @@ model Account {
   // until Phase 14.2 swaps the middleware.
   password              String?   @db.Text
   createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt       @map("updated_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
@@ -702,14 +595,14 @@ model Account {
 }
 
 model Session {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  token     String   @unique @db.VarChar(120)
-  expiresAt DateTime @map("expires_at")
-  ipAddress String?  @map("ip_address") @db.VarChar(45)
-  userAgent String?  @map("user_agent") @db.VarChar(255)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt       @map("updated_at")
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  token      String    @unique @db.VarChar(120)
+  expiresAt  DateTime  @map("expires_at")
+  ipAddress  String?   @map("ip_address") @db.VarChar(45)
+  userAgent  String?   @map("user_agent") @db.VarChar(255)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
   /// Phase 23.3 — last successful TOTP step-up timestamp. Set by the
   /// /auth/totp/step-up endpoint; checked by requireRecent2FA(maxMin)
   /// middleware on sensitive routes (withdrawal request, change
@@ -730,177 +623,36 @@ model Verification {
   value      String   @db.Text
   expiresAt  DateTime @map("expires_at")
   createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt       @map("updated_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([identifier])
   @@map("verification")
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Phase 17.1 — wallet / coin economy + system settings
+// Phase 17.1 / 26 — system settings (slimmed down).
 // ─────────────────────────────────────────────────────────────────
 
 /// Single-row config for runtime feature flags. The CHECK
 /// constraint at the SQL level pins id=1 so we can never
 /// accidentally insert a second row.
+///
+/// Phase 26 — dropped: walletEnabled, chatEnabled, promptpayId,
+/// withdrawalFeePercent (PromptPay/coin layer removed in favour of
+/// Stripe Connect, scheduled for Phase 27).
 model SystemSetting {
-  id                Int      @id @default(1)
-  walletEnabled     Boolean  @default(false) @map("wallet_enabled")
-  chatEnabled       Boolean  @default(true)  @map("chat_enabled")
+  id                 Int      @id @default(1)
   /// Phase 17.x — favourites surfaces (heart icon, /favorites inbox,
   /// FavoriteButton on cards) hide when this is false. The
   /// favorite_product table is preserved so flipping back ON shows
   /// every prior favourite — no data lost on a temporary disable.
-  favoritesEnabled  Boolean  @default(true)  @map("favorites_enabled")
-  /// Demo PromptPay ID used to generate top-up QRs. Default seed
-  /// is a placeholder; admin overrides via /admin/settings.
-  promptpayId       String   @default("0812345678") @map("promptpay_id") @db.VarChar(20)
-  /// Phase 20.1 — % of every store-line subtotal the platform keeps
-  /// at credit time. Default 5.00 = sellers earn 95% of each sale.
-  /// Decimal(5,2) so admins can configure fractional percents
-  /// (e.g. 5.5%). Applied at checkout — not stored on the order row.
-  platformFeePercent   Decimal @default(5.00) @map("platform_fee_percent")   @db.Decimal(5, 2)
-  /// Phase 20.1 — % deducted from a withdrawal request's `amountCoins`
-  /// at request time. Default 0.00 (no fee). Phase 20.2 will snapshot
-  /// this onto the Withdrawal row so changing the global setting later
-  /// doesn't retroactively shift open requests.
-  withdrawalFeePercent Decimal @default(0.00) @map("withdrawal_fee_percent") @db.Decimal(5, 2)
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  favoritesEnabled   Boolean  @default(true) @map("favorites_enabled")
+  /// Phase 20.1 — % of every order the platform keeps at checkout.
+  /// Default 5.00 = sellers earn 95% of each sale. Decimal(5,2) so
+  /// admins can configure fractional percents (e.g. 5.5%). In Phase
+  /// 27 this becomes Stripe's `application_fee_amount` parameter.
+  platformFeePercent Decimal  @default(5.00) @map("platform_fee_percent") @db.Decimal(5, 2)
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@map("system_setting")
-}
-
-model Wallet {
-  walletId  Int      @id @default(autoincrement()) @map("wallet_id")
-  userId    Int      @unique @map("user_id")
-  balance   Int      @default(0)
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
-
-  @@map("wallet")
-}
-
-enum WalletTxType {
-  topup
-  spend
-  refund
-  grant
-}
-
-model WalletTransaction {
-  walletTxId    Int           @id @default(autoincrement()) @map("wallet_tx_id")
-  userId        Int           @map("user_id")
-  type          WalletTxType
-  amount        Int
-  balanceAfter  Int           @map("balance_after")
-  reference     String?       @db.VarChar(80)
-  meta          Json?
-  createdAt     DateTime      @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([createdAt(sort: Desc)])
-  @@map("wallet_transaction")
-}
-
-enum TopupStatus {
-  pending
-  paid
-  rejected
-  expired
-}
-
-model Topup {
-  topupId           Int          @id @default(autoincrement()) @map("topup_id")
-  userId            Int          @map("user_id")
-  amountBaht        Int          @map("amount_baht")
-  coinsExpected     Int          @map("coins_expected")
-  status            TopupStatus  @default(pending)
-  promptpayPayload  String       @map("promptpay_payload") @db.Text
-  slipImage         String?      @map("slip_image") @db.Text
-  slipReference     String?      @unique @map("slip_reference") @db.VarChar(80)
-  slipQrPayload     String?      @map("slip_qr_payload") @db.Text
-  reviewedBy        Int?         @map("reviewed_by")
-  reviewedAt        DateTime?    @map("reviewed_at")
-  rejectionReason   String?      @map("rejection_reason") @db.VarChar(200)
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
-
-  user     User  @relation("TopupOwner",    fields: [userId],     references: [userId], onDelete: Cascade)
-  reviewer User? @relation("TopupReviewer", fields: [reviewedBy], references: [userId], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([status, createdAt(sort: Desc)])
-  @@map("topup")
-}
-
-/// Phase 20.2 — seller payout requests. Coins debited from
-/// `Store.coinBalance` at REQUEST time so two simultaneous requests
-/// can't double-spend the balance. `feePercentBp` snapshots the
-/// global rate so changing the system setting later doesn't
-/// retroactively shift open requests. Admin reviews each row;
-/// approval marks status=paid + attaches a base64 bank-transfer slip.
-/// Rejection refunds the deducted coins back to the store via a
-/// `withdraw_reverse` StoreTransaction row.
-enum WithdrawalStatus {
-  pending
-  paid
-  rejected
-}
-
-model Withdrawal {
-  withdrawalId    Int               @id @default(autoincrement()) @map("withdrawal_id")
-  storeId         Int               @map("store_id")
-  amountCoins     Int               @map("amount_coins")
-  feePercentBp    Int               @map("fee_percent_bp")
-  feeCoins        Int               @map("fee_coins")
-  netCoins        Int               @map("net_coins")
-  netBaht         Decimal           @map("net_baht") @db.Decimal(10, 2)
-  bankName        String            @map("bank_name") @db.VarChar(60)
-  bankAccountNo   String            @map("bank_account_no") @db.VarChar(20)
-  bankAccountName String            @map("bank_account_name") @db.VarChar(80)
-  status          WithdrawalStatus  @default(pending)
-  requestedAt     DateTime          @default(now()) @map("requested_at")
-  reviewedBy      Int?              @map("reviewed_by")
-  reviewedAt      DateTime?         @map("reviewed_at")
-  paidProofImage  String?           @map("paid_proof_image") @db.Text
-  rejectionReason String?           @map("rejection_reason") @db.VarChar(200)
-
-  store    Store @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
-  reviewer User? @relation("WithdrawalReviewer", fields: [reviewedBy], references: [userId], onDelete: SetNull)
-
-  @@index([storeId, requestedAt(sort: Desc)])
-  @@index([status, requestedAt])
-  @@map("withdrawal")
-}
-
-/// Phase 20.2 — per-store ledger. Mirrors WalletTransaction shape but
-/// scoped to a Store. Phase 20.2 only writes `withdraw` and
-/// `withdraw_reverse` rows. earn / refund_clawback / adjustment are
-/// scaffolded for later phases (Phase 22 refund work, admin manual
-/// corrections).
-enum StoreTxType {
-  earn
-  withdraw
-  withdraw_reverse
-  refund_clawback
-  adjustment
-}
-
-model StoreTransaction {
-  storeTxId    Int          @id @default(autoincrement()) @map("store_tx_id")
-  storeId      Int          @map("store_id")
-  type         StoreTxType
-  amount       Int
-  balanceAfter Int          @map("balance_after")
-  reference    String?      @db.VarChar(80)
-  meta         Json?
-  createdAt    DateTime     @default(now()) @map("created_at")
-
-  store Store @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
-
-  @@index([storeId, createdAt(sort: Desc)])
-  @@map("store_transaction")
 }

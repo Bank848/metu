@@ -2,15 +2,11 @@ import { redirect } from "next/navigation";
 import { PauseCircle } from "lucide-react";
 import { SellerSidebar } from "@/components/SellerSidebar";
 import { getMe, requireResetGuard } from "@/lib/session";
-import { safeGetSettings } from "@/lib/settings";
 
 export default async function SellerLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
   if (!me) redirect("/login?next=/seller");
   if (!me.user?.store && me.role !== "admin") redirect("/become-seller");
-  // Phase 19 — sidebar drops the Messages row + skips the unread poll
-  // when admin disables chat globally.
-  const settings = await safeGetSettings();
   // Phase 15.5 — sellers can't manage their store while a force-
   // reset is pending. Bounce to /profile/edit until cleared.
   requireResetGuard(me, "/seller");
@@ -23,7 +19,7 @@ export default async function SellerLayout({ children }: { children: React.React
 
   return (
     <div className="flex min-h-screen bg-space-black">
-      <SellerSidebar storeName={me.user?.store?.name} chatEnabled={settings.chatEnabled} />
+      <SellerSidebar storeName={me.user?.store?.name} />
       <main id="main" className="flex-1 px-8 py-10">
         {isSuspended && (
           <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 flex items-start gap-3">
