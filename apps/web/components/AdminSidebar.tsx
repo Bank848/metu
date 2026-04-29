@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network } from "lucide-react";
+import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Banknote } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,8 @@ const items = [
   { href: "/admin/stores",       label: "Stores",     icon: Store },
   { href: "/admin/reports",      label: "Reports",    icon: FileBarChart },
   { href: "/admin/audit",        label: "Audit log",  icon: History },
+  // Phase 17.3 — pending PromptPay top-up review queue
+  { href: "/admin/topups",       label: "Top-ups",    icon: Banknote },
   // Phase 17.1 — runtime feature flags + PromptPay ID
   { href: "/admin/settings",     label: "Settings",   icon: Settings },
   // Phase 17.7 — ER diagram + tech stack + deployment topology

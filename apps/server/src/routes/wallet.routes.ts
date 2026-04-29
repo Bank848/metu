@@ -13,8 +13,11 @@ import { requireAuth } from "../middleware/auth.js";
  * the admin router file).
  */
 const router = Router();
-router.get("/",             requireAuth(), ctrl.getMyBalance);
-router.get("/transactions", requireAuth(), ctrl.getMyTransactions);
+router.get("/",                requireAuth(), ctrl.getMyBalance);
+router.get("/transactions",    requireAuth(), ctrl.getMyTransactions);
+// Phase 17.3 — top-up flow.
+router.post("/topup",          requireAuth(), ctrl.requestTopup);
+router.post("/topup/:id/slip", requireAuth(), ctrl.submitSlip);
 export default router;
 
 export const adminWalletRouter = Router();
@@ -23,4 +26,20 @@ adminWalletRouter.post(
   "/users/:id/grant-coins",
   requireAuth(["admin"]),
   ctrl.adminGrant,
+);
+// Phase 17.3 — admin top-up review queue.
+adminWalletRouter.get(
+  "/topups",
+  requireAuth(["admin"]),
+  ctrl.adminListTopups,
+);
+adminWalletRouter.post(
+  "/topups/:id/approve",
+  requireAuth(["admin"]),
+  ctrl.adminApproveTopup,
+);
+adminWalletRouter.post(
+  "/topups/:id/reject",
+  requireAuth(["admin"]),
+  ctrl.adminRejectTopup,
 );

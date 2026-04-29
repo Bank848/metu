@@ -22,6 +22,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 import { MessagesNavIcon } from "./MessagesNavIcon";
 import { CartNavIcon } from "./CartNavIcon";
+import { WalletNavPill } from "./WalletNavPill";
 import { getMe } from "@/lib/session";
 import { safeGetSettings } from "@/lib/settings";
 import { getServerT } from "@/lib/i18n/server";
@@ -107,6 +108,12 @@ export async function TopNav({ q }: { q?: string } = {}) {
                 the previous static <Link>: rounded-xl square, hairline
                 border, yellow hover tint. */}
             <CartNavIcon />
+            {/* Phase 17.3 — wallet pill. Only renders when admin has
+                enabled the wallet feature (otherwise coins are
+                irrelevant to the UI). Server fetches the live
+                balance via /api/wallet so logged-out users skip
+                the request. */}
+            {settings.walletEnabled && me && <WalletNavPill />}
           </div>
 
           {/* Group 2: control cluster — Sound · Theme · Locale all
