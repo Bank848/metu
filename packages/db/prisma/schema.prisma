@@ -108,6 +108,12 @@ model User {
   // flag). Default false; admins flip it from /admin/users.
   requirePasswordReset Boolean @default(false) @map("require_password_reset")
   createdDate   DateTime  @default(now()) @map("created_date")
+  // Phase 16.3 — better-auth's user schema requires `updatedAt` on
+  // every model; without it the Prisma adapter throws "Unknown
+  // argument" on findUserByEmail and returns an empty accounts array,
+  // which signInEmail surfaces as the misleading "Credential account
+  // not found" error. Migration 20260429090000 added + backfilled.
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   // Soft-delete: when set, public surfaces hide the user but admin /
   // audit queries can still see them. Used by /api/admin/users/[id]
