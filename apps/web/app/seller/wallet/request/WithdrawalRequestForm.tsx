@@ -1,8 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, Send, AlertCircle } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
+import { TotpStepUpModal } from "@/components/TotpStepUpModal";
 
 /**
  * Phase 20.2 — withdrawal request form.
@@ -27,6 +28,13 @@ export function WithdrawalRequestForm({
   const [bankAccountName, setBankAccountName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Phase 23.3 — when the server returns 403 TotpStepUpRequired we
+  // open the modal + stash the original submit handler in `retryRef`.
+  // After the user verifies, the modal calls onSuccess which runs
+  // retryRef.current() — that re-fires the same submit, now passing
+  // the requireRecent2FA gate.
+  const [stepUpOpen, setStepUpOpen] = useState(false);
+  const retryRef = useRef<(() => Promise<void>) | null>(null);
 
   const amountNum = Math.max(0, Math.floor(Number(amount) || 0));
   const feePercentBp = Math.round(withdrawalFeePercent * 100);
@@ -41,9 +49,7 @@ export function WithdrawalRequestForm({
     /^[0-9]{10,12}$/.test(bankAccountNo.trim()) &&
     bankAccountName.trim().length >= 2;
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valid) return;
+  async function submit() {
     setBusy(true);
     setError(null);
     try {
@@ -59,6 +65,13 @@ export function WithdrawalRequestForm({
         }),
       });
       const data = await res.json().catch(() => ({}));
+      // Phase 23.3 — TOTP step-up gate. The modal's onSuccess will
+      // re-fire submit() once verified.
+      if (res.status === 403 && data.error === "TotpStepUpRequired") {
+        retryRef.current = submit;
+        setStepUpOpen(true);
+        return;
+      }
       if (!res.ok) {
         setError(data.message || data.error || "Failed to submit request");
         return;
@@ -70,6 +83,12 @@ export function WithdrawalRequestForm({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid) return;
+    await submit();
   }
 
   return (
@@ -177,6 +196,17 @@ export function WithdrawalRequestForm({
           Coins are escrowed immediately. An admin reviews + transfers within 1–2 business days.
         </p>
       </div>
+
+      <TotpStepUpModal
+        open={stepUpOpen}
+        onClose={() => setStepUpOpen(false)}
+        onSuccess={() => {
+          setStepUpOpen(false);
+          // Re-fire the original submit. Errors from this retry land
+          // back in the form's existing error state via setError.
+          retryRef.current?.();
+        }}
+      />
     </form>
   );
 }

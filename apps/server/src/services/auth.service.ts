@@ -858,6 +858,53 @@ export async function totpDisable(
   });
 }
 
+/**
+ * Phase 23.3 — TOTP step-up. Verifies a fresh 6-digit code and
+ * stamps `Session.lastTotpAt = now()` so the requireRecent2FA
+ * middleware lets the user proceed with the original sensitive
+ * action. Throws 400 InvalidTotp on a wrong code; 400 NotEnrolled
+ * when the user hasn't enabled 2FA (UI shouldn't have let them get
+ * here, but defence in depth); 401 NoSession when the request is
+ * on the legacy JWT cookie path with no better-auth Session row.
+ */
+export async function totpStepUp(
+  userId: number,
+  sessionId: number | null,
+  code: string,
+): Promise<void> {
+  if (sessionId === null) {
+    throw new AppError(
+      401,
+      "NoSession",
+      "Step-up requires a better-auth session. Sign out and sign back in to refresh.",
+    );
+  }
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { totpEnabled: true, totpSecret: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (!user.totpEnabled || !user.totpSecret) {
+    throw new AppError(
+      400,
+      "NotEnrolled",
+      "TOTP isn't enabled on this account.",
+    );
+  }
+  const ok = await verifyTotpCode(code, user.totpSecret);
+  if (!ok) throw new AppError(400, "InvalidTotp");
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: { lastTotpAt: new Date() },
+  });
+  await audit({
+    actorId: userId,
+    action: "auth.totp.step_up",
+    targetType: "session",
+    targetId: sessionId,
+  });
+}
+
 // =============================================================================
 //  Phase 18 — connected social accounts
 // =============================================================================

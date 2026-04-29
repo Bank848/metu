@@ -3,6 +3,7 @@ import * as ctrl from "../controllers/withdrawal.controller.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireStore } from "../middleware/seller.js";
 import { submitWithdrawLimiter } from "../middleware/rate-limit.js";
+import { requireRecent2FA } from "../middleware/require-recent-2fa.js";
 
 /**
  * Phase 20.2 — withdrawal routes.
@@ -24,9 +25,17 @@ sellerRouter.get("/wallet",        ctrl.getSellerWallet);
 sellerRouter.get("/withdrawals",   ctrl.listMyWithdrawals);
 // Phase 22 — POST is rate-limited to 3/hr/user so a stolen session
 // can't fire a barrage of withdrawal requests with attacker-controlled
-// bank details. The deduct-on-request invariant means each successful
-// request also reduces the attack surface (Store.coinBalance).
-sellerRouter.post("/withdrawals",  submitWithdrawLimiter, ctrl.requestWithdrawal);
+// bank details.
+// Phase 23.3 — requireRecent2FA(15) gates withdrawals on a fresh TOTP
+// step-up (15 min window). Users without TOTP enrolled fall through
+// the middleware. With TOTP on, even a stolen session needs the
+// authenticator app to drain the seller's balance.
+sellerRouter.post(
+  "/withdrawals",
+  submitWithdrawLimiter,
+  requireRecent2FA(15),
+  ctrl.requestWithdrawal,
+);
 export default sellerRouter;
 
 export const adminWithdrawalsRouter = Router();
