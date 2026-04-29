@@ -6,7 +6,7 @@ import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { apiAuth, getMe } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
-import { money, moneyCompact } from "@/lib/format";
+import { coins, thbToCoins, coinsCompact } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { prisma } from "@/lib/server/prisma";
@@ -109,7 +109,7 @@ export default async function SellerOverview() {
       {/* Wave-3: lead stat (revenue) gets `highlight` — single mint card
           to call out the headline number. Rest stay default. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {/* Phase 11.2 — `moneyCompact()` formats as "฿45.6K" / "฿1.2M"
+        {/* Phase 11.2 — `coinsCompact(thbToCoins())` formats as "฿45.6K" / "฿1.2M"
             so the headline number always fits the highlight slot.
             `valueTooltip` exposes the precise figure on hover for
             sellers who need the exact amount before reaching for
@@ -118,8 +118,8 @@ export default async function SellerOverview() {
           variant="highlight"
           icon={Banknote}
           label="Total revenue"
-          value={moneyCompact(stats.kpi.totalRevenue)}
-          valueTooltip={money(stats.kpi.totalRevenue)}
+          value={coinsCompact(thbToCoins(stats.kpi.totalRevenue))}
+          valueTooltip={coins(thbToCoins(stats.kpi.totalRevenue))}
         />
         <StatCard icon={ShoppingBag} label="Paid orders" value={stats.kpi.paidCount} />
         <StatCard icon={Star} label="Rating" value={((stats.store.stats?.rating ?? 0) / 10).toFixed(1) + "★"} />
@@ -148,7 +148,7 @@ export default async function SellerOverview() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-white truncate">{p.name}</div>
-                    <div className="text-xs text-ink-dim">{money(p.revenue)} · {p.units} units</div>
+                    <div className="text-xs text-ink-dim">{coins(thbToCoins(p.revenue))} · {p.units} units</div>
                   </div>
                 </li>
               ))}

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 import { cn, isDataUrl } from "@/lib/utils";
 
 type OrderStatus = "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
@@ -157,7 +157,7 @@ export default async function OrdersPage({
                         <div className="text-right">
                           <Badge variant={statusVariant[o.status]} className="uppercase">{o.status}</Badge>
                           <div className="mt-2 font-display text-xl font-extrabold text-gold-gradient">
-                            {money(Number(o.totalPrice))}
+                            {coins(thbToCoins(Number(o.totalPrice)))}
                           </div>
                         </div>
                       </div>

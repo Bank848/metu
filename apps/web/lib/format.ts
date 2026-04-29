@@ -53,3 +53,48 @@ export function moneyCompact(n: number | string | null | undefined): string {
   }).format(num);
   return `฿${compact}`;
 }
+
+/**
+ * Phase 17.2 — coin formatter. The buyer-facing currency since the
+ * 1 ฿ → 10 coins migration. We deliberately spell out "coins" rather
+ * than using a symbol — there's no Unicode glyph that reads as
+ * "in-app token", and a plain word avoids the "is that ฿ or M?"
+ * ambiguity at small font sizes.
+ *
+ * coins(1234) → "1,234 coins"
+ * coins(1)    → "1 coin"
+ * coins(0)    → "Free"
+ *
+ * Compact variant for KPI tiles: coinsCompact(45623) → "45.6K coins".
+ */
+export function coins(n: number | string | null | undefined): string {
+  const num = typeof n === "string" ? Number(n) : (n ?? 0);
+  if (!Number.isFinite(num)) return "0 coins";
+  if (num === 0) return "Free";
+  const formatted = new Intl.NumberFormat("en-US").format(num);
+  return `${formatted} ${num === 1 ? "coin" : "coins"}`;
+}
+
+export function coinsCompact(n: number | string | null | undefined): string {
+  const num = typeof n === "string" ? Number(n) : (n ?? 0);
+  if (!Number.isFinite(num)) return "0 coins";
+  if (num === 0) return "Free";
+  if (Math.abs(num) < 1000) return coins(num);
+  const compact = new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(num);
+  return `${compact} coins`;
+}
+
+/**
+ * Convert THB → coins for any callers that still hold a baht number
+ * (e.g. legacy seller analytics that haven't migrated yet). 1 baht
+ * = 10 coins; we round to integer so the ledger never carries
+ * fractional coin amounts.
+ */
+export function thbToCoins(thb: number | string | null | undefined): number {
+  const num = typeof thb === "string" ? Number(thb) : (thb ?? 0);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num * 10);
+}

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { OrderStatusActions } from "@/components/seller/OrderStatusActions";
 import { apiAuth } from "@/lib/session";
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
 type Order = {
@@ -63,7 +63,7 @@ export default async function SellerOrders() {
               </div>
               <div className="text-right">
                 <Badge variant={variants[o.status]} className="uppercase">{o.status}</Badge>
-                <div className="mt-1 font-display font-bold text-brand-yellow">{money(Number(o.totalPrice))}</div>
+                <div className="mt-1 font-display font-bold text-brand-yellow">{coins(thbToCoins(Number(o.totalPrice)))}</div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-ink-secondary">

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { RoleBadges } from "@/components/AuthMenu";
 import { apiAuth, getMe } from "@/lib/session";
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 import { LogoutButton } from "./LogoutButton";
 
 type Order = { orderId: number; status: string; totalPrice: string | number; createdAt: string };
@@ -102,7 +102,7 @@ export default async function ProfilePage() {
                       <Badge variant={o.status === "paid" ? "success" : o.status === "fulfilled" ? "info" : o.status === "pending" ? "warning" : "danger"} className="uppercase text-[10px]">
                         {o.status}
                       </Badge>
-                      <div className="font-display font-bold text-brand-yellow">{money(Number(o.totalPrice))}</div>
+                      <div className="font-display font-bold text-brand-yellow">{coins(thbToCoins(Number(o.totalPrice)))}</div>
                     </li>
                   ))}
                 </ul>

@@ -302,6 +302,9 @@ model ProductItem {
   deliveryMethod  DeliveryMethod @map("delivery_method")
   quantity        Int            @default(0)
   price           Decimal        @db.Decimal(10, 2)
+  /// Phase 17.2 — canonical buyer-facing price. 1 THB = 10 coins.
+  /// Backfilled from price * 10 in migration 20260429110000.
+  coinPrice       Int            @default(0) @map("coin_price")
   discountPercent Int            @default(0) @map("discount_percent")
   discountAmount  Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
   // Optional URL to a free preview / sample (e.g. low-res PDF, audio

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiAuth } from "@/lib/session";
-import { money, moneyCompact } from "@/lib/format";
+import { coins, thbToCoins, coinsCompact } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
 type Stats = {
@@ -50,8 +50,8 @@ export default async function AdminOverview() {
           variant="highlight"
           icon={Banknote}
           label="GMV (paid)"
-          value={moneyCompact(stats.gmv)}
-          valueTooltip={money(stats.gmv)}
+          value={coinsCompact(thbToCoins(stats.gmv))}
+          valueTooltip={coins(thbToCoins(stats.gmv))}
         />
         <StatCard icon={Users} label="Users" value={stats.users} />
         <StatCard icon={Store} label="Stores" value={stats.stores} />
@@ -87,7 +87,7 @@ export default async function AdminOverview() {
               <Badge variant={tx.transactionType === "refund" ? "purple" : tx.transactionType === "payout" ? "info" : "success"}>
                 {tx.transactionType}
               </Badge>
-              <div className="font-display font-bold text-brand-yellow">{money(Number(tx.totalAmount))}</div>
+              <div className="font-display font-bold text-brand-yellow">{coins(thbToCoins(Number(tx.totalAmount)))}</div>
               <TransactionActions
                 transactionId={tx.transactionId}
                 type={tx.transactionType}
