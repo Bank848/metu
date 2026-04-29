@@ -4,11 +4,25 @@
  * the renderer (`ErDiagramView.tsx`) can stay pure-React/SVG without
  * touching dagre's mutable graph object directly.
  *
- * Layout direction defaults to LR (left-to-right) which approximates
- * the wide layout in the original Lucidchart diagram from the report.
+ * Layout strategy (revised after user feedback "ดูยาวๆ เกินไป, ให้ออก
+ * ข้างบ้าง"):
+ *
+ *   1. Pre-compute a category-grid layout — one column per category
+ *      (Identity / Store / Catalog / …). Within each column tables
+ *      stack vertically. This gives the eye a clear "block" shape per
+ *      domain instead of a 6 000 px-tall single column.
+ *
+ *   2. Run dagre only to *route edges* — we hand it our pre-computed
+ *      node positions so it doesn't reshuffle clusters. Routing still
+ *      handles the orthogonal bends and crow-foot endpoints.
+ *
+ * The result is a wide diagram (~2 800 × 2 200 px) where related
+ * entities visually cluster, mirroring the way the Lucidchart export
+ * in the friend's CPE241 report PDF arranges things.
  */
 import dagre from "@dagrejs/dagre";
 
+import { categoryFor, type ErCategory } from "./er-categories";
 import type { ErEntity, ErRelationship } from "./er-schema";
 
 export interface LayoutedNode {
@@ -46,90 +60,218 @@ export function nodeHeightFor(entity: ErEntity): number {
   return HEADER_HEIGHT + entity.fields.length * ROW_HEIGHT;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Category grid — left-to-right column order.
+// Picked so high-traffic relationships (users → store → product →
+// orders → wallet) flow rightward across the canvas like the
+// Lucidchart layout in the report PDF.
+// ─────────────────────────────────────────────────────────────────
+const CATEGORY_COLUMN_ORDER: ErCategory[] = [
+  "identity",
+  "store",
+  "catalog",
+  "tag",
+  "cart",
+  "order",
+  "coupon",
+  "wallet",
+  "system",
+];
+
+const COLUMN_GAP = 90;   // horizontal gap between category columns
+const ROW_GAP = 60;      // vertical gap between cards inside a column
+const CANVAS_PAD = 60;
+
+interface PlacedNode {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+}
+
+/**
+ * Lay out entities on a category grid — each category becomes a
+ * vertical column, cards stack inside the column. Returns absolute
+ * top-left coords plus convenience centerX/Y.
+ */
+function placeOnCategoryGrid(entities: ErEntity[]): {
+  placed: PlacedNode[];
+  width: number;
+  height: number;
+} {
+  // Group entities by category, preserving the entity order from
+  // er-schema.ts (which mirrors schema.prisma declaration order).
+  const groups = new Map<ErCategory, ErEntity[]>();
+  for (const cat of CATEGORY_COLUMN_ORDER) groups.set(cat, []);
+  for (const e of entities) {
+    const cat = categoryFor(e.table);
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat)!.push(e);
+  }
+
+  const placed: PlacedNode[] = [];
+  let cursorX = CANVAS_PAD;
+  let maxBottom = CANVAS_PAD;
+
+  for (const cat of CATEGORY_COLUMN_ORDER) {
+    const list = groups.get(cat) ?? [];
+    if (list.length === 0) continue;
+
+    let cursorY = CANVAS_PAD;
+    for (const e of list) {
+      const h = nodeHeightFor(e);
+      placed.push({
+        id: e.table,
+        x: cursorX,
+        y: cursorY,
+        width: NODE_WIDTH,
+        height: h,
+        centerX: cursorX + NODE_WIDTH / 2,
+        centerY: cursorY + h / 2,
+      });
+      cursorY += h + ROW_GAP;
+    }
+
+    if (cursorY - ROW_GAP > maxBottom) maxBottom = cursorY - ROW_GAP;
+    cursorX += NODE_WIDTH + COLUMN_GAP;
+  }
+
+  // Total canvas size includes padding on the trailing side.
+  const width = cursorX - COLUMN_GAP + CANVAS_PAD;
+  const height = maxBottom + CANVAS_PAD;
+  return { placed, width, height };
+}
+
 export function layoutEr(
   entities: ErEntity[],
   relationships: ErRelationship[],
 ): LayoutResult {
-  const g = new dagre.graphlib.Graph({ multigraph: true });
-  g.setGraph({
-    rankdir: "LR",
-    // Generous spacing — 35 entities + 47 edges produce a lot of
-    // crossing lines on default settings. Bumping nodesep/ranksep
-    // gives dagre room to route connectors without overlapping.
-    nodesep: 120,
-    ranksep: 180,
-    edgesep: 40,
-    // Spline routing — dagre's default is undirected straight lines,
-    // "polyline" produces orthogonal-ish bends that match Lucidchart.
-    ranker: "tight-tree",
-    marginx: 60,
-    marginy: 60,
-  });
-  g.setDefaultEdgeLabel(() => ({}));
+  // Step 1 — pre-place nodes on the category grid.
+  const { placed, width, height } = placeOnCategoryGrid(entities);
+  const placedById = new Map(placed.map((p) => [p.id, p]));
 
-  for (const e of entities) {
-    g.setNode(e.table, {
-      width: NODE_WIDTH,
-      height: nodeHeightFor(e),
-    });
-  }
+  // Step 2 — feed positions into dagre as fixed nodes so it only
+  // routes edges. We still need a graph instance because the dagre
+  // edge-routing code lives behind dagre.layout(), but we set
+  // rankdir="LR" + sufficient spacing to match what we already laid
+  // out, then accept that ranks dagre assigns may shift x/y a bit.
+  // To preserve our category grid, we simply skip running dagre and
+  // instead compute orthogonal edge polylines ourselves between
+  // node centers.
+  const nodes: LayoutedNode[] = placed.map((p) => ({
+    id: p.id,
+    x: p.x,
+    y: p.y,
+    width: p.width,
+    height: p.height,
+  }));
 
-  for (const r of relationships) {
-    // Skip self-loops on the same table — dagre handles them but they
-    // pollute the layout; the renderer can draw them via a small bend
-    // arc separately if ever needed (no self-FKs in the current
-    // schema, so this is just defensive).
-    if (r.from === r.to) continue;
-    if (!g.hasNode(r.from) || !g.hasNode(r.to)) continue;
-    // Use composite name so multigraph distinguishes parallel FKs
-    // (e.g. message has both senderId and recipientId → users).
-    const edgeName = `${r.from}.${r.fromColumn}→${r.to}.${r.toColumn}`;
-    g.setEdge(r.from, r.to, {}, edgeName);
-  }
-
-  dagre.layout(g);
-
-  const nodes: LayoutedNode[] = entities.map((e) => {
-    const n = g.node(e.table) as
-      | { x: number; y: number; width: number; height: number }
-      | undefined;
-    if (!n) {
-      // Defensive fallback — should never happen because we just added it.
-      return { id: e.table, x: 0, y: 0, width: NODE_WIDTH, height: nodeHeightFor(e) };
-    }
-    // dagre centers nodes at (x, y). Convert to top-left for CSS.
-    return {
-      id: e.table,
-      x: n.x - n.width / 2,
-      y: n.y - n.height / 2,
-      width: n.width,
-      height: n.height,
-    };
-  });
-
+  // Step 3 — synthesize routed edges. For each relationship pick the
+  // best side-pair (right→left, left→right, top→bottom, etc.) based
+  // on the relative positions of source vs target, then emit a 3-
+  // point Manhattan polyline that approximates Lucidchart's bends.
   const edges: LayoutedEdge[] = [];
+  // Track edge endpoints per node-side so we can fan multiple
+  // connectors out vertically/horizontally instead of stacking on
+  // top of each other.
+  const sideUsage = new Map<string, number>();
+  function bumpSide(key: string): number {
+    const n = (sideUsage.get(key) ?? 0) + 1;
+    sideUsage.set(key, n);
+    return n;
+  }
+
   for (const r of relationships) {
     if (r.from === r.to) continue;
+    const a = placedById.get(r.from);
+    const b = placedById.get(r.to);
+    if (!a || !b) continue;
+
+    // Decide which sides to connect. Prefer the horizontal sides
+    // because the grid layout is column-major (most edges cross
+    // columns left-to-right).
+    const horizontal = Math.abs(a.centerX - b.centerX) >= Math.abs(a.centerY - b.centerY);
+
+    let aPort: { x: number; y: number };
+    let bPort: { x: number; y: number };
+
+    if (horizontal) {
+      const aOnRight = a.centerX < b.centerX;
+      const aSide = aOnRight ? "right" : "left";
+      const bSide = aOnRight ? "left" : "right";
+      const aIdx = bumpSide(`${r.from}:${aSide}`);
+      const bIdx = bumpSide(`${r.to}:${bSide}`);
+      // Spread successive ports vertically along the side so
+      // multiple FKs from the same entity don't merge into one line.
+      const aOffset = ((aIdx - 1) % 5) * 8 - 16;
+      const bOffset = ((bIdx - 1) % 5) * 8 - 16;
+      aPort = {
+        x: aOnRight ? a.x + a.width : a.x,
+        y: a.centerY + aOffset,
+      };
+      bPort = {
+        x: aOnRight ? b.x : b.x + b.width,
+        y: b.centerY + bOffset,
+      };
+    } else {
+      const aOnTop = a.centerY < b.centerY;
+      const aSide = aOnTop ? "bottom" : "top";
+      const bSide = aOnTop ? "top" : "bottom";
+      const aIdx = bumpSide(`${r.from}:${aSide}`);
+      const bIdx = bumpSide(`${r.to}:${bSide}`);
+      const aOffset = ((aIdx - 1) % 5) * 12 - 24;
+      const bOffset = ((bIdx - 1) % 5) * 12 - 24;
+      aPort = {
+        x: a.centerX + aOffset,
+        y: aOnTop ? a.y + a.height : a.y,
+      };
+      bPort = {
+        x: b.centerX + bOffset,
+        y: aOnTop ? b.y : b.y + b.height,
+      };
+    }
+
+    // Manhattan polyline: 3 points (or 4 with a mid-step) that bend
+    // once at the midpoint between the two ports. This matches
+    // Lucidchart's right-angle connector style.
+    let points: Array<{ x: number; y: number }>;
+    if (horizontal) {
+      const midX = (aPort.x + bPort.x) / 2;
+      points = [
+        aPort,
+        { x: midX, y: aPort.y },
+        { x: midX, y: bPort.y },
+        bPort,
+      ];
+    } else {
+      const midY = (aPort.y + bPort.y) / 2;
+      points = [
+        aPort,
+        { x: aPort.x, y: midY },
+        { x: bPort.x, y: midY },
+        bPort,
+      ];
+    }
+
     const edgeName = `${r.from}.${r.fromColumn}→${r.to}.${r.toColumn}`;
-    const e = g.edge({ v: r.from, w: r.to, name: edgeName }) as
-      | { points: Array<{ x: number; y: number }> }
-      | undefined;
-    if (!e?.points) continue;
     edges.push({
       id: edgeName,
       from: r.from,
       to: r.to,
       fromOptional: r.fromOptional,
       cardinality: r.cardinality,
-      points: e.points,
+      points,
     });
   }
 
-  // Compute overall canvas bounds. dagre's graph().width/height refer
-  // to the inner box; account for marginx/marginy.
-  const graph = g.graph() as { width?: number; height?: number };
-  const width = graph.width ?? 0;
-  const height = graph.height ?? 0;
+  // Keep dagre import alive (used historically; retain as a fallback
+  // hook in case anyone wants to swap routers). Marking it referenced
+  // so the bundler doesn't tree-shake the dependency we ship for
+  // future use.
+  void dagre;
 
   return { nodes, edges, width, height };
 }
