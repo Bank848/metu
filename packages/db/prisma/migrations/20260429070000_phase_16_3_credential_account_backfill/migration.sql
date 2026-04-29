@@ -23,13 +23,16 @@
 --   created_at    TIMESTAMP
 --   updated_at    TIMESTAMP
 
+-- Note: the legacy `users` table uses `created_date` (not the
+-- `created_at` convention every newer table uses). COALESCE fallback
+-- to NOW() in case the column ever holds NULL.
 INSERT INTO "account" (user_id, provider_id, account_id, password, created_at, updated_at)
 SELECT
   u.user_id                            AS user_id,
   'credential'                         AS provider_id,
   u.email                              AS account_id,
   u.password                           AS password,
-  COALESCE(u.created_at, NOW())        AS created_at,
+  COALESCE(u.created_date, NOW())      AS created_at,
   NOW()                                AS updated_at
 FROM "users" u
 WHERE u.password IS NOT NULL
