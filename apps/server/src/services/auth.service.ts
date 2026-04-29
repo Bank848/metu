@@ -47,6 +47,41 @@ function sanitize(user: any): SafeUser {
  */
 const BCRYPT_ROUNDS = 10;
 
+/**
+ * Phase 16.3 — keep the `account` row's credential password in sync
+ * with `user.password`. Every place that writes a password hash to
+ * the user (register, changePassword, setPassword, resetPassword)
+ * also calls this so better-auth's `signInEmail` can verify against
+ * the same hash via the bcrypt adapter wired in lib/auth.ts.
+ *
+ * Idempotent — uses upsert so re-runs are safe. The unique key is
+ * (provider_id, account_id) and we always pass `email` as account_id
+ * for credential rows (matches the migration backfill convention).
+ *
+ * The `id` is autoincrement so we don't synthesize it. Email moves
+ * are handled by `updateProfile` updating `account.accountId` in
+ * lock-step.
+ */
+export async function syncCredentialAccount(
+  userId: number,
+  email: string,
+  passwordHash: string,
+): Promise<void> {
+  await prisma.account.upsert({
+    where: { providerId_accountId: { providerId: "credential", accountId: email } },
+    create: {
+      userId,
+      providerId: "credential",
+      accountId: email,
+      password: passwordHash,
+    },
+    update: {
+      userId, // protect against rare collisions where the email moved
+      password: passwordHash,
+    },
+  });
+}
+
 export interface AuthOutcome {
   user: SafeUser;
   role: UserRole;
@@ -151,6 +186,12 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
     include: { stats: true },
   });
 
+  // Phase 16.3 — mirror the bcrypt hash into better-auth's credential
+  // account so signInEmail can verify against it on the very next
+  // request. Without this the user would be unable to log in via the
+  // Mode A flow that the controller now uses.
+  await syncCredentialAccount(user.userId, user.email, hash);
+
   return { user: sanitize(user), role: (user.stats?.role ?? "buyer") as UserRole };
 }
 
@@ -213,6 +254,17 @@ export async function updateProfile(
     data,
     include: { stats: true },
   });
+
+  // Phase 16.3 — when the email changes, better-auth's credential
+  // account_id needs to follow it (the column is the lookup key for
+  // signInEmail). Update in place when the row exists; no-op
+  // otherwise (Google-only users have no credential row yet).
+  if (input.email && input.email !== currentEmail) {
+    await prisma.account.updateMany({
+      where: { userId, providerId: "credential", accountId: currentEmail },
+      data: { accountId: input.email },
+    });
+  }
   return sanitize(updated);
 }
 
@@ -251,10 +303,14 @@ export async function changePassword(
   // Phase 15.5 — successful change clears the admin-imposed
   // force-reset flag (if it was set). Idempotent for users who
   // didn't have it set; net cost is one extra column in the UPDATE.
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { userId },
     data: { password: hash, requirePasswordReset: false },
+    select: { email: true },
   });
+  // Phase 16.3 — keep better-auth's credential row in lock-step with
+  // user.password so signInEmail keeps working after a password change.
+  await syncCredentialAccount(userId, updated.email, hash);
 }
 
 /**
@@ -290,10 +346,14 @@ export async function setPassword(
   await ensureSensitiveOtpIfVerified(userId, user.phone, user.phoneVerifiedAt, input.otpCode);
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { userId },
-    data: { password: hash },
+    data: { password: hash, requirePasswordReset: false },
+    select: { email: true },
   });
+  // Phase 16.3 — provision the credential account row so the user
+  // can immediately sign in via email + password (Mode A flow).
+  await syncCredentialAccount(userId, updated.email, hash);
   await audit({
     actorId: userId,
     action: "user.set_password",
@@ -638,8 +698,12 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
   //  3. Invalidate any OTHER outstanding tokens for the same user
   //     so an attacker who grabbed a separate fresh token (e.g.
   //     before this reset) can't use it after the password rotates.
-  await prisma.$transaction([
-    prisma.user.update({ where: { userId: row.userId }, data: { password: hash } }),
+  const [updatedUser] = await prisma.$transaction([
+    prisma.user.update({
+      where: { userId: row.userId },
+      data: { password: hash, requirePasswordReset: false },
+      select: { email: true },
+    }),
     prisma.passwordResetToken.update({
       where: { tokenId: row.tokenId },
       data: { consumedAt: new Date() },
@@ -649,6 +713,13 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
       data: { consumedAt: new Date() },
     }),
   ]);
+
+  // Phase 16.3 — keep better-auth's credential row in sync. Outside
+  // the transaction (account.upsert isn't part of the password-reset
+  // atomicity contract) so a failure here just means the next login
+  // attempt would fall back to the old hash — caught immediately by
+  // the user.
+  await syncCredentialAccount(row.userId, updatedUser.email, hash);
 
   await audit({
     actorId: row.userId,

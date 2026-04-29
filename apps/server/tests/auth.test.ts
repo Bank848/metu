@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import bcrypt from "bcryptjs";
+import { cookieFor } from "./_authMock.js";
 
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
@@ -38,14 +39,40 @@ vi.mock("../src/db/prisma.js", () => ({
       findMany: vi.fn(),
       deleteMany: vi.fn(),
     },
+    // Phase 16.3 — credential `account` row stays in sync with
+    // user.password via syncCredentialAccount(). All four
+    // password-write paths (register / changePassword / setPassword
+    // / resetPassword) call upsert here.
+    account: {
+      upsert: vi.fn(),
+      updateMany: vi.fn(),
+    },
     auditLog: { create: vi.fn() },
   },
 }));
 
+vi.mock("../src/lib/auth.js", () => {
+  const getSession = vi.fn(async () => null);
+  const signInEmail = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=fake; Path=/; HttpOnly; SameSite=Lax");
+    return new Response("", { status: 200, headers });
+  });
+  const signOut = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=; Path=/; Max-Age=0");
+    return new Response("", { status: 200, headers });
+  });
+  const handler = vi.fn(async () => new Response("", { status: 404 }));
+  return { auth: { api: { getSession, signInEmail, signOut }, handler } };
+});
+
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-beforeEach(() => {
+beforeEach(async () => {
+    const { signedOut } = await import("./_authMock.js");
+    await signedOut();
   vi.clearAllMocks();
 });
 
@@ -68,7 +95,10 @@ describe("POST /auth/login", () => {
     expect(res.status).toBe(200);
     expect(res.body.user.userId).toBe(7);
     expect(res.body.user.password).toBeUndefined();
-    expect(res.headers["set-cookie"]?.[0]).toMatch(/^metu_auth=/);
+    // Phase 16.3 — Mode A: better-auth's session cookie is forwarded
+    // by the controller via forwardSetCookieHeaders (the auth module
+    // mock returns a Web Response with a fake Set-Cookie attached).
+    expect(res.headers["set-cookie"]?.[0]).toMatch(/^better-auth\.session_token=/);
   });
 
   it("returns 401 on wrong password", async () => {
@@ -177,12 +207,6 @@ describe("GET /auth/me", () => {
   it("never leaks the bcrypt hash on a successful read", async () => {
     // Mint a real cookie so requireAuth() resolves the user, then
     // verify the password field is stripped from the response.
-    const jwt = await import("jsonwebtoken");
-    const token = jwt.default.sign(
-      { uid: 7, role: "buyer" },
-      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
-      { expiresIn: "1h" },
-    );
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
       email: "buyer@metu.dev",
@@ -193,7 +217,7 @@ describe("GET /auth/me", () => {
     });
     const res = await request(buildApp())
       .get("/auth/me")
-      .set("Cookie", `metu_auth=${token}`);
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.user.userId).toBe(7);
     expect(res.body.user.password).toBeUndefined();
@@ -204,14 +228,6 @@ describe("GET /auth/me", () => {
 //  Phase 14.3 — POST /auth/set-password
 // =============================================================================
 describe("POST /auth/set-password (Phase 14.3)", () => {
-  const jwtToken = async (uid: number, role: "buyer" | "seller" | "admin" = "buyer") => {
-    const jwt = await import("jsonwebtoken");
-    return jwt.default.sign(
-      { uid, role },
-      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
-      { expiresIn: "1h" },
-    );
-  };
 
   it("returns 401 without auth", async () => {
     const res = await request(buildApp())
@@ -221,7 +237,6 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
   });
 
   it("returns 400 PasswordAlreadySet when user has a password", async () => {
-    const token = await jwtToken(7);
     // requireAuth() resolves the user (with its existing password).
     (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
       // Two findUnique calls happen: one in requireAuth (no select),
@@ -237,14 +252,13 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
     });
     const res = await request(buildApp())
       .post("/auth/set-password")
-      .set("Cookie", `metu_auth=${token}`)
+      .set("Cookie", await cookieFor(7))
       .send({ newPassword: "newpass1", confirmPassword: "newpass1" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("PasswordAlreadySet");
   });
 
   it("happy: hashes + persists + writes audit row when password was NULL", async () => {
-    const token = await jwtToken(7);
     (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
       if (select?.password) return Promise.resolve({ password: null });
       return Promise.resolve({
@@ -259,7 +273,7 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
 
     const res = await request(buildApp())
       .post("/auth/set-password")
-      .set("Cookie", `metu_auth=${token}`)
+      .set("Cookie", await cookieFor(7))
       .send({ newPassword: "newpass1", confirmPassword: "newpass1" });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -280,7 +294,6 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
   });
 
   it("400 when newPassword + confirmPassword don't match", async () => {
-    const token = await jwtToken(7);
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
       deletedAt: null,
@@ -289,7 +302,7 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
     });
     const res = await request(buildApp())
       .post("/auth/set-password")
-      .set("Cookie", `metu_auth=${token}`)
+      .set("Cookie", await cookieFor(7))
       .send({ newPassword: "newpass1", confirmPassword: "different" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("ValidationError");
@@ -300,14 +313,6 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
 //  Phase 14.4 — phone + OTP scaffold
 // =============================================================================
 describe("Phase 14.4 — phone + OTP", () => {
-  const jwtToken = async (uid: number) => {
-    const jwt = await import("jsonwebtoken");
-    return jwt.default.sign(
-      { uid, role: "buyer" as const },
-      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
-      { expiresIn: "1h" },
-    );
-  };
 
   describe("PATCH /auth/phone", () => {
     it("401 without auth", async () => {
@@ -318,7 +323,6 @@ describe("Phase 14.4 — phone + OTP", () => {
     });
 
     it("400 ValidationError for non-phone-shaped string", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
         deletedAt: null,
@@ -327,14 +331,13 @@ describe("Phase 14.4 — phone + OTP", () => {
       });
       const res = await request(buildApp())
         .patch("/auth/phone")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ phone: "abc" });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("ValidationError");
     });
 
     it("happy: normalises (strips non-digits) + clears phoneVerifiedAt", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
         deletedAt: null,
@@ -344,7 +347,7 @@ describe("Phase 14.4 — phone + OTP", () => {
       (prisma.user.update as any).mockResolvedValue({});
       const res = await request(buildApp())
         .patch("/auth/phone")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ phone: "+66 (91) 234-5678" });
       expect(res.status).toBe(200);
       const call = (prisma.user.update as any).mock.calls[0][0];
@@ -361,7 +364,6 @@ describe("Phase 14.4 — phone + OTP", () => {
     });
 
     it("400 NoPhoneOnFile when user hasn't set a phone yet", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.phone) return Promise.resolve({ phone: null });
         return Promise.resolve({
@@ -373,14 +375,13 @@ describe("Phase 14.4 — phone + OTP", () => {
       });
       const res = await request(buildApp())
         .post("/auth/request-otp")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({});
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("NoPhoneOnFile");
     });
 
     it("happy: wipes pending OTP + creates fresh row", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
         return Promise.resolve({
@@ -394,7 +395,7 @@ describe("Phase 14.4 — phone + OTP", () => {
       (prisma.verification.create as any).mockResolvedValue({});
       const res = await request(buildApp())
         .post("/auth/request-otp")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({});
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
@@ -416,7 +417,6 @@ describe("Phase 14.4 — phone + OTP", () => {
     });
 
     it("400 ValidationError for non-6-digit code", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
         deletedAt: null,
@@ -425,14 +425,13 @@ describe("Phase 14.4 — phone + OTP", () => {
       });
       const res = await request(buildApp())
         .post("/auth/verify-otp")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ code: "abc" });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("ValidationError");
     });
 
     it("400 NoPendingOtp when nothing was requested", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
         return Promise.resolve({
@@ -445,14 +444,13 @@ describe("Phase 14.4 — phone + OTP", () => {
       (prisma.verification.findFirst as any).mockResolvedValue(null);
       const res = await request(buildApp())
         .post("/auth/verify-otp")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ code: "123456" });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("NoPendingOtp");
     });
 
     it("400 OtpExpired + sweeps the stale row", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
         return Promise.resolve({
@@ -471,7 +469,7 @@ describe("Phase 14.4 — phone + OTP", () => {
       (prisma.verification.delete as any).mockResolvedValue({});
       const res = await request(buildApp())
         .post("/auth/verify-otp")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ code: "123456" });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("OtpExpired");
@@ -479,7 +477,6 @@ describe("Phase 14.4 — phone + OTP", () => {
     });
 
     it("400 InvalidOtp on hash mismatch", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
         return Promise.resolve({
@@ -497,7 +494,7 @@ describe("Phase 14.4 — phone + OTP", () => {
       });
       const res = await request(buildApp())
         .post("/auth/verify-otp")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ code: "123456" });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("InvalidOtp");
@@ -510,7 +507,6 @@ describe("Phase 14.4 — phone + OTP", () => {
       const phone = "+66912345678";
 
       it("change-password: 400 OtpRequired when phone is verified but no otpCode in body", async () => {
-        const token = await jwtToken(7);
         // requireAuth findUnique (no select) returns the full user;
         // changePassword's findUnique uses select for password+phone+
         // phoneVerifiedAt. Differentiate by `select`.
@@ -535,14 +531,13 @@ describe("Phase 14.4 — phone + OTP", () => {
 
         const res = await request(buildApp())
           .post("/auth/change-password")
-          .set("Cookie", `metu_auth=${token}`)
+          .set("Cookie", await cookieFor(7))
           .send({ currentPassword: "old", newPassword: "newpass1", confirmPassword: "newpass1" });
         expect(res.status).toBe(400);
         expect(res.body.error).toBe("OtpRequired");
       });
 
       it("change-password: 400 InvalidOtp on wrong code (verified phone)", async () => {
-        const token = await jwtToken(7);
         (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
           if (select?.password)
             return Promise.resolve({
@@ -568,7 +563,7 @@ describe("Phase 14.4 — phone + OTP", () => {
 
         const res = await request(buildApp())
           .post("/auth/change-password")
-          .set("Cookie", `metu_auth=${token}`)
+          .set("Cookie", await cookieFor(7))
           .send({
             currentPassword: "old",
             newPassword: "newpass1",
@@ -580,7 +575,6 @@ describe("Phase 14.4 — phone + OTP", () => {
       });
 
       it("change-password: happy with correct OTP → consumes verification + updates password", async () => {
-        const token = await jwtToken(7);
         const code = "123456";
         const crypto = await import("node:crypto");
         const expected = crypto.default
@@ -614,7 +608,7 @@ describe("Phase 14.4 — phone + OTP", () => {
 
         const res = await request(buildApp())
           .post("/auth/change-password")
-          .set("Cookie", `metu_auth=${token}`)
+          .set("Cookie", await cookieFor(7))
           .send({
             currentPassword: "old",
             newPassword: "newpass1",
@@ -627,7 +621,6 @@ describe("Phase 14.4 — phone + OTP", () => {
       });
 
       it("change-password: still works WITHOUT otpCode when phone is NOT verified (no-op gate)", async () => {
-        const token = await jwtToken(7);
         (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
           if (select?.password)
             return Promise.resolve({
@@ -649,14 +642,13 @@ describe("Phase 14.4 — phone + OTP", () => {
 
         const res = await request(buildApp())
           .post("/auth/change-password")
-          .set("Cookie", `metu_auth=${token}`)
+          .set("Cookie", await cookieFor(7))
           .send({ currentPassword: "old", newPassword: "newpass1", confirmPassword: "newpass1" });
         expect(res.status).toBe(200);
       });
     });
 
     it("happy: matching code → phoneVerifiedAt set + audit row + verification deleted (atomic)", async () => {
-      const token = await jwtToken(7);
       const phone = "+66912345678";
       const code = "654321";
       // Pre-compute the expected hash so the service comparison passes.
@@ -686,7 +678,7 @@ describe("Phase 14.4 — phone + OTP", () => {
 
       const res = await request(buildApp())
         .post("/auth/verify-otp")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ code });
       expect(res.status).toBe(200);
       expect(res.body.ok).toBe(true);
@@ -708,14 +700,6 @@ describe("Phase 14.4 — phone + OTP", () => {
 //  Phase 16.2 — TOTP 2FA
 // =============================================================================
 describe("Phase 16.2 — TOTP 2FA", () => {
-  const jwtToken = async (uid: number) => {
-    const jwt = await import("jsonwebtoken");
-    return jwt.default.sign(
-      { uid, role: "buyer" as const },
-      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
-      { expiresIn: "1h" },
-    );
-  };
 
   describe("POST /auth/totp/enroll-start", () => {
     it("401 without auth", async () => {
@@ -726,7 +710,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
     });
 
     it("400 AlreadyEnrolled when totpEnabled=true", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.totpSecret) {
           return Promise.resolve({
@@ -744,14 +727,13 @@ describe("Phase 16.2 — TOTP 2FA", () => {
       });
       const res = await request(buildApp())
         .post("/auth/totp/enroll-start")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({});
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("AlreadyEnrolled");
     });
 
     it("happy: returns secret + otpauth URI for fresh enrolment", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.totpSecret) {
           return Promise.resolve({
@@ -770,7 +752,7 @@ describe("Phase 16.2 — TOTP 2FA", () => {
       (prisma.user.update as any).mockResolvedValue({});
       const res = await request(buildApp())
         .post("/auth/totp/enroll-start")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({});
       expect(res.status).toBe(200);
       expect(res.body.secret).toMatch(/^[A-Z2-7]+$/); // base32
@@ -783,7 +765,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
     });
 
     it("resumes pending enrolment (returns existing secret + does NOT re-update)", async () => {
-      const token = await jwtToken(7);
       const existingSecret = "JBSWY3DPEHPK3PXP";
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.totpSecret) {
@@ -802,7 +783,7 @@ describe("Phase 16.2 — TOTP 2FA", () => {
       });
       const res = await request(buildApp())
         .post("/auth/totp/enroll-start")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({});
       expect(res.status).toBe(200);
       expect(res.body.secret).toBe(existingSecret);
@@ -813,7 +794,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
 
   describe("POST /auth/totp/enroll-verify", () => {
     it("400 NoEnrollmentInProgress when totpSecret is null", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
         if (select?.totpSecret) {
           return Promise.resolve({ totpSecret: null, totpEnabled: false });
@@ -827,7 +807,7 @@ describe("Phase 16.2 — TOTP 2FA", () => {
       });
       const res = await request(buildApp())
         .post("/auth/totp/enroll-verify")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ code: "123456" });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("NoEnrollmentInProgress");
@@ -835,7 +815,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
 
     it("happy: matching code → totpEnabled true + audit row", async () => {
       // Use a known seed so we can compute a valid TOTP code.
-      const token = await jwtToken(7);
       const totpUtil = await import("../src/utils/totp.js");
       const secret = totpUtil.generateSecret();
       // otplib doesn't expose a direct "what's the current code"
@@ -866,7 +845,7 @@ describe("Phase 16.2 — TOTP 2FA", () => {
 
       const res = await request(buildApp())
         .post("/auth/totp/enroll-verify")
-        .set("Cookie", `metu_auth=${token}`)
+        .set("Cookie", await cookieFor(7))
         .send({ code });
       expect(res.status).toBe(200);
       expect(prisma.user.update).toHaveBeenCalledWith({
@@ -932,14 +911,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
 //  Phase 15.2 — sessions UI
 // =============================================================================
 describe("Phase 15.2 — sessions UI", () => {
-  const jwtToken = async (uid: number) => {
-    const jwt = await import("jsonwebtoken");
-    return jwt.default.sign(
-      { uid, role: "buyer" as const },
-      process.env.JWT_SECRET ?? "dev-only-fallback-secret",
-      { expiresIn: "1h" },
-    );
-  };
 
   describe("GET /auth/sessions", () => {
     it("401 without auth", async () => {
@@ -947,8 +918,7 @@ describe("Phase 15.2 — sessions UI", () => {
       expect(res.status).toBe(401);
     });
 
-    it("returns sessions ordered + current null when JWT-cookie auth", async () => {
-      const token = await jwtToken(7);
+    it("returns sessions ordered + currentSessionId from getSession (Mode A)", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
         deletedAt: null,
@@ -966,11 +936,13 @@ describe("Phase 15.2 — sessions UI", () => {
       ]);
       const res = await request(buildApp())
         .get("/auth/sessions")
-        .set("Cookie", `metu_auth=${token}`);
+        .set("Cookie", await cookieFor(7));
       expect(res.status).toBe(200);
       expect(res.body.sessions).toHaveLength(1);
-      // JWT-cookie auth path → no better-auth session row → currentSessionId null
-      expect(res.body.currentSessionId).toBeNull();
+      // Phase 16.3 — Mode A: better-auth's getSession resolves the
+      // current session row (mocked id=1 by signedInAs). The "current"
+      // marker on the UI should match.
+      expect(res.body.currentSessionId).toBe(1);
     });
   });
 
@@ -981,7 +953,6 @@ describe("Phase 15.2 — sessions UI", () => {
     });
 
     it("404 SessionNotFound when no row matches the user", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
         deletedAt: null,
@@ -991,13 +962,12 @@ describe("Phase 15.2 — sessions UI", () => {
       (prisma.session.deleteMany as any).mockResolvedValue({ count: 0 });
       const res = await request(buildApp())
         .delete("/auth/sessions/999")
-        .set("Cookie", `metu_auth=${token}`);
+        .set("Cookie", await cookieFor(7));
       expect(res.status).toBe(404);
       expect(res.body.error).toBe("SessionNotFound");
     });
 
     it("happy: deletes the session, ownership-checked via userId predicate", async () => {
-      const token = await jwtToken(7);
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
         deletedAt: null,
@@ -1007,7 +977,7 @@ describe("Phase 15.2 — sessions UI", () => {
       (prisma.session.deleteMany as any).mockResolvedValue({ count: 1 });
       const res = await request(buildApp())
         .delete("/auth/sessions/42")
-        .set("Cookie", `metu_auth=${token}`);
+        .set("Cookie", await cookieFor(7));
       expect(res.status).toBe(200);
       expect(prisma.session.deleteMany).toHaveBeenCalledWith({
         where: { id: 42, userId: 7 },
@@ -1016,8 +986,7 @@ describe("Phase 15.2 — sessions UI", () => {
   });
 
   describe("DELETE /auth/sessions/all-others", () => {
-    it("revokes ALL when JWT-cookie auth (no current session id), audits with kept=0", async () => {
-      const token = await jwtToken(7);
+    it("revokes all OTHER sessions, keeps current row (Mode A)", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
         deletedAt: null,
@@ -1028,18 +997,19 @@ describe("Phase 15.2 — sessions UI", () => {
       (prisma.auditLog.create as any).mockResolvedValue({});
       const res = await request(buildApp())
         .delete("/auth/sessions/all-others")
-        .set("Cookie", `metu_auth=${token}`);
+        .set("Cookie", await cookieFor(7));
       expect(res.status).toBe(200);
       expect(res.body.revoked).toBe(4);
-      // No id:{not:...} filter — JWT-cookie path can't identify the
-      // "current" better-auth session, so it nukes them all.
+      // Phase 16.3 — Mode A: getSession resolves the current row
+      // (mocked id=1). deleteMany filters NOT id=1 so the actor
+      // doesn't sign themselves out by accident.
       expect(prisma.session.deleteMany).toHaveBeenCalledWith({
-        where: { userId: 7 },
+        where: { userId: 7, id: { not: 1 } },
       });
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           action: "user.sessions_revoked",
-          meta: { revoked: 4, kept: 0 },
+          meta: { revoked: 4, kept: 1 },
         }),
       });
     });

@@ -22,6 +22,11 @@ vi.mock("../src/db/prisma.js", () => ({
   },
 }));
 
+// Phase 16.3 — DON'T mock the auth module here; this test file
+// exists to exercise the REAL catch-all integration (mounted via
+// auth.handler in app.ts). All other test files mock it for speed,
+// but this one needs the real handler to verify the route exists.
+
 const { buildApp } = await import("../src/app.js");
 
 beforeEach(() => {

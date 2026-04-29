@@ -16,11 +16,12 @@ import {
 } from "../models/auth.model.js";
 import * as service from "../services/auth.service.js";
 import {
-  clearToken,
   currentAuth,
   currentUser,
-  issueToken,
+  expressHeadersToFetch,
+  forwardSetCookieHeaders,
 } from "../middleware/auth.js";
+import { auth as betterAuth } from "../lib/auth.js";
 import { AppError } from "../utils/errors.js";
 import { verifyTurnstile } from "../utils/turnstile.js";
 
@@ -33,14 +34,50 @@ import { verifyTurnstile } from "../utils/turnstile.js";
  * serialises `AppError` to `{ error: code, message }`.
  */
 
+/**
+ * Phase 16.3 — Mode A swap. The controller still owns:
+ *   1. Input validation (zod) so the error surface is OUR shape,
+ *      not better-auth's.
+ *   2. Our service.login(), which runs the bcrypt + TOTP gate and
+ *      throws our own AppError codes (InvalidCredentials,
+ *      NeedsTotp, InvalidTotp).
+ *   3. Cart side-effects baked into service.login().
+ *
+ * After our checks pass, we delegate ONE thing to better-auth:
+ * the actual session creation. `auth.api.signInEmail()` writes a
+ * `session` row + sets the signed cookie. We forward the Set-Cookie
+ * header to the browser via Express. This costs one extra bcrypt
+ * verify (~10 ms) — better-auth re-checks the password — vs the
+ * old hand-rolled JWT minting. Worth it for the unified session
+ * surface (our /sessions UI now sees every login).
+ */
+async function issueBetterAuthCookie(req: import("express").Request, res: import("express").Response, email: string, password: string) {
+  // asResponse:true makes better-auth return a Web Response with
+  // the Set-Cookie headers attached, instead of mutating an Express
+  // response it doesn't know about.
+  const webResponse = await betterAuth.api.signInEmail({
+    body: { email, password },
+    headers: expressHeadersToFetch(req),
+    asResponse: true,
+  });
+  if (!webResponse.ok) {
+    // If better-auth rejects (e.g. no credential row, password
+    // mismatch via the bcrypt adapter, soft-deleted user), surface
+    // a clean InvalidCredentials so the client UX matches the
+    // service-level path.
+    throw new AppError(401, "InvalidCredentials");
+  }
+  forwardSetCookieHeaders(res, webResponse);
+}
+
 export const login: RequestHandler = async (req, res, next) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       throw new AppError(400, "ValidationError", parsed.error.message);
     }
-    const { user, role } = await service.login(parsed.data);
-    issueToken(res, { uid: user.userId, role });
+    const { user } = await service.login(parsed.data);
+    await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
     res.json({ user });
   } catch (err) {
     next(err);
@@ -71,17 +108,32 @@ export const register: RequestHandler = async (req, res, next) => {
     if (!parsed.success) {
       throw new AppError(400, "ValidationError", parsed.error.message);
     }
-    const { user, role } = await service.register(parsed.data);
-    issueToken(res, { uid: user.userId, role });
+    const { user } = await service.register(parsed.data);
+    // Phase 16.3 — register also lands the user signed in via
+    // better-auth. service.register has already provisioned the
+    // credential `account` row, so signInEmail finds the bcrypt
+    // hash and mints the session cookie cleanly.
+    await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
     res.json({ user });
   } catch (err) {
     next(err);
   }
 };
 
-export const logout: RequestHandler = (_req, res) => {
-  clearToken(res);
-  res.json({ ok: true });
+export const logout: RequestHandler = async (req, res, next) => {
+  try {
+    // Phase 16.3 — better-auth signs out: deletes the current
+    // session row + clears the cookie. Idempotent for an
+    // already-anonymous request (returns 200 with no Set-Cookie).
+    const webResponse = await betterAuth.api.signOut({
+      headers: expressHeadersToFetch(req),
+      asResponse: true,
+    });
+    forwardSetCookieHeaders(res, webResponse);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const me: RequestHandler = (req, res) => {

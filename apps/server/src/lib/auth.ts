@@ -45,6 +45,7 @@ import { APIError } from "better-auth/api";
 // `npm ci --ignore-scripts`). Direct import is identical at runtime
 // and dodges the resolution chain entirely.
 import { prismaAdapter } from "@better-auth/prisma-adapter";
+import bcrypt from "bcryptjs";
 import { prisma } from "../db/prisma.js";
 
 // Phase 14.3.5 — derive a unique username from a Google email so
@@ -142,11 +143,33 @@ export const auth = betterAuth({
   },
 
   // Email + password sign-in (compat with our existing /login form).
-  // Phase 14.2 wires this up to the UI; Phase 14.1 just enables it.
+  //
+  // Phase 16.3 (Mode A swap) — better-auth now owns the cookie for
+  // password sign-ins too. Two important configs land here:
+  //
+  //   1. `password.{verify,hash}` adapters point at bcryptjs so
+  //      better-auth's signInEmail() can verify against the *existing*
+  //      bcrypt hashes our register flow has been writing since the
+  //      Phase 13.2 monolith split. Without this adapter, better-auth
+  //      defaults to scrypt and would fail to verify any pre-Phase
+  //      16.3 account.
+  //
+  //   2. The credential rows themselves live in the `account` table,
+  //      backfilled by migration 20260429070000_phase_16_3_credential_
+  //      account_backfill from every existing User with a non-null
+  //      password. From now on, register + set-password also write
+  //      to the `account` table to keep the two paths in sync (handled
+  //      in auth.service.ts).
   emailAndPassword: {
     enabled: true,
-    // Don't auto-sign-in after signUp — keep the existing two-step UX.
+    // Don't auto-sign-in after signUp — our /auth/register controller
+    // wraps signInEmail explicitly so it can run profanity + duplicate
+    // checks first.
     autoSignIn: false,
+    password: {
+      verify: async ({ hash, password }) => bcrypt.compare(password, hash),
+      hash: async (password) => bcrypt.hash(password, 10),
+    },
   },
 
   // Phase 14.3.5 — linking fork + missing-field defaults.

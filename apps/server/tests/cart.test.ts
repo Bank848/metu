@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
+import { cookieFor } from "./_authMock.js";
 
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
@@ -25,16 +25,28 @@ vi.mock("../src/db/prisma.js", () => ({
   },
 }));
 
+vi.mock("../src/lib/auth.js", () => {
+  const getSession = vi.fn(async () => null);
+  const signInEmail = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=fake; Path=/; HttpOnly; SameSite=Lax");
+    return new Response("", { status: 200, headers });
+  });
+  const signOut = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=; Path=/; Max-Age=0");
+    return new Response("", { status: 200, headers });
+  });
+  const handler = vi.fn(async () => new Response("", { status: 404 }));
+  return { auth: { api: { getSession, signInEmail, signOut }, handler } };
+});
+
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-const SECRET = process.env.JWT_SECRET ?? "dev-only-fallback-secret";
-function cookieFor(uid: number, role: "buyer" | "seller" | "admin" = "buyer") {
-  const token = jwt.sign({ uid, role }, SECRET, { expiresIn: "1h" });
-  return `metu_auth=${token}`;
-}
-
-beforeEach(() => {
+beforeEach(async () => {
+    const { signedOut } = await import("./_authMock.js");
+    await signedOut();
   vi.clearAllMocks();
   // Default: requireAuth() resolves user 7 successfully.
   (prisma.user.findUnique as any).mockResolvedValue({
@@ -73,7 +85,7 @@ describe("GET /cart", () => {
       },
     ]);
 
-    const res = await request(buildApp()).get("/cart").set("Cookie", cookieFor(7));
+    const res = await request(buildApp()).get("/cart").set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.cartId).toBe(11);
     expect(res.body.items).toHaveLength(1);
@@ -100,7 +112,7 @@ describe("POST /cart/items", () => {
 
     const res = await request(buildApp())
       .post("/cart/items")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ productItemId: 200, quantity: 2 });
 
     expect(res.status).toBe(200);
@@ -121,7 +133,7 @@ describe("PATCH /cart/items/:id", () => {
 
     const res = await request(buildApp())
       .patch("/cart/items/100")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ quantity: 4 });
 
     expect(res.status).toBe(404);

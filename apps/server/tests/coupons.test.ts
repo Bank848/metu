@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
+import { cookieFor } from "./_authMock.js";
 
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
@@ -11,16 +11,36 @@ vi.mock("../src/db/prisma.js", () => ({
   },
 }));
 
+vi.mock("../src/lib/auth.js", () => {
+  const getSession = vi.fn(async () => null);
+  const signInEmail = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=fake; Path=/; HttpOnly; SameSite=Lax");
+    return new Response("", { status: 200, headers });
+  });
+  const signOut = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=; Path=/; Max-Age=0");
+    return new Response("", { status: 200, headers });
+  });
+  const handler = vi.fn(async () => new Response("", { status: 404 }));
+  return { auth: { api: { getSession, signInEmail, signOut }, handler } };
+});
+
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-const SECRET = process.env.JWT_SECRET ?? "dev-only-fallback-secret";
-const cookie = `metu_auth=${jwt.sign({ uid: 7, role: "buyer" }, SECRET, {
-  expiresIn: "1h",
-})}`;
+// Phase 16.3 — Mode A: cookie value irrelevant since better-auth's
+// getSession is mocked. We still set Cookie on requests so middleware
+// IP/UA capture has something realistic.
+const cookie = "better-auth.session_token=fake-test-cookie";
 
-beforeEach(() => {
+beforeEach(async () => {
+  const { signedInAs } = await import("./_authMock.js");
   vi.clearAllMocks();
+  // Every coupon test runs as user 7 (the cookie constant above is
+  // ceremonial — getSession is mocked).
+  await signedInAs(7);
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,
     deletedAt: null,

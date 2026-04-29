@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
+import { cookieFor } from "./_authMock.js";
 
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
@@ -21,13 +21,25 @@ vi.mock("../src/db/prisma.js", () => ({
   },
 }));
 
+vi.mock("../src/lib/auth.js", () => {
+  const getSession = vi.fn(async () => null);
+  const signInEmail = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=fake; Path=/; HttpOnly; SameSite=Lax");
+    return new Response("", { status: 200, headers });
+  });
+  const signOut = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=; Path=/; Max-Age=0");
+    return new Response("", { status: 200, headers });
+  });
+  const handler = vi.fn(async () => new Response("", { status: 404 }));
+  return { auth: { api: { getSession, signInEmail, signOut }, handler } };
+});
+
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-const SECRET = process.env.JWT_SECRET ?? "dev-only-fallback-secret";
-function cookieFor(uid: number, role: "buyer" | "seller" | "admin" = "buyer") {
-  return `metu_auth=${jwt.sign({ uid, role }, SECRET, { expiresIn: "1h" })}`;
-}
 
 const userSummary = {
   userId: 7,
@@ -44,7 +56,9 @@ const partnerSummary = {
   profileImage: null,
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+    const { signedOut } = await import("./_authMock.js");
+    await signedOut();
   vi.clearAllMocks();
   // Default user for requireAuth() — buyer #7, no store.
   (prisma.user.findUnique as any).mockImplementation(({ where }: any) =>
@@ -87,7 +101,7 @@ describe("GET /messages (inbox)", () => {
 
     const res = await request(buildApp())
       .get("/messages")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.threads).toHaveLength(1);
     expect(res.body.threads[0].partner.userId).toBe(9);
@@ -110,7 +124,7 @@ describe("GET /messages?with=N (thread)", () => {
 
     const res = await request(buildApp())
       .get("/messages?with=9")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.messages).toHaveLength(1);
     expect(res.body.other.userId).toBe(9);
@@ -132,7 +146,7 @@ describe("POST /messages", () => {
   it("rejects validation errors with 400", async () => {
     const res = await request(buildApp())
       .post("/messages")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ recipientId: 9 }); // missing body
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("ValidationError");
@@ -141,7 +155,7 @@ describe("POST /messages", () => {
   it("rejects self-send with 400", async () => {
     const res = await request(buildApp())
       .post("/messages")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ recipientId: 7, body: "hi self" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("SelfSend");
@@ -157,7 +171,7 @@ describe("POST /messages", () => {
     (prisma.message.create as any).mockResolvedValue(created);
     const res = await request(buildApp())
       .post("/messages")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ recipientId: 9, body: "hi" });
     expect(res.status).toBe(200);
     expect(res.body.message.messageId).toBe(42);
@@ -177,7 +191,7 @@ describe("GET /messages/unread", () => {
     (prisma.message.count as any).mockResolvedValue(3);
     const res = await request(buildApp())
       .get("/messages/unread")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.count).toBe(3);
     expect(prisma.message.count).toHaveBeenCalledWith({

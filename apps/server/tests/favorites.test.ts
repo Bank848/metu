@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
+import { cookieFor } from "./_authMock.js";
 
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
@@ -20,15 +20,29 @@ vi.mock("../src/db/prisma.js", () => ({
   },
 }));
 
+vi.mock("../src/lib/auth.js", () => {
+  const getSession = vi.fn(async () => null);
+  const signInEmail = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=fake; Path=/; HttpOnly; SameSite=Lax");
+    return new Response("", { status: 200, headers });
+  });
+  const signOut = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=; Path=/; Max-Age=0");
+    return new Response("", { status: 200, headers });
+  });
+  const handler = vi.fn(async () => new Response("", { status: 404 }));
+  return { auth: { api: { getSession, signInEmail, signOut }, handler } };
+});
+
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-const SECRET = process.env.JWT_SECRET ?? "dev-only-fallback-secret";
-function cookieFor(uid: number, role: "buyer" | "seller" | "admin" = "buyer") {
-  return `metu_auth=${jwt.sign({ uid, role }, SECRET, { expiresIn: "1h" })}`;
-}
 
-beforeEach(() => {
+beforeEach(async () => {
+    const { signedOut } = await import("./_authMock.js");
+    await signedOut();
   vi.clearAllMocks();
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,
@@ -51,7 +65,7 @@ describe("GET /favorites", () => {
     ]);
     const res = await request(buildApp())
       .get("/favorites")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.productIds).toEqual([100, 200]);
   });
@@ -67,7 +81,7 @@ describe("POST /favorites/:productId", () => {
     (prisma.product.findFirst as any).mockResolvedValue(null);
     const res = await request(buildApp())
       .post("/favorites/9999")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("ProductNotFound");
   });
@@ -77,7 +91,7 @@ describe("POST /favorites/:productId", () => {
     (prisma.productFavorite.upsert as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/favorites/100")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, favorited: true });
     expect(prisma.productFavorite.upsert).toHaveBeenCalledWith({
@@ -98,7 +112,7 @@ describe("DELETE /favorites/:productId", () => {
     (prisma.productFavorite.deleteMany as any).mockResolvedValue({ count: 1 });
     const res = await request(buildApp())
       .delete("/favorites/100")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, favorited: false });
     expect(prisma.productFavorite.deleteMany).toHaveBeenCalledWith({
