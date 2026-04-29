@@ -191,6 +191,22 @@ export function ErDiagramView() {
     const H = layout.height;
     let body = "";
 
+    // <defs> with crow-foot markers — must mirror ErMarkers exactly so
+    // exported SVG/PNG render identically to the on-screen view.
+    body += `<defs>
+<marker id="ef-one" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto">
+  <line x1="3" y1="0" x2="3" y2="12" stroke="#64748b" stroke-width="1.5" />
+</marker>
+<marker id="ef-one-zero" viewBox="0 0 14 12" refX="13" refY="6" markerWidth="14" markerHeight="12" orient="auto">
+  <line x1="3" y1="0" x2="3" y2="12" stroke="#64748b" stroke-width="1.5" />
+  <circle cx="9" cy="6" r="2.4" stroke="#64748b" stroke-width="1.2" fill="white" />
+</marker>
+<marker id="ef-many" viewBox="0 0 14 12" refX="13" refY="6" markerWidth="14" markerHeight="12" orient="auto">
+  <line x1="3" y1="0" x2="3" y2="12" stroke="#64748b" stroke-width="1.5" />
+  <path d="M 3 6 L 13 0 M 3 6 L 13 12" stroke="#64748b" stroke-width="1.2" fill="none" />
+</marker>
+</defs>`;
+
     // Edges first so they sit behind the cards.
     body += '<g fill="none" stroke="#64748b" stroke-width="1.5">';
     for (const edge of layout.edges) {
@@ -198,20 +214,21 @@ export function ErDiagramView() {
       const d = edge.points
         .map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`))
         .join(" ");
-      body += `<path d="${d}" />`;
+      const childEnd = edge.cardinality === "one-to-one" ? "ef-one-zero" : "ef-many";
+      const parentEnd = edge.fromOptional ? "ef-one-zero" : "ef-one";
+      body += `<path d="${d}" marker-start="url(#${parentEnd})" marker-end="url(#${childEnd})" />`;
     }
     body += "</g>";
 
-    // Entity cards as <foreignObject> wrapping rendered HTML — keeps
-    // the export visually identical to the live view without re-
-    // implementing the card in pure SVG primitives.
+    // Entity cards as PURE SVG primitives (no <foreignObject>). This
+    // is critical for PNG export — canvas marks the bitmap as "tainted"
+    // when SVG contains foreign HTML, throwing SecurityError on
+    // toBlob/toDataURL. Pure <rect>+<text>+<line> renders cleanly to
+    // canvas + matches the on-screen visual.
     for (const node of layout.nodes) {
       const entity = entityById.get(node.id);
       if (!entity) continue;
-      const html = renderEntityCardHtml(entity);
-      body += `<foreignObject x="${node.x}" y="${node.y}" width="${node.width}" height="${node.height}">`;
-      body += `<div xmlns="http://www.w3.org/1999/xhtml">${html}</div>`;
-      body += `</foreignObject>`;
+      body += renderEntityCardSvg(entity, node.x, node.y, node.width, node.height);
     }
 
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -380,34 +397,60 @@ function downloadBlob(blob: Blob, filename: string) {
 }
 
 /**
- * Rendered HTML for an entity card — used inside `<foreignObject>` for
- * SVG/PNG export. Mirrors the JSX from `<ErEntityCard />` but as plain
- * string HTML so it embeds cleanly in the serialized SVG.
+ * Pure-SVG entity card for export. No <foreignObject> so the resulting
+ * SVG renders the same in:
+ *   - Standalone SVG viewers (browsers, Inkscape)
+ *   - Canvas drawImage → PNG export (foreignObject would taint the
+ *     canvas, so we cannot toDataURL/toBlob)
+ *   - PDF embed via the docx report
+ *
+ * Visual matches the live ErEntityCard component: white body, colored
+ * header, alternating row stripes, PK/FK marker + field name + type.
  */
-function renderEntityCardHtml(entity: ErEntity): string {
+function renderEntityCardSvg(
+  entity: ErEntity,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): string {
   const cat = ENTITY_CATEGORY[entity.table] ?? "system";
   const s = CATEGORY_STYLE[cat];
   const headerColor = s.headerText === "white" ? "#ffffff" : "#1e293b";
+  const HEADER_H = 28;
+  const ROW_H = 22;
 
-  const rows = entity.fields
-    .map((f, idx) => {
-      const bg = idx % 2 === 1 ? "#f8fafc" : "#ffffff";
-      return `
-<div style="display:grid;grid-template-columns:32px 1fr auto;align-items:center;height:22px;padding:0 8px;border-top:1px solid ${idx === 0 ? "#e2e8f0" : "#f1f5f9"};background:${bg};font:600 10px monospace;color:#334155">
-  <span style="color:#64748b;font-weight:700">${f.pk ? "PK" : f.fk ? "FK" : ""}</span>
-  <span style="color:#1e293b">${escapeHtml(f.name)}</span>
-  <span style="color:#64748b;margin-left:8px">${escapeHtml(f.type)}</span>
-</div>`;
-    })
-    .join("");
+  let parts = "";
+  // Card background + border (rounded rect)
+  parts += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" ry="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />`;
+  // Header bar (rounded only at top via clip — for simplicity we
+  // overlay a rectangle then redraw a thin border line at the bottom
+  // of the header to separate it from the body).
+  parts += `<rect x="${x}" y="${y}" width="${w}" height="${HEADER_H}" fill="${s.headerBg}" rx="6" ry="6" />`;
+  // Bottom of header rounded → square (overlap a non-rounded rect just below the rounded portion)
+  parts += `<rect x="${x}" y="${y + HEADER_H / 2}" width="${w}" height="${HEADER_H / 2}" fill="${s.headerBg}" />`;
+  // Header text — centered horizontally, baseline ≈ vertical center
+  const headerCx = x + w / 2;
+  const headerBaseline = y + HEADER_H / 2 + 4;
+  parts += `<text x="${headerCx}" y="${headerBaseline}" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" letter-spacing="0.5" fill="${headerColor}">${escapeHtml(entity.table.toUpperCase())}</text>`;
 
-  return `
-<div style="background:#fff;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;height:100%">
-  <div style="height:28px;display:flex;align-items:center;justify-content:center;background:${s.headerBg};color:${headerColor};font:600 11px sans-serif;letter-spacing:.02em;text-transform:uppercase">
-    ${escapeHtml(entity.table)}
-  </div>
-  ${rows}
-</div>`;
+  // Each field row
+  entity.fields.forEach((f, idx) => {
+    const rowY = y + HEADER_H + idx * ROW_H;
+    const altBg = idx % 2 === 1 ? "#f8fafc" : "#ffffff";
+    parts += `<rect x="${x + 1}" y="${rowY}" width="${w - 2}" height="${ROW_H}" fill="${altBg}" />`;
+    if (idx > 0) {
+      // separator
+      parts += `<line x1="${x + 1}" y1="${rowY}" x2="${x + w - 1}" y2="${rowY}" stroke="#f1f5f9" stroke-width="1" />`;
+    }
+    const baseline = rowY + ROW_H / 2 + 3;
+    const marker = f.pk ? "PK" : f.fk ? "FK" : "";
+    parts += `<text x="${x + 8}" y="${baseline}" font-family="ui-monospace, monospace" font-size="10" font-weight="700" fill="#64748b">${marker}</text>`;
+    parts += `<text x="${x + 40}" y="${baseline}" font-family="ui-monospace, monospace" font-size="10" fill="#1e293b">${escapeHtml(f.name)}</text>`;
+    parts += `<text x="${x + w - 8}" y="${baseline}" text-anchor="end" font-family="ui-monospace, monospace" font-size="10" fill="#64748b">${escapeHtml(f.type)}</text>`;
+  });
+
+  return parts;
 }
 
 function escapeHtml(s: string): string {
