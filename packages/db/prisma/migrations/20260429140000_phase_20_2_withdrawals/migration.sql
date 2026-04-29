@@ -47,7 +47,7 @@ CREATE TABLE "withdrawal" (
   "rejection_reason"   VARCHAR(200)        NULL,
 
   CONSTRAINT "withdrawal_store_fk"    FOREIGN KEY ("store_id")    REFERENCES "store"("store_id")    ON DELETE CASCADE,
-  CONSTRAINT "withdrawal_reviewer_fk" FOREIGN KEY ("reviewed_by") REFERENCES "user"("user_id")     ON DELETE SET NULL,
+  CONSTRAINT "withdrawal_reviewer_fk" FOREIGN KEY ("reviewed_by") REFERENCES "users"("user_id")    ON DELETE SET NULL,
 
   -- Defence in depth: amount_coins > 0 and fee_coins / net_coins
   -- compute consistently. Validated app-side too — keeping the SQL
