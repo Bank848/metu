@@ -139,6 +139,14 @@ export const auth = betterAuth({
       email: "email",
       emailVerified: "emailVerified",
       image: "profileImage",
+      // Phase 16.3 — better-auth's user schema declares createdAt +
+      // updatedAt as REQUIRED. Without these mappings the Prisma
+      // adapter throws "Unknown argument" on every findUserByEmail
+      // and signInEmail returns "Credential account not found" even
+      // when the row exists. createdAt → existing legacy column;
+      // updatedAt is a new column added by migration 20260429090000.
+      createdAt: "createdDate",
+      updatedAt: "updatedAt",
     },
   },
 
