@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Mail } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { prisma } from "@/lib/server/prisma";
+import { safeGetSettings } from "@/lib/settings";
 import { getServerT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,16 @@ export const dynamic = "force-dynamic";
  * the sidebar shell so a buyer who has never visited /seller can still
  * find their threads. Same Prisma grouping as `GET /api/messages` so
  * the empty state, ordering, and unread counts match.
+ *
+ * Phase 19 — when admin toggles `chatEnabled=false`, the page returns
+ * 404 (mirrors the favorites pattern). Existing thread rows survive
+ * the toggle so re-enabling restores everything.
  */
 export default async function BuyerMessagesPage() {
   const me = await getMe();
   if (!me) redirect("/login?next=/messages");
+  const settings = await safeGetSettings();
+  if (!settings.chatEnabled) notFound();
   const t = getServerT();
 
   const recent = await prisma.message.findMany({

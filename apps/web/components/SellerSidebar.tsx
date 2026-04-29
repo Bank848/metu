@@ -6,7 +6,7 @@ import { LayoutDashboard, Package, Ticket, ShoppingBag, Store, BarChart3, Mail }
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
-const items = [
+const ALL_ITEMS = [
   { href: "/seller",           label: "Overview",   icon: LayoutDashboard },
   { href: "/seller/analytics", label: "Analytics",  icon: BarChart3 },
   { href: "/seller/products",  label: "Products",   icon: Package },
@@ -15,11 +15,28 @@ const items = [
   { href: "/seller/messages",  label: "Messages",   icon: Mail },
 ];
 
-export function SellerSidebar({ storeName }: { storeName?: string }) {
+/**
+ * Phase 19 — `chatEnabled` defaults true so existing call-sites that
+ * don't pass it keep their behaviour. The seller layout reads
+ * `safeGetSettings()` server-side and threads the flag in so the
+ * Messages row + unread poller drop out cleanly when chat is off.
+ */
+export function SellerSidebar({
+  storeName,
+  chatEnabled = true,
+}: {
+  storeName?: string;
+  chatEnabled?: boolean;
+}) {
   const pathname = usePathname();
+  const items = chatEnabled
+    ? ALL_ITEMS
+    : ALL_ITEMS.filter((it) => it.href !== "/seller/messages");
   // Lightweight unread-message count — refreshed every minute via /api/messages/unread.
+  // Skip the poller entirely when chat is disabled (no row to show on).
   const [unread, setUnread] = useState(0);
   useEffect(() => {
+    if (!chatEnabled) return;
     let cancelled = false;
     const tick = async () => {
       try {
@@ -37,7 +54,7 @@ export function SellerSidebar({ storeName }: { storeName?: string }) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [chatEnabled]);
 
   return (
     <aside className="w-64 shrink-0 bg-space-900 border-r border-line min-h-screen px-5 py-6 sticky top-0">
