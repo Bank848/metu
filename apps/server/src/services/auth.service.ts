@@ -192,6 +192,17 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
   // Mode A flow that the controller now uses.
   await syncCredentialAccount(user.userId, user.email, hash);
 
+  // Phase 23.2 — audit account creation. The actorId === targetId
+  // because the user signed themselves up; admin-created accounts
+  // (Phase 14 grant flow) would have different actorId.
+  await audit({
+    actorId: user.userId,
+    action: "user.register",
+    targetType: "user",
+    targetId: user.userId,
+    meta: { email: user.email },
+  });
+
   return { user: sanitize(user), role: (user.stats?.role ?? "buyer") as UserRole };
 }
 
@@ -311,6 +322,14 @@ export async function changePassword(
   // Phase 16.3 — keep better-auth's credential row in lock-step with
   // user.password so signInEmail keeps working after a password change.
   await syncCredentialAccount(userId, updated.email, hash);
+  // Phase 23.2 — security signal. Admins can see a password-change
+  // trail in the audit log without leaking the old/new hash.
+  await audit({
+    actorId: userId,
+    action: "auth.password.change",
+    targetType: "user",
+    targetId: userId,
+  });
 }
 
 /**
