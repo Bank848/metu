@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
+import { cookieFor } from "./_authMock.js";
 
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
@@ -41,13 +41,25 @@ vi.mock("../src/db/prisma.js", () => ({
   },
 }));
 
+vi.mock("../src/lib/auth.js", () => {
+  const getSession = vi.fn(async () => null);
+  const signInEmail = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=fake; Path=/; HttpOnly; SameSite=Lax");
+    return new Response("", { status: 200, headers });
+  });
+  const signOut = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=; Path=/; Max-Age=0");
+    return new Response("", { status: 200, headers });
+  });
+  const handler = vi.fn(async () => new Response("", { status: 404 }));
+  return { auth: { api: { getSession, signInEmail, signOut }, handler } };
+});
+
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-const SECRET = process.env.JWT_SECRET ?? "dev-only-fallback-secret";
-function cookieFor(uid: number, role: "buyer" | "seller" | "admin" = "seller") {
-  return `metu_auth=${jwt.sign({ uid, role }, SECRET, { expiresIn: "1h" })}`;
-}
 
 const sellerUser = {
   userId: 7,
@@ -62,7 +74,9 @@ const buyerUser = {
   store: null,
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+    const { signedOut } = await import("./_authMock.js");
+    await signedOut();
   vi.clearAllMocks();
   (prisma.user.findUnique as any).mockImplementation(({ where }: any) => {
     if (where.userId === 7) return Promise.resolve(sellerUser);
@@ -90,7 +104,7 @@ describe("auth + store gates", () => {
   it("403 NoStore for a buyer without a Store row", async () => {
     const res = await request(buildApp())
       .get("/seller/store")
-      .set("Cookie", cookieFor(9, "buyer"));
+      .set("Cookie", await cookieFor(9, "buyer"));
     expect(res.status).toBe(403);
     expect(res.body.error).toBe("NoStore");
   });
@@ -106,7 +120,7 @@ describe("GET /seller/store", () => {
     });
     const res = await request(buildApp())
       .get("/seller/store")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.storeId).toBe(11);
     expect(prisma.store.findUnique).toHaveBeenCalledWith({
@@ -123,7 +137,7 @@ describe("GET /seller/products", () => {
     ]);
     const res = await request(buildApp())
       .get("/seller/products")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(prisma.product.findMany).toHaveBeenCalledWith(
@@ -139,7 +153,7 @@ describe("GET /seller/products/:id", () => {
     (prisma.product.findUnique as any).mockResolvedValue(null);
     const res = await request(buildApp())
       .get("/seller/products/999")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(404);
   });
 
@@ -150,7 +164,7 @@ describe("GET /seller/products/:id", () => {
     });
     const res = await request(buildApp())
       .get("/seller/products/100")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(403);
   });
 
@@ -166,7 +180,7 @@ describe("GET /seller/products/:id", () => {
     });
     const res = await request(buildApp())
       .get("/seller/products/100")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.productId).toBe(100);
   });
@@ -177,7 +191,7 @@ describe("GET /seller/orders", () => {
     (prisma.order.findMany as any).mockResolvedValue([{ orderId: 1 }]);
     const res = await request(buildApp())
       .get("/seller/orders?status=paid")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(prisma.order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -217,7 +231,7 @@ describe("GET /seller/orders/export", () => {
     ]);
     const res = await request(buildApp())
       .get("/seller/orders/export")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/csv");
     expect(res.headers["content-disposition"]).toContain("attachment");
@@ -250,7 +264,7 @@ describe("GET /seller/stats", () => {
 
     const res = await request(buildApp())
       .get("/seller/stats")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.kpi.paidCount).toBe(4);
     expect(res.body.kpi.totalRevenue).toBe(500);
@@ -279,7 +293,7 @@ describe("POST /seller/become-seller", () => {
     (prisma.store.findUnique as any).mockResolvedValue({ storeId: 11 });
     const res = await request(buildApp())
       .post("/seller/become-seller")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({
         businessTypeId: 1,
         name: "Shop",
@@ -293,7 +307,7 @@ describe("POST /seller/become-seller", () => {
     (prisma.store.findUnique as any).mockResolvedValue(null);
     const res = await request(buildApp())
       .post("/seller/become-seller")
-      .set("Cookie", cookieFor(9, "buyer"))
+      .set("Cookie", await cookieFor(9, "buyer"))
       .send({}); // missing required fields
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("ValidationError");
@@ -304,7 +318,7 @@ describe("PATCH /seller/store", () => {
   it("noop when body has no recognised keys", async () => {
     const res = await request(buildApp())
       .patch("/seller/store")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({});
     expect(res.status).toBe(200);
     expect(res.body.noop).toBe(true);
@@ -318,7 +332,7 @@ describe("PATCH /seller/store", () => {
     });
     const res = await request(buildApp())
       .patch("/seller/store")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ name: "New Name" });
     expect(res.status).toBe(200);
     expect(res.body.store.name).toBe("New Name");
@@ -337,7 +351,7 @@ describe("PATCH /seller/products/:id (pause toggle fast path)", () => {
     (prisma.product.update as any).mockResolvedValue({});
     const res = await request(buildApp())
       .patch("/seller/products/100")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ isActive: false });
     expect(res.status).toBe(200);
     expect(res.body.isActive).toBe(false);
@@ -350,7 +364,7 @@ describe("DELETE /seller/products/:id (soft-delete + audit)", () => {
     (prisma.product.findUnique as any).mockResolvedValue(null);
     const res = await request(buildApp())
       .delete("/seller/products/9999")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(404);
   });
 
@@ -361,7 +375,7 @@ describe("DELETE /seller/products/:id (soft-delete + audit)", () => {
     });
     const res = await request(buildApp())
       .delete("/seller/products/100")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(403);
   });
 
@@ -375,7 +389,7 @@ describe("DELETE /seller/products/:id (soft-delete + audit)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .delete("/seller/products/100")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(prisma.product.update).toHaveBeenCalledWith({
       where: { productId: 100 },
@@ -396,7 +410,7 @@ describe("POST /seller/products/:id/duplicate", () => {
     (prisma.product.findFirst as any).mockResolvedValue(null);
     const res = await request(buildApp())
       .post("/seller/products/9999/duplicate")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(404);
   });
 
@@ -416,7 +430,7 @@ describe("POST /seller/products/:id/duplicate", () => {
     (prisma.product.create as any).mockResolvedValue({ productId: 200 });
     const res = await request(buildApp())
       .post("/seller/products/100/duplicate")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(res.body.productId).toBe(200);
     const create = (prisma.product.create as any).mock.calls[0][0];
@@ -433,7 +447,7 @@ describe("PATCH /seller/product-items/:id (variant nudge)", () => {
     });
     const res = await request(buildApp())
       .patch("/seller/product-items/500")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ price: 99 });
     expect(res.status).toBe(403);
   });
@@ -451,7 +465,7 @@ describe("PATCH /seller/product-items/:id (variant nudge)", () => {
     });
     const res = await request(buildApp())
       .patch("/seller/product-items/500")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ quantity: 99 });
     expect(res.status).toBe(200);
     expect(res.body.productItem.quantity).toBe(99);
@@ -465,7 +479,7 @@ describe("POST /seller/coupons", () => {
     (prisma.coupon.create as any).mockResolvedValue({ couponId: 1 });
     const res = await request(buildApp())
       .post("/seller/coupons")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({
         code: "WELCOME10",
         discountType: "percent",
@@ -492,7 +506,7 @@ describe("PATCH /seller/orders/:id (status flip)", () => {
     });
     const res = await request(buildApp())
       .patch("/seller/orders/1")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ status: "fulfilled" });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("AlreadyRefunded");
@@ -506,7 +520,7 @@ describe("PATCH /seller/orders/:id (status flip)", () => {
     });
     const res = await request(buildApp())
       .patch("/seller/orders/1")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ status: "fulfilled" });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("InvalidTransition");
@@ -522,7 +536,7 @@ describe("PATCH /seller/orders/:id (status flip)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .patch("/seller/orders/1")
-      .set("Cookie", cookieFor(7))
+      .set("Cookie", await cookieFor(7))
       .send({ status: "fulfilled" });
     expect(res.status).toBe(200);
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
@@ -541,7 +555,7 @@ describe("POST /seller/orders/:id/refund", () => {
     });
     const res = await request(buildApp())
       .post("/seller/orders/1/refund")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(403);
   });
 
@@ -557,7 +571,7 @@ describe("POST /seller/orders/:id/refund", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/seller/orders/1/refund")
-      .set("Cookie", cookieFor(7));
+      .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.auditLog.create).toHaveBeenCalledWith({

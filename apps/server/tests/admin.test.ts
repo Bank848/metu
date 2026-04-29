@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
+import { cookieFor } from "./_authMock.js";
 
 vi.mock("../src/db/prisma.js", () => ({
   prisma: {
@@ -40,13 +40,25 @@ vi.mock("../src/db/prisma.js", () => ({
   },
 }));
 
+vi.mock("../src/lib/auth.js", () => {
+  const getSession = vi.fn(async () => null);
+  const signInEmail = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=fake; Path=/; HttpOnly; SameSite=Lax");
+    return new Response("", { status: 200, headers });
+  });
+  const signOut = vi.fn(async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "better-auth.session_token=; Path=/; Max-Age=0");
+    return new Response("", { status: 200, headers });
+  });
+  const handler = vi.fn(async () => new Response("", { status: 404 }));
+  return { auth: { api: { getSession, signInEmail, signOut }, handler } };
+});
+
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-const SECRET = process.env.JWT_SECRET ?? "dev-only-fallback-secret";
-function cookieFor(uid: number, role: "buyer" | "seller" | "admin") {
-  return `metu_auth=${jwt.sign({ uid, role }, SECRET, { expiresIn: "1h" })}`;
-}
 
 const adminUser = {
   userId: 1,
@@ -61,7 +73,9 @@ const buyerUser = {
   store: null,
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+    const { signedOut } = await import("./_authMock.js");
+    await signedOut();
   vi.clearAllMocks();
   (prisma.user.findUnique as any).mockImplementation(({ where }: any) => {
     if (where.userId === 1) return Promise.resolve(adminUser);
@@ -87,7 +101,7 @@ describe("auth + role gates", () => {
   it("403 Forbidden when a buyer tries an admin route", async () => {
     const res = await request(buildApp())
       .get("/admin/stats")
-      .set("Cookie", cookieFor(9, "buyer"));
+      .set("Cookie", await cookieFor(9, "buyer"));
     expect(res.status).toBe(403);
   });
 });
@@ -110,7 +124,7 @@ describe("GET /admin/users", () => {
     (prisma.user.count as any).mockResolvedValue(1);
     const res = await request(buildApp())
       .get("/admin/users?q=x&page=1&pageSize=20")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].password).toBeUndefined();
@@ -122,7 +136,7 @@ describe("PATCH /admin/users/:id (role change)", () => {
   it("400 SelfDemoteForbidden when admin removes own admin role", async () => {
     const res = await request(buildApp())
       .patch("/admin/users/1") // self
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({ role: "buyer" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("SelfDemoteForbidden");
@@ -134,7 +148,7 @@ describe("PATCH /admin/users/:id (role change)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .patch("/admin/users/9")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({ role: "seller" });
     expect(res.status).toBe(200);
     expect(prisma.userStats.upsert).toHaveBeenCalledWith({
@@ -157,7 +171,7 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
   it("400 SelfDeleteForbidden when admin tries to delete self", async () => {
     const res = await request(buildApp())
       .delete("/admin/users/1")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("SelfDeleteForbidden");
@@ -168,7 +182,7 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .delete("/admin/users/9")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({});
     expect(res.status).toBe(200);
     const update = (prisma.user.update as any).mock.calls[0][0];
@@ -185,7 +199,7 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .delete("/admin/users/9")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({ reason: "Racial slur in display name" });
     expect(res.status).toBe(200);
     const update = (prisma.user.update as any).mock.calls[0][0];
@@ -206,7 +220,7 @@ describe("GET /admin/stores", () => {
     (prisma.store.findMany as any).mockResolvedValue([{ storeId: 11 }]);
     const res = await request(buildApp())
       .get("/admin/stores")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     const call = (prisma.store.findMany as any).mock.calls[0][0];
     expect(call.where).toEqual({ deletedAt: null });
@@ -222,7 +236,7 @@ describe("DELETE /admin/stores/:id", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .delete("/admin/stores/11")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     expect(prisma.store.update).toHaveBeenCalledWith({
       where: { storeId: 11 },
@@ -249,7 +263,7 @@ describe("GET /admin/stats", () => {
       ]);
     const res = await request(buildApp())
       .get("/admin/stats")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     expect(res.body.users).toBe(50);
     expect(res.body.gmv).toBe(12345.67);
@@ -269,7 +283,7 @@ describe("DELETE /admin/transactions/:id", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .delete("/admin/transactions/42")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -290,7 +304,7 @@ describe("POST /admin/transactions/:id/refund", () => {
     });
     const res = await request(buildApp())
       .post("/admin/transactions/42/refund")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("NotPurchase");
   });
@@ -306,7 +320,7 @@ describe("POST /admin/transactions/:id/refund", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/admin/transactions/42/refund")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
@@ -322,7 +336,7 @@ describe("GET /admin/reports/:name", () => {
   it("404 UnknownReport for an unknown name", async () => {
     const res = await request(buildApp())
       .get("/admin/reports/banana-bread")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("UnknownReport");
   });
@@ -334,7 +348,7 @@ describe("GET /admin/reports/:name", () => {
     ]);
     const res = await request(buildApp())
       .get("/admin/reports/orders-by-status")
-      .set("Cookie", cookieFor(1, "admin"));
+      .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     expect(res.body.sql).toContain("orders");
     expect(res.body.rows[0].count).toBe(5);
@@ -357,7 +371,7 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
     });
     const res = await request(buildApp())
       .post("/admin/users/2/require-password-reset")
-      .set("Cookie", cookieFor(7, "buyer"))
+      .set("Cookie", await cookieFor(7, "buyer"))
       .send({ value: true });
     expect(res.status).toBe(403);
   });
@@ -367,7 +381,7 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
     (prisma.user.update as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/admin/users/1/require-password-reset")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({ value: true });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("SelfToggleForbidden");
@@ -376,7 +390,7 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
   it("400 ValidationError when body.value is missing or wrong type", async () => {
     const res = await request(buildApp())
       .post("/admin/users/2/require-password-reset")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({}); // no value
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("ValidationError");
@@ -387,7 +401,7 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/admin/users/2/require-password-reset")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({ value: true });
     expect(res.status).toBe(200);
     expect(prisma.user.update).toHaveBeenCalledWith({
@@ -408,7 +422,7 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/admin/users/2/require-password-reset")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({ value: false });
     expect(res.status).toBe(200);
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
@@ -426,7 +440,7 @@ describe("POST /admin/stores/:id/suspend (Phase 16.1)", () => {
   it("400 ValidationError when body.value is missing or not boolean", async () => {
     const res = await request(buildApp())
       .post("/admin/stores/11/suspend")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({}); // no value
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("ValidationError");
@@ -437,7 +451,7 @@ describe("POST /admin/stores/:id/suspend (Phase 16.1)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/admin/stores/11/suspend")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({ value: true });
     expect(res.status).toBe(200);
     const updateCall = (prisma.store.update as any).mock.calls[0][0];
@@ -457,7 +471,7 @@ describe("POST /admin/stores/:id/suspend (Phase 16.1)", () => {
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/admin/stores/11/suspend")
-      .set("Cookie", cookieFor(1, "admin"))
+      .set("Cookie", await cookieFor(1, "admin"))
       .send({ value: false });
     expect(res.status).toBe(200);
     const updateCall = (prisma.store.update as any).mock.calls[0][0];

@@ -12,6 +12,7 @@ import express from "express";
 import request from "supertest";
 import { rateLimit } from "../src/middleware/rate-limit.js";
 import { errorHandler } from "../src/middleware/error.js";
+import { cookieFor } from "./_authMock.js";
 
 function makeApp(max: number, windowMs: number) {
   const app = express();
