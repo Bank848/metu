@@ -1,17 +1,21 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles } from "lucide-react";
+import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { href: "/admin",           label: "Overview",   icon: LayoutDashboard },
-  { href: "/admin/users",     label: "Users",      icon: Users },
-  { href: "/admin/stores",    label: "Stores",     icon: Store },
-  { href: "/admin/reports",   label: "Reports",    icon: FileBarChart },
-  { href: "/admin/audit",     label: "Audit log",  icon: History },
-  { href: "/admin/changelog", label: "What's new", icon: Sparkles },
+  { href: "/admin",              label: "Overview",   icon: LayoutDashboard },
+  { href: "/admin/users",        label: "Users",      icon: Users },
+  { href: "/admin/stores",       label: "Stores",     icon: Store },
+  { href: "/admin/reports",      label: "Reports",    icon: FileBarChart },
+  { href: "/admin/audit",        label: "Audit log",  icon: History },
+  // Phase 17.1 — runtime feature flags + PromptPay ID
+  { href: "/admin/settings",     label: "Settings",   icon: Settings },
+  // Phase 17.7 — ER diagram + tech stack + deployment topology
+  { href: "/admin/architecture", label: "Architecture", icon: Network },
+  { href: "/admin/changelog",    label: "What's new", icon: Sparkles },
 ];
 
 export function AdminSidebar() {
