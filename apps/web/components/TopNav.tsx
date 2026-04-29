@@ -20,9 +20,7 @@ import { AuthMenu } from "./AuthMenu";
 import { SoundToggle } from "./SoundToggle";
 import { ThemeToggle } from "./ThemeToggle";
 import { LocaleSwitcher } from "./LocaleSwitcher";
-import { MessagesNavIcon } from "./MessagesNavIcon";
 import { CartNavIcon } from "./CartNavIcon";
-import { WalletNavPill } from "./WalletNavPill";
 import { getMe } from "@/lib/session";
 import { safeGetSettings } from "@/lib/settings";
 import { getServerT } from "@/lib/i18n/server";
@@ -94,26 +92,11 @@ export async function TopNav({ q }: { q?: string } = {}) {
                 <Heart className="h-[18px] w-[18px]" />
               </Link>
             )}
-            {/* Messages — paired with Cart as the second rounded-xl
-                square. Symmetry of shape signals "these two icons
-                hold actual content (unread count, cart items)" while
-                the differentiated hover tints (mint vs yellow) keep
-                them distinct as activity destinations. Phase 17.x
-                also hides this when admin turns chat off. */}
-            {settings.chatEnabled && <MessagesNavIcon enabled={Boolean(me)} />}
-            {/* Phase 11 run #2 / F8 — moved to a client component so the
-                badge can update immediately after Add-to-cart fires the
-                `cart:update` window event (and on a 60s background poll
-                for out-of-band changes). The visual stays identical to
-                the previous static <Link>: rounded-xl square, hairline
-                border, yellow hover tint. */}
+            {/* Phase 11 run #2 / F8 — Cart icon. Moved to a client
+                component so the badge can update immediately after
+                Add-to-cart fires the `cart:update` window event.
+                Phase 26 — Messages icon + Wallet pill removed. */}
             <CartNavIcon />
-            {/* Phase 17.3 — wallet pill. Only renders when admin has
-                enabled the wallet feature (otherwise coins are
-                irrelevant to the UI). Server fetches the live
-                balance via /api/wallet so logged-out users skip
-                the request. */}
-            {settings.walletEnabled && me && <WalletNavPill />}
           </div>
 
           {/* Group 2: control cluster — Sound · Theme · Locale all

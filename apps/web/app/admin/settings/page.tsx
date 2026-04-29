@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Wallet, MessageSquare, QrCode, Heart, Percent } from "lucide-react";
+import { Settings as SettingsIcon, Heart, Percent } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { getSettings } from "@/lib/settings";
 import { SettingsForm } from "./SettingsForm";
@@ -6,16 +6,11 @@ import { SettingsForm } from "./SettingsForm";
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 17.1 — admin settings page.
+ * Phase 17.1 / 26 — admin settings page (slimmed down).
  *
- * Shows the three runtime feature flags (walletEnabled, chatEnabled,
- * promptpayId) plus a small explainer card describing what each one
- * does and what surfaces hide/show when toggled.
- *
- * Sits behind the admin layout's role gate so non-admins never reach
- * it. Reads the live settings via the BFF helper (server cached
- * 30 s on the API side); the SettingsForm client component does the
- * PATCH.
+ * Shows the runtime feature flag + platform fee config plus a small
+ * explainer card. Phase 26 dropped the wallet / chat / PromptPay
+ * surfaces ; Phase 27 will expose Stripe Connect status here instead.
  */
 export default async function AdminSettingsPage() {
   const settings = await getSettings();
@@ -24,11 +19,10 @@ export default async function AdminSettingsPage() {
     <main id="main" className="px-8 py-8 max-w-4xl">
       <PageHeader
         title="System settings"
-        subtitle="Runtime feature flags + PromptPay configuration. Changes take effect within 30 seconds across both Fly machines."
+        subtitle="Runtime feature flags + platform fee configuration. Changes take effect within 30 seconds across both Fly machines."
       />
 
       <div className="mt-6 grid gap-6">
-        {/* Hand-coded "info card" explaining what each flag does. */}
         <section className="rounded-2xl border border-line bg-space-900 p-6">
           <h2 className="font-display text-base font-bold text-white mb-3 flex items-center gap-2">
             <SettingsIcon className="h-4 w-4 text-mint" />
@@ -36,52 +30,19 @@ export default async function AdminSettingsPage() {
           </h2>
           <ul className="space-y-3 text-sm text-ink-secondary">
             <li className="flex items-start gap-3">
-              <Wallet className="h-4 w-4 text-metu-yellow shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-white">Wallet enabled —</span>{" "}
-                ON makes checkout require the buyer to spend coins from their wallet (top-up via PromptPay first).
-                OFF lets every buyer place orders without a balance check (demo mode — like Phase 13's seed-data flow).
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <MessageSquare className="h-4 w-4 text-mint shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-white">Chat enabled —</span>{" "}
-                ON shows the chat icon, /messages inbox, and "Message store" CTAs everywhere.
-                OFF hides all chat surfaces and falls back to email + the order receipt page for delivery.
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
               <Heart className="h-4 w-4 text-coral shrink-0 mt-0.5" />
               <div>
                 <span className="font-semibold text-white">Favorites enabled —</span>{" "}
                 ON shows the TopNav heart icon, the FavoriteButton on every card, and the /favorites inbox.
-                OFF hides them all. Existing favourite rows are preserved — flipping back ON immediately surfaces the user's prior favourites.
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <QrCode className="h-4 w-4 text-coral shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-white">PromptPay ID —</span>{" "}
-                The phone number / national ID that top-up QR codes will charge. Use a real PromptPay-registered ID for production demo;
-                the default seed value is a placeholder.
+                OFF hides them all. Existing favourite rows are preserved — flipping back ON immediately surfaces the user&#x2019;s prior favourites.
               </div>
             </li>
             <li className="flex items-start gap-3">
               <Percent className="h-4 w-4 text-metu-yellow shrink-0 mt-0.5" />
               <div>
                 <span className="font-semibold text-white">Platform fee % —</span>{" "}
-                The cut the platform takes from every store-line subtotal at checkout.
-                Default 5 means a seller earns 95 coins for every 100-coin sale.
-                Applied at credit time, NOT stored on the order row, so changing this only affects future orders.
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <Percent className="h-4 w-4 text-mint shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-white">Withdrawal fee % —</span>{" "}
-                Deducted from a withdrawal request's coin amount when the seller submits it. Default 0 — most demos cash out at full value.
-                Snapshotted onto the Withdrawal row at request time so changing this later doesn't retroactively shift open requests.
+                The cut the platform takes from every order at checkout. Default 5 means a seller earns 95 baht for every 100-baht sale.
+                Phase 27 wires this into Stripe&#x2019;s <code>application_fee_amount</code> parameter so the platform&#x2019;s share routes to the platform&#x2019;s Stripe account at charge time.
               </div>
             </li>
           </ul>

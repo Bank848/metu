@@ -3,7 +3,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, FileDown } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
-import { StockAlertButton } from "@/components/StockAlertButton";
 import { coins, thbToCoins } from "@/lib/format";
 import { play } from "@/lib/sound";
 import { cn } from "@/lib/utils";
@@ -16,7 +15,6 @@ type Item = {
   discountPercent: number;
   stock: number;
   sampleUrl?: string | null;
-  alreadySubscribed?: boolean;
 };
 
 const deliveryIcon: Record<string, React.ElementType> = {
@@ -211,14 +209,12 @@ export function AddToCart({ items }: { items: Item[] }) {
         </div>
       </div>
 
-      {/* Out-of-stock notify-me — only physical variants. */}
+      {/* Phase 26 — out-of-stock variants now show a static notice
+          instead of the StockAlertButton (restock-notification feature
+          was removed alongside the messaging surface). */}
       {!isDigital && active?.stock === 0 && (
-        <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 flex items-center justify-between gap-3">
+        <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3">
           <span className="text-sm text-amber-200">This variant is out of stock.</span>
-          <StockAlertButton
-            productItemId={active.productItemId}
-            initialSubscribed={Boolean(active.alreadySubscribed)}
-          />
         </div>
       )}
 

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Banknote, Layers, Wallet } from "lucide-react";
+import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Layers } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -11,15 +11,11 @@ const items = [
   { href: "/admin/stores",       label: "Stores",     icon: Store },
   { href: "/admin/reports",      label: "Reports",    icon: FileBarChart },
   { href: "/admin/audit",        label: "Audit log",  icon: History },
-  // Phase 17.3 — pending PromptPay top-up review queue
-  { href: "/admin/topups",       label: "Top-ups",    icon: Banknote },
-  // Phase 20.2 — seller withdrawal review queue
-  { href: "/admin/withdrawals",  label: "Withdrawals", icon: Wallet },
-  // Phase 17.1 — runtime feature flags + PromptPay ID
+  // Phase 17.1 / 26 — runtime feature flags (slimmed to favoritesEnabled
+  // + platformFeePercent after the wallet/PromptPay layer was removed).
   { href: "/admin/settings",     label: "Settings",   icon: Settings },
   // Phase 21 — split the dead /admin/architecture link into two
-  // dedicated pages: ER diagram (Lucidchart embed) + tech stack
-  // (live versions from package.json + curated metadata).
+  // dedicated pages: ER diagram (in-house live render) + tech stack.
   { href: "/admin/er-diagram",   label: "ER Diagram", icon: Network },
   { href: "/admin/tech-stack",   label: "Tech Stack", icon: Layers },
   { href: "/admin/changelog",    label: "What's new", icon: Sparkles },

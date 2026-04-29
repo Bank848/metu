@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Star, Clock, MessageSquare, ShieldCheck, Flame, Mail } from "lucide-react";
+import { Star, Clock, MessageSquare, ShieldCheck, Flame } from "lucide-react";
 import { notFound } from "next/navigation";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
@@ -9,15 +9,12 @@ import { Reviews } from "@/components/Reviews";
 import { getProduct, getFavoriteSet, getRecentPurchaseCount, getRelatedProducts } from "@/lib/server/queries";
 import { ProductCard } from "@/components/ProductCard";
 import { getMe } from "@/lib/session";
-import { safeGetSettings } from "@/lib/settings";
 import { getServerT } from "@/lib/i18n/server";
 import { isDataUrl } from "@/lib/utils";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { ExpandableText } from "@/components/ExpandableText";
 import { RecentPing } from "@/components/RecentPing";
 import { ShareButton } from "@/components/ShareButton";
-import { ProductQuestions } from "@/components/ProductQuestions";
-import { prisma } from "@/lib/server/prisma";
 import { AddToCart } from "./AddToCart";
 import { Gallery } from "./Gallery";
 
@@ -43,60 +40,18 @@ export default async function ProductPage({ params }: { params: { id: string } }
   // Resolve the session first (cheap cookie decode) so the remaining DB
   // reads can fan out in the same Promise.all — eliminates the serial
   // getFavoriteSet await that was adding one extra Neon roundtrip.
+  // Phase 26 — productQuestion + stockAlert reads dropped along with
+  // the buyer↔seller messaging surface.
   const me = await getMe();
-  const [product, favSet, recentBuyers, questions, related, settings] = await Promise.all([
+  const [product, favSet, recentBuyers, related] = await Promise.all([
     getProduct(id) as Promise<Product | null>,
     getFavoriteSet(me?.user.userId),
     getRecentPurchaseCount(id, 7),
-    prisma.productQuestion.findMany({
-      where: { productId: id },
-      orderBy: { createdAt: "desc" },
-      include: {
-        asker:    { select: { userId: true, username: true, firstName: true, lastName: true, profileImage: true } },
-        // answerer.stats.role drives the "Admin answered" vs "Seller
-        // answered" label in ProductQuestions.tsx (Phase 10 Step 1).
-        answerer: {
-          select: {
-            userId: true, username: true, firstName: true, lastName: true, profileImage: true,
-            stats: { select: { role: true } },
-          },
-        },
-      },
-    }),
     getRelatedProducts(id, 4),
-    safeGetSettings(),
   ]);
   if (!product) return notFound();
   const t = getServerT();
-  // Seller-or-admin can answer questions on this product.
-  const canAnswer =
-    me?.role === "admin" ||
-    (me?.user.store?.storeId !== undefined && me.user.store.storeId === product.store.storeId);
   const isFavorited = favSet.has(product.productId);
-  // Hide "Ask the seller" if the viewer IS the seller — `POST /api/messages`
-  // already rejects self-send so this is just UX hygiene.
-  // Phase 19 — also hide whenever the admin has flipped chatEnabled=false.
-  const showAskSeller =
-    settings.chatEnabled && (!me || me.user.userId !== product.store.ownerId);
-  const askSellerHref = me
-    ? `/messages/${product.store.ownerId}?productId=${product.productId}`
-    : `/login?next=${encodeURIComponent(`/messages/${product.store.ownerId}?productId=${product.productId}`)}`;
-
-  // Hydrate per-variant restock subscription state so the bell button
-  // shows the right colour without a client round-trip.
-  const alertSet = me
-    ? new Set(
-        (
-          await prisma.stockAlert.findMany({
-            where: {
-              userId: me.user.userId,
-              productItemId: { in: product.items.map((it) => it.productItemId) },
-            },
-            select: { productItemId: true },
-          })
-        ).map((a) => a.productItemId),
-      )
-    : new Set<number>();
 
   const items = product.items.map((it) => ({
     ...it,
@@ -105,7 +60,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
     // Expose stock to AddToCart so it can cap the typed input correctly.
     stock: it.quantity,
     sampleUrl: (it as { sampleUrl?: string | null }).sampleUrl ?? null,
-    alreadySubscribed: alertSet.has(it.productItemId),
   }));
 
   return (
@@ -188,22 +142,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
               <div className="ml-auto text-xs text-metu-yellow">Visit store →</div>
             </Link>
 
-            {/* "Ask the seller" — small, inline, sits below the store
-                card so the buyer always has a low-pressure path to
-                clarify a question without leaving the product page.
-                Mint accent (matches the playbook's "soft / inviting"
-                role for secondary actions) and pre-fills the productId
-                so ThreadView can render the context pill. */}
-            {showAskSeller && (
-              <Link
-                href={askSellerHref}
-                className="mt-2 mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-mint hover:text-mint-dim transition"
-              >
-                <Mail className="h-3.5 w-3.5" />
-                {t("messages.cta.askSeller")} →
-              </Link>
-            )}
-            {!showAskSeller && <div className="mb-6" />}
+            <div className="mb-6" />
 
             <AddToCart items={items} />
           </div>
@@ -230,25 +169,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
             currentUserId={me?.user.userId}
           />
         </section>
-
-        <ProductQuestions
-          productId={product.productId}
-          initialQuestions={questions.map((q) => ({
-            questionId: q.questionId,
-            askerId: q.askerId,
-            body: q.body,
-            answer: q.answer,
-            answeredAt: q.answeredAt ? q.answeredAt.toISOString() : null,
-            createdAt: q.createdAt.toISOString(),
-            asker: q.asker,
-            answerer: q.answerer,
-          }))}
-          canAnswer={canAnswer}
-          isLoggedIn={Boolean(me)}
-          isAdmin={me?.role === "admin"}
-          currentUserId={me?.user.userId}
-          chatEnabled={settings.chatEnabled}
-        />
 
         {related.length > 0 && (
           <section className="mt-16">

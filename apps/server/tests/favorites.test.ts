@@ -23,10 +23,8 @@ vi.mock("../src/db/prisma.js", () => ({
     systemSetting: {
       findUnique: vi.fn().mockResolvedValue({
         id: 1,
-        walletEnabled: false,
-        chatEnabled: true,
         favoritesEnabled: true,
-        promptpayId: "0812345678",
+        platformFeePercent: 5,
         updatedAt: new Date(),
       }),
       create: vi.fn(),

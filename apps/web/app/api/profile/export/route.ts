@@ -27,17 +27,16 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = me.user.userId;
 
+  // Phase 26 — dropped Message/StockAlert/ProductQuestion exports
+  // alongside the trim of those tables. Order history + reviews +
+  // favourites + audit trail still ship in the personal-data JSON.
   const [
     user,
     orders,
     reviews,
     favorites,
     couponUsages,
-    sentMessages,
-    receivedMessages,
     auditEntries,
-    stockAlerts,
-    questions,
     store,
   ] = await Promise.all([
     prisma.user.findUnique({
@@ -81,52 +80,10 @@ export async function GET() {
       where: { userId },
       select: { couponId: true, createdAt: true },
     }),
-    prisma.message.findMany({
-      where: { senderId: userId },
-      orderBy: { createdAt: "desc" },
-      select: {
-        messageId: true,
-        recipientId: true,
-        body: true,
-        productId: true,
-        orderId: true,
-        readAt: true,
-        createdAt: true,
-      },
-    }),
-    prisma.message.findMany({
-      where: { recipientId: userId },
-      orderBy: { createdAt: "desc" },
-      select: {
-        messageId: true,
-        senderId: true,
-        body: true,
-        productId: true,
-        orderId: true,
-        readAt: true,
-        createdAt: true,
-      },
-    }),
     prisma.auditLog.findMany({
       where: { actorId: userId },
       orderBy: { createdAt: "desc" },
       take: 500,
-    }),
-    prisma.stockAlert.findMany({
-      where: { userId },
-      select: { productItemId: true, createdAt: true, notifiedAt: true },
-    }),
-    prisma.productQuestion.findMany({
-      where: { askerId: userId },
-      orderBy: { createdAt: "desc" },
-      select: {
-        questionId: true,
-        productId: true,
-        body: true,
-        answer: true,
-        answeredAt: true,
-        createdAt: true,
-      },
     }),
     prisma.store.findUnique({
       where: { ownerId: userId },
@@ -145,18 +102,14 @@ export async function GET() {
   const blob = {
     exportedAt: new Date().toISOString(),
     notice:
-      "This is your personal data on METU. Generated under your right to data portability. Keep it private — it includes your order history and messages.",
+      "This is your personal data on METU. Generated under your right to data portability. Keep it private — it includes your order history.",
     user: userSafe,
     store,
     orders,
     reviews,
     favorites,
     couponUsages,
-    messagesSent: sentMessages,
-    messagesReceived: receivedMessages,
     auditEntries,
-    stockAlerts,
-    questions,
   };
 
   return new NextResponse(JSON.stringify(blob, null, 2), {

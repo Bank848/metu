@@ -137,9 +137,6 @@ export function AuthMenu({
           <MenuItem href="/orders" icon={Package} onClose={() => setOpen(false)}>
             My orders
           </MenuItem>
-          <MenuItem href="/messages" icon={Mail} onClose={() => setOpen(false)}>
-            {t("nav.messages")}
-          </MenuItem>
           <MenuItem href="/my-reviews" icon={Star} onClose={() => setOpen(false)}>
             My reviews
           </MenuItem>
