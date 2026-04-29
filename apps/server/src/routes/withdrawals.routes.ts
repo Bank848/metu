@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as ctrl from "../controllers/withdrawal.controller.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireStore } from "../middleware/seller.js";
+import { submitWithdrawLimiter } from "../middleware/rate-limit.js";
 
 /**
  * Phase 20.2 — withdrawal routes.
@@ -21,7 +22,11 @@ const sellerRouter = Router();
 sellerRouter.use(requireAuth(), requireStore());
 sellerRouter.get("/wallet",        ctrl.getSellerWallet);
 sellerRouter.get("/withdrawals",   ctrl.listMyWithdrawals);
-sellerRouter.post("/withdrawals",  ctrl.requestWithdrawal);
+// Phase 22 — POST is rate-limited to 3/hr/user so a stolen session
+// can't fire a barrage of withdrawal requests with attacker-controlled
+// bank details. The deduct-on-request invariant means each successful
+// request also reduces the attack surface (Store.coinBalance).
+sellerRouter.post("/withdrawals",  submitWithdrawLimiter, ctrl.requestWithdrawal);
 export default sellerRouter;
 
 export const adminWithdrawalsRouter = Router();
