@@ -75,6 +75,7 @@ import walletRoutes,   { adminWalletRouter   } from "./routes/wallet.routes.js";
 // reaches the handler unparsed (per better-auth Express docs).
 import { auth } from "./lib/auth.js";
 import { toNodeHandler } from "better-auth/node";
+import helmet from "helmet";
 
 // Middleware — order matters in the buildApp() call below.
 import { corsMiddleware } from "./middleware/cors.js";
@@ -91,6 +92,43 @@ export function buildApp() {
   // traffic almost immediately. Local dev: req.ip stays 127.0.0.1
   // since there's no proxy header to consult.
   app.set("trust proxy", true);
+
+  // Phase 22 — security headers BEFORE everything else so a 4xx from
+  // a downstream middleware (cors / rate-limit / json parser) still
+  // ships HSTS + X-Frame-Options + nosniff + Referrer-Policy. Helmet's
+  // defaults cover those four; the CSP we set explicitly because the
+  // default is `default-src 'self'` which would block better-auth's
+  // Google OAuth redirect chain. The CSP shipped here trusts:
+  //   - 'self' for everything
+  //   - data: + blob: for inline images (avatars, slip uploads)
+  //   - lh3.googleusercontent.com for Google profile pics
+  //   - accounts.google.com + oauth2.googleapis.com for OAuth flow
+  //   - fonts.googleapis.com / fonts.gstatic.com for the Inter font
+  // The BFF (apps/web) sets its own CSP via next.config; this one
+  // covers the API surface (curl + admin-tool consumption).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          "default-src": ["'self'"],
+          "img-src":     ["'self'", "data:", "blob:", "https://lh3.googleusercontent.com"],
+          "connect-src": ["'self'", "https://accounts.google.com", "https://oauth2.googleapis.com"],
+          "style-src":   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+          "font-src":    ["'self'", "https://fonts.gstatic.com"],
+          "frame-ancestors": ["'none'"],
+        },
+      },
+      // 180-day HSTS — browsers cache it on first HTTPS hit so even a
+      // future plain-http typo gets upgraded transparently.
+      hsts: { maxAge: 15_552_000, includeSubDomains: true },
+      // Disable the COEP header — Next standalone build under Fly trips
+      // up under Cross-Origin-Embedder-Policy: require-corp because the
+      // BFF still pulls some cross-origin assets. Re-evaluate when
+      // we move all assets in-house.
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   // 1. Logging FIRST so we always see the request even if cors / json
   //    parsing rejects it. Skipping the log when running tests would

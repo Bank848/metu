@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as ctrl from "../controllers/wallet.controller.js";
 import { requireAuth } from "../middleware/auth.js";
+import { submitTopupLimiter } from "../middleware/rate-limit.js";
 
 /**
  * Phase 17.1 — wallet router.
@@ -11,13 +12,16 @@ import { requireAuth } from "../middleware/auth.js";
  * Top-up endpoints land in Phase 17.3 (POST /wallet/topup, ...).
  * Admin grant lives under /admin/users/:id/grant-coins (mounted by
  * the admin router file).
+ *
+ * Phase 22 — both top-up POSTs share the 10/hr/user limiter so a
+ * compromised account can't drown the manual-review queue.
  */
 const router = Router();
-router.get("/",                requireAuth(), ctrl.getMyBalance);
-router.get("/transactions",    requireAuth(), ctrl.getMyTransactions);
+router.get("/",                requireAuth(),                      ctrl.getMyBalance);
+router.get("/transactions",    requireAuth(),                      ctrl.getMyTransactions);
 // Phase 17.3 — top-up flow.
-router.post("/topup",          requireAuth(), ctrl.requestTopup);
-router.post("/topup/:id/slip", requireAuth(), ctrl.submitSlip);
+router.post("/topup",          requireAuth(), submitTopupLimiter, ctrl.requestTopup);
+router.post("/topup/:id/slip", requireAuth(), submitTopupLimiter, ctrl.submitSlip);
 export default router;
 
 export const adminWalletRouter = Router();

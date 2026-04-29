@@ -1,4 +1,6 @@
 import { prisma } from "../db/prisma.js";
+import { AppError } from "../utils/errors.js";
+import { containsProfanity } from "../utils/profanity.js";
 import type {
   InboxResponse,
   InboxThread,
@@ -112,6 +114,18 @@ export async function sendMessage(
   senderId: number,
   input: SendMessageInput,
 ): Promise<MessageRow> {
+  // Phase 22 — same dictionary the username + review services use,
+  // applied to outbound message bodies. Reject with 400 ProfanityRejected
+  // BEFORE the Neon round-trip so a banned word never lands in the
+  // ledger. Trade-off: the user has to re-type. Acceptable for the
+  // demo; production would surface inline highlight + suggestion.
+  if (containsProfanity(input.body)) {
+    throw new AppError(
+      400,
+      "ProfanityRejected",
+      "Your message contains content that isn't allowed.",
+    );
+  }
   const created = await prisma.message.create({
     data: {
       senderId,
