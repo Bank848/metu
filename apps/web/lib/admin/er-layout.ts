@@ -145,6 +145,24 @@ function placeOnCategoryGrid(entities: ErEntity[]): {
   return { placed, width, height };
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Routing helpers — keep the bend points inside inter-column gaps so
+// vertical runs never cut through an unrelated card body. The grid
+// has predictable column geometry, so we can compute exact gap
+// centres without any collision-detection pass.
+// ─────────────────────────────────────────────────────────────────
+const COLUMN_PITCH = NODE_WIDTH + COLUMN_GAP;
+
+/** X centre of the gap immediately *after* `colIdx` (0-based). */
+function gapCenterX(colIdx: number): number {
+  return CANVAS_PAD + colIdx * COLUMN_PITCH + NODE_WIDTH + COLUMN_GAP / 2;
+}
+
+/** Approximate column index for an arbitrary x coord. */
+function colIndexFor(x: number): number {
+  return Math.max(0, Math.round((x - CANVAS_PAD - NODE_WIDTH / 2) / COLUMN_PITCH));
+}
+
 export function layoutEr(
   entities: ErEntity[],
   relationships: ErRelationship[],
@@ -198,6 +216,12 @@ export function layoutEr(
     let aPort: { x: number; y: number };
     let bPort: { x: number; y: number };
 
+    // Pull endpoints a few px AWAY from the card edge so the
+    // crow-foot marker has clean whitespace instead of overlapping
+    // the card border. The marker viewBox is 12-14 px wide; 4 px of
+    // air keeps the bar/foot legible.
+    const STUB = 4;
+
     if (horizontal) {
       const aOnRight = a.centerX < b.centerX;
       const aSide = aOnRight ? "right" : "left";
@@ -209,11 +233,11 @@ export function layoutEr(
       const aOffset = ((aIdx - 1) % 5) * 8 - 16;
       const bOffset = ((bIdx - 1) % 5) * 8 - 16;
       aPort = {
-        x: aOnRight ? a.x + a.width : a.x,
+        x: aOnRight ? a.x + a.width + STUB : a.x - STUB,
         y: a.centerY + aOffset,
       };
       bPort = {
-        x: aOnRight ? b.x : b.x + b.width,
+        x: aOnRight ? b.x - STUB : b.x + b.width + STUB,
         y: b.centerY + bOffset,
       };
     } else {
@@ -226,24 +250,40 @@ export function layoutEr(
       const bOffset = ((bIdx - 1) % 5) * 12 - 24;
       aPort = {
         x: a.centerX + aOffset,
-        y: aOnTop ? a.y + a.height : a.y,
+        y: aOnTop ? a.y + a.height + STUB : a.y - STUB,
       };
       bPort = {
         x: b.centerX + bOffset,
-        y: aOnTop ? b.y : b.y + b.height,
+        y: aOnTop ? b.y - STUB : b.y + b.height + STUB,
       };
     }
 
-    // Manhattan polyline: 3 points (or 4 with a mid-step) that bend
-    // once at the midpoint between the two ports. This matches
-    // Lucidchart's right-angle connector style.
+    // Manhattan polyline. We snap the bend X to an inter-column gap
+    // centre so vertical runs always sit in whitespace between two
+    // columns, never inside a card body. This eliminates the visual
+    // bug where a marker at the end of an edge appeared to overlap
+    // an unrelated card's border.
     let points: Array<{ x: number; y: number }>;
     if (horizontal) {
-      const midX = (aPort.x + bPort.x) / 2;
+      const aColIdx = colIndexFor(a.centerX);
+      const bColIdx = colIndexFor(b.centerX);
+      // Choose a gap strictly between the two columns. For adjacent
+      // columns there's only one option (the gap between them); for
+      // non-adjacent we pick the gap immediately on the source side
+      // so the long horizontal segment runs at *target* y, then
+      // snaps over once at the target boundary. Distribute parallel
+      // edges across multiple gap candidates to fan them out.
+      const cMin = Math.min(aColIdx, bColIdx);
+      const cMax = Math.max(aColIdx, bColIdx) - 1;
+      const gapCount = Math.max(1, cMax - cMin + 1);
+      const gapKey = `${cMin}->${cMax}`;
+      const gapPick = bumpSide(`gap:${gapKey}`);
+      const chosenGap = cMin + ((gapPick - 1) % gapCount);
+      const bendX = gapCenterX(chosenGap);
       points = [
         aPort,
-        { x: midX, y: aPort.y },
-        { x: midX, y: bPort.y },
+        { x: bendX, y: aPort.y },
+        { x: bendX, y: bPort.y },
         bPort,
       ];
     } else {

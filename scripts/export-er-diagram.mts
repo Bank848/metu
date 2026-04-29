@@ -121,11 +121,20 @@ interface LayoutedEdge {
   points: Array<{ x: number; y: number }>;
 }
 
+const COLUMN_PITCH = NODE_WIDTH + COLUMN_GAP;
+function gapCenterX(colIdx: number): number {
+  return CANVAS_PAD + colIdx * COLUMN_PITCH + NODE_WIDTH + COLUMN_GAP / 2;
+}
+function colIndexFor(x: number): number {
+  return Math.max(0, Math.round((x - CANVAS_PAD - NODE_WIDTH / 2) / COLUMN_PITCH));
+}
+
 function routeEdges(placed: PlacedNode[], rels: ErRelationship[]): LayoutedEdge[] {
   const byId = new Map(placed.map((p) => [p.id, p]));
   const sideUsage = new Map<string, number>();
   function bumpSide(k: string): number { const n = (sideUsage.get(k) ?? 0) + 1; sideUsage.set(k, n); return n; }
   const out: LayoutedEdge[] = [];
+  const STUB = 4;
   for (const r of rels) {
     if (r.from === r.to) continue;
     const a = byId.get(r.from); const b = byId.get(r.to);
@@ -140,8 +149,8 @@ function routeEdges(placed: PlacedNode[], rels: ErRelationship[]): LayoutedEdge[
       const bIdx = bumpSide(`${r.to}:${bSide}`);
       const aOff = ((aIdx - 1) % 5) * 8 - 16;
       const bOff = ((bIdx - 1) % 5) * 8 - 16;
-      aPort = { x: aOnRight ? a.x + a.width : a.x, y: a.centerY + aOff };
-      bPort = { x: aOnRight ? b.x : b.x + b.width, y: b.centerY + bOff };
+      aPort = { x: aOnRight ? a.x + a.width + STUB : a.x - STUB, y: a.centerY + aOff };
+      bPort = { x: aOnRight ? b.x - STUB : b.x + b.width + STUB, y: b.centerY + bOff };
     } else {
       const aOnTop = a.centerY < b.centerY;
       const aSide = aOnTop ? "bottom" : "top";
@@ -150,13 +159,21 @@ function routeEdges(placed: PlacedNode[], rels: ErRelationship[]): LayoutedEdge[
       const bIdx = bumpSide(`${r.to}:${bSide}`);
       const aOff = ((aIdx - 1) % 5) * 12 - 24;
       const bOff = ((bIdx - 1) % 5) * 12 - 24;
-      aPort = { x: a.centerX + aOff, y: aOnTop ? a.y + a.height : a.y };
-      bPort = { x: b.centerX + bOff, y: aOnTop ? b.y : b.y + b.height };
+      aPort = { x: a.centerX + aOff, y: aOnTop ? a.y + a.height + STUB : a.y - STUB };
+      bPort = { x: b.centerX + bOff, y: aOnTop ? b.y - STUB : b.y + b.height + STUB };
     }
     let points: Array<{ x: number; y: number }>;
     if (horizontal) {
-      const midX = (aPort.x + bPort.x) / 2;
-      points = [aPort, { x: midX, y: aPort.y }, { x: midX, y: bPort.y }, bPort];
+      const aColIdx = colIndexFor(a.centerX);
+      const bColIdx = colIndexFor(b.centerX);
+      const cMin = Math.min(aColIdx, bColIdx);
+      const cMax = Math.max(aColIdx, bColIdx) - 1;
+      const gapCount = Math.max(1, cMax - cMin + 1);
+      const gapKey = `${cMin}->${cMax}`;
+      const gapPick = bumpSide(`gap:${gapKey}`);
+      const chosenGap = cMin + ((gapPick - 1) % gapCount);
+      const bendX = gapCenterX(chosenGap);
+      points = [aPort, { x: bendX, y: aPort.y }, { x: bendX, y: bPort.y }, bPort];
     } else {
       const midY = (aPort.y + bPort.y) / 2;
       points = [aPort, { x: aPort.x, y: midY }, { x: bPort.x, y: midY }, bPort];
