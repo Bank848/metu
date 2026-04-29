@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -6,12 +6,19 @@ import { ProductCard } from "@/components/ProductCard";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
+import { safeGetSettings } from "@/lib/settings";
 import { getFavoriteProducts } from "@/lib/server/queries";
 import { getServerT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function FavoritesPage() {
+  // Phase 17.x — feature flag gate. When admin disables favorites
+  // we 404 the route entirely so navigation stays consistent
+  // (TopNav heart icon already hidden by the same flag).
+  const settings = await safeGetSettings();
+  if (!settings.favoritesEnabled) notFound();
+
   const me = await getMe();
   if (!me) redirect("/login?next=/favorites");
 

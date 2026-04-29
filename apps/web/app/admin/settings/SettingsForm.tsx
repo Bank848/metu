@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 interface Settings {
   walletEnabled: boolean;
   chatEnabled: boolean;
+  favoritesEnabled: boolean;
   promptpayId: string;
   updatedAt: string;
 }
@@ -20,6 +21,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   const router = useRouter();
   const [walletEnabled, setWalletEnabled] = useState(initial.walletEnabled);
   const [chatEnabled, setChatEnabled] = useState(initial.chatEnabled);
+  const [favoritesEnabled, setFavoritesEnabled] = useState(initial.favoritesEnabled);
   const [promptpayId, setPromptpayId] = useState(initial.promptpayId);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -27,6 +29,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
   const dirty =
     walletEnabled !== initial.walletEnabled ||
     chatEnabled !== initial.chatEnabled ||
+    favoritesEnabled !== initial.favoritesEnabled ||
     promptpayId !== initial.promptpayId;
 
   async function onSave() {
@@ -36,6 +39,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       const patch: Record<string, unknown> = {};
       if (walletEnabled !== initial.walletEnabled) patch.walletEnabled = walletEnabled;
       if (chatEnabled !== initial.chatEnabled) patch.chatEnabled = chatEnabled;
+      if (favoritesEnabled !== initial.favoritesEnabled) patch.favoritesEnabled = favoritesEnabled;
       if (promptpayId !== initial.promptpayId) patch.promptpayId = promptpayId;
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
@@ -75,6 +79,12 @@ export function SettingsForm({ initial }: { initial: Settings }) {
           description="Buyer ↔ seller messaging surfaces visible everywhere."
           checked={chatEnabled}
           onChange={setChatEnabled}
+        />
+        <Toggle
+          label="Favorites enabled"
+          description="TopNav heart icon, FavoriteButton on cards, and the /favorites inbox visible."
+          checked={favoritesEnabled}
+          onChange={setFavoritesEnabled}
         />
 
         <div className="pt-2">

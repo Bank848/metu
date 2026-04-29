@@ -720,13 +720,18 @@ model Verification {
 /// constraint at the SQL level pins id=1 so we can never
 /// accidentally insert a second row.
 model SystemSetting {
-  id              Int      @id @default(1)
-  walletEnabled   Boolean  @default(false) @map("wallet_enabled")
-  chatEnabled     Boolean  @default(true)  @map("chat_enabled")
+  id                Int      @id @default(1)
+  walletEnabled     Boolean  @default(false) @map("wallet_enabled")
+  chatEnabled       Boolean  @default(true)  @map("chat_enabled")
+  /// Phase 17.x — favourites surfaces (heart icon, /favorites inbox,
+  /// FavoriteButton on cards) hide when this is false. The
+  /// favorite_product table is preserved so flipping back ON shows
+  /// every prior favourite — no data lost on a temporary disable.
+  favoritesEnabled  Boolean  @default(true)  @map("favorites_enabled")
   /// Demo PromptPay ID used to generate top-up QRs. Default seed
   /// is a placeholder; admin overrides via /admin/settings.
-  promptpayId     String   @default("0812345678") @map("promptpay_id") @db.VarChar(20)
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  promptpayId       String   @default("0812345678") @map("promptpay_id") @db.VarChar(20)
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("system_setting")
 }

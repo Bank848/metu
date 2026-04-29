@@ -10,6 +10,8 @@ import { z } from "zod";
 export interface PublicSettings {
   walletEnabled: boolean;
   chatEnabled: boolean;
+  /** Phase 17.x — favourites surfaces hide when false. */
+  favoritesEnabled: boolean;
   promptpayId: string;
   updatedAt: Date;
   /**
@@ -27,6 +29,7 @@ export interface PublicSettings {
 export const settingsPatchSchema = z.object({
   walletEnabled: z.boolean().optional(),
   chatEnabled: z.boolean().optional(),
+  favoritesEnabled: z.boolean().optional(),
   promptpayId: z
     .string()
     .trim()
