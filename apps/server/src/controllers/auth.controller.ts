@@ -479,3 +479,52 @@ export const totpDisable: RequestHandler = async (req, res, next) => {
     next(err);
   }
 };
+
+// =============================================================================
+//  Phase 18 — connected social accounts
+// =============================================================================
+
+/**
+ * GET /auth/connected-accounts — Phase 18.
+ *
+ * Returns the list of non-credential Account rows for the current user
+ * (i.e. social providers like Google) plus a `googleEnabled` flag so
+ * the UI can render "Link Google" vs "Google sign-in not configured".
+ *
+ * The `credential` provider row is filtered out — it's an internal
+ * detail of the password sign-in path, not a user-facing "connected
+ * account".
+ */
+export const listConnectedAccounts: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const accounts = await service.listConnectedAccounts(auth.uid);
+    res.json({
+      accounts,
+      googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * DELETE /auth/connected-accounts/google — Phase 18.
+ *
+ * Removes the Google Account row(s) for the current user. Refuses
+ * with 400 PasswordNotSet if the user has no credential row — without
+ * a password, unlinking would lock them out of their own account.
+ *
+ * Idempotent: if no Google row exists, returns 404 NotLinked.
+ */
+export const unlinkGoogle: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    await service.unlinkGoogle(auth.uid);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};

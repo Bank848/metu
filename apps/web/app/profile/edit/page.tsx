@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { getMe } from "@/lib/session";
 import { getCountries } from "@/lib/server/queries";
 import { EditProfileForm } from "./EditProfileForm";
+import { ConnectedAccounts } from "./ConnectedAccounts";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,11 @@ export default async function EditProfilePage({
             totpEnabled: me.totpEnabled,
           }}
         />
+
+        {/* Phase 18 — Connected social accounts (Link / Unlink Google).
+            Separate card mirroring the data-export pattern below. The
+            component fetches from /api/auth/connected-accounts on mount. */}
+        <ConnectedAccounts hasPassword={me.hasPassword} />
 
         {/* GDPR-style data export — separate card so it's visually distinct
             from profile edit fields. The endpoint forces a JSON download. */}

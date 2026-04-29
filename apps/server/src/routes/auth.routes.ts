@@ -48,4 +48,12 @@ router.post("/totp/enroll-start",  requireAuth(), ctrl.totpEnrollStart);
 router.post("/totp/enroll-verify", requireAuth(), ctrl.totpEnrollVerify);
 router.post("/totp/disable",       requireAuth(), ctrl.totpDisable);
 
+// Phase 18 — connected social accounts (link / unlink).
+// Linking is handled by better-auth's existing /auth/better/sign-in/google
+// flow when called from inside an active session — no new endpoint needed
+// for that. These two endpoints surface the linked-account list and let
+// the user unlink Google explicitly.
+router.get(   "/connected-accounts",         requireAuth(), ctrl.listConnectedAccounts);
+router.delete("/connected-accounts/google",  requireAuth(), ctrl.unlinkGoogle);
+
 export default router;

@@ -838,3 +838,81 @@ export async function totpDisable(
     targetId: userId,
   });
 }
+
+// =============================================================================
+//  Phase 18 — connected social accounts
+// =============================================================================
+
+/**
+ * Returns the user's social-login Account rows (provider, accountId,
+ * createdAt). Filters out the `credential` provider row — that's the
+ * password row backing better-auth's signInEmail and not a "connected
+ * account" the user manages from /profile/edit.
+ *
+ * Note: for Google, `accountId` is the OAuth `sub` claim (numeric Google
+ * user id), not the email. The frontend treats it as an opaque token
+ * and only uses it for "Linked since DATE" / unlink confirmation. The
+ * better-auth schema does not store the linked email separately, so if
+ * we ever want to display the Google email we'd need to inspect the
+ * stored `idToken` JWT — out of scope for the initial Phase 18 ship.
+ */
+export async function listConnectedAccounts(
+  userId: number,
+): Promise<
+  Array<{
+    provider: string;
+    accountRef: string;
+    linkedAt: Date;
+  }>
+> {
+  const rows = await prisma.account.findMany({
+    where: { userId, NOT: { providerId: "credential" } },
+    select: { providerId: true, accountId: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map((r) => ({
+    provider: r.providerId,
+    accountRef: r.accountId,
+    linkedAt: r.createdAt,
+  }));
+}
+
+/**
+ * Removes the Google account row(s) for `userId`.
+ *
+ * Lockout guard: refuses with 400 PasswordNotSet when the user has no
+ * credential row with a non-null password. Without a password,
+ * unlinking would leave them unable to sign back in.
+ *
+ * Audits as `auth.unlink.google` so admin can trace deliberate unlinks
+ * (e.g. for shared-account incident response).
+ */
+export async function unlinkGoogle(userId: number): Promise<void> {
+  const credential = await prisma.account.findFirst({
+    where: {
+      userId,
+      providerId: "credential",
+      password: { not: null },
+    },
+    select: { id: true },
+  });
+  if (!credential) {
+    throw new AppError(
+      400,
+      "PasswordNotSet",
+      "Set a password before unlinking Google — otherwise you'll be locked out.",
+    );
+  }
+  const result = await prisma.account.deleteMany({
+    where: { userId, providerId: "google" },
+  });
+  if (result.count === 0) {
+    throw new AppError(404, "NotLinked", "No Google account is linked.");
+  }
+  await audit({
+    actorId: userId,
+    action: "auth.unlink.google",
+    targetType: "account",
+    targetId: userId,
+  });
+}
