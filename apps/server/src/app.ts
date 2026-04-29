@@ -54,6 +54,9 @@ import sellerRoutes from "./routes/seller.routes.js";
 // Layered routes (Phase 13.10 — admin)
 import adminRoutes from "./routes/admin.routes.js";
 
+// Layered routes (Phase 20.2 — seller withdrawals + admin queue)
+import withdrawalSellerRoutes, { adminWithdrawalsRouter } from "./routes/withdrawals.routes.js";
+
 // Layered routes (Phase 13.11 — reference data)
 // Last legacy flat router (`catalog.ts`) replaced by this layered
 // module. business-types + countries — public reads driving form
@@ -185,6 +188,16 @@ export function buildApp() {
   app.use("/wallet",   walletRoutes);
   app.use("/admin",    adminSettingsRouter);
   app.use("/admin",    adminWalletRouter);
+
+  // ─── Layered routes (Phase 20.2 — seller withdrawals) ───────────
+  // Two-router split — seller-side endpoints (/seller/wallet,
+  // /seller/withdrawals POST + GET) inherit auth + store gates; the
+  // named adminWithdrawalsRouter mounts under /admin and re-asserts
+  // role inside each handler. Mounted at /seller AFTER seller.routes
+  // so the new endpoints are in scope but don't overwrite existing
+  // routes (Express matches by registration order across mount points).
+  app.use("/seller", withdrawalSellerRoutes);
+  app.use("/admin",  adminWithdrawalsRouter);
 
   // Service banner — useful when curl-ing the root manually.
   app.get("/", (_req, res) => {
