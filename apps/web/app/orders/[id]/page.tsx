@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
 import { getServerT } from "@/lib/i18n/server";
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { prisma } from "@/lib/server/prisma";
 import { Confetti } from "./Confetti";
@@ -223,7 +223,7 @@ export default async function OrderDetail({
                         </div>
                       )}
                       <div className="text-xs text-ink-dim mt-1.5">
-                        Qty {it.quantity} · {money(Number(it.priceAtPurchase))} each
+                        Qty {it.quantity} · {coins(thbToCoins(Number(it.priceAtPurchase)))} each
                       </div>
                       {canReview && (
                         <div className="mt-2">
@@ -235,7 +235,7 @@ export default async function OrderDetail({
                       )}
                     </div>
                     <div className="text-right font-display text-lg font-bold text-gold-gradient">
-                      {money(Number(it.priceAtPurchase) * it.quantity)}
+                      {coins(thbToCoins(Number(it.priceAtPurchase) * it.quantity))}
                     </div>
                   </li>
                 ))}
@@ -261,7 +261,7 @@ export default async function OrderDetail({
                 <div className="flex justify-between items-baseline">
                   <span className="text-white font-semibold">Total</span>
                   <span className="font-display text-3xl font-extrabold text-gold-gradient">
-                    {money(total)}
+                    {coins(thbToCoins(total))}
                   </span>
                 </div>
               </div>
@@ -323,7 +323,7 @@ function Row({
     <div className="flex justify-between">
       <span className="text-ink-secondary">{label}</span>
       <span className={accent === "green" ? "text-green-400 font-semibold" : "text-white font-semibold"}>
-        {money(value)}
+        {coins(thbToCoins(value))}
       </span>
     </div>
   );

@@ -383,6 +383,10 @@ export async function createProduct(storeId: number, input: ProductInput) {
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
+          // Phase 17.2 — keep coinPrice in lock-step with the THB
+          // price (1฿ = 10 coins). The DB DEFAULT is 0 which would
+          // mean "Free" if we ever forgot to write it explicitly.
+          coinPrice: Math.round(Number(it.price) * 10),
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
           sampleUrl: it.sampleUrl,
@@ -547,6 +551,8 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
+          // Phase 17.2 — duplicate the existing coinPrice on the source variant.
+          coinPrice: it.coinPrice,
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
         })),
@@ -582,7 +588,11 @@ export async function patchVariant(
   if (item.product.storeId !== storeId) throw new AppError(403, "Forbidden");
 
   const data: Record<string, unknown> = {};
-  if (input.price !== undefined) data.price = new Prisma.Decimal(input.price);
+  if (input.price !== undefined) {
+    data.price = new Prisma.Decimal(input.price);
+    // Phase 17.2 — bulk price edit also rewrites coinPrice in lock-step.
+    data.coinPrice = Math.round(Number(input.price) * 10);
+  }
   if (input.discountPercent !== undefined) data.discountPercent = input.discountPercent;
   if (input.quantity !== undefined) data.quantity = input.quantity;
 

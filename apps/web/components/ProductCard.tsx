@@ -6,7 +6,12 @@ import { FavoriteButton } from "./FavoriteButton";
 import { CompareToggle } from "./CompareDrawer";
 import { StoreNameLink } from "./StoreNameLink";
 import { cn, isDataUrl, cardImage } from "@/lib/utils";
-import { money } from "@/lib/format";
+// Phase 17.2 — buyer-facing prices show in coins (1 baht = 10 coins).
+// `coins()` produces "1,234 coins" / "Free" for zero. `thbToCoins` is
+// the conversion shim so callers that still hold a baht number from
+// the existing browseProducts DTO don't have to thread coinPrice down
+// through every render.
+import { coins, thbToCoins } from "@/lib/format";
 
 export type ProductCardProduct = {
   productId: number;
@@ -190,15 +195,15 @@ export function ProductCard({
           <div>
             <span
               className={cn(
-                "font-display font-bold text-gold-gradient",
+                "font-display font-bold text-gold-gradient tabular-nums",
                 isFeature ? "text-2xl md:text-3xl" : "text-lg",
               )}
             >
-              {money(product.minPrice)}
+              {coins(thbToCoins(product.minPrice))}
             </span>
             {hasRange && (
-              <span className="text-xs text-ink-dim ml-1">
-                – {money(product.maxPrice!)}
+              <span className="text-xs text-ink-dim ml-1 tabular-nums">
+                – {coins(thbToCoins(product.maxPrice!))}
               </span>
             )}
           </div>

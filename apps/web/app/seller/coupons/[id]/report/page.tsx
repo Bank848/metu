@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { prisma } from "@/lib/server/prisma";
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -109,8 +109,8 @@ export default async function CouponReportPage({ params }: { params: { id: strin
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard icon={Receipt} label="Redemptions" value={totalRedemptions} accent="yellow" />
         <StatCard icon={Users} label="Unique buyers" value={uniqueBuyers} />
-        <StatCard icon={Banknote} label="Gross subtotal" value={money(totalGross)} />
-        <StatCard icon={Banknote} label="Discount given" value={money(totalDiscount)} />
+        <StatCard icon={Banknote} label="Gross subtotal" value={coins(thbToCoins(totalGross))} />
+        <StatCard icon={Banknote} label="Discount given" value={coins(thbToCoins(totalDiscount))} />
       </div>
 
       {sorted.length === 0 ? (
@@ -150,9 +150,9 @@ export default async function CouponReportPage({ params }: { params: { id: strin
                   <td className="px-5 py-3 text-sm text-ink-secondary truncate max-w-[300px]">
                     {r.items.map((i) => `${i.name} ×${i.quantity}`).join(" · ")}
                   </td>
-                  <td className="px-5 py-3 text-right text-sm">{money(r.grossSubtotal)}</td>
+                  <td className="px-5 py-3 text-right text-sm">{coins(thbToCoins(r.grossSubtotal))}</td>
                   <td className="px-5 py-3 text-right font-semibold text-green-400">
-                    −{money(r.discount)}
+                    −{coins(thbToCoins(r.discount))}
                   </td>
                   <td className="px-5 py-3 text-xs text-ink-dim">
                     {new Date(r.createdAt).toLocaleDateString()}

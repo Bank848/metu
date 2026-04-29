@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { prisma } from "@/lib/server/prisma";
-import { money, moneyCompact } from "@/lib/format";
+import { coins, thbToCoins, coinsCompact } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -158,8 +158,8 @@ export default async function SellerAnalyticsPage() {
         <StatCard
           icon={TrendingUp}
           label="Revenue (lifetime)"
-          value={moneyCompact(totalRevenue)}
-          valueTooltip={money(totalRevenue)}
+          value={coinsCompact(thbToCoins(totalRevenue))}
+          valueTooltip={coins(thbToCoins(totalRevenue))}
           accent="yellow"
         />
         <StatCard icon={ShoppingBag} label="Orders" value={totalOrders} />
@@ -201,7 +201,7 @@ export default async function SellerAnalyticsPage() {
                       <td className="px-5 py-2.5 text-white truncate max-w-[280px]">{p.name}</td>
                       <td className="px-5 py-2.5 text-right text-ink-secondary">{Number(p.units).toLocaleString()}</td>
                       <td className="px-5 py-2.5 text-right font-semibold text-gold-gradient">
-                        {money(Number(p.revenue))}
+                        {coins(thbToCoins(Number(p.revenue)))}
                       </td>
                     </tr>
                   ))}
@@ -244,7 +244,7 @@ export default async function SellerAnalyticsPage() {
                         <div className="text-[11px] text-ink-dim">@{b.username} · {Number(b.orders)} order{Number(b.orders) !== 1 ? "s" : ""}</div>
                       </div>
                       <span className="font-display font-bold text-gold-gradient text-sm">
-                        {money(Number(b.spent))}
+                        {coins(thbToCoins(Number(b.spent)))}
                       </span>
                     </li>
                   ))}

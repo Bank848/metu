@@ -2,7 +2,7 @@
 import Image from "next/image";
 import { Store as StoreIcon, Tag as TagIcon } from "lucide-react";
 import { cn, isDataUrl } from "@/lib/utils";
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
 import { useI18n } from "@/lib/i18n/client";
 import type { Locale } from "@/lib/i18n/messages";
@@ -162,10 +162,10 @@ function CouponPreview({ state, locale }: { state: CouponPreviewState; locale: L
   if (state.discountPercent && state.discountPercent > 0) {
     parts.push(`${state.discountPercent}% off`);
   } else if (state.discountAmount && state.discountAmount > 0) {
-    parts.push(`${money(state.discountAmount)} off`);
+    parts.push(`${coins(thbToCoins(state.discountAmount))} off`);
   }
   if (state.minSpend && state.minSpend > 0) {
-    parts.push(`min ${money(state.minSpend)}`);
+    parts.push(`min ${coins(thbToCoins(state.minSpend))}`);
   }
   if (state.expiresAt) {
     const date =

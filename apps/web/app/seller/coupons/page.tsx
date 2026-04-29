@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth } from "@/lib/session";
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 
 type Coupon = {
   couponId: number;
@@ -52,7 +52,7 @@ export default async function SellerCoupons() {
                 <tr key={c.couponId}>
                   <td className="px-5 py-3 font-mono text-sm font-semibold text-brand-yellow">{c.code}</td>
                   <td className="px-5 py-3 text-sm text-white">
-                    {c.discountType === "percent" ? `${c.discountValue}% off` : `${money(c.discountValue)} off`}
+                    {c.discountType === "percent" ? `${c.discountValue}% off` : `${coins(thbToCoins(c.discountValue))} off`}
                   </td>
                   <td className="px-5 py-3 text-xs text-ink-dim">
                     {new Date(c.startDate).toLocaleDateString()} → {new Date(c.endDate).toLocaleDateString()}

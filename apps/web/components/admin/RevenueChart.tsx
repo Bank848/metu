@@ -1,4 +1,4 @@
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 
 type Point = { day: string; revenue: number; orderCount: number };
 
@@ -35,7 +35,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
       <div className="flex items-baseline justify-between mb-3">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">Last 14 days · paid revenue</div>
-          <div className="font-display text-2xl font-extrabold text-mint mt-0.5">{money(totalRevenue)}</div>
+          <div className="font-display text-2xl font-extrabold text-mint mt-0.5">{coins(thbToCoins(totalRevenue))}</div>
         </div>
         <div className="text-right">
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">Orders</div>
@@ -76,7 +76,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
           return (
             <g key={d.day}>
               <rect x={x} y={y} width={barW} height={Math.max(2, h)} rx="2" fill="url(#bar-gradient)">
-                <title>{d.day} · {money(d.revenue)} · {d.orderCount} orders</title>
+                <title>{d.day} · {coins(thbToCoins(d.revenue))} · {d.orderCount} orders</title>
               </rect>
               <text x={x + barW / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.4)" fontFamily="JetBrains Mono, monospace">
                 {dayLabel}

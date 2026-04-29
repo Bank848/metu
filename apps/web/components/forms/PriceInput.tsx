@@ -1,6 +1,6 @@
 import { forwardRef, type InputHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
-import { money } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 
 /**
  * Phase 10 / Step 2 — currency-aware variant of NumberInput.
@@ -57,8 +57,8 @@ export const PriceInput = forwardRef<HTMLInputElement, PriceInputProps>(
     const previewText =
       currency === "THB"
         ? hasDiscount
-          ? `Buyer sees: ${money(finalPrice)} after ${discountPercent}% off`
-          : `Buyer sees: ${money(finalPrice)}`
+          ? `Buyer sees: ${coins(thbToCoins(finalPrice))} after ${discountPercent}% off`
+          : `Buyer sees: ${coins(thbToCoins(finalPrice))}`
         : hasDiscount
           ? `${currency} ${finalPrice.toFixed(2)} after ${discountPercent}% off`
           : `${currency} ${finalPrice.toFixed(2)}`;
