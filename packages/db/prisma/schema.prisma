@@ -149,6 +149,12 @@ model User {
   accounts          Account[]
   sessions          Session[]
 
+  // Phase 17.1 — wallet (1:1) + transaction ledger + topup history.
+  wallet            Wallet?
+  walletTxs         WalletTransaction[]
+  topups            Topup[]              @relation("TopupOwner")
+  topupsReviewed    Topup[]              @relation("TopupReviewer")
+
   @@index([countryId])
   @@index([createdDate])
   @@index([deletedAt])
@@ -701,4 +707,89 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 17.1 — wallet / coin economy + system settings
+// ─────────────────────────────────────────────────────────────────
+
+/// Single-row config for runtime feature flags. The CHECK
+/// constraint at the SQL level pins id=1 so we can never
+/// accidentally insert a second row.
+model SystemSetting {
+  id              Int      @id @default(1)
+  walletEnabled   Boolean  @default(false) @map("wallet_enabled")
+  chatEnabled     Boolean  @default(true)  @map("chat_enabled")
+  /// Demo PromptPay ID used to generate top-up QRs. Default seed
+  /// is a placeholder; admin overrides via /admin/settings.
+  promptpayId     String   @default("0812345678") @map("promptpay_id") @db.VarChar(20)
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("system_setting")
+}
+
+model Wallet {
+  walletId  Int      @id @default(autoincrement()) @map("wallet_id")
+  userId    Int      @unique @map("user_id")
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("wallet")
+}
+
+enum WalletTxType {
+  topup
+  spend
+  refund
+  grant
+}
+
+model WalletTransaction {
+  walletTxId    Int           @id @default(autoincrement()) @map("wallet_tx_id")
+  userId        Int           @map("user_id")
+  type          WalletTxType
+  amount        Int
+  balanceAfter  Int           @map("balance_after")
+  reference     String?       @db.VarChar(80)
+  meta          Json?
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("wallet_transaction")
+}
+
+enum TopupStatus {
+  pending
+  paid
+  rejected
+  expired
+}
+
+model Topup {
+  topupId           Int          @id @default(autoincrement()) @map("topup_id")
+  userId            Int          @map("user_id")
+  amountBaht        Int          @map("amount_baht")
+  coinsExpected     Int          @map("coins_expected")
+  status            TopupStatus  @default(pending)
+  promptpayPayload  String       @map("promptpay_payload") @db.Text
+  slipImage         String?      @map("slip_image") @db.Text
+  slipReference     String?      @unique @map("slip_reference") @db.VarChar(80)
+  slipQrPayload     String?      @map("slip_qr_payload") @db.Text
+  reviewedBy        Int?         @map("reviewed_by")
+  reviewedAt        DateTime?    @map("reviewed_at")
+  rejectionReason   String?      @map("rejection_reason") @db.VarChar(200)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  user     User  @relation("TopupOwner",    fields: [userId],     references: [userId], onDelete: Cascade)
+  reviewer User? @relation("TopupReviewer", fields: [reviewedBy], references: [userId], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("topup")
 }

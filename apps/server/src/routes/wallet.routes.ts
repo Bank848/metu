@@ -1,0 +1,26 @@
+import { Router } from "express";
+import * as ctrl from "../controllers/wallet.controller.js";
+import { requireAuth } from "../middleware/auth.js";
+
+/**
+ * Phase 17.1 — wallet router.
+ *
+ *   GET /wallet              — current user's balance + walletEnabled flag
+ *   GET /wallet/transactions — recent ledger
+ *
+ * Top-up endpoints land in Phase 17.3 (POST /wallet/topup, ...).
+ * Admin grant lives under /admin/users/:id/grant-coins (mounted by
+ * the admin router file).
+ */
+const router = Router();
+router.get("/",             requireAuth(), ctrl.getMyBalance);
+router.get("/transactions", requireAuth(), ctrl.getMyTransactions);
+export default router;
+
+export const adminWalletRouter = Router();
+// POST /admin/users/:id/grant-coins
+adminWalletRouter.post(
+  "/users/:id/grant-coins",
+  requireAuth(["admin"]),
+  ctrl.adminGrant,
+);

@@ -60,6 +60,13 @@ import adminRoutes from "./routes/admin.routes.js";
 // dropdowns (become-seller + register).
 import referenceRoutes from "./routes/reference.routes.js";
 
+// Layered routes (Phase 17.1 — settings + wallet foundation)
+// settings.routes.ts exports both the public router (default) and an
+// `adminSettingsRouter` mounted under /admin. wallet.routes.ts does
+// the same for /wallet + admin grant.
+import settingsRoutes, { adminSettingsRouter } from "./routes/settings.routes.js";
+import walletRoutes,   { adminWalletRouter   } from "./routes/wallet.routes.js";
+
 // Phase 14.1 — better-auth instance + Express handler bridge.
 // Mounted at /auth/better/* BEFORE express.json so the request body
 // reaches the handler unparsed (per better-auth Express docs).
@@ -165,6 +172,19 @@ export function buildApp() {
   // /countries (matches the BFF's /api/business-types + /api/countries
   // proxies). Replaces the deleted legacy `catalog.ts` flat router.
   app.use("/", referenceRoutes);
+
+  // ─── Layered routes (Phase 17.1 — settings + wallet) ────────────
+  // - /settings (public read) — BFF caches it
+  // - /wallet  (auth-gated read) — balance + ledger
+  // - /admin/settings (admin write) — flag toggles
+  // - /admin/users/:id/grant-coins (admin write) — magic-grant coins
+  // The admin-scoped routers mount UNDER the existing /admin prefix
+  // so they inherit the same role gate convention as the rest of
+  // /admin (each individual handler still re-asserts role for safety).
+  app.use("/settings", settingsRoutes);
+  app.use("/wallet",   walletRoutes);
+  app.use("/admin",    adminSettingsRouter);
+  app.use("/admin",    adminWalletRouter);
 
   // Service banner — useful when curl-ing the root manually.
   app.get("/", (_req, res) => {
