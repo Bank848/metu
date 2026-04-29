@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Banknote } from "lucide-react";
+import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Banknote, Layers } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -15,8 +15,11 @@ const items = [
   { href: "/admin/topups",       label: "Top-ups",    icon: Banknote },
   // Phase 17.1 — runtime feature flags + PromptPay ID
   { href: "/admin/settings",     label: "Settings",   icon: Settings },
-  // Phase 17.7 — ER diagram + tech stack + deployment topology
-  { href: "/admin/architecture", label: "Architecture", icon: Network },
+  // Phase 21 — split the dead /admin/architecture link into two
+  // dedicated pages: ER diagram (Lucidchart embed) + tech stack
+  // (live versions from package.json + curated metadata).
+  { href: "/admin/er-diagram",   label: "ER Diagram", icon: Network },
+  { href: "/admin/tech-stack",   label: "Tech Stack", icon: Layers },
   { href: "/admin/changelog",    label: "What's new", icon: Sparkles },
 ];
 
