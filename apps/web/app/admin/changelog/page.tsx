@@ -39,7 +39,7 @@ const BATCHES: Batch[] = [
     icon: KeyRound,
     tone: "info",
     shippedAt: "today",
-    commitSha: "PENDING",
+    commitSha: "81824cf",
     items: [
       { title: "Migration 20260429070000_phase_16_3_credential_account_backfill: backfills better-auth's `account` table with one credential row per User that has a non-null password (id auto-increment, accountId = email, password = the existing bcrypt hash kept verbatim). Idempotent ON CONFLICT (provider_id, account_id) DO NOTHING. Note: legacy `users` table uses `created_date` not `created_at` — first deploy attempt failed on that column name, fixed in commit ae56d89" },
       { title: "lib/auth.ts: emailAndPassword.password.{verify,hash} adapters now point at bcryptjs so signInEmail() can verify against the legacy bcrypt hashes we've been storing since Phase 13.2 (default scrypt would reject every existing account)" },
