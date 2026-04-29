@@ -1,6 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireAuth } from "@/lib/server/auth";
+import { getMe } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,10 +18,14 @@ export const dynamic = "force-dynamic";
  * Set as a downloadable attachment so the browser saves a `.json` file
  * rather than rendering it.
  */
-export async function GET(req: NextRequest) {
-  const r = await requireAuth(req);
-  if (!r.ok) return r.response;
-  const userId = r.user.userId;
+export async function GET() {
+  // Phase 16.3 — Mode A: auth resolves through `getMe()` which calls
+  // /auth/me on Express (better-auth's session cookie is forwarded
+  // automatically by `apiFetch`). Replaces the legacy JWT-cookie
+  // requireAuth from lib/server/auth.ts.
+  const me = await getMe();
+  if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = me.user.userId;
 
   const [
     user,
