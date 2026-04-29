@@ -16,6 +16,8 @@ import { apiFetch, ApiError } from "./server/api";
 export interface PublicSettings {
   walletEnabled: boolean;
   chatEnabled: boolean;
+  /** Phase 17.x — favourites surfaces hide when false. */
+  favoritesEnabled: boolean;
   promptpayId: string;
   updatedAt: string;
   /** Phase 17.x — true only when GOOGLE_CLIENT_ID is set on the API.
@@ -27,6 +29,7 @@ export interface PublicSettings {
 const DEFAULT_SETTINGS: PublicSettings = {
   walletEnabled: false,
   chatEnabled: true,
+  favoritesEnabled: true,
   promptpayId: "",
   updatedAt: new Date(0).toISOString(),
   googleEnabled: false,

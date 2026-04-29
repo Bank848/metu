@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Wallet, MessageSquare, QrCode } from "lucide-react";
+import { Settings as SettingsIcon, Wallet, MessageSquare, QrCode, Heart } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { getSettings } from "@/lib/settings";
 import { SettingsForm } from "./SettingsForm";
@@ -49,6 +49,14 @@ export default async function AdminSettingsPage() {
                 <span className="font-semibold text-white">Chat enabled —</span>{" "}
                 ON shows the chat icon, /messages inbox, and "Message store" CTAs everywhere.
                 OFF hides all chat surfaces and falls back to email + the order receipt page for delivery.
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <Heart className="h-4 w-4 text-coral shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-white">Favorites enabled —</span>{" "}
+                ON shows the TopNav heart icon, the FavoriteButton on every card, and the /favorites inbox.
+                OFF hides them all. Existing favourite rows are preserved — flipping back ON immediately surfaces the user's prior favourites.
               </div>
             </li>
             <li className="flex items-start gap-3">

@@ -63,6 +63,7 @@ export function ProductCard({
   isFavorited = false,
   variant = "default",
   priority = false,
+  disableFavorites = false,
 }: {
   product: ProductCardProduct;
   className?: string;
@@ -78,6 +79,13 @@ export function ProductCard({
   // `feature` variant on home is the LCP element and defaults to high
   // priority automatically.
   priority?: boolean;
+  /**
+   * Phase 17.x — when admin disables the favorites feature via
+   * /admin/settings, every caller passes `disableFavorites={true}`
+   * (read from `safeGetSettings().favoritesEnabled` server-side).
+   * The heart icon then doesn't render at all.
+   */
+  disableFavorites?: boolean;
 }) {
   const hasRange = product.maxPrice && product.maxPrice !== product.minPrice;
   const isFeature = variant === "feature";
@@ -144,7 +152,9 @@ export function ProductCard({
             `displayCurrency` on the row. */}
         <div className="absolute top-3 right-3 flex items-center gap-2">
           <CompareToggle productId={product.productId} />
-          <FavoriteButton productId={product.productId} initial={isFavorited} />
+          {!disableFavorites && (
+            <FavoriteButton productId={product.productId} initial={isFavorited} />
+          )}
           {product.displayCurrency && product.displayCurrency !== "THB" && (
             <span className="rounded-full glass-morphism-strong px-2.5 py-0.5 text-[10px] font-bold tracking-wider text-metu-yellow uppercase border border-metu-yellow/30">
               {product.displayCurrency}

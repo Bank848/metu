@@ -57,6 +57,7 @@ beforeEach(async () => {
     id: 1,
     walletEnabled: false,
     chatEnabled: true,
+    favoritesEnabled: true,
     promptpayId: "0812345678",
     updatedAt: new Date("2026-04-29T00:00:00Z"),
   });
@@ -69,6 +70,7 @@ describe("GET /settings", () => {
     expect(res.body.settings).toMatchObject({
       walletEnabled: false,
       chatEnabled: true,
+      favoritesEnabled: true,
       promptpayId: "0812345678",
       // Phase 17.x — derived from env at request time. In the test
       // env GOOGLE_CLIENT_ID is unset → googleEnabled is false.
@@ -110,6 +112,7 @@ describe("PATCH /admin/settings", () => {
       id: 1,
       walletEnabled: true,
       chatEnabled: true,
+      favoritesEnabled: true,
       promptpayId: "0812345678",
       updatedAt: new Date(),
     });

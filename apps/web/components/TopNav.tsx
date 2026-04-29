@@ -23,6 +23,7 @@ import { LocaleSwitcher } from "./LocaleSwitcher";
 import { MessagesNavIcon } from "./MessagesNavIcon";
 import { CartNavIcon } from "./CartNavIcon";
 import { getMe } from "@/lib/session";
+import { safeGetSettings } from "@/lib/settings";
 import { getServerT } from "@/lib/i18n/server";
 
 type Tab = { label: string; icon: any; href: string };
@@ -40,7 +41,10 @@ const TABS: Tab[] = [
 ];
 
 export async function TopNav({ q }: { q?: string } = {}) {
-  const me = await getMe();
+  // Phase 17.x — TopNav reads runtime feature flags so the chat
+  // and favorites icons hide when an admin disables them. Fetched
+  // in parallel with getMe so we don't add a serial round-trip.
+  const [me, settings] = await Promise.all([getMe(), safeGetSettings()]);
   const hasStore = Boolean(me?.user?.store);
   const isAdmin = me?.role === "admin";
   const t = getServerT();
@@ -76,22 +80,26 @@ export async function TopNav({ q }: { q?: string } = {}) {
             >
               <Star className="h-[18px] w-[18px]" />
             </Link>
-            <Link
-              href={me ? "/favorites" : "/login?next=/favorites"}
-              aria-label={t("nav.favorites")}
-              title={t("nav.favorites")}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-ink-secondary hover:text-coral hover:bg-coral/5 transition"
-            >
-              <Heart className="h-[18px] w-[18px]" />
-            </Link>
+            {/* Phase 17.x — favorites icon hides entirely when admin
+                turns the feature off via /admin/settings. The /favorites
+                route is server-gated separately (returns 404). */}
+            {settings.favoritesEnabled && (
+              <Link
+                href={me ? "/favorites" : "/login?next=/favorites"}
+                aria-label={t("nav.favorites")}
+                title={t("nav.favorites")}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-ink-secondary hover:text-coral hover:bg-coral/5 transition"
+              >
+                <Heart className="h-[18px] w-[18px]" />
+              </Link>
+            )}
             {/* Messages — paired with Cart as the second rounded-xl
                 square. Symmetry of shape signals "these two icons
                 hold actual content (unread count, cart items)" while
                 the differentiated hover tints (mint vs yellow) keep
-                them distinct as activity destinations. Renders even
-                when logged-out so the entry point is always present;
-                in that state the badge stays at zero. */}
-            <MessagesNavIcon enabled={Boolean(me)} />
+                them distinct as activity destinations. Phase 17.x
+                also hides this when admin turns chat off. */}
+            {settings.chatEnabled && <MessagesNavIcon enabled={Boolean(me)} />}
             {/* Phase 11 run #2 / F8 — moved to a client component so the
                 badge can update immediately after Add-to-cart fires the
                 `cart:update` window event (and on a 60s background poll

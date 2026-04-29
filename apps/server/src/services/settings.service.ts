@@ -63,6 +63,7 @@ export async function getSettings(): Promise<PublicSettings> {
   const value: PublicSettings = {
     walletEnabled: row.walletEnabled,
     chatEnabled: row.chatEnabled,
+    favoritesEnabled: row.favoritesEnabled,
     promptpayId: row.promptpayId,
     updatedAt: row.updatedAt,
     googleEnabled,
@@ -88,6 +89,7 @@ export async function updateSettings(
   const data: Record<string, unknown> = {};
   if (patch.walletEnabled !== undefined) data.walletEnabled = patch.walletEnabled;
   if (patch.chatEnabled !== undefined) data.chatEnabled = patch.chatEnabled;
+  if (patch.favoritesEnabled !== undefined) data.favoritesEnabled = patch.favoritesEnabled;
   if (patch.promptpayId !== undefined) data.promptpayId = patch.promptpayId;
 
   const row = await prisma.systemSetting.update({ where: { id: 1 }, data });
@@ -115,6 +117,7 @@ export async function updateSettings(
   return {
     walletEnabled: row.walletEnabled,
     chatEnabled: row.chatEnabled,
+    favoritesEnabled: row.favoritesEnabled,
     promptpayId: row.promptpayId,
     updatedAt: row.updatedAt,
     googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID),
