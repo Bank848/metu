@@ -70,6 +70,10 @@ import { prisma as realPrisma } from "../db/prisma.js";
  *   2. transformOutput (factory.mjs:~580) constructs the public
  *      `result.user.id` from `data.id`. Same fix.
  */
+/**
+ * Mirror `userId` → `id` on every result row from prisma.user.find*.
+ * Recursive so nested includes (e.g. session → user) get mirrored too.
+ */
 function mirrorUserIdToId<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((v) => mirrorUserIdToId(v)) as unknown as T;
@@ -83,11 +87,43 @@ function mirrorUserIdToId<T>(value: T): T {
   return value;
 }
 
+/**
+ * Inverse: rewrite `where: { id: ... }` to `where: { userId: ... }`.
+ * better-auth's findUserById queries `prisma.user.findFirst({ where: { id: {...} } })`
+ * which Prisma rejects because we have no `id` field. The rewrite
+ * also walks AND / OR / NOT branches.
+ */
+function rewriteIdToUserIdInWhere(where: unknown): unknown {
+  if (Array.isArray(where)) return where.map(rewriteIdToUserIdInWhere);
+  if (!where || typeof where !== "object") return where;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(where as Record<string, unknown>)) {
+    if (key === "id") {
+      out.userId = value;
+    } else if (key === "AND" || key === "OR" || key === "NOT") {
+      out[key] = rewriteIdToUserIdInWhere(value);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+function rewriteUserArgs(args: unknown): unknown {
+  if (!args || typeof args !== "object") return args;
+  const a = args as Record<string, unknown>;
+  if (!a.where) return a;
+  return { ...a, where: rewriteIdToUserIdInWhere(a.where) };
+}
+
 const userProxy = new Proxy(realPrisma.user, {
   get(target, prop, receiver) {
     const value = Reflect.get(target, prop, receiver);
     if (typeof value === "function" && typeof prop === "string" && /^find/.test(prop)) {
-      return (args?: unknown) => (value as (a?: unknown) => Promise<unknown>).call(target, args).then(mirrorUserIdToId);
+      return (args?: unknown) =>
+        (value as (a?: unknown) => Promise<unknown>)
+          .call(target, rewriteUserArgs(args))
+          .then(mirrorUserIdToId);
     }
     return typeof value === "function" ? value.bind(target) : value;
   },
