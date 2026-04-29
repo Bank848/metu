@@ -17,6 +17,7 @@
     "db:seed": "npm run -w @metu/db seed",
     "db:reset": "npm run -w @metu/db reset",
     "db:studio": "npm run -w @metu/db studio",
+    "db:er-schema": "node scripts/generate-er-schema.mjs",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:reset": "docker compose down -v && docker compose up -d"
