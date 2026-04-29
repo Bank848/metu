@@ -65,6 +65,11 @@ export async function getSettings(): Promise<PublicSettings> {
     chatEnabled: row.chatEnabled,
     favoritesEnabled: row.favoritesEnabled,
     promptpayId: row.promptpayId,
+    // Phase 20.1 — Decimal columns return as string-shaped Decimal in
+    // Prisma. Number() rounds to native float which is fine for a
+    // percent in the 0..100 range.
+    platformFeePercent: Number(row.platformFeePercent),
+    withdrawalFeePercent: Number(row.withdrawalFeePercent),
     updatedAt: row.updatedAt,
     googleEnabled,
   };
@@ -91,6 +96,8 @@ export async function updateSettings(
   if (patch.chatEnabled !== undefined) data.chatEnabled = patch.chatEnabled;
   if (patch.favoritesEnabled !== undefined) data.favoritesEnabled = patch.favoritesEnabled;
   if (patch.promptpayId !== undefined) data.promptpayId = patch.promptpayId;
+  if (patch.platformFeePercent !== undefined) data.platformFeePercent = patch.platformFeePercent;
+  if (patch.withdrawalFeePercent !== undefined) data.withdrawalFeePercent = patch.withdrawalFeePercent;
 
   const row = await prisma.systemSetting.update({ where: { id: 1 }, data });
   bustCache();
@@ -119,6 +126,8 @@ export async function updateSettings(
     chatEnabled: row.chatEnabled,
     favoritesEnabled: row.favoritesEnabled,
     promptpayId: row.promptpayId,
+    platformFeePercent: Number(row.platformFeePercent),
+    withdrawalFeePercent: Number(row.withdrawalFeePercent),
     updatedAt: row.updatedAt,
     googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID),
   };

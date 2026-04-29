@@ -206,6 +206,12 @@ model Store {
   // sees the store in /seller dashboard with a banner. Reversible by
   // clearing the column. NULL = live.
   suspendedAt    DateTime? @map("suspended_at")
+  /// Phase 20.1 — accumulated unwithdrawn coin earnings. Bumped inside
+  /// the checkout transaction (line subtotal × (1 - platformFeePercent))
+  /// per store and decremented at withdrawal request time (Phase 20.2).
+  /// CHECK constraint at SQL level pins this >= 0 — refunds (Phase 22)
+  /// will need a clawback path before they can cross the floor.
+  coinBalance    Int       @default(0) @map("coin_balance")
 
   owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
   businessType BusinessType @relation(fields: [businessTypeId], references: [typeId])
@@ -731,6 +737,16 @@ model SystemSetting {
   /// Demo PromptPay ID used to generate top-up QRs. Default seed
   /// is a placeholder; admin overrides via /admin/settings.
   promptpayId       String   @default("0812345678") @map("promptpay_id") @db.VarChar(20)
+  /// Phase 20.1 — % of every store-line subtotal the platform keeps
+  /// at credit time. Default 5.00 = sellers earn 95% of each sale.
+  /// Decimal(5,2) so admins can configure fractional percents
+  /// (e.g. 5.5%). Applied at checkout — not stored on the order row.
+  platformFeePercent   Decimal @default(5.00) @map("platform_fee_percent")   @db.Decimal(5, 2)
+  /// Phase 20.1 — % deducted from a withdrawal request's `amountCoins`
+  /// at request time. Default 0.00 (no fee). Phase 20.2 will snapshot
+  /// this onto the Withdrawal row so changing the global setting later
+  /// doesn't retroactively shift open requests.
+  withdrawalFeePercent Decimal @default(0.00) @map("withdrawal_fee_percent") @db.Decimal(5, 2)
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("system_setting")
