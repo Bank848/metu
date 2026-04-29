@@ -46,7 +46,59 @@ import { APIError } from "better-auth/api";
 // and dodges the resolution chain entirely.
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
-import { prisma } from "../db/prisma.js";
+import { prisma as realPrisma } from "../db/prisma.js";
+
+/**
+ * Phase 16.3 — better-auth ALWAYS expects the user PK to be a Prisma
+ * field literally named `id`. There's no config to alias this (we
+ * tried `user.fields.id = "userId"` — it's silently ignored, and
+ * `getDefaultFieldName` hard-codes `if (field === "id") return "id"`).
+ *
+ * Our schema's PK is `userId` (Prisma field) → `user_id` (SQL column).
+ * Renaming would touch ~84 source files plus every `where: { userId }`,
+ * `include: { user: ... }`, etc. across queries. So instead we wrap
+ * the Prisma client with a tiny Proxy that mirrors `userId` onto an
+ * `id` field on every result row from any user-table find call. The
+ * mirror only runs for `prisma.user.find*` reads — no other models
+ * touched, no writes affected.
+ *
+ * This unblocks two paths better-auth needs:
+ *   1. handleFallbackJoin (factory.mjs:340) reads `baseData[id]` to
+ *      get the FK value when joining `user → accounts`. Without the
+ *      mirror, this is undefined → join returns [] → signInEmail
+ *      logs "Credential account not found" even when the row exists.
+ *   2. transformOutput (factory.mjs:~580) constructs the public
+ *      `result.user.id` from `data.id`. Same fix.
+ */
+function mirrorUserIdToId<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => mirrorUserIdToId(v)) as unknown as T;
+  }
+  if (value && typeof value === "object") {
+    const v = value as Record<string, unknown>;
+    if ("userId" in v && !("id" in v)) {
+      return { ...v, id: v.userId } as T;
+    }
+  }
+  return value;
+}
+
+const userProxy = new Proxy(realPrisma.user, {
+  get(target, prop, receiver) {
+    const value = Reflect.get(target, prop, receiver);
+    if (typeof value === "function" && typeof prop === "string" && /^find/.test(prop)) {
+      return (args?: unknown) => (value as (a?: unknown) => Promise<unknown>).call(target, args).then(mirrorUserIdToId);
+    }
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+});
+
+const prisma: typeof realPrisma = new Proxy(realPrisma, {
+  get(target, prop, receiver) {
+    if (prop === "user" || prop === "User") return userProxy as unknown as typeof realPrisma.user;
+    return Reflect.get(target, prop, receiver);
+  },
+}) as typeof realPrisma;
 
 // Phase 14.3.5 — derive a unique username from a Google email so
 // the User row satisfies our schema's UNIQUE+NOT NULL username
@@ -119,31 +171,29 @@ export const auth = betterAuth({
   // proxy hop we're on.
   basePath: "/api/auth/better",
 
-  // Use auto-incrementing Int PKs across all better-auth tables to
-  // match our existing User.user_id column type. Per the better-auth
-  // docs: "Better-Auth will continue to infer the type of the id field
-  // as a string for the database, but will automatically convert it
-  // to a numeric type when fetching or inserting data."
+  // Phase 16.3 — `generateId: "serial"` matches our autoincrement Int
+  // PKs. better-auth then knows to skip its own ID generation on
+  // INSERT (Prisma's autoincrement handles it) and to coerce
+  // string-shaped IDs back to numbers on lookups.
   advanced: {
     database: {
-      generateId: false,
+      generateId: "serial",
     },
   },
 
   // Map better-auth's expected field names onto our existing columns.
+  // NOTE: `user.fields.id` is NOT included — that config option is
+  // silently ignored by better-auth. The `userId` → `id` mirror is
+  // handled by the Prisma client Proxy at the top of this file.
   user: {
     modelName: "User",
     fields: {
-      id: "userId",
       name: "firstName",
       email: "email",
       emailVerified: "emailVerified",
       image: "profileImage",
       // Phase 16.3 — better-auth's user schema declares createdAt +
-      // updatedAt as REQUIRED. Without these mappings the Prisma
-      // adapter throws "Unknown argument" on every findUserByEmail
-      // and signInEmail returns "Credential account not found" even
-      // when the row exists. createdAt → existing legacy column;
+      // updatedAt as REQUIRED. createdAt → existing legacy column;
       // updatedAt is a new column added by migration 20260429090000.
       createdAt: "createdDate",
       updatedAt: "updatedAt",
