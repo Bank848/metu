@@ -459,6 +459,31 @@ export const totpEnrollVerify: RequestHandler = async (req, res, next) => {
 };
 
 /**
+ * POST /auth/totp/step-up — Phase 23.3.
+ *
+ * Body: `{ code: string }`. On success stamps the better-auth
+ * session's `lastTotpAt` so the requireRecent2FA(maxMin) middleware
+ * lets the next sensitive request through. Each step-up is good for
+ * the configured window (default 15 min) — past that the user
+ * re-verifies.
+ */
+export const totpStepUp: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+    if (!/^[0-9]{6}$/.test(code)) {
+      throw new AppError(400, "ValidationError", "Code must be 6 digits.");
+    }
+    const sessionId = await readBetterAuthSessionId(req);
+    await service.totpStepUp(auth.uid, sessionId, code);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * POST /auth/totp/disable — Phase 16.2.
  *
  * Disables 2FA + wipes the secret. Requires the user's CURRENT

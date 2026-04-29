@@ -710,6 +710,12 @@ model Session {
   userAgent String?  @map("user_agent") @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt       @map("updated_at")
+  /// Phase 23.3 — last successful TOTP step-up timestamp. Set by the
+  /// /auth/totp/step-up endpoint; checked by requireRecent2FA(maxMin)
+  /// middleware on sensitive routes (withdrawal request, change
+  /// password, unlink Google, account deletion). NULL = never proven
+  /// on this session; the middleware always rejects in that state.
+  lastTotpAt DateTime? @map("last_totp_at")
 
   user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
 

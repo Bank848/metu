@@ -7,6 +7,7 @@ import {
   registerLimiter,
   requestOtpLimiter,
 } from "../middleware/rate-limit.js";
+import { requireRecent2FA } from "../middleware/require-recent-2fa.js";
 
 const router = Router();
 
@@ -21,7 +22,9 @@ router.post("/reset-password",                           ctrl.resetPassword);
 // Authed — requireAuth() resolves req.auth + req.user before handler
 router.get("/me",                 requireAuth(), ctrl.me);
 router.patch("/me",               requireAuth(), ctrl.updateMe);
-router.post("/change-password",   requireAuth(), ctrl.changePassword);
+// Phase 23.3 — change-password gates on a recent TOTP step-up so a
+// stolen session can't rotate the password without the authenticator.
+router.post("/change-password",   requireAuth(), requireRecent2FA(15), ctrl.changePassword);
 // Phase 14.3 — first-time password set for OAuth-only users.
 router.post("/set-password",      requireAuth(), ctrl.setPassword);
 
@@ -47,13 +50,22 @@ router.delete("/sessions/:id",         requireAuth(), ctrl.revokeSession);
 router.post("/totp/enroll-start",  requireAuth(), ctrl.totpEnrollStart);
 router.post("/totp/enroll-verify", requireAuth(), ctrl.totpEnrollVerify);
 router.post("/totp/disable",       requireAuth(), ctrl.totpDisable);
+// Phase 23.3 — TOTP step-up for sensitive actions (withdrawal,
+// change-password, unlink Google, account deletion). Stamps
+// Session.lastTotpAt so requireRecent2FA(maxMin) lets the next
+// sensitive request through.
+router.post("/totp/step-up",       requireAuth(), ctrl.totpStepUp);
 
 // Phase 18 — connected social accounts (link / unlink).
 // Linking is handled by better-auth's existing /auth/better/sign-in/google
 // flow when called from inside an active session — no new endpoint needed
 // for that. These two endpoints surface the linked-account list and let
 // the user unlink Google explicitly.
+//
+// Phase 23.3 — DELETE gates on requireRecent2FA(15) so a stolen
+// session can't strip the user's social-login fallback. The list
+// endpoint stays open so the UI can render the "linked" state.
 router.get(   "/connected-accounts",         requireAuth(), ctrl.listConnectedAccounts);
-router.delete("/connected-accounts/google",  requireAuth(), ctrl.unlinkGoogle);
+router.delete("/connected-accounts/google",  requireAuth(), requireRecent2FA(15), ctrl.unlinkGoogle);
 
 export default router;
