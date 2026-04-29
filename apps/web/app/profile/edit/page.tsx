@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, ShieldAlert } from "lucide-react";
+import { ArrowLeft, Download, ShieldAlert, Monitor } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -84,6 +84,25 @@ export default async function EditProfilePage({
             Separate card mirroring the data-export pattern below. The
             component fetches from /api/auth/connected-accounts on mount. */}
         <ConnectedAccounts hasPassword={me.hasPassword} />
+
+        {/* Phase 23.1 — Active sessions link. The full list lives on
+            its own page so the table can fan out to many rows without
+            cluttering the edit form. */}
+        <section className="mt-8 rounded-2xl bg-space-850 border border-line p-6">
+          <h2 className="font-display text-base font-bold text-white mb-1">
+            Active sessions
+          </h2>
+          <p className="text-sm text-ink-dim mb-4">
+            See every device that's currently signed in. Revoke any session you don't recognise.
+          </p>
+          <Link
+            href="/profile/sessions"
+            className="inline-flex items-center gap-2 rounded-full border border-line bg-space-900 px-4 py-2 text-sm font-semibold text-white hover:border-brand-yellow/50 hover:text-brand-yellow transition"
+          >
+            <Monitor className="h-4 w-4" />
+            Manage sessions →
+          </Link>
+        </section>
 
         {/* GDPR-style data export — separate card so it's visually distinct
             from profile edit fields. The endpoint forces a JSON download. */}
