@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import { sendMessageSchema } from "../models/messages.model.js";
 import * as service from "../services/messages.service.js";
+import { getSettings } from "../services/settings.service.js";
 import { currentAuth } from "../middleware/auth.js";
 import { AppError } from "../utils/errors.js";
 
@@ -36,11 +37,25 @@ export const list: RequestHandler = async (req, res, next) => {
  * POST /messages — send a message. Self-send rejected with 400
  * (otherwise users could write to their own inbox by mistake or
  * via a malformed link).
+ *
+ * Phase 19 — refused with 403 ChatDisabled when admin has flipped
+ * `SystemSetting.chatEnabled = false`. GET inbox/thread/unread are
+ * deliberately NOT gated so users can still read their history (same
+ * pattern as favorites — disabling never destroys data).
  */
 export const send: RequestHandler = async (req, res, next) => {
   try {
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
+
+    const settings = await getSettings();
+    if (!settings.chatEnabled) {
+      throw new AppError(
+        403,
+        "ChatDisabled",
+        "Messaging is currently disabled by the administrator.",
+      );
+    }
 
     const parsed = sendMessageSchema.safeParse(req.body);
     if (!parsed.success) {

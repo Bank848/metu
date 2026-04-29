@@ -1,12 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Mail } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { prisma } from "@/lib/server/prisma";
+import { safeGetSettings } from "@/lib/settings";
 import { isDataUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,9 @@ export default async function SellerMessagesPage() {
   const me = await getMe();
   if (!me) redirect("/login?next=/seller/messages");
   if (!me.user?.store && me.role !== "admin") redirect("/become-seller");
+  // Phase 19 — chat toggle gate.
+  const settings = await safeGetSettings();
+  if (!settings.chatEnabled) notFound();
 
   // Pull recent messages and group by partner — matches the API logic
   // but inlined here so we don't pay an HTTP round-trip from the server

@@ -5,6 +5,7 @@ import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { getMe } from "@/lib/session";
 import { prisma } from "@/lib/server/prisma";
+import { safeGetSettings } from "@/lib/settings";
 import { ThreadView } from "./ThreadView";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,9 @@ export const dynamic = "force-dynamic";
 export default async function ThreadPage({ params }: { params: { userId: string } }) {
   const me = await getMe();
   if (!me) redirect(`/login?next=/messages/${params.userId}`);
+  // Phase 19 — chat toggle gate, mirrors favorites pattern.
+  const settings = await safeGetSettings();
+  if (!settings.chatEnabled) notFound();
   const otherId = Number(params.userId);
   if (!Number.isFinite(otherId) || otherId === me.user.userId) return notFound();
 

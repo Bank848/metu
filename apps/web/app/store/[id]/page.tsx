@@ -12,6 +12,7 @@ import { GlassButton } from "@/components/visual/GlassButton";
 import { StarField } from "@/components/DotGrid";
 import { getStore, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
+import { safeGetSettings } from "@/lib/settings";
 import { getServerT } from "@/lib/i18n/server";
 import { isDataUrl } from "@/lib/utils";
 import { ShareButton } from "@/components/ShareButton";
@@ -22,14 +23,20 @@ export default async function StorePage({ params }: { params: { id: string } }) 
   const id = Number(params.id);
   if (!Number.isFinite(id)) return notFound();
   const me = await getMe();
-  const [data, favSet] = await Promise.all([getStore(id), getFavoriteSet(me?.user.userId)]);
+  const [data, favSet, settings] = await Promise.all([
+    getStore(id),
+    getFavoriteSet(me?.user.userId),
+    safeGetSettings(),
+  ]);
   if (!data) return notFound();
   const { store, products, productCount, reviewCount, avgRating } = data;
   const t = getServerT();
   // Owner can't message themselves — `POST /api/messages` rejects self-send
   // anyway, but hiding the CTA keeps the storefront from showing a button
   // the seller would never want to click.
-  const showMessageCta = !me || me.user.userId !== store.ownerId;
+  // Phase 19 — also hide whenever the admin has flipped chatEnabled=false.
+  const showMessageCta =
+    settings.chatEnabled && (!me || me.user.userId !== store.ownerId);
   const messageHref = me
     ? `/messages/${store.ownerId}`
     : `/login?next=/messages/${store.ownerId}`;

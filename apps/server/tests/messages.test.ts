@@ -21,6 +21,24 @@ vi.mock("../src/db/prisma.js", () => ({
   },
 }));
 
+// Phase 19 — POST /messages now calls getSettings() to gate on the
+// chatEnabled flag. Stub the settings service with a constant so the
+// existing happy/error cases don't need a Prisma systemSetting mock,
+// and add explicit ChatDisabled coverage at the bottom of the file.
+const settingsMock = vi.hoisted(() => ({
+  getSettingsMock: vi.fn(async () => ({
+    walletEnabled: false,
+    chatEnabled: true,
+    favoritesEnabled: true,
+    promptpayId: "",
+    updatedAt: new Date(),
+    googleEnabled: false,
+  })),
+}));
+vi.mock("../src/services/settings.service.js", () => ({
+  getSettings: settingsMock.getSettingsMock,
+}));
+
 vi.mock("../src/lib/auth.js", () => {
   const getSession = vi.fn(async () => null);
   const signInEmail = vi.fn(async () => {
@@ -178,6 +196,29 @@ describe("POST /messages", () => {
     expect(prisma.message.create).toHaveBeenCalledWith({
       data: { senderId: 7, recipientId: 9, body: "hi", orderId: null, productId: null },
     });
+  });
+
+  // Phase 19 — admin-controlled global toggle. POST is gated; GET inbox /
+  // thread / unread are deliberately NOT gated so users can still read
+  // history when chat is disabled.
+  it("returns 403 ChatDisabled when chatEnabled=false", async () => {
+    settingsMock.getSettingsMock.mockResolvedValueOnce({
+      walletEnabled: false,
+      chatEnabled: false,
+      favoritesEnabled: true,
+      promptpayId: "",
+      updatedAt: new Date(),
+      googleEnabled: false,
+    });
+    const res = await request(buildApp())
+      .post("/messages")
+      .set("Cookie", await cookieFor(7))
+      .send({ recipientId: 9, body: "hi" });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("ChatDisabled");
+    // The mock `prisma.message.create` must NOT have been called — the
+    // gate runs before the service layer.
+    expect(prisma.message.create).not.toHaveBeenCalled();
   });
 });
 

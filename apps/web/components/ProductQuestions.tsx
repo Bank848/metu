@@ -51,6 +51,10 @@ export function ProductQuestions({
   isLoggedIn,
   isAdmin = false,
   currentUserId,
+  // Phase 19 — when admin disables chat, the asker-avatar in each Q&A
+  // card stops linking to /messages/<askerId>. We render a plain div
+  // with the same styling so layout doesn't shift.
+  chatEnabled = true,
 }: {
   productId: number;
   initialQuestions: Question[];
@@ -61,6 +65,7 @@ export function ProductQuestions({
   // question. Sellers continue to use the existing answer form.
   isAdmin?: boolean;
   currentUserId?: number;
+  chatEnabled?: boolean;
 }) {
   const router = useRouter();
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
@@ -229,7 +234,7 @@ export function ProductQuestions({
             return (
               <li key={q.questionId} className="rounded-2xl surface-flat p-5 shadow-flat">
                 <div className="flex items-start gap-3">
-                  <Avatar user={q.asker} />
+                  <Avatar user={q.asker} chatEnabled={chatEnabled} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-white flex items-center gap-2 flex-wrap">
                       <span>
@@ -418,23 +423,30 @@ function InlineQuestionEdit({
   );
 }
 
-function Avatar({ user }: { user: UserSlim }) {
+function Avatar({ user, chatEnabled }: { user: UserSlim; chatEnabled: boolean }) {
+  const className = "relative h-9 w-9 shrink-0 rounded-full bg-metu-yellow overflow-hidden";
+  const inner = user.profileImage ? (
+    <Image
+      src={user.profileImage}
+      alt=""
+      fill
+      sizes="36px"
+      className="object-cover"
+      unoptimized={isDataUrl(user.profileImage)}
+    />
+  ) : null;
+  // Phase 19 — when chat is disabled, render a plain div in place of
+  // the Link so layout stays identical but clicking does nothing.
+  if (!chatEnabled) {
+    return (
+      <div className={className} aria-label={`@${user.username}`}>
+        {inner}
+      </div>
+    );
+  }
   return (
-    <Link
-      href={`/messages/${user.userId}`}
-      className="relative h-9 w-9 shrink-0 rounded-full bg-metu-yellow overflow-hidden"
-      title={`Message @${user.username}`}
-    >
-      {user.profileImage && (
-        <Image
-          src={user.profileImage}
-          alt=""
-          fill
-          sizes="36px"
-          className="object-cover"
-          unoptimized={isDataUrl(user.profileImage)}
-        />
-      )}
+    <Link href={`/messages/${user.userId}`} className={className} title={`Message @${user.username}`}>
+      {inner}
     </Link>
   );
 }

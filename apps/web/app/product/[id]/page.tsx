@@ -9,6 +9,7 @@ import { Reviews } from "@/components/Reviews";
 import { getProduct, getFavoriteSet, getRecentPurchaseCount, getRelatedProducts } from "@/lib/server/queries";
 import { ProductCard } from "@/components/ProductCard";
 import { getMe } from "@/lib/session";
+import { safeGetSettings } from "@/lib/settings";
 import { getServerT } from "@/lib/i18n/server";
 import { isDataUrl } from "@/lib/utils";
 import { FavoriteButton } from "@/components/FavoriteButton";
@@ -43,7 +44,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
   // reads can fan out in the same Promise.all — eliminates the serial
   // getFavoriteSet await that was adding one extra Neon roundtrip.
   const me = await getMe();
-  const [product, favSet, recentBuyers, questions, related] = await Promise.all([
+  const [product, favSet, recentBuyers, questions, related, settings] = await Promise.all([
     getProduct(id) as Promise<Product | null>,
     getFavoriteSet(me?.user.userId),
     getRecentPurchaseCount(id, 7),
@@ -63,6 +64,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
       },
     }),
     getRelatedProducts(id, 4),
+    safeGetSettings(),
   ]);
   if (!product) return notFound();
   const t = getServerT();
@@ -73,7 +75,9 @@ export default async function ProductPage({ params }: { params: { id: string } }
   const isFavorited = favSet.has(product.productId);
   // Hide "Ask the seller" if the viewer IS the seller — `POST /api/messages`
   // already rejects self-send so this is just UX hygiene.
-  const showAskSeller = !me || me.user.userId !== product.store.ownerId;
+  // Phase 19 — also hide whenever the admin has flipped chatEnabled=false.
+  const showAskSeller =
+    settings.chatEnabled && (!me || me.user.userId !== product.store.ownerId);
   const askSellerHref = me
     ? `/messages/${product.store.ownerId}?productId=${product.productId}`
     : `/login?next=${encodeURIComponent(`/messages/${product.store.ownerId}?productId=${product.productId}`)}`;
@@ -243,6 +247,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
           isLoggedIn={Boolean(me)}
           isAdmin={me?.role === "admin"}
           currentUserId={me?.user.userId}
+          chatEnabled={settings.chatEnabled}
         />
 
         {related.length > 0 && (
