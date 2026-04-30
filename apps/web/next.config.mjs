@@ -30,6 +30,55 @@ const nextConfig = {
       { protocol: "https", hostname: "api.dicebear.com" },
     ],
   },
+  // Phase 22 — security headers on the BFF (what the browser actually
+  // hits — the API behind metu-api.fly.dev sets its own headers via
+  // helmet but the BFF wraps every page response).
+  //
+  // CSP allow-list is broader than the API because the BFF serves
+  // <script>, <style>, <img>, <iframe> tags from real product pages:
+  //   - Stripe.js + Stripe Connect onboarding iframes (js.stripe.com,
+  //     connect.stripe.com, m.stripe.network)
+  //   - Google avatars (lh3.googleusercontent.com) + Google Fonts
+  //   - Unsplash / picsum / pravatar / dicebear demo images
+  //   - 'unsafe-inline' style is required because Tailwind injects
+  //     inline <style> tags during SSR. Same for fonts loaded via
+  //     next/font which inlines the @font-face block.
+  //   - 'unsafe-eval' script is required because Next.js dev mode
+  //     uses eval for HMR ; production build doesn't need it but we
+  //     keep it for now to avoid splitting prod / dev configs.
+  async headers() {
+    const csp = [
+      "default-src 'self'",
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' data: blob:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://m.stripe.network",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "connect-src 'self' https://metu-api.fly.dev https://api.stripe.com https://m.stripe.network https://accounts.google.com https://oauth2.googleapis.com https://*.sentry.io",
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://connect.stripe.com",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self' https://accounts.google.com https://connect.stripe.com",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Content-Security-Policy", value: csp },
+          { key: "Strict-Transport-Security", value: "max-age=15552000; includeSubDomains" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
+        ],
+      },
+    ];
+  },
 };
 
 // withSentryConfig is a no-op when SENTRY_AUTH_TOKEN isn't set (it
