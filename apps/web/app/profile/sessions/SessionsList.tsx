@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Loader2, Monitor, Smartphone, AlertCircle, Trash2, Power } from "lucide-react";
+import { TotpStepUpModal } from "@/components/TotpStepUpModal";
 
 interface SessionRow {
   id: number;
@@ -34,6 +35,7 @@ export function SessionsList({
   const [busy, setBusy] = useState<"row" | "all" | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stepUpOpen, setStepUpOpen] = useState(false);
 
   async function revokeOne(id: number) {
     if (id === currentSessionId) return; // belt-and-braces — button is also disabled
@@ -57,6 +59,14 @@ export function SessionsList({
     }
   }
 
+  async function callRevokeAll(): Promise<"ok" | "needs-totp" | { error: string }> {
+    const res = await fetch("/api/auth/sessions/all-others", { method: "DELETE" });
+    if (res.ok) return "ok";
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 403 && body?.error === "TotpStepUpRequired") return "needs-totp";
+    return { error: body.message || body.error || "Revoke failed" };
+  }
+
   async function revokeAllOthers() {
     if (!confirm("Sign out from every other device? This browser stays signed in.")) return;
     setBusy("all");
@@ -64,10 +74,36 @@ export function SessionsList({
     const prev = sessions;
     setSessions((s) => s.filter((row) => row.id === currentSessionId)); // optimistic
     try {
-      const res = await fetch("/api/auth/sessions/all-others", { method: "DELETE" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || body.error || "Revoke failed");
+      const outcome = await callRevokeAll();
+      if (outcome === "needs-totp") {
+        // Roll back optimistic + open step-up modal. The success
+        // handler retries the call after the user verifies.
+        setSessions(prev);
+        setStepUpOpen(true);
+        return; // keep busy=all so the spinner sticks until modal resolves
+      }
+      if (typeof outcome === "object") {
+        setSessions(prev);
+        setError(outcome.error);
+      }
+    } catch (e) {
+      setSessions(prev);
+      setError(e instanceof Error ? e.message : "Revoke failed");
+    } finally {
+      if (!stepUpOpen) setBusy(null);
+    }
+  }
+
+  async function onStepUpSuccess() {
+    setStepUpOpen(false);
+    setError(null);
+    const prev = sessions;
+    setSessions((s) => s.filter((row) => row.id === currentSessionId));
+    try {
+      const outcome = await callRevokeAll();
+      if (typeof outcome === "object") {
+        setSessions(prev);
+        setError(outcome.error);
       }
     } catch (e) {
       setSessions(prev);
@@ -75,6 +111,12 @@ export function SessionsList({
     } finally {
       setBusy(null);
     }
+  }
+
+  function onStepUpClose() {
+    setStepUpOpen(false);
+    setBusy(null);
+    setError("Cancelled — enter your 2FA code to revoke other sessions.");
   }
 
   const otherCount = sessions.filter((s) => s.id !== currentSessionId).length;
@@ -101,6 +143,12 @@ export function SessionsList({
           </button>
         </div>
       )}
+
+      <TotpStepUpModal
+        open={stepUpOpen}
+        onSuccess={onStepUpSuccess}
+        onClose={onStepUpClose}
+      />
 
       {sessions.length === 0 ? (
         <div className="rounded-2xl border border-line bg-space-850 p-6 text-sm text-ink-dim text-center">
