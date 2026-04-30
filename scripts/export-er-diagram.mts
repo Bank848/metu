@@ -171,9 +171,13 @@ function routeEdges(placed: PlacedNode[], rels: ErRelationship[], colByTable: Ma
       const aColIdx = colByTable.get(r.from) ?? colIndexFor(a.centerX);
       const bColIdx = colByTable.get(r.to) ?? colIndexFor(b.centerX);
       const colDelta = Math.abs(aColIdx - bColIdx);
-      if (colDelta <= 1) {
-        const bendCol = Math.min(aColIdx, bColIdx);
-        const bendX = gapCenterX(bendCol);
+      if (colDelta <= 4) {
+        const cMin = Math.min(aColIdx, bColIdx);
+        const cMax = Math.max(aColIdx, bColIdx) - 1;
+        const gapCount = Math.max(1, cMax - cMin + 1);
+        const gapPick = bumpSide(`gap:${cMin}-${cMax}`);
+        const chosenGap = cMin + ((gapPick - 1) % gapCount);
+        const bendX = gapCenterX(chosenGap);
         points = [aPort, { x: bendX, y: aPort.y }, { x: bendX, y: bPort.y }, bPort];
       } else {
         const aOnRight = aColIdx < bColIdx;
@@ -185,7 +189,7 @@ function routeEdges(placed: PlacedNode[], rels: ErRelationship[], colByTable: Ma
         const botHits = sideUsage.get("hwy:bot") ?? 0;
         const useTop = topHits <= botHits;
         const lane = bumpSide(useTop ? "hwy:top" : "hwy:bot");
-        const laneOffset = ((lane - 1) % 6) * 8;
+        const laneOffset = ((lane - 1) % 4) * 12;
         const highwayY = useTop
           ? CANVAS_PAD / 2 - laneOffset
           : canvasHeight - CANVAS_PAD / 2 + laneOffset;

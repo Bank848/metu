@@ -273,27 +273,32 @@ export function layoutEr(
     }
 
     // Pick a routing strategy based on column distance:
-    //   - Adjacent columns (|Δcol| == 1) → simple 4-point Manhattan
-    //     polyline. The bend lands in the single gap between source
-    //     and target; both horizontal segments stay short, no card
-    //     bodies in the way.
-    //   - Non-adjacent columns (|Δcol| ≥ 2) → 6-point HIGHWAY route.
-    //     Exit source via its adjacent gap, climb to a "highway" row
-    //     above all cards (or below — whichever has fewer existing
-    //     edges), sweep across in pure whitespace, drop into the gap
-    //     immediately before target, enter horizontally. Eliminates
-    //     the bug where the long horizontal stretch at aPort.y or
-    //     bPort.y crossed unrelated cards in middle columns.
+    //   - |Δcol| ≤ 2 → simple 4-point Manhattan polyline. Bend at the
+    //     midpoint gap between source and target so both horizontal
+    //     stubs stay short. This is the "normal Lucidchart look" —
+    //     looks like an ER diagram, not like a wiring loom.
+    //   - |Δcol| ≥ 3 → 6-point HIGHWAY route via the canvas top or
+    //     bottom edge, alternating lanes per edge. Only the few truly
+    //     far edges (e.g. audit_log → users, coupon_usage → users)
+    //     take this path so the diagram stays calm overall.
     let points: Array<{ x: number; y: number }>;
     if (horizontal) {
       const aColIdx = colByTable.get(r.from) ?? colIndexFor(a.centerX);
       const bColIdx = colByTable.get(r.to)   ?? colIndexFor(b.centerX);
       const colDelta = Math.abs(aColIdx - bColIdx);
 
-      if (colDelta <= 1) {
-        // Adjacent columns: bend in the single gap between them.
-        const bendCol = Math.min(aColIdx, bColIdx);
-        const bendX = gapCenterX(bendCol);
+      if (colDelta <= 4) {
+        // Mid-distance bend. Pick a gap strictly between the two
+        // columns, biased toward the midpoint. For Δcol=1 there's
+        // only one option (the gap between them) ; for Δcol=2 we
+        // alternate between the two available gaps so parallel edges
+        // fan out across both gap channels instead of stacking.
+        const cMin = Math.min(aColIdx, bColIdx);
+        const cMax = Math.max(aColIdx, bColIdx) - 1;
+        const gapCount = Math.max(1, cMax - cMin + 1);
+        const gapPick = bumpSide(`gap:${cMin}-${cMax}`);
+        const chosenGap = cMin + ((gapPick - 1) % gapCount);
+        const bendX = gapCenterX(chosenGap);
         points = [
           aPort,
           { x: bendX, y: aPort.y },
@@ -301,34 +306,29 @@ export function layoutEr(
           bPort,
         ];
       } else {
-        // HIGHWAY route. Exit via the gap RIGHT after source's column,
-        // sweep along a highway above/below all cards, drop into the
-        // gap RIGHT before target's column, enter target.
+        // HIGHWAY route — only triggered for very long edges (Δcol≥3).
+        // Currently exercises just audit_log → users and
+        // coupon_usage → users on the trimmed METU schema.
         const aOnRight = aColIdx < bColIdx;
-        // gap immediately on the *outbound* side of source
         const exitGapCol = aOnRight ? aColIdx : aColIdx - 1;
-        // gap immediately on the *inbound* side of target
         const enterGapCol = aOnRight ? bColIdx - 1 : bColIdx;
         const exitX = gapCenterX(exitGapCol);
         const enterX = gapCenterX(enterGapCol);
-        // Pick top vs bottom highway based on how many edges already
-        // routed there — spread the load. Each highway is offset by
-        // edge index so parallel highway edges don't overlap.
         const topHits = sideUsage.get("hwy:top") ?? 0;
         const botHits = sideUsage.get("hwy:bot") ?? 0;
         const useTop = topHits <= botHits;
         const lane = bumpSide(useTop ? "hwy:top" : "hwy:bot");
-        const laneOffset = ((lane - 1) % 6) * 8;
+        const laneOffset = ((lane - 1) % 4) * 12;
         const highwayY = useTop
-          ? CANVAS_PAD / 2 - laneOffset           // 45..-3 from top edge
-          : height - CANVAS_PAD / 2 + laneOffset; // 45.. below cards
+          ? CANVAS_PAD / 2 - laneOffset
+          : height - CANVAS_PAD / 2 + laneOffset;
         points = [
           aPort,
-          { x: exitX, y: aPort.y },     // 1: horizontal stub from source to exit gap
-          { x: exitX, y: highwayY },    // 2: vertical climb to highway
-          { x: enterX, y: highwayY },   // 3: horizontal sweep along highway
-          { x: enterX, y: bPort.y },    // 4: vertical drop from highway to target row
-          bPort,                         // 5: horizontal stub into target
+          { x: exitX, y: aPort.y },
+          { x: exitX, y: highwayY },
+          { x: enterX, y: highwayY },
+          { x: enterX, y: bPort.y },
+          bPort,
         ];
       }
     } else {
