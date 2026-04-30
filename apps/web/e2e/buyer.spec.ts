@@ -44,4 +44,49 @@ test.describe("buyer", () => {
       timeout: 10_000,
     });
   });
+
+  test("checkout (demo mode) → /orders/[id] shows delivery payload", async ({ page }) => {
+    // Phase 33 — fast end-to-end of the delivery happy path. We rely
+    // on demo-mode checkout (no Stripe) so the test stays self-contained:
+    //   • login as buyer
+    //   • add first product
+    //   • POST /api/orders/checkout
+    //   • follow returned orderId
+    //   • assert either a "Download" button OR a license key card
+    //
+    // Skips when there's no eligible product (empty seed).
+    await login(page, "buyer");
+
+    await page.goto("/browse");
+    const firstProduct = page.locator('a[href^="/product/"]').first();
+    await firstProduct.waitFor({ state: "attached", timeout: 15_000 });
+    await firstProduct.click();
+    await expect(page).toHaveURL(/\/product\/\d+/);
+    await page.getByRole("button", { name: /^add to cart$/i }).first().click();
+    await expect(page.getByText(/added to cart/i).first()).toBeVisible({ timeout: 10_000 });
+
+    // Drive checkout via the API directly — the buyer-side checkout
+    // page is a Stripe Element flow that this test deliberately
+    // doesn't try to drive (Stripe iframes are flaky in CI). Demo mode
+    // jumps straight to "paid" + "fulfilled" via finalizeOrder().
+    const checkoutRes = await page.request.post("/api/orders/checkout", {
+      data: { selectedItemIds: [] }, // empty → all-cart checkout
+    });
+    expect(checkoutRes.ok()).toBeTruthy();
+    const body = await checkoutRes.json();
+    expect(body.orderId).toBeGreaterThan(0);
+
+    await page.goto(`/orders/${body.orderId}`);
+    await expect(page.getByRole("heading", { name: /order|receipt/i }).first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // At least one of the delivery affordances must be present per
+    // Phase 33: either a license-key card or a Download button.
+    const hasDelivery = await Promise.race([
+      page.getByText(/license key/i).first().waitFor({ state: "visible", timeout: 12_000 }).then(() => true),
+      page.getByRole("link", { name: /^download$/i }).first().waitFor({ state: "visible", timeout: 12_000 }).then(() => true),
+    ]).catch(() => false);
+    expect(hasDelivery).toBe(true);
+  });
 });
