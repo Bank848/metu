@@ -1,8 +1,8 @@
 # Deploying METU to Fly.io (Singapore region)
 
 This is the alternative to Vercel that runs the function in **`sin`
-(Singapore)** — same datacenter as Neon Postgres — so latency drops
-from ~1 s/request (Vercel `iad1` ↔ Neon Singapore) to **<100 ms**.
+(Singapore)** — same datacenter as Supabase Postgres — so latency drops
+from ~1 s/request (Vercel `iad1` ↔ Supabase Singapore) to **<100 ms**.
 Setup takes ~15 minutes the first time. After that, deploys are a
 single `fly deploy` command.
 
@@ -24,7 +24,7 @@ Fly.io gives every account **$5/month free credit**. The recommended
 machine size (shared-cpu-1x · 512 MB) costs ~$3.88/mo, well under the
 credit. Bumping to 1 GB (~$5.70/mo) will start charging ~$0.70/mo.
 
-Neon stays the same — keep your existing project (free tier).
+Supabase stays the same — keep your existing project (free tier).
 
 ---
 
@@ -71,21 +71,27 @@ fly launch --no-deploy --copy-config --name metu-web
   name is taken, Fly will suggest alternatives.
 - `--no-deploy` lets us set secrets first.
 
-When asked about Postgres or Redis, **say no** — we use Neon, not
+When asked about Postgres or Redis, **say no** — we use Supabase, not
 Fly's Postgres.
 
 ### 4. Set the runtime secrets
 
-Grab these from your Neon dashboard:
+Grab these from your Supabase dashboard → Project Settings → Database
+→ Connect (top-right green button):
 
-- **Pooled** URL: hostname includes `-pooler`. Used at runtime.
-- **Direct** URL: same host without `-pooler`. Used by the
-  release-phase migrate.
+- **Transaction pooler** URL (port 6543) — used at runtime. Add the
+  flags `?pgbouncer=true&connection_limit=1` so Prisma disables
+  prepared statements (incompatible with pgbouncer transaction mode)
+  and each Fly machine holds one Postgres-side connection.
+- **Session pooler** URL (port 5432) — used by the release-phase
+  migrate. The free tier's *direct* `db.<ref>.supabase.co` host is
+  IPv6-only and Fly's egress is IPv4, so the session pooler (which
+  speaks IPv4 + supports DDL) is the correct migration target.
 
 ```bash
 fly secrets set \
-  DATABASE_URL="postgresql://USER:PASSWORD@ep-XXX-pooler.REGION.aws.neon.tech/metu?sslmode=require" \
-  DATABASE_URL_UNPOOLED="postgresql://USER:PASSWORD@ep-XXX.REGION.aws.neon.tech/metu?sslmode=require" \
+  DATABASE_URL="postgresql://postgres.PROJECTREF:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1" \
+  DATABASE_URL_UNPOOLED="postgresql://postgres.PROJECTREF:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres" \
   JWT_SECRET="$(openssl rand -hex 32)" \
   NEXT_PUBLIC_SITE_URL="https://metu-web.fly.dev"
 ```
@@ -103,7 +109,7 @@ Flow:
 1. Builds the Docker image locally (or remotely on Fly's builders if
    `--remote-only`).
 2. Pushes to Fly's registry.
-3. Runs the **release command** (Prisma migrate against Neon).
+3. Runs the **release command** (Prisma migrate against Supabase).
 4. Spins up a `sin` machine, waits for `/api/health` to return 200.
 5. Switches edge traffic to the new machine.
 
@@ -159,10 +165,11 @@ the runner stage at the matching paths. Both lines must reference
 `apps/web/`.
 
 **`/api/health` is slow even on Singapore machine.**
-Most likely your Neon project is in a different region — go to Neon
-dashboard → Settings → Region. Singapore = `aws-ap-southeast-1`. If
-your project is in US East, you'll want to create a new project in
-Singapore and migrate the data.
+Most likely your Supabase project is in a different region — region is
+fixed at project creation time. Singapore = `ap-southeast-1`. If
+your project is in `us-west-1` or similar, create a new project in
+Singapore and re-run `prisma migrate deploy` + the seed script against
+the new connection string before swapping the Fly secret.
 
 ---
 

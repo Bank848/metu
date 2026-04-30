@@ -19,7 +19,7 @@ end-to-end on Postgres + Prisma, with a clean **client / server split**:
 - **`packages/shared`** — zod schemas + TS enums consumed by both web and server
 
 Live deployment is **two Fly.io machines** in `sin` region:
-`metu` (web) talks to `metu-api` (server) over the internal network. Postgres lives on **Neon** (Singapore).
+`metu` (web) talks to `metu-api` (server) over the internal network. Postgres lives on **Supabase** (Singapore, `ap-southeast-1`).
 
 ![Status](https://img.shields.io/badge/status-demo--ready-FBBF24?style=flat-square) ![Stack](https://img.shields.io/badge/stack-Next.js%20%7C%20Express%20%7C%20Postgres%20%7C%20Prisma-1F2937?style=flat-square) ![Tests](https://img.shields.io/badge/tests-92%20server%20%7C%2037%20web%20%E2%9C%85-22C55E?style=flat-square)
 
@@ -101,7 +101,7 @@ metu/
 
 - **Frontend:** Next.js 14 · TypeScript · Tailwind CSS · lucide-react · Framer Motion
 - **Backend:** Express · TypeScript · JWT (httpOnly cookie) · Zod validation · pino logging
-- **Database:** PostgreSQL 16 (Neon in prod, docker postgres locally) · Prisma ORM
+- **Database:** PostgreSQL 16 (Supabase in prod, docker postgres locally) · Prisma ORM
 - **Tests:** Vitest + supertest (server) · Vitest (web pure helpers) · Playwright (4-persona smoke)
 - **Infra:** Docker Compose locally · Fly.io (sin region, 2 machines) in production
 
@@ -133,7 +133,7 @@ for a future mobile or 3rd-party API consumer.
                     │ Prisma
                     ▼
        ┌────────────────────────────┐
-       │   Neon Postgres (sin)      │
+       │   Supabase Postgres (sin)  │
        └────────────────────────────┘
 ```
 
@@ -241,21 +241,25 @@ flyctl deploy -a metu --remote-only
 
 Both deploys run a release_command — `metu-api`'s release runs
 `prisma migrate deploy --schema=packages/db/prisma/schema.prisma` against
-`DATABASE_URL_UNPOOLED` (the direct Neon endpoint, not the pgbouncer pool —
-Prisma Migrate needs advisory locks the pooled endpoint strips).
+`DATABASE_URL_UNPOOLED` (the Supabase **session** pooler at port 5432 —
+the IPv6-only `db.<ref>.supabase.co` direct host doesn't reach Fly's
+IPv4 egress, and the transaction pooler at 6543 strips the advisory
+locks Prisma Migrate needs).
 
 Required Fly secrets:
 
 ```sh
 # metu-api
 flyctl secrets set -a metu-api \
-  DATABASE_URL='postgresql://metu:…@…-pooler.neon.tech/metu?sslmode=require' \
-  DATABASE_URL_UNPOOLED='postgresql://metu:…@….neon.tech/metu?sslmode=require' \
+  DATABASE_URL='postgresql://postgres.PROJECTREF:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1' \
+  DATABASE_URL_UNPOOLED='postgresql://postgres.PROJECTREF:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres' \
   JWT_SECRET='<32+ bytes>' \
   CORS_ORIGIN='https://metu.fly.dev'
 
-# metu (web BFF)
+# metu (web BFF) — uses the same DATABASE_URL pair for SSR Prisma queries
 flyctl secrets set -a metu \
+  DATABASE_URL='...' \
+  DATABASE_URL_UNPOOLED='...' \
   INTERNAL_API_URL='https://metu-api.fly.dev'
 ```
 
