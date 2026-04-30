@@ -181,6 +181,33 @@ export async function checkout(
       },
     });
 
+    // Phase 33C — atomic stock decrement. Digital delivery methods
+    // (download, email, license_key, streaming) skip the decrement
+    // entirely since their "quantity" tracks how many keys are pre-
+    // generated, not a finite stock pool ; physical-style variants
+    // (extend the enum later) would decrement here. The conditional
+    // UPDATE returns 0 rows when stock has been depleted by a
+    // concurrent buyer, which we detect and roll the transaction
+    // back so neither order goes through with a negative quantity.
+    const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
+    for (const ci of selectedItems) {
+      if (DIGITAL_METHODS.has(ci.productItem.deliveryMethod)) continue;
+      const updated = await tx.productItem.updateMany({
+        where: {
+          productItemId: ci.productItemId,
+          quantity: { gte: ci.quantity },
+        },
+        data: { quantity: { decrement: ci.quantity } },
+      });
+      if (updated.count === 0) {
+        throw new AppError(
+          409,
+          "OutOfStock",
+          `Not enough stock for "${ci.productItem.product.name}". Adjust quantity and try again.`,
+        );
+      }
+    }
+
     await tx.cart.update({
       where: { cartId: cart.cartId },
       data: { status: "checked_out" },
