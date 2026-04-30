@@ -106,21 +106,68 @@ export function ErDiagramView() {
     [],
   );
 
-  // Mouse wheel zoom (Ctrl required so plain wheel still scrolls page)
+  // Mouse wheel: plain wheel = zoom (around cursor), shift+wheel = horizontal pan.
+  // Page-scroll inside the canvas is replaced by zoom because that's the
+  // standard ER tool affordance (Lucid, dbdiagram, drawSQL all do it).
+  // Holding shift gives a fallback to pan horizontally without zooming.
   useEffect(() => {
     const c = containerRef.current;
     if (!c) return;
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
+      if (e.shiftKey) {
+        // Pan horizontally on shift+wheel (matches Figma / Miro etc.)
+        setTx((prev) => prev - e.deltaY);
+        return;
+      }
+      // Zoom around the cursor position (not viewport center) so the
+      // user's focal point stays anchored under their pointer.
+      const rect = c.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
       const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      zoomBy(factor);
+      setScale((prev) => {
+        const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, +(prev * factor).toFixed(3)));
+        setTx((px) => cx - ((cx - px) * next) / prev);
+        setTy((py) => cy - ((cy - py) * next) / prev);
+        return next;
+      });
     };
     c.addEventListener("wheel", onWheel, { passive: false });
     return () => c.removeEventListener("wheel", onWheel);
-  }, [zoomBy]);
+  }, []);
 
-  // Drag-pan
+  // Keyboard shortcuts: + / = zoom in, - zoom out, 0 reset, f fit.
+  // Bound to the canvas so they don't fight with browser shortcuts.
+  useEffect(() => {
+    const c = containerRef.current;
+    if (!c) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Don't intercept when an input/textarea is focused
+      const target = e.target as HTMLElement;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
+      if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        zoomBy(1.2);
+      } else if (e.key === "-") {
+        e.preventDefault();
+        zoomBy(0.8);
+      } else if (e.key === "0") {
+        e.preventDefault();
+        reset();
+      } else if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        fitToScreen();
+      }
+    };
+    c.addEventListener("keydown", onKey);
+    return () => c.removeEventListener("keydown", onKey);
+  }, [zoomBy, reset, fitToScreen]);
+
+  // Drag-pan with a 4px threshold so accidental click-and-release
+  // doesn't show as a "moved" pan. Below threshold the canvas counts
+  // as still ; above it we commit the translate.
+  const DRAG_THRESHOLD = 4;
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     // Only start a pan if the mousedown originated on the canvas
@@ -139,13 +186,25 @@ export function ErDiagramView() {
   const onPointerMove = (e: React.PointerEvent) => {
     const s = dragStateRef.current;
     if (!s.active) return;
-    setTx(s.startTx + (e.clientX - s.startX));
-    setTy(s.startTy + (e.clientY - s.startY));
+    const dx = e.clientX - s.startX;
+    const dy = e.clientY - s.startY;
+    if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+    setTx(s.startTx + dx);
+    setTy(s.startTy + dy);
   };
   const onPointerUp = (e: React.PointerEvent) => {
     if (!dragStateRef.current.active) return;
     dragStateRef.current.active = false;
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+  };
+
+  // Double-click empty canvas → fit-to-screen. Skips when the click
+  // landed on an entity card so the click-to-highlight behaviour is
+  // preserved.
+  const onDoubleClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-er-entity]") || target.closest("button")) return;
+    fitToScreen();
   };
 
   // Export — serialize the diagram as an SVG with HTML entity cards
@@ -241,12 +300,15 @@ export function ErDiagramView() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[calc(100vh-12rem)] min-h-[600px] rounded-2xl border border-line bg-white overflow-hidden"
+      tabIndex={0}
+      className="relative w-full h-[calc(100vh-12rem)] min-h-[600px] rounded-2xl border border-line bg-white overflow-hidden focus:outline-none focus:ring-2 focus:ring-mint/40"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onDoubleClick={onDoubleClick}
       style={{ cursor: dragStateRef.current.active ? "grabbing" : "grab", touchAction: "none" }}
+      aria-label="ER diagram canvas. Drag to pan, scroll to zoom, double-click to fit."
     >
       {/* faint dot grid */}
       <div
@@ -375,6 +437,11 @@ export function ErDiagramView() {
       {/* zoom indicator (bottom-left) */}
       <div className="absolute bottom-4 left-4 rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-mono text-slate-600 shadow-sm">
         {Math.round(scale * 100)}%
+      </div>
+
+      {/* keyboard shortcut hint (bottom-center, fades on hover) */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-md border border-slate-300 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] text-slate-500 shadow-sm pointer-events-none opacity-70">
+        <kbd className="font-mono">scroll</kbd> zoom · <kbd className="font-mono">drag</kbd> pan · <kbd className="font-mono">double-click</kbd> fit · <kbd className="font-mono">+</kbd> <kbd className="font-mono">-</kbd> <kbd className="font-mono">0</kbd> <kbd className="font-mono">f</kbd>
       </div>
     </div>
   );
