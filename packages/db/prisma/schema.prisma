@@ -179,22 +179,30 @@ model BusinessType {
 }
 
 model Store {
-  storeId        Int       @id @default(autoincrement()) @map("store_id")
-  ownerId        Int       @unique @map("owner_id")
-  businessTypeId Int       @map("business_type_id")
-  name           String    @db.VarChar(60)
-  description    String    @db.VarChar(255)
-  profileImage   String?   @map("profile_image") @db.Text
-  coverImage     String?   @map("cover_image") @db.Text
-  createdAt      DateTime  @default(now()) @map("created_at")
+  storeId              Int       @id @default(autoincrement()) @map("store_id")
+  ownerId              Int       @unique @map("owner_id")
+  businessTypeId       Int       @map("business_type_id")
+  name                 String    @db.VarChar(60)
+  description          String    @db.VarChar(255)
+  profileImage         String?   @map("profile_image") @db.Text
+  coverImage           String?   @map("cover_image") @db.Text
+  createdAt            DateTime  @default(now()) @map("created_at")
   // Soft-delete — hides from public catalogue + storefronts but keeps
   // historical orders / reviews intact.
-  deletedAt      DateTime? @map("deleted_at")
+  deletedAt            DateTime? @map("deleted_at")
   // Phase 16.1 — intermediate state: HIDDEN from public surfaces but
   // not yet deleted. Admin toggles via /admin/stores. Seller still
   // sees the store in /seller dashboard with a banner. Reversible by
   // clearing the column. NULL = live.
-  suspendedAt    DateTime? @map("suspended_at")
+  suspendedAt          DateTime? @map("suspended_at")
+  /// Phase 27 — Stripe Connect Express account ID (`acct_…`). NULL = the
+  /// seller hasn't onboarded yet ; non-null but capability flags off =
+  /// onboarding link generated but not completed. Charges + payouts
+  /// are gated client-side on the capability flags so we don't try
+  /// to settle through an account Stripe hasn't enabled.
+  stripeAccountId      String?   @unique @map("stripe_account_id") @db.VarChar(40)
+  stripePayoutsEnabled Boolean   @default(false) @map("stripe_payouts_enabled")
+  stripeChargesEnabled Boolean   @default(false) @map("stripe_charges_enabled")
 
   owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
   businessType BusinessType @relation(fields: [businessTypeId], references: [typeId])
@@ -435,12 +443,25 @@ model Order {
   giftRecipientEmail String?     @map("gift_recipient_email") @db.VarChar(80)
   giftMessage        String?     @map("gift_message") @db.VarChar(500)
 
+  /// Phase 27 — Stripe payment / refund mapping. All NULL for orders
+  /// placed in demo mode (no Stripe keys configured) ; live mode
+  /// populates `stripePaymentIntentId` at order create time and the
+  /// rest land via webhook (charge.updated, charge.refunded). The
+  /// VARCHAR columns act as soft FKs to Stripe — Stripe is the system
+  /// of record for the payment state.
+  stripePaymentIntentId String? @map("stripe_payment_intent_id") @db.VarChar(40)
+  stripeChargeId        String? @map("stripe_charge_id") @db.VarChar(40)
+  stripeRefundId        String? @map("stripe_refund_id") @db.VarChar(40)
+  stripeAmountReceived  Int?    @map("stripe_amount_received")
+  stripeAmountRefunded  Int     @default(0) @map("stripe_amount_refunded")
+
   cart        Cart         @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
   items       OrderItem[]
 
   @@index([status])
   @@index([createdAt])
+  @@index([stripePaymentIntentId])
   @@map("orders")
 }
 

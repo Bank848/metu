@@ -61,6 +61,14 @@ import referenceRoutes from "./routes/reference.routes.js";
 // Stripe Connect in Phase 27.
 import settingsRoutes, { adminSettingsRouter } from "./routes/settings.routes.js";
 
+// Layered routes (Phase 27 — Stripe Connect onboarding + wallet + refund)
+import { stripeSellerRouter, stripeAdminRouter } from "./routes/stripe.routes.js";
+
+// Layered routes (Phase 27 — Stripe webhook receiver)
+//   MUST mount BEFORE express.json() because Stripe signs the raw bytes ;
+//   the route handler installs its own express.raw() body parser.
+import stripeWebhookRoutes from "./routes/stripe-webhook.routes.js";
+
 // Phase 14.1 — better-auth instance + Express handler bridge.
 // Mounted at /auth/better/* BEFORE express.json so the request body
 // reaches the handler unparsed (per better-auth Express docs).
@@ -138,6 +146,11 @@ export function buildApp() {
   //    stream that's already been consumed.
   app.all("/api/auth/better/*", toNodeHandler(auth));
 
+  // 3.5. Phase 27 — Stripe webhook MUST mount BEFORE express.json()
+  //      because Stripe signs the raw bytes. The route handler runs
+  //      its own express.raw() body parser scoped to /api/webhooks/stripe.
+  app.use("/api/webhooks/stripe", stripeWebhookRoutes);
+
   // 4. Body + cookie parsers — every other route uses these.
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
@@ -200,6 +213,14 @@ export function buildApp() {
   // Connect (Phase 27) replaces the seller-payout surface.
   app.use("/settings", settingsRoutes);
   app.use("/admin",    adminSettingsRouter);
+
+  // ─── Layered routes (Phase 27 — Stripe Connect) ─────────────────
+  // - /seller/stripe/onboard       (auth + store gate)
+  // - /seller/stripe/status        (auth + store gate)
+  // - /seller/wallet               (auth + store gate)
+  // - /admin/orders/:id/refund     (admin gate + 2FA step-up)
+  app.use("/seller", stripeSellerRouter);
+  app.use("/admin",  stripeAdminRouter);
 
   // Service banner — useful when curl-ing the root manually.
   app.get("/", (_req, res) => {

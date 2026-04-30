@@ -251,7 +251,16 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         window.dispatchEvent(new CustomEvent("cart:update"));
       }
       navigated = true;
-      router.push(`/orders/${data.orderId}?new=1`);
+      // Phase 27 — when Stripe is configured AND the seller is
+      // onboarded, the API returns a clientSecret and the order is in
+      // `pending` status. Route to /checkout/[orderId] so the buyer
+      // can confirm payment with Stripe Elements. Otherwise fall back
+      // to the existing receipt page (demo mode = order already paid).
+      if (data.stripeClientSecret) {
+        router.push(`/checkout/${data.orderId}?cs=${encodeURIComponent(data.stripeClientSecret)}`);
+      } else {
+        router.push(`/orders/${data.orderId}?new=1`);
+      }
     } catch {
       play("error");
     } finally {
