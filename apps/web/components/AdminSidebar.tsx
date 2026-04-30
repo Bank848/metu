@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Layers } from "lucide-react";
+import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Layers, RotateCcw } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,8 @@ const items = [
   { href: "/admin/stores",       label: "Stores",     icon: Store },
   { href: "/admin/reports",      label: "Reports",    icon: FileBarChart },
   { href: "/admin/audit",        label: "Audit log",  icon: History },
+  // Phase 27 — Stripe refund queue (only Stripe-charged orders).
+  { href: "/admin/refunds",      label: "Refunds",    icon: RotateCcw },
   // Phase 17.1 / 26 — runtime feature flags (slimmed to favoritesEnabled
   // + platformFeePercent after the wallet/PromptPay layer was removed).
   { href: "/admin/settings",     label: "Settings",   icon: Settings },

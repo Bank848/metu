@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
+import { isConfigured as stripeConfigured, createPaymentIntent } from "./stripe.service.js";
+import { getSettings } from "./settings.service.js";
 import type {
   CheckoutInput,
   CheckoutResponse,
@@ -109,11 +111,27 @@ export async function checkout(
   }
   const total = subtotal.sub(couponDiscount);
 
-  // Phase 26 — payment gateway integration moves to Stripe Connect in
-  // Phase 27. Until then, checkout creates the Order row in `paid`
-  // status without any coin movement (demo mode); Phase 27 will swap
-  // this for a Stripe `payment_intent.create` + webhook-driven status
-  // transition.
+  // Phase 27 — single-store, Stripe-configured carts get a real
+  // PaymentIntent ; otherwise the order lands in demo mode (`paid`
+  // status, no Stripe charge). Multi-store carts always use demo
+  // mode for now — Stripe Connect doesn't natively support N-way
+  // splits in one charge.
+  const storeIds = new Set(selectedItems.map((ci) => ci.productItem.product.storeId));
+  const singleStoreId = storeIds.size === 1 ? selectedItems[0]!.productItem.product.storeId : null;
+  let useStripe = false;
+  let sellerStripeAccountId: string | null = null;
+  if (stripeConfigured() && singleStoreId !== null) {
+    const store = await prisma.store.findUnique({
+      where: { storeId: singleStoreId },
+      select: { stripeAccountId: true, stripeChargesEnabled: true },
+    });
+    if (store?.stripeAccountId && store.stripeChargesEnabled) {
+      useStripe = true;
+      sellerStripeAccountId = store.stripeAccountId;
+    }
+  }
+
+  const settings = await getSettings();
 
   const result = await prisma.$transaction(async (tx) => {
     const txn = await tx.transaction.create({
@@ -127,7 +145,10 @@ export async function checkout(
       data: {
         cartId: cart.cartId,
         totalPrice: total,
-        status: "paid",
+        // Stripe path: order starts `pending` and a webhook flips it
+        // to `paid` after the buyer confirms. Demo path: straight to
+        // `paid` so the rest of the app works without Stripe wired up.
+        status: useStripe ? "pending" : "paid",
         transactionId: txn.transactionId,
         giftRecipientEmail: input.giftRecipientEmail || null,
         giftMessage: input.giftMessage || null,
@@ -168,6 +189,37 @@ export async function checkout(
     return { order, txn };
   });
 
+  // Stripe-side work happens AFTER the DB transaction so a Stripe
+  // outage can't roll back a successful order create. If the intent
+  // call fails the order is still recorded (in `pending`) and a
+  // future retry path can re-issue the PaymentIntent.
+  let stripeClientSecret: string | null = null;
+  if (useStripe && sellerStripeAccountId) {
+    try {
+      const buyer = await prisma.user.findUnique({
+        where: { userId },
+        select: { email: true },
+      });
+      const intent = await createPaymentIntent({
+        orderId: result.order.orderId,
+        amountBaht: Number(total),
+        sellerStripeAccountId,
+        applicationFeePercent: Number(settings.platformFeePercent),
+        buyerEmail: buyer?.email,
+      });
+      stripeClientSecret = intent.clientSecret;
+      await prisma.order.update({
+        where: { orderId: result.order.orderId },
+        data: { stripePaymentIntentId: intent.paymentIntentId },
+      });
+    } catch (err) {
+      // Don't surface the Stripe error to the buyer — log + move on.
+      // Order remains `pending` ; admin can investigate via dashboard.
+      // eslint-disable-next-line no-console
+      console.error("[orders.checkout] Stripe createPaymentIntent failed:", err);
+    }
+  }
+
   return {
     orderId: result.order.orderId,
     transactionId: result.txn.transactionId,
@@ -175,6 +227,7 @@ export async function checkout(
     subtotal: Number(subtotal),
     discount: Number(couponDiscount),
     couponStoreId: resolvedCoupon ? resolvedCoupon.storeId : null,
+    stripeClientSecret,
   };
 }
 

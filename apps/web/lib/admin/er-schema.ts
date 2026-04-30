@@ -460,6 +460,33 @@ export const ER_ENTITIES: ErEntity[] = [
         "unique": false,
         "nullable": true,
         "ordinal": 10
+      },
+      {
+        "name": "stripe_account_id",
+        "type": "VARCHAR(40)",
+        "pk": false,
+        "fk": null,
+        "unique": true,
+        "nullable": true,
+        "ordinal": 11
+      },
+      {
+        "name": "stripe_payouts_enabled",
+        "type": "BOOLEAN",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 12
+      },
+      {
+        "name": "stripe_charges_enabled",
+        "type": "BOOLEAN",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 13
       }
     ]
   },
@@ -1251,6 +1278,51 @@ export const ER_ENTITIES: ErEntity[] = [
         "unique": false,
         "nullable": true,
         "ordinal": 10
+      },
+      {
+        "name": "stripe_payment_intent_id",
+        "type": "VARCHAR(40)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 11
+      },
+      {
+        "name": "stripe_charge_id",
+        "type": "VARCHAR(40)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 12
+      },
+      {
+        "name": "stripe_refund_id",
+        "type": "VARCHAR(40)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 13
+      },
+      {
+        "name": "stripe_amount_received",
+        "type": "INT",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 14
+      },
+      {
+        "name": "stripe_amount_refunded",
+        "type": "INT",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 15
       }
     ]
   },
