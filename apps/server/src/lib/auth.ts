@@ -215,6 +215,20 @@ export const auth = betterAuth({
     database: {
       generateId: "serial",
     },
+    // Phase 22.4 — tighten the session cookie. `sameSite: "lax"` is
+    // better-auth's default; "strict" stops the cookie from being
+    // attached to ANY cross-site navigation (including a redirect
+    // from connect.stripe.com back to /seller/onboarding/return).
+    // We need OAuth callbacks + Stripe Connect return links to keep
+    // the session, so we keep "lax" here and rely on the explicit
+    // `httpOnly: true` (default) + `secure: true` (default in prod)
+    // to lock down everything else. Setting them explicitly anyway
+    // so the contract is visible in code.
+    defaultCookieAttributes: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    },
   },
 
   // Map better-auth's expected field names onto our existing columns.
