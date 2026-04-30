@@ -1,5 +1,12 @@
 # METU · Deployment Guide
 
+> **NOTE — Phase 28 (April 2026):** the production deploy now runs on
+> **Fly.io + Supabase** (see `DEPLOY_FLY.md` for the canonical setup).
+> The Vercel + Neon path described below is preserved as a fallback /
+> historical reference ; everything still works if you swap the
+> "Neon" connection-string format for the Supabase pooler URLs from
+> the new guide.
+
 > Single-origin Vercel deploy — the Next.js app contains **both** the frontend pages
 > **and** the API route handlers. No separate backend to run.
 
@@ -8,7 +15,8 @@
 ## Architecture
 
 - **Hosting:** Vercel (free tier)
-- **Database:** Neon Postgres (free tier) — https://neon.tech
+- **Database (legacy reference):** Neon Postgres — current production
+  uses Supabase, see `DEPLOY_FLY.md`
 - **Images:** Unsplash, picsum.photos, api.dicebear.com (public CDNs; nothing self-hosted)
 - **Auth:** JWT in httpOnly cookie (no third-party auth provider)
 - **Local dev:** Docker Postgres + `npm run dev -w @metu/web` — the old Express

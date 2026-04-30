@@ -47,3 +47,4 @@ apps/web/coverage
 # /admin/reports API route (whose folder happens to be named "reports").
 /reports/
 shots/
+.supabase-credentials.local
