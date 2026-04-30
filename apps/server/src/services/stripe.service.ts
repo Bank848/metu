@@ -130,23 +130,28 @@ export async function refreshAccountStatus(storeId: number) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Checkout — direct charge with destination payout
+// Checkout — direct charge on connected account (Platform model)
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * Create a PaymentIntent for an order. Direct-charge model: the buyer
- * pays through *our* Stripe account, then `transfer_data.destination`
- * pushes the funds (minus the application fee) to the seller's Connect
- * account at capture time.
+ * Create a PaymentIntent for an order. Direct-charge model: the
+ * PaymentIntent is created ON the seller's Connect account (not on
+ * the platform). Platform takes a cut via `application_fee_amount`.
+ *
+ * The Stripe TH free-tier doesn't allow the Marketplace
+ * (destination-charge) model — it's "Unavailable in Thailand". The
+ * Platform (direct charge) model works fine and is functionally
+ * equivalent: buyer pays, seller is the merchant of record, platform
+ * collects its fee, Stripe handles tax docs at the seller side.
+ *
+ * Important: webhooks for these PaymentIntents fire on the connected
+ * account (not the platform). The webhook endpoint subscribed via
+ * "Connected accounts" wiring receives them with `event.account` set.
  *
  * Single-store orders only — multi-store carts split into separate
- * intents (Stripe Connect doesn't natively support N-way splits in
- * one charge). The current cart model already groups by checkout, so
- * this is a future feature, not a Phase 27 problem.
+ * intents.
  *
- * Returns `{ paymentIntentId, clientSecret }`. The frontend uses
- * `clientSecret` with `<PaymentElement />` to confirm the payment ;
- * the eventual webhook bumps Order.status to `paid`.
+ * Returns `{ paymentIntentId, clientSecret }`.
  */
 export async function createPaymentIntent(opts: {
   orderId: number;
@@ -156,22 +161,23 @@ export async function createPaymentIntent(opts: {
   buyerEmail?: string;
 }): Promise<{ paymentIntentId: string; clientSecret: string }> {
   const stripe = getClient();
-  // Stripe stores money in the smallest currency unit — for THB
-  // that's satang (1 baht = 100 satang).
   const amountSatang = Math.round(opts.amountBaht * 100);
   const applicationFeeSatang = Math.floor(
     (amountSatang * opts.applicationFeePercent) / 100,
   );
 
-  const intent = await stripe.paymentIntents.create({
-    amount: amountSatang,
-    currency: "thb",
-    automatic_payment_methods: { enabled: true },
-    application_fee_amount: applicationFeeSatang,
-    transfer_data: { destination: opts.sellerStripeAccountId },
-    receipt_email: opts.buyerEmail,
-    metadata: { orderId: String(opts.orderId) },
-  });
+  const intent = await stripe.paymentIntents.create(
+    {
+      amount: amountSatang,
+      currency: "thb",
+      automatic_payment_methods: { enabled: true },
+      application_fee_amount: applicationFeeSatang,
+      receipt_email: opts.buyerEmail,
+      metadata: { orderId: String(opts.orderId) },
+    },
+    // Stripe-Account header — creates the PI on the connected account.
+    { stripeAccount: opts.sellerStripeAccountId },
+  );
 
   return {
     paymentIntentId: intent.id,
@@ -184,22 +190,27 @@ export async function createPaymentIntent(opts: {
 // ─────────────────────────────────────────────────────────────────
 
 /**
- * Refund a Stripe-charged order. `reverse_transfer: true` claws back
- * the corresponding Connect transfer, and `refund_application_fee`
- * also returns the platform's fee — full refund is full refund.
+ * Refund a Stripe-charged order. Direct-charge model: the refund is
+ * created on the connected account where the PaymentIntent lives.
+ * `refund_application_fee:true` returns the platform's fee. We don't
+ * need `reverse_transfer` because there's no transfer — the charge
+ * was made directly on the seller's account.
  */
 export async function refundOrder(
   paymentIntentId: string,
+  sellerStripeAccountId: string,
   amountSatang?: number,
 ): Promise<Stripe.Refund> {
   const stripe = getClient();
-  return stripe.refunds.create({
-    payment_intent: paymentIntentId,
-    amount: amountSatang, // omit for full refund
-    reverse_transfer: true,
-    refund_application_fee: true,
-    metadata: { source: "metu_admin" },
-  });
+  return stripe.refunds.create(
+    {
+      payment_intent: paymentIntentId,
+      amount: amountSatang, // omit for full refund
+      refund_application_fee: true,
+      metadata: { source: "metu_admin" },
+    },
+    { stripeAccount: sellerStripeAccountId },
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────
