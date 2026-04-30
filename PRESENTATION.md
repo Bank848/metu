@@ -26,7 +26,7 @@ Run `npm run db:reset` if you want a clean slate between dry runs.
 
 Point at the hero with **Sellers / Products / Orders / Reviews** counters.
 
-> "These numbers come from live SQL against 19 normalized tables — nothing hard-coded."
+> "These numbers come from live SQL against 27 normalized tables — nothing hard-coded."
 
 **DB link:** The stats endpoint (`/api/stats`) runs 4 `COUNT(*)` queries,
 one per source table, proving the data model is actually populated.
