@@ -516,6 +516,10 @@ model CouponUsage {
   coupon Coupon @relation(fields: [couponId], references: [couponId], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
+  // Phase 38B — Business Rule 4.i: a user may apply each coupon at most
+  // once. Enforced at the schema level rather than in application code
+  // so concurrent checkouts can't slip through a TOCTOU window.
+  @@unique([couponId, userId])
   @@index([couponId])
   @@index([userId])
   @@map("coupon_usage")

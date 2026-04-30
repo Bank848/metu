@@ -10,7 +10,7 @@
 > 🎨 **Design:** Dark space-theme · Thai-leaning catalog · THB pricing
 
 A dark-mode marketplace for Thai digital creators — templates, music, courses, art.
-Built to exercise a normalized relational schema (20 entities, crow's-foot ER)
+Built to exercise a normalized relational schema (27 entities, crow's-foot ER)
 end-to-end on Postgres + Prisma, with a clean **client / server split**:
 
 - **`apps/web`** — Next.js 14 BFF (Server Components + Route Handlers as proxies)

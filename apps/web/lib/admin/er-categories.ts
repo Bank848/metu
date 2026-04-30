@@ -21,7 +21,7 @@ export type ErCategory =
   | "cart"
   | "order"
   | "coupon"
-  | "wallet"
+  | "payments"
   | "system";
 
 interface CategoryStyle {
@@ -41,7 +41,7 @@ export const CATEGORY_STYLE: Record<ErCategory, CategoryStyle> = {
   cart:     { headerBg: "#f97316", headerText: "white", label: "Cart & Tx" },
   order:    { headerBg: "#34d399", headerText: "black", label: "Orders" },
   coupon:   { headerBg: "#fb7185", headerText: "black", label: "Coupons" },
-  wallet:   { headerBg: "#10b981", headerText: "white", label: "Wallet & Money" },
+  payments: { headerBg: "#10b981", headerText: "white", label: "Payments (Stripe)" },
   system:   { headerBg: "#94a3b8", headerText: "white", label: "System & Audit" },
 };
 
@@ -72,8 +72,9 @@ export const ENTITY_CATEGORY: Record<string, ErCategory> = {
   product_image: "catalog",
   product_review: "catalog",
   product_favorite: "catalog",
-  product_question: "catalog",
-  stock_alert: "catalog",
+  // Phase 26 — product_question + stock_alert removed (messaging surface
+  // and stock-alert subscription cut). Earlier entries kept here in
+  // git history if anyone needs to re-introduce them.
 
   // Tag junction (separate slot so the colour isn't drowned by catalog)
   product_n_tag: "tag",
@@ -92,17 +93,15 @@ export const ENTITY_CATEGORY: Record<string, ErCategory> = {
   coupon: "coupon",
   coupon_usage: "coupon",
 
-  // Wallet & money (Phase 17.1-17.3, 20.1-20.2)
-  wallet: "wallet",
-  wallet_transaction: "wallet",
-  topup: "wallet",
-  withdrawal: "wallet",
-  store_transaction: "wallet",
+  // Payments (Phase 27) — externalised to Stripe ; the schema only
+  // holds soft-FK varchar IDs on Order and Store. No dedicated entity
+  // belongs in this slot today, but the colour is reserved so a
+  // future "stripe_event" or "payout" table lands somewhere obvious.
 
-  // System & audit (Phase 12.2, 17.1, 13.8)
+  // System & audit (Phase 12.2, 17.1)
   system_setting: "system",
   audit_log: "system",
-  message: "system",
+  // Phase 26 — message removed.
 };
 
 /** Resolve a table to its category, defaulting to "system". */

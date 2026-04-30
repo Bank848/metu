@@ -74,7 +74,7 @@ const CATEGORY_COLUMN_ORDER: ErCategory[] = [
   "cart",
   "order",
   "coupon",
-  "wallet",
+  "payments",
   "system",
 ];
 

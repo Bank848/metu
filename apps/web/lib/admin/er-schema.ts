@@ -2011,7 +2011,7 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
     "fromColumn": "user_id",
     "to": "users",
     "toColumn": "user_id",
-    "cardinality": "one-to-many",
+    "cardinality": "one-to-one",
     "fromOptional": false
   },
   {

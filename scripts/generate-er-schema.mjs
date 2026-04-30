@@ -158,8 +158,11 @@ for (const model of models) {
       // Cardinality is left/right-side optional based on nullable + unique flags.
       const fromOptional = nullable;
       // Ref-side optional always false on FK (the parent row must exist when set).
-      // Cardinality: if FK is on a unique column → 1:1, else 1:many.
-      const cardinality = unique ? "one-to-one" : "one-to-many";
+      // Cardinality: 1:1 when the FK column is unique on its own table — that
+      // happens either via an explicit @unique constraint OR when the column
+      // doubles as the PK (`@id`, which implies UNIQUE). Without the `pk`
+      // branch this miscategorised user_stats.user_id (PK+FK) as 1:many.
+      const cardinality = (unique || pk) ? "one-to-one" : "one-to-many";
       relationships.push({
         from: tableName,
         fromColumn: colName,

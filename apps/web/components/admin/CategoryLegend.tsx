@@ -19,7 +19,7 @@ export function CategoryLegend() {
     "cart",
     "order",
     "coupon",
-    "wallet",
+    "payments",
     "system",
   ];
 
