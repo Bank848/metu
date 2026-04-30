@@ -1,5 +1,6 @@
 import { ExternalLink, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { apiFetch, ApiError } from "@/lib/server/api";
 import { OnboardingActions } from "./OnboardingActions";
 
 export const dynamic = "force-dynamic";
@@ -38,18 +39,22 @@ interface Status {
 }
 
 async function fetchStatus(): Promise<Status> {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:4000";
+  // Use the shared apiFetch helper — it forwards the request cookie
+  // via Next's headers() so the requireAuth() + requireStore() gates
+  // on the API recognise the seller's session.
   try {
-    // Server-side fetch with cookie forwarding via the BFF — we hit
-    // /api/seller/stripe/status which is the existing forwardToApi
-    // proxy convention used elsewhere.
-    const res = await fetch(`${apiBase}/seller/stripe/status`, {
-      cache: "no-store",
-      headers: { Cookie: "" }, // SSR; OnboardingActions handles client-side calls
-    });
-    if (!res.ok) return { configured: false, message: "Stripe is not configured." };
-    return (await res.json()) as Status;
-  } catch {
+    return await apiFetch<Status>("/seller/stripe/status");
+  } catch (err) {
+    if (err instanceof ApiError) {
+      // 503 = Stripe not configured on the server ; surface the
+      // message Stripe-not-configured banner uses.
+      if (err.status === 503) {
+        return { configured: false, message: "Stripe is not configured." };
+      }
+      // 401/403 fall through with default "loading" state — the user
+      // shouldn't normally see this since the layout already checks
+      // auth + store ownership before rendering this page.
+    }
     return { configured: false, message: "Stripe is not configured." };
   }
 }

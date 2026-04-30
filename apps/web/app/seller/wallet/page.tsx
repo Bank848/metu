@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Wallet, ExternalLink, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { apiFetch, ApiError } from "@/lib/server/api";
 
 export const dynamic = "force-dynamic";
 
@@ -50,14 +51,15 @@ export default async function SellerWalletPage() {
 }
 
 async function fetchWallet(): Promise<Wallet> {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:4000";
+  // Use the shared apiFetch helper so the seller's session cookie
+  // reaches the API, otherwise requireAuth()+requireStore() reject
+  // with 401 and the page falls back to the "not configured" view.
   try {
-    const res = await fetch(`${apiBase}/seller/wallet`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return { configured: false };
-    return (await res.json()) as Wallet;
-  } catch {
+    return await apiFetch<Wallet>("/seller/wallet");
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 503) {
+      return { configured: false };
+    }
     return { configured: false };
   }
 }
