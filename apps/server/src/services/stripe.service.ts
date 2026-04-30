@@ -69,13 +69,26 @@ export async function createConnectAccount(storeId: number): Promise<string> {
   if (!store) throw new AppError(404, "StoreNotFound");
   if (store.stripeAccountId) return store.stripeAccountId;
 
+  // Phase 32 — TH compliance forces a recipient model (Stripe is
+  // loss-liable + collects requirements via hosted onboarding). The
+  // legacy `type:"express"` shortcut isn't allowed in TH because it
+  // would make the application loss-liable. We spell it out via the
+  // `controller` shape: stripe handles losses, application pays fees,
+  // no Stripe-hosted dashboard for the seller (we surface balance /
+  // payouts ourselves under /seller/wallet), Stripe runs the hosted
+  // onboarding flow that captures tos_acceptance.
   const acct = await stripe.accounts.create({
-    type: "express",
     country: "TH",
-    email: undefined, // collected by Stripe-hosted onboarding
+    email: undefined,
     capabilities: {
       card_payments: { requested: true },
       transfers:     { requested: true },
+    },
+    controller: {
+      losses: { payments: "stripe" },
+      fees: { payer: "application" },
+      stripe_dashboard: { type: "none" },
+      requirement_collection: "stripe",
     },
     business_profile: {
       name: store.name,
