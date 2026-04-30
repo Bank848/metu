@@ -14,7 +14,8 @@ export type CouponValidateResult =
       couponId: number;
       discountType: string;
       discountValue: number;
-      store: { storeId: number; name: string };
+      /** Phase 38C — null = master / platform-wide coupon. */
+      store: { storeId: number; name: string } | null;
     }
   | {
       valid: false;
