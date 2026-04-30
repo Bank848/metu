@@ -28,6 +28,7 @@ import {
   listStorePayouts,
   listStoreCharges,
   refundOrder,
+  createManualPayout,
 } from "../services/stripe.service.js";
 
 // ─────────────────────────────────────────────────────────────────
@@ -110,6 +111,49 @@ sellerRouter.get("/wallet", requireAuth(), requireStore(), async (req, res, next
         status: c.status, created: c.created,
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Phase 33B — manual payout trigger. Standard Stripe Connect Express
+// schedules payouts automatically (weekly in TH), but for sandbox demo
+// the seller wants a button to trigger one immediately. The amount
+// must not exceed the available balance ; Stripe rejects in that
+// case and we surface the message.
+sellerRouter.post("/stripe/payout", requireAuth(), requireStore(), async (req, res, next) => {
+  try {
+    if (!isConfigured()) {
+      return res.status(503).json({ error: "StripeNotConfigured" });
+    }
+    const store = await prisma.store.findUnique({
+      where: { storeId: currentStore(req).storeId },
+      select: { stripeAccountId: true, stripeChargesEnabled: true },
+    });
+    if (!store?.stripeAccountId || !store.stripeChargesEnabled) {
+      throw new AppError(400, "NotOnboarded",
+        "Finish Stripe Connect onboarding before requesting a payout.");
+    }
+    // Body: { amountBaht: number } — required ; we don't fall back to
+    // "the whole balance" because the seller should opt-in to the exact
+    // figure (Stripe rounding rules + currency conversion can surprise).
+    const amountBaht = Number(req.body?.amountBaht);
+    if (!Number.isFinite(amountBaht) || amountBaht <= 0) {
+      throw new AppError(400, "InvalidAmount", "amountBaht must be a positive number.");
+    }
+    const payout = await createManualPayout(
+      store.stripeAccountId,
+      Math.round(amountBaht * 100),
+    );
+    await audit({
+      actorId: currentAuth(req)!.uid,
+      action: "stripe.payout.manual",
+      targetType: "store",
+      targetId: currentStore(req).storeId,
+      meta: { payoutId: payout.id, amountSatang: payout.amount } as never,
+      req,
+    });
+    res.json({ ok: true, payoutId: payout.id, amount: payout.amount, status: payout.status });
   } catch (err) {
     next(err);
   }

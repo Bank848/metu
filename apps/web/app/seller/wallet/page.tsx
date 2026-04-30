@@ -3,6 +3,7 @@ import { Wallet, ExternalLink, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/lib/server/api";
+import { RequestPayoutButton } from "./RequestPayoutButton";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +119,7 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
             ฿{formatSatang(totalAvailable)}
           </div>
           <p className="text-xs text-ink-dim mt-2">Funds that can be paid out next.</p>
+          <RequestPayoutButton availableSatang={totalAvailable} />
         </div>
         <div className="rounded-2xl border border-line bg-space-900 p-6">
           <div className="text-xs uppercase tracking-wider text-ink-dim">Pending</div>
