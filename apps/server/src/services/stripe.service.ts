@@ -248,3 +248,23 @@ export async function listStoreCharges(stripeAccountId: string, limit = 20) {
   const stripe = getClient();
   return stripe.charges.list({ limit }, { stripeAccount: stripeAccountId });
 }
+
+/**
+ * Phase 33B — trigger a manual payout from the seller's Stripe Connect
+ * account into their bank. Stripe Connect TH defaults to weekly
+ * automatic payouts ; this endpoint exists so the demo can show a
+ * "Request payout" CTA on /seller/wallet without waiting a week.
+ *
+ * Stripe rejects (400) if amount > available balance ; the controller
+ * surfaces the message so the seller can adjust.
+ */
+export async function createManualPayout(
+  stripeAccountId: string,
+  amountSatang: number,
+): Promise<Stripe.Payout> {
+  const stripe = getClient();
+  return stripe.payouts.create(
+    { amount: amountSatang, currency: "thb" },
+    { stripeAccount: stripeAccountId },
+  );
+}
