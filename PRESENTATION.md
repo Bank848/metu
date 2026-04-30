@@ -131,16 +131,35 @@ with `status IN ('paid', 'fulfilled')` — so stores with zero sales still appea
 
 ## 4:15 — 4:45 · The database itself
 
-Alt-tab to **Adminer** (`http://localhost:8081`).
+Two options depending on the venue's network:
 
-> "Because the whole thing runs in Docker, I can show you the live schema."
+**Option A · Supabase dashboard** (production, Phase 28).
+Open `https://supabase.com/dashboard/project/<ref>` → **Table Editor**
+→ click any table.
 
-Click **orders** → **Select data**. Show the 16 seeded rows.
+> "Production runs on Supabase Postgres in Singapore. Same Postgres,
+> same Prisma schema as my laptop — Phase 28 was a connection-string
+> swap, no code change."
 
-> "Notice `cart_id` is a `UNIQUE` FK — one cart, one order. `transaction_id`
-> is nullable because `pending` and `cancelled` orders have no payment yet."
+Open **SQL Editor**, paste a single query:
+```sql
+SELECT type, count(*) FROM "transactions" GROUP BY type;
+```
 
-Click the **ER** link (or **Tables** → see 19 tables listed).
+> "27 tables in production, down from 35 — Phase 26 trimmed messaging,
+> Q&A, stock alerts, and the wallet/coin layer because we replaced
+> them with Stripe Connect (Phase 27)."
+
+**Option B · Local Adminer** (`http://localhost:8081`) if Wi-Fi is bad.
+Same `orders` walkthrough as before — point at the new Stripe columns:
+
+> "Notice `stripe_payment_intent_id` on `orders` and `stripe_account_id`
+> on `store`. Those are VARCHARs, not real FKs — Stripe is the system
+> of record for payment state, we just keep the link. Phase 27 added
+> these as columns instead of new tables, exactly because of the
+> 'don't duplicate external state in your DB' principle."
+
+Click **er-diagram** in admin (or **Tables** in Adminer → 27 entities).
 
 ---
 
@@ -176,9 +195,28 @@ Rehearse these so they feel natural on stage.
 2. **Browse filter** → "`JOIN product_n_tag` when tags are applied — that's the N:M junction working."
 3. **Cart coupon** → "Validation checks 5 conditions in a single query — active, date window, usage count below limit."
 4. **Checkout** → "`prisma.$transaction` wraps 5 mutations atomically. If any fails, nothing commits."
-5. **Seller line chart** → "`DATE_TRUNC('day', created_at)` is the textbook grouping for time-series."
-6. **Admin revenue-by-category** → "Five joins. This is what normalization pays us back with — flexible aggregation without data duplication."
-7. **Admin coupon-usage** → "`LEFT JOIN coupon_usage` + `COUNT` to show usage-vs-limit. Classic reporting pattern."
+5. **Stripe webhook** → "`stripe.webhooks.constructEvent` verifies the signature, then we dedupe on `event.id` via the audit log — webhooks idempotent without a dedicated table."
+6. **Seller wallet** → "No DB query at all. `/seller/wallet` calls `stripe.balance.retrieve` live — we deliberately don't materialise external state."
+7. **Admin revenue-by-category** → "Five joins. This is what normalization pays us back with — flexible aggregation without data duplication."
+8. **Admin coupon-usage** → "`LEFT JOIN coupon_usage` + `COUNT` to show usage-vs-limit. Classic reporting pattern."
+
+## Phase 26-28 talking points (defense Q&A)
+
+If the prof asks "why do you have so few tables compared to a typical
+e-commerce schema?" — these are the prepared answers:
+
+- **Stripe is the system of record for payment.** "We don't duplicate
+  Stripe's balance, payouts, or charge history in our DB. Order rows
+  carry `stripe_payment_intent_id` as a VARCHAR — that's a soft FK to
+  an external system. Saves us 5 tables and eliminates sync risk."
+- **Schema reduction is intentional.** "Phase 26 trimmed 8 entities
+  whose runtime states either lived elsewhere (Stripe) or weren't
+  exercised in this demo. The result is 27 tables that all earn their
+  keep — every one shows up in the live demo flow."
+- **Supabase migration was a connection string swap.** "Phase 28
+  proved the schema is portable — zero code changes, just two Fly
+  secrets updated. The migration replayed cleanly because we never
+  used Postgres-specific syntax outside of standard SQL."
 
 ## If something breaks live
 
