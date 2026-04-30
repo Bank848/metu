@@ -40,7 +40,11 @@ router.post("/verify-otp",        requireAuth(), ctrl.verifyOtp);
 // /all-others mounted BEFORE /:id so the literal path wins the
 // route match (Express matches by registration order within router).
 router.get("/sessions",                requireAuth(), ctrl.listSessions);
-router.delete("/sessions/all-others",  requireAuth(), ctrl.revokeAllOtherSessions);
+// Phase 35 — revoke-all-others is sensitive (one click signs every
+// other device out). Gate on requireRecent2FA(15) so a brief AFK +
+// hijacked cookie can't mass-logout. Per-row revoke stays open
+// because the user is just disconnecting one device.
+router.delete("/sessions/all-others",  requireAuth(), requireRecent2FA(15), ctrl.revokeAllOtherSessions);
 router.delete("/sessions/:id",         requireAuth(), ctrl.revokeSession);
 
 // Phase 16.2 — TOTP 2FA enrolment + management. Three endpoints,
