@@ -204,6 +204,13 @@ model Store {
   stripePayoutsEnabled Boolean   @default(false) @map("stripe_payouts_enabled")
   stripeChargesEnabled Boolean   @default(false) @map("stripe_charges_enabled")
 
+  // Phase 33 — appended to the Phase 27 Stripe block. Optional public
+  // contact channels surfaced in the buyer's receipt email
+  // ("Contact <store name>: email ..." / "phone ..."). Backfilled from
+  // owner's email at seed time so existing rows aren't blank.
+  contactEmail         String?   @map("contact_email") @db.VarChar(120)
+  phone                String?   @db.VarChar(20)
+
   owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
   businessType BusinessType @relation(fields: [businessTypeId], references: [typeId])
   products     Product[]
@@ -302,6 +309,14 @@ model ProductItem {
   // Optional URL to a free preview / sample (e.g. low-res PDF, audio
   // clip) so buyers can check the goods before paying.
   sampleUrl       String?        @map("sample_url") @db.Text
+  // Phase 33 — post-purchase delivery references. delivery_url is the
+  // PRIVATE link the buyer gets after payment (vs sample_url which is
+  // public preview). license_key_template lets the seller pre-define
+  // a pattern like "METU-XXXX-XXXX-XXXX" — XXXX gets replaced with a
+  // random 4-char alphanumeric at fulfillment. Null template falls
+  // back to a UUID v4.
+  deliveryUrl         String?    @map("delivery_url") @db.Text
+  licenseKeyTemplate  String?    @map("license_key_template") @db.VarChar(80)
   createdDate     DateTime       @default(now()) @map("created_date")
 
   product    Product     @relation(fields: [productId], references: [productId], onDelete: Cascade)
@@ -472,6 +487,15 @@ model OrderItem {
   couponId        Int?    @map("coupon_id")
   quantity        Int
   priceAtPurchase Decimal @map("price_at_purchase") @db.Decimal(10, 2)
+
+  // Phase 33 — snapshot of what was delivered to THIS buyer when the
+  // payment_intent.succeeded webhook fired. Snapshotted (not joined
+  // live) so a seller editing product_item.delivery_url later doesn't
+  // change what an existing buyer sees on /orders/[id]. Null until
+  // finalizeOrder() runs.
+  deliveredUrl    String?   @map("delivered_url") @db.Text
+  deliveredKey    String?   @map("delivered_key") @db.VarChar(80)
+  deliveredAt     DateTime? @map("delivered_at")
 
   order       Order       @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
   productItem ProductItem @relation(fields: [productItemId], references: [productItemId])

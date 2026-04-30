@@ -369,6 +369,12 @@ async function seedStores(sellers: U[], businessTypes: { typeId: number; name: s
         description: d.description,
         coverImage: d.cover,
         profileImage: d.profile,
+        // Phase 33 — backfill contact channels from the owner's
+        // account so the receipt email's "Contact <store>" footer has
+        // something to render. Real sellers can override these later
+        // via /seller/store/edit.
+        contactEmail: d.seller.email,
+        phone: "+66812345678",
       },
     });
     await prisma.storeStats.create({

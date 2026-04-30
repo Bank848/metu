@@ -18,6 +18,7 @@ import type { Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
 import { prisma } from "../db/prisma.js";
 import { getClient, isConfigured } from "../services/stripe.service.js";
+import { finalizeOrder } from "../services/orders.service.js";
 
 const router = Router();
 
@@ -127,6 +128,11 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
       stripeAmountReceived: pi.amount_received,
     },
   });
+
+  // Phase 33 — fulfilment + receipt email. finalizeOrder is idempotent
+  // (short-circuits if every line has deliveredAt set), so Stripe's
+  // webhook retry policy is safe to re-fire this handler.
+  await finalizeOrder(orderId);
 }
 
 async function onPaymentIntentFailed(event: Stripe.Event) {

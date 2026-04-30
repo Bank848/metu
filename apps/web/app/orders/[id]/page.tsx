@@ -27,6 +27,10 @@ type Order = {
     quantity: number;
     priceAtPurchase: string | number;
     coupon?: { code: string; discountType: string; discountValue: number } | null;
+    /** Phase 33 — delivery snapshot. null until finalizeOrder() runs. */
+    deliveredKey?: string | null;
+    deliveredUrl?: string | null;
+    deliveredAt?: string | null;
     productItem: {
       productItemId: number;
       deliveryMethod: string;
@@ -231,6 +235,34 @@ export default async function OrderDetail({
                             productId={it.productItem.product.productId}
                             alreadyReviewed={reviewedSet.has(it.productItem.product.productId)}
                           />
+                        </div>
+                      )}
+
+                      {/* Phase 33 — delivered goods. Renders only once
+                          finalizeOrder() has stamped the snapshot. */}
+                      {it.deliveredKey && (
+                        <div className="mt-3 rounded-lg border border-mint/30 bg-mint/5 p-3">
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-mint mb-1.5">
+                            License key
+                          </div>
+                          <code className="block font-mono text-sm text-white break-all select-all">
+                            {it.deliveredKey}
+                          </code>
+                        </div>
+                      )}
+                      {it.deliveredUrl && (
+                        <a
+                          href={it.deliveredUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-mint text-space-950 px-4 py-2 text-sm font-semibold hover:bg-mint/90"
+                        >
+                          Download
+                        </a>
+                      )}
+                      {!it.deliveredAt && (order.status === "paid" || order.status === "pending") && (
+                        <div className="mt-2 text-xs text-amber-300">
+                          Processing delivery…
                         </div>
                       )}
                     </div>

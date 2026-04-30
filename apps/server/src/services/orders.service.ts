@@ -1,8 +1,10 @@
+import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { isConfigured as stripeConfigured, createPaymentIntent } from "./stripe.service.js";
 import { getSettings } from "./settings.service.js";
+import { sendEmail } from "../utils/email.js";
 import type {
   CheckoutInput,
   CheckoutResponse,
@@ -220,6 +222,17 @@ export async function checkout(
     }
   }
 
+  // Phase 33 — demo orders (no Stripe path) jump straight to fulfilled
+  // because the order is already `paid` in the DB ; otherwise the
+  // buyer would never see their license keys / download links. Stripe
+  // orders go through finalizeOrder() via the webhook handler later.
+  if (!useStripe) {
+    await finalizeOrder(result.order.orderId).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("[orders.checkout] demo finalize failed:", err);
+    });
+  }
+
   return {
     orderId: result.order.orderId,
     transactionId: result.txn.transactionId,
@@ -229,6 +242,228 @@ export async function checkout(
     couponStoreId: resolvedCoupon ? resolvedCoupon.storeId : null,
     stripeClientSecret,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Phase 33 — order delivery
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Generate a license key from an optional template. The template uses
+ * `XXXX` as a placeholder for a 4-char random alphanumeric block (we
+ * use a 31-char alphabet with the visually-confusing 0/O/1/I/L stripped
+ * so customers don't mistype them). Null template falls back to a
+ * UUID v4.
+ *
+ * Examples:
+ *   template="METU-XXXX-XXXX-XXXX" → "METU-A3F2-9B11-CDEF"
+ *   template=null                  → "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+ */
+function generateLicenseKey(template: string | null): string {
+  if (!template) return crypto.randomUUID();
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  return template.replace(/X{4}/g, () => {
+    let block = "";
+    for (let i = 0; i < 4; i++) {
+      block += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    return block;
+  });
+}
+
+/**
+ * Finalise an order after Stripe confirms payment. Generates per-item
+ * delivery payloads (license keys for `license_key` / `email` methods,
+ * snapshots `delivery_url` for `download` / `streaming`), flips the
+ * order to `fulfilled`, then fires the receipt email.
+ *
+ * Idempotent: short-circuits when every item already has `deliveredAt`
+ * set, so webhook retries are safe to no-op.
+ *
+ * Demo orders (no Stripe charge) also pass through this function — the
+ * checkout path calls finalizeOrder() directly when the order skips
+ * Stripe, so demo buyers see the same delivery UI as real buyers.
+ */
+export async function finalizeOrder(orderId: number): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    include: { items: { include: { productItem: true } } },
+  });
+  if (!order) return;
+  if (order.items.length === 0) return;
+  if (order.items.every((i) => i.deliveredAt)) return;
+
+  for (const item of order.items) {
+    if (item.deliveredAt) continue;
+    const pi = item.productItem;
+    let key: string | null = null;
+    let url: string | null = null;
+    switch (pi.deliveryMethod) {
+      case "license_key":
+      case "email":
+        key = generateLicenseKey(pi.licenseKeyTemplate);
+        break;
+      case "download":
+      case "streaming":
+        url = pi.deliveryUrl ?? null;
+        break;
+    }
+    await prisma.orderItem.update({
+      where: { orderItemId: item.orderItemId },
+      data: { deliveredKey: key, deliveredUrl: url, deliveredAt: new Date() },
+    });
+  }
+
+  await prisma.order.update({
+    where: { orderId },
+    data: { status: "fulfilled" },
+  });
+
+  // Fire-and-forget email; receipt failures must NOT roll back the
+  // delivery — the buyer can always re-download from /orders/[id].
+  sendOrderReceipt(orderId).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[order] receipt email failed:", err);
+  });
+}
+
+/**
+ * Render + send the buyer's receipt email. Items are grouped by store
+ * so the email reads "here's what you got from Store A / Store B / ..."
+ * with each store's contact info inline. Triggered by finalizeOrder()
+ * after fulfilment ; never called from the checkout path directly.
+ */
+export async function sendOrderReceipt(orderId: number): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    include: {
+      cart: { include: { user: { select: { email: true, firstName: true } } } },
+      items: {
+        include: {
+          productItem: {
+            include: {
+              product: {
+                include: {
+                  store: {
+                    select: {
+                      storeId: true,
+                      name: true,
+                      contactEmail: true,
+                      phone: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!order) return;
+  const buyer = order.cart?.user;
+  if (!buyer?.email) return;
+
+  // Group items by store so the email reads as one section per store
+  // (multi-store cart was a documented requirement even though the
+  // current Stripe flow constrains to single-store at checkout time).
+  type Store = NonNullable<typeof order.items[number]["productItem"]["product"]["store"]>;
+  type Bucket = { store: Store; lines: typeof order.items };
+  const byStore = new Map<number, Bucket>();
+  for (const it of order.items) {
+    const sid = it.productItem.product.store.storeId;
+    const bucket = byStore.get(sid) ?? { store: it.productItem.product.store, lines: [] };
+    bucket.lines.push(it);
+    byStore.set(sid, bucket);
+  }
+  const stores = [...byStore.values()];
+
+  const subject =
+    stores.length === 1
+      ? `Your METU order #${orderId} — items from ${stores[0].store.name}`
+      : `Your METU order #${orderId} — items from ${stores.length} stores`;
+
+  // Plain-text body
+  const textLines: string[] = [
+    `Hi ${buyer.firstName},`,
+    "",
+    "Thanks for your purchase. Your payment has cleared and the items below are ready.",
+    "",
+  ];
+  for (const { store, lines } of stores) {
+    textLines.push(`── ${store.name} ──`);
+    for (const it of lines) {
+      const name = it.productItem.product.name;
+      textLines.push(`  ${it.quantity}× ${name}`);
+      if (it.deliveredKey) textLines.push(`     License key: ${it.deliveredKey}`);
+      if (it.deliveredUrl) textLines.push(`     Download: ${it.deliveredUrl}`);
+    }
+    const contact: string[] = [];
+    if (store.contactEmail) contact.push(`email ${store.contactEmail}`);
+    if (store.phone) contact.push(`phone ${store.phone}`);
+    if (contact.length) textLines.push(`  Contact ${store.name}: ${contact.join(" · ")}`);
+    textLines.push("");
+  }
+  textLines.push(
+    `View on the site: https://metu.fly.dev/orders/${orderId}`,
+    "",
+    "— METU Marketplace",
+  );
+
+  // Minimal inline-styled HTML mirror — kept simple for email-client
+  // compat (no <style> blocks, no external CSS).
+  const escape = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const htmlParts: string[] = [
+    `<div style="font-family: -apple-system, Segoe UI, sans-serif; max-width: 560px; margin: 0 auto; color: #0f172a;">`,
+    `<h2 style="color:#0f172a; margin: 0 0 12px;">Order #${orderId} delivered</h2>`,
+    `<p style="margin: 0 0 16px;">Hi ${escape(buyer.firstName)}, your payment cleared and the items below are ready.</p>`,
+  ];
+  for (const { store, lines } of stores) {
+    htmlParts.push(
+      `<div style="border:1px solid #e2e8f0; border-radius:8px; padding:14px 16px; margin-bottom:14px;">`,
+      `<div style="background:#10b981; color:white; font-weight:600; padding:6px 10px; border-radius:4px; display:inline-block; margin-bottom:10px;">${escape(store.name)}</div>`,
+    );
+    for (const it of lines) {
+      const name = escape(it.productItem.product.name);
+      htmlParts.push(
+        `<div style="margin: 8px 0; padding: 8px; background:#f8fafc; border-radius:4px;">`,
+        `<div style="font-weight:600;">${it.quantity}× ${name}</div>`,
+      );
+      if (it.deliveredKey) {
+        htmlParts.push(
+          `<div style="font-family:ui-monospace,monospace; background:#0f172a; color:#a7f3d0; padding:6px 10px; border-radius:4px; margin-top:6px; word-break:break-all;">${escape(it.deliveredKey)}</div>`,
+        );
+      }
+      if (it.deliveredUrl) {
+        htmlParts.push(
+          `<a href="${escape(it.deliveredUrl)}" style="display:inline-block; margin-top:6px; background:#10b981; color:white; padding:8px 14px; border-radius:6px; text-decoration:none; font-weight:600;">Download</a>`,
+        );
+      }
+      htmlParts.push(`</div>`);
+    }
+    const contact: string[] = [];
+    if (store.contactEmail) contact.push(`email ${escape(store.contactEmail)}`);
+    if (store.phone) contact.push(`phone ${escape(store.phone)}`);
+    if (contact.length) {
+      htmlParts.push(
+        `<div style="font-size:12px; color:#64748b; margin-top:8px;">Contact ${escape(store.name)}: ${contact.join(" · ")}</div>`,
+      );
+    }
+    htmlParts.push(`</div>`);
+  }
+  htmlParts.push(
+    `<p style="font-size:13px; color:#64748b; margin-top:20px;">View this order: <a href="https://metu.fly.dev/orders/${orderId}" style="color:#10b981;">metu.fly.dev/orders/${orderId}</a></p>`,
+    `<p style="font-size:11px; color:#94a3b8; margin-top:24px;">— METU Marketplace</p>`,
+    `</div>`,
+  );
+
+  await sendEmail({
+    to: buyer.email,
+    subject,
+    html: htmlParts.join("\n"),
+    text: textLines.join("\n"),
+  });
 }
 
 /**
