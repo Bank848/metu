@@ -72,9 +72,9 @@ const CATEGORY_COLUMN_ORDER = [
 const HEADER_HEIGHT = 28;
 const ROW_HEIGHT = 22;
 const NODE_WIDTH = 240;
-const COLUMN_GAP = 90;
+const COLUMN_GAP = 110;
 const ROW_GAP = 60;
-const CANVAS_PAD = 60;
+const CANVAS_PAD = 90;
 
 function nodeHeight(e: ErEntity): number {
   return HEADER_HEIGHT + e.fields.length * ROW_HEIGHT;
@@ -85,7 +85,7 @@ interface PlacedNode {
   centerX: number; centerY: number;
 }
 
-function placeOnGrid(entities: ErEntity[]): { placed: PlacedNode[]; width: number; height: number } {
+function placeOnGrid(entities: ErEntity[]): { placed: PlacedNode[]; width: number; height: number; colByTable: Map<string, number> } {
   const groups = new Map<string, ErEntity[]>();
   for (const c of CATEGORY_COLUMN_ORDER) groups.set(c, []);
   for (const e of entities) {
@@ -94,8 +94,10 @@ function placeOnGrid(entities: ErEntity[]): { placed: PlacedNode[]; width: numbe
     groups.get(cat)!.push(e);
   }
   const placed: PlacedNode[] = [];
+  const colByTable = new Map<string, number>();
   let cursorX = CANVAS_PAD;
   let maxBottom = CANVAS_PAD;
+  let colIdx = 0;
   for (const cat of CATEGORY_COLUMN_ORDER) {
     const list = groups.get(cat) ?? [];
     if (list.length === 0) continue;
@@ -106,12 +108,14 @@ function placeOnGrid(entities: ErEntity[]): { placed: PlacedNode[]; width: numbe
         id: e.table, x: cursorX, y: cursorY, width: NODE_WIDTH, height: h,
         centerX: cursorX + NODE_WIDTH / 2, centerY: cursorY + h / 2,
       });
+      colByTable.set(e.table, colIdx);
       cursorY += h + ROW_GAP;
     }
     if (cursorY - ROW_GAP > maxBottom) maxBottom = cursorY - ROW_GAP;
     cursorX += NODE_WIDTH + COLUMN_GAP;
+    colIdx++;
   }
-  return { placed, width: cursorX - COLUMN_GAP + CANVAS_PAD, height: maxBottom + CANVAS_PAD };
+  return { placed, width: cursorX - COLUMN_GAP + CANVAS_PAD, height: maxBottom + CANVAS_PAD, colByTable };
 }
 
 interface LayoutedEdge {
@@ -129,7 +133,7 @@ function colIndexFor(x: number): number {
   return Math.max(0, Math.round((x - CANVAS_PAD - NODE_WIDTH / 2) / COLUMN_PITCH));
 }
 
-function routeEdges(placed: PlacedNode[], rels: ErRelationship[]): LayoutedEdge[] {
+function routeEdges(placed: PlacedNode[], rels: ErRelationship[], colByTable: Map<string, number>, canvasHeight: number): LayoutedEdge[] {
   const byId = new Map(placed.map((p) => [p.id, p]));
   const sideUsage = new Map<string, number>();
   function bumpSide(k: string): number { const n = (sideUsage.get(k) ?? 0) + 1; sideUsage.set(k, n); return n; }
@@ -147,8 +151,8 @@ function routeEdges(placed: PlacedNode[], rels: ErRelationship[]): LayoutedEdge[
       const bSide = aOnRight ? "left" : "right";
       const aIdx = bumpSide(`${r.from}:${aSide}`);
       const bIdx = bumpSide(`${r.to}:${bSide}`);
-      const aOff = ((aIdx - 1) % 5) * 8 - 16;
-      const bOff = ((bIdx - 1) % 5) * 8 - 16;
+      const aOff = ((aIdx - 1) % 8) * 14 - 49;
+      const bOff = ((bIdx - 1) % 8) * 14 - 49;
       aPort = { x: aOnRight ? a.x + a.width + STUB : a.x - STUB, y: a.centerY + aOff };
       bPort = { x: aOnRight ? b.x - STUB : b.x + b.width + STUB, y: b.centerY + bOff };
     } else {
@@ -164,16 +168,36 @@ function routeEdges(placed: PlacedNode[], rels: ErRelationship[]): LayoutedEdge[
     }
     let points: Array<{ x: number; y: number }>;
     if (horizontal) {
-      const aColIdx = colIndexFor(a.centerX);
-      const bColIdx = colIndexFor(b.centerX);
-      const cMin = Math.min(aColIdx, bColIdx);
-      const cMax = Math.max(aColIdx, bColIdx) - 1;
-      const gapCount = Math.max(1, cMax - cMin + 1);
-      const gapKey = `${cMin}->${cMax}`;
-      const gapPick = bumpSide(`gap:${gapKey}`);
-      const chosenGap = cMin + ((gapPick - 1) % gapCount);
-      const bendX = gapCenterX(chosenGap);
-      points = [aPort, { x: bendX, y: aPort.y }, { x: bendX, y: bPort.y }, bPort];
+      const aColIdx = colByTable.get(r.from) ?? colIndexFor(a.centerX);
+      const bColIdx = colByTable.get(r.to) ?? colIndexFor(b.centerX);
+      const colDelta = Math.abs(aColIdx - bColIdx);
+      if (colDelta <= 1) {
+        const bendCol = Math.min(aColIdx, bColIdx);
+        const bendX = gapCenterX(bendCol);
+        points = [aPort, { x: bendX, y: aPort.y }, { x: bendX, y: bPort.y }, bPort];
+      } else {
+        const aOnRight = aColIdx < bColIdx;
+        const exitGapCol = aOnRight ? aColIdx : aColIdx - 1;
+        const enterGapCol = aOnRight ? bColIdx - 1 : bColIdx;
+        const exitX = gapCenterX(exitGapCol);
+        const enterX = gapCenterX(enterGapCol);
+        const topHits = sideUsage.get("hwy:top") ?? 0;
+        const botHits = sideUsage.get("hwy:bot") ?? 0;
+        const useTop = topHits <= botHits;
+        const lane = bumpSide(useTop ? "hwy:top" : "hwy:bot");
+        const laneOffset = ((lane - 1) % 6) * 8;
+        const highwayY = useTop
+          ? CANVAS_PAD / 2 - laneOffset
+          : canvasHeight - CANVAS_PAD / 2 + laneOffset;
+        points = [
+          aPort,
+          { x: exitX, y: aPort.y },
+          { x: exitX, y: highwayY },
+          { x: enterX, y: highwayY },
+          { x: enterX, y: bPort.y },
+          bPort,
+        ];
+      }
     } else {
       const midY = (aPort.y + bPort.y) / 2;
       points = [aPort, { x: aPort.x, y: midY }, { x: bPort.x, y: midY }, bPort];
@@ -221,8 +245,8 @@ function renderEntityCard(entity: ErEntity, x: number, y: number, w: number, h: 
 }
 
 async function main() {
-  const { placed, width: W, height: H } = placeOnGrid(ER_ENTITIES);
-  const edges = routeEdges(placed, ER_RELATIONSHIPS);
+  const { placed, width: W, height: H, colByTable } = placeOnGrid(ER_ENTITIES);
+  const edges = routeEdges(placed, ER_RELATIONSHIPS, colByTable, H);
   const entityById = new Map(ER_ENTITIES.map((e) => [e.table, e]));
 
   let body = "";

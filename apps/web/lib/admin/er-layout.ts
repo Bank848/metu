@@ -78,9 +78,9 @@ const CATEGORY_COLUMN_ORDER: ErCategory[] = [
   "system",
 ];
 
-const COLUMN_GAP = 90;   // horizontal gap between category columns
+const COLUMN_GAP = 110;  // horizontal gap between category columns
 const ROW_GAP = 60;      // vertical gap between cards inside a column
-const CANVAS_PAD = 60;
+const CANVAS_PAD = 90;   // generous so highway routes have airspace
 
 interface PlacedNode {
   id: string;
@@ -101,6 +101,10 @@ function placeOnCategoryGrid(entities: ErEntity[]): {
   placed: PlacedNode[];
   width: number;
   height: number;
+  /** Map<tableName, columnIndex> after empty categories are dropped — used
+   *  by the edge router to compute inter-column gap centres without having
+   *  to recount empty columns. */
+  colByTable: Map<string, number>;
 } {
   // Group entities by category, preserving the entity order from
   // er-schema.ts (which mirrors schema.prisma declaration order).
@@ -113,11 +117,16 @@ function placeOnCategoryGrid(entities: ErEntity[]): {
   }
 
   const placed: PlacedNode[] = [];
+  const colByTable = new Map<string, number>();
   let cursorX = CANVAS_PAD;
   let maxBottom = CANVAS_PAD;
+  let colIdx = 0;
 
   for (const cat of CATEGORY_COLUMN_ORDER) {
     const list = groups.get(cat) ?? [];
+    // Phase 26 trim left some categories (notably "wallet") empty —
+    // skip them here so the layout doesn't reserve a useless column
+    // gap that wastes horizontal real estate + stretches edges.
     if (list.length === 0) continue;
 
     let cursorY = CANVAS_PAD;
@@ -132,17 +141,19 @@ function placeOnCategoryGrid(entities: ErEntity[]): {
         centerX: cursorX + NODE_WIDTH / 2,
         centerY: cursorY + h / 2,
       });
+      colByTable.set(e.table, colIdx);
       cursorY += h + ROW_GAP;
     }
 
     if (cursorY - ROW_GAP > maxBottom) maxBottom = cursorY - ROW_GAP;
     cursorX += NODE_WIDTH + COLUMN_GAP;
+    colIdx++;
   }
 
   // Total canvas size includes padding on the trailing side.
   const width = cursorX - COLUMN_GAP + CANVAS_PAD;
   const height = maxBottom + CANVAS_PAD;
-  return { placed, width, height };
+  return { placed, width, height, colByTable };
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -168,7 +179,7 @@ export function layoutEr(
   relationships: ErRelationship[],
 ): LayoutResult {
   // Step 1 — pre-place nodes on the category grid.
-  const { placed, width, height } = placeOnCategoryGrid(entities);
+  const { placed, width, height, colByTable } = placeOnCategoryGrid(entities);
   const placedById = new Map(placed.map((p) => [p.id, p]));
 
   // Step 2 — feed positions into dagre as fixed nodes so it only
@@ -228,10 +239,13 @@ export function layoutEr(
       const bSide = aOnRight ? "left" : "right";
       const aIdx = bumpSide(`${r.from}:${aSide}`);
       const bIdx = bumpSide(`${r.to}:${bSide}`);
-      // Spread successive ports vertically along the side so
-      // multiple FKs from the same entity don't merge into one line.
-      const aOffset = ((aIdx - 1) % 5) * 8 - 16;
-      const bOffset = ((bIdx - 1) % 5) * 8 - 16;
+      // Spread successive ports vertically along the side so multiple
+      // FKs from the same entity don't merge into one line. mod 8 ×
+      // 14 px = up to ±56 px range, big enough to keep separate
+      // markers visually distinct around busy hubs (e.g. USERS gets
+      // 11 inbound FKs).
+      const aOffset = ((aIdx - 1) % 8) * 14 - 49;
+      const bOffset = ((bIdx - 1) % 8) * 14 - 49;
       aPort = {
         x: aOnRight ? a.x + a.width + STUB : a.x - STUB,
         y: a.centerY + aOffset,
@@ -258,34 +272,65 @@ export function layoutEr(
       };
     }
 
-    // Manhattan polyline. We snap the bend X to an inter-column gap
-    // centre so vertical runs always sit in whitespace between two
-    // columns, never inside a card body. This eliminates the visual
-    // bug where a marker at the end of an edge appeared to overlap
-    // an unrelated card's border.
+    // Pick a routing strategy based on column distance:
+    //   - Adjacent columns (|Δcol| == 1) → simple 4-point Manhattan
+    //     polyline. The bend lands in the single gap between source
+    //     and target; both horizontal segments stay short, no card
+    //     bodies in the way.
+    //   - Non-adjacent columns (|Δcol| ≥ 2) → 6-point HIGHWAY route.
+    //     Exit source via its adjacent gap, climb to a "highway" row
+    //     above all cards (or below — whichever has fewer existing
+    //     edges), sweep across in pure whitespace, drop into the gap
+    //     immediately before target, enter horizontally. Eliminates
+    //     the bug where the long horizontal stretch at aPort.y or
+    //     bPort.y crossed unrelated cards in middle columns.
     let points: Array<{ x: number; y: number }>;
     if (horizontal) {
-      const aColIdx = colIndexFor(a.centerX);
-      const bColIdx = colIndexFor(b.centerX);
-      // Choose a gap strictly between the two columns. For adjacent
-      // columns there's only one option (the gap between them); for
-      // non-adjacent we pick the gap immediately on the source side
-      // so the long horizontal segment runs at *target* y, then
-      // snaps over once at the target boundary. Distribute parallel
-      // edges across multiple gap candidates to fan them out.
-      const cMin = Math.min(aColIdx, bColIdx);
-      const cMax = Math.max(aColIdx, bColIdx) - 1;
-      const gapCount = Math.max(1, cMax - cMin + 1);
-      const gapKey = `${cMin}->${cMax}`;
-      const gapPick = bumpSide(`gap:${gapKey}`);
-      const chosenGap = cMin + ((gapPick - 1) % gapCount);
-      const bendX = gapCenterX(chosenGap);
-      points = [
-        aPort,
-        { x: bendX, y: aPort.y },
-        { x: bendX, y: bPort.y },
-        bPort,
-      ];
+      const aColIdx = colByTable.get(r.from) ?? colIndexFor(a.centerX);
+      const bColIdx = colByTable.get(r.to)   ?? colIndexFor(b.centerX);
+      const colDelta = Math.abs(aColIdx - bColIdx);
+
+      if (colDelta <= 1) {
+        // Adjacent columns: bend in the single gap between them.
+        const bendCol = Math.min(aColIdx, bColIdx);
+        const bendX = gapCenterX(bendCol);
+        points = [
+          aPort,
+          { x: bendX, y: aPort.y },
+          { x: bendX, y: bPort.y },
+          bPort,
+        ];
+      } else {
+        // HIGHWAY route. Exit via the gap RIGHT after source's column,
+        // sweep along a highway above/below all cards, drop into the
+        // gap RIGHT before target's column, enter target.
+        const aOnRight = aColIdx < bColIdx;
+        // gap immediately on the *outbound* side of source
+        const exitGapCol = aOnRight ? aColIdx : aColIdx - 1;
+        // gap immediately on the *inbound* side of target
+        const enterGapCol = aOnRight ? bColIdx - 1 : bColIdx;
+        const exitX = gapCenterX(exitGapCol);
+        const enterX = gapCenterX(enterGapCol);
+        // Pick top vs bottom highway based on how many edges already
+        // routed there — spread the load. Each highway is offset by
+        // edge index so parallel highway edges don't overlap.
+        const topHits = sideUsage.get("hwy:top") ?? 0;
+        const botHits = sideUsage.get("hwy:bot") ?? 0;
+        const useTop = topHits <= botHits;
+        const lane = bumpSide(useTop ? "hwy:top" : "hwy:bot");
+        const laneOffset = ((lane - 1) % 6) * 8;
+        const highwayY = useTop
+          ? CANVAS_PAD / 2 - laneOffset           // 45..-3 from top edge
+          : height - CANVAS_PAD / 2 + laneOffset; // 45.. below cards
+        points = [
+          aPort,
+          { x: exitX, y: aPort.y },     // 1: horizontal stub from source to exit gap
+          { x: exitX, y: highwayY },    // 2: vertical climb to highway
+          { x: enterX, y: highwayY },   // 3: horizontal sweep along highway
+          { x: enterX, y: bPort.y },    // 4: vertical drop from highway to target row
+          bPort,                         // 5: horizontal stub into target
+        ];
+      }
     } else {
       const midY = (aPort.y + bPort.y) / 2;
       points = [
