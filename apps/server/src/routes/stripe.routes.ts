@@ -133,18 +133,35 @@ adminRouter.post(
       if (!Number.isFinite(orderId)) {
         throw new AppError(400, "InvalidId");
       }
-      const order = await prisma.order.findUnique({ where: { orderId } });
+      // Direct-charge refund: need the seller's Stripe account ID
+      // (the charge lived there, not on the platform). We look it up
+      // via the order's first OrderItem → Product → Store.
+      const order = await prisma.order.findUnique({
+        where: { orderId },
+        include: {
+          items: {
+            take: 1,
+            include: { productItem: { include: { product: { include: { store: true } } } } },
+          },
+        },
+      });
       if (!order) throw new AppError(404, "OrderNotFound");
       if (!order.stripePaymentIntentId) {
         throw new AppError(400, "NotStripeCharged",
           "This order was placed in demo mode (no Stripe charge). Mark it refunded manually instead.");
+      }
+      const sellerStripeAccountId =
+        order.items[0]?.productItem?.product?.store?.stripeAccountId;
+      if (!sellerStripeAccountId) {
+        throw new AppError(400, "MissingStripeAccount",
+          "Could not resolve the seller's Stripe Connect account for this order.");
       }
       // `amount` body param: optional, in baht. Omit for full refund.
       const amountSatang = req.body?.amountBaht
         ? Math.round(Number(req.body.amountBaht) * 100)
         : undefined;
 
-      const refund = await refundOrder(order.stripePaymentIntentId, amountSatang);
+      const refund = await refundOrder(order.stripePaymentIntentId, sellerStripeAccountId, amountSatang);
 
       // Webhook will write the refund details ; we update optimistically
       // here so the admin UI sees the change immediately.

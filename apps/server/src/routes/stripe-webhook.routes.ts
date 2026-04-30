@@ -33,23 +33,36 @@ router.post(
       return res.status(503).json({ error: "StripeNotConfigured" });
     }
     const sig = req.header("stripe-signature");
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!sig || !webhookSecret) {
+    // Support multiple signing secrets — one webhook endpoint can be
+    // shared across "Your account" and "Connected accounts" sources,
+    // each with its own secret. STRIPE_WEBHOOK_SECRET may be a single
+    // value or comma-separated list ; we try each until one verifies.
+    const rawSecret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
+    const candidateSecrets = rawSecret
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!sig || candidateSecrets.length === 0) {
       return res.status(400).json({ error: "MissingSignature" });
     }
 
-    let event: Stripe.Event;
-    try {
-      event = getClient().webhooks.constructEvent(
-        req.body as Buffer,
-        sig,
-        webhookSecret,
-      );
-    } catch (err) {
-      // Bad signature → 400 (no retry). We log to console only because
-      // an attacker spamming /webhooks/stripe shouldn't pollute audit_log.
+    let event: Stripe.Event | null = null;
+    let lastErr: unknown = null;
+    for (const secret of candidateSecrets) {
+      try {
+        event = getClient().webhooks.constructEvent(
+          req.body as Buffer,
+          sig,
+          secret,
+        );
+        break;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    if (!event) {
       // eslint-disable-next-line no-console
-      console.error("[stripe-webhook] signature verification failed:", err);
+      console.error("[stripe-webhook] signature verification failed against all configured secrets:", lastErr);
       return res.status(400).json({ error: "InvalidSignature" });
     }
 
