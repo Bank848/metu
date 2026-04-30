@@ -88,10 +88,18 @@ export async function checkout(
 
   let subtotal = new Prisma.Decimal(0);
   let couponEligibleSubtotal = new Prisma.Decimal(0);
+  // Phase 38C — a master coupon (storeId === null) is platform-wide and
+  // discounts every line in the cart. Per-store coupons keep the old
+  // behaviour: only lines belonging to the coupon's store count.
+  const couponIsMaster = resolvedCoupon !== null && resolvedCoupon.storeId === null;
   for (const ci of selectedItems) {
     const line = unitPrice(ci).mul(ci.quantity);
     subtotal = subtotal.add(line);
-    if (resolvedCoupon && ci.productItem.product.storeId === resolvedCoupon.storeId) {
+    if (
+      resolvedCoupon &&
+      (couponIsMaster ||
+        ci.productItem.product.storeId === resolvedCoupon.storeId)
+    ) {
       couponEligibleSubtotal = couponEligibleSubtotal.add(line);
     }
   }
@@ -159,10 +167,13 @@ export async function checkout(
             productItemId: ci.productItemId,
             quantity: ci.quantity,
             priceAtPurchase: unitPrice(ci),
-            // Stamp couponId only on lines from the coupon's store.
+            // Phase 38C — master coupon (storeId === null) stamps every
+            // line ; per-store coupon stamps only its own lines so the
+            // receipt shows which lines were actually discounted.
             couponId:
               resolvedCoupon &&
-              ci.productItem.product.storeId === resolvedCoupon.storeId
+              (couponIsMaster ||
+                ci.productItem.product.storeId === resolvedCoupon.storeId)
                 ? resolvedCoupon.couponId
                 : null,
           })),

@@ -512,7 +512,15 @@ model OrderItem {
 
 model Coupon {
   couponId      Int          @id @default(autoincrement()) @map("coupon_id")
-  storeId       Int          @map("store_id")
+  // Phase 38C — storeId is now nullable to support "Master Coupons":
+  // platform-wide promo codes that work on any cart line, regardless
+  // of which store sold the item. The existing per-store flow keeps
+  // working when storeId is set ; null means platform-wide.
+  // Pair this with usage_limit=1 (or any small N) to limit how many
+  // times the master coupon can be redeemed across the whole platform.
+  // Per-user uniqueness is enforced separately via the @@unique on
+  // coupon_usage(coupon_id, user_id) — see Phase 38B.
+  storeId       Int?         @map("store_id")
   code          String       @db.VarChar(50)
   startDate     DateTime     @map("start_date")
   endDate       DateTime     @map("end_date")
@@ -521,10 +529,17 @@ model Coupon {
   discountValue Int          @map("discount_value")
   isActive      Boolean      @default(true) @map("is_active")
 
-  store      Store         @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
+  // Cascade still applies — when a store is deleted its per-store
+  // coupons go with it. Master coupons (storeId=null) have no store
+  // to cascade from, so they're unaffected by any store deletion.
+  store      Store?        @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
   usages     CouponUsage[]
   orderItems OrderItem[]
 
+  // Per-store unique on (storeId, code). Postgres treats NULL as
+  // distinct by default, so two master coupons could share a code
+  // through this index alone — that's prevented by a partial unique
+  // index added in the migration: WHERE store_id IS NULL.
   @@unique([storeId, code])
   @@index([code])
   @@index([isActive])
