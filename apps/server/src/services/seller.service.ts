@@ -383,10 +383,10 @@ export async function createProduct(storeId: number, input: ProductInput) {
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
-          // Phase 17.2 — keep coinPrice in lock-step with the THB
-          // price (1฿ = 10 coins). The DB DEFAULT is 0 which would
-          // mean "Free" if we ever forgot to write it explicitly.
-          coinPrice: Math.round(Number(it.price) * 10),
+          // Phase 26 — coinPrice column dropped (coin layer removed
+          // when PromptPay was retired). THB is the only canonical
+          // price now ; Stripe handles the satang conversion at
+          // checkout time.
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
           sampleUrl: it.sampleUrl,
@@ -588,8 +588,7 @@ export async function patchVariant(
   const data: Record<string, unknown> = {};
   if (input.price !== undefined) {
     data.price = new Prisma.Decimal(input.price);
-    // Phase 17.2 — bulk price edit also rewrites coinPrice in lock-step.
-    data.coinPrice = Math.round(Number(input.price) * 10);
+    // Phase 26 — coinPrice column dropped, THB-only pricing now.
   }
   if (input.discountPercent !== undefined) data.discountPercent = input.discountPercent;
   if (input.quantity !== undefined) data.quantity = input.quantity;

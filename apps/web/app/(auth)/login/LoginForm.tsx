@@ -155,12 +155,37 @@ export function LoginForm({
     }
   }
 
-  // Build the Google sign-in URL. Phase 14.2: better-auth's catch-all
-  // responds to GET /api/auth/better/sign-in/google with a 302 to
-  // Google's OAuth consent screen.
-  const callbackURL = encodeURIComponent(next ?? "/");
-  const errorCallbackURL = encodeURIComponent("/login?error=email-exists");
-  const googleHref = `/api/auth/better/sign-in/google?callbackURL=${callbackURL}&errorCallbackURL=${errorCallbackURL}`;
+  // Phase 30 — better-auth v1.6.9 ditched the GET catch-all and only
+  // exposes social sign-in via POST /sign-in/social with a JSON body.
+  // We do the fetch manually and follow the {url} response back to
+  // Google. Keeping this as a client-side handler (not <a href>) means
+  // the BFF cookie jar is preserved across the redirect.
+  const callbackURL = next ?? "/";
+  const errorCallbackURL = "/login?error=email-exists";
+  async function onClickGoogle(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    setError(null);
+    try {
+      const res = await fetch(`/api/auth/better/sign-in/social`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "google",
+          callbackURL,
+          errorCallbackURL,
+        }),
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setError("Google sign-in didn't start. Try again or use email + password.");
+    } catch {
+      setError("Network error reaching Google sign-in.");
+    }
+  }
 
   const isCredentialsStep = step === "credentials";
   const submitLabel = busy
@@ -202,13 +227,14 @@ export function LoginForm({
 
       {googleEnabled && step === "credentials" && (
         <>
-          <a
-            href={googleHref}
+          <button
+            type="button"
+            onClick={onClickGoogle}
             className="flex items-center justify-center gap-2 w-full rounded-xl border border-white/10 bg-white text-gray-900 px-4 py-2.5 mb-4 font-semibold hover:bg-gray-100 transition-colors"
           >
             <GoogleGlyph />
             Continue with Google
-          </a>
+          </button>
           <div className="relative my-4 flex items-center">
             <div className="flex-grow border-t border-white/10" />
             <span className="mx-3 text-xs uppercase tracking-wider text-ink-dim">
