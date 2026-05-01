@@ -53,7 +53,7 @@ export async function Footer() {
                 <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />
                 CPE241 · KMUTT · Group 8
               </span>
-              <span className="text-[11px] text-ink-dim font-mono">v0.9 · demo build</span>
+              <span className="text-[11px] text-ink-dim font-mono">v1.0</span>
             </div>
           </div>
 
@@ -78,9 +78,9 @@ export async function Footer() {
               <FooterLink href="/become-seller">Start selling</FooterLink>
             </FooterColumn>
 
-            <FooterColumn title="Demo" titleHref="/login" accent="coral">
-              <FooterLink href="/features">Feature tour</FooterLink>
-              <FooterLink href="/login">Demo accounts</FooterLink>
+            <FooterColumn title="Explore" titleHref="/feature-tour" accent="coral">
+              <FooterLink href="/feature-tour">Feature tour</FooterLink>
+              <FooterLink href="/login">Sign in</FooterLink>
               {isAdmin && <FooterLink href="/admin">Admin panel</FooterLink>}
               <FooterLink href="/my-reviews">My reviews</FooterLink>
             </FooterColumn>

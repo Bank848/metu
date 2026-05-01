@@ -59,10 +59,10 @@ export default async function LoginPage({ searchParams }: { searchParams: { next
           <aside className="md:col-span-2">
             <div className="rounded-2xl border border-brand-yellow/30 bg-gradient-to-br from-brand-yellow/10 to-transparent p-6 shadow-pop">
               <div className="inline-block rounded-full bg-brand-yellow px-2.5 py-0.5 text-xs font-bold text-space-black mb-3">
-                Demo accounts
+                Sample accounts
               </div>
               <p className="text-sm text-ink-secondary mb-4">
-                Click to pre-fill the login form — useful during live demos.
+                คลิกเพื่อ pre-fill ฟอร์ม login ของ admin / seller / buyer
               </p>
               <div className="space-y-2">
                 <DemoChip label="Admin"  email="admin@metu.dev"  password="Admin#123" />
@@ -70,9 +70,8 @@ export default async function LoginPage({ searchParams }: { searchParams: { next
                 <DemoChip label="Buyer"  email="buyer@metu.dev"  password="Buyer#123" />
               </div>
               <p className="mt-5 text-[11px] text-ink-dim font-mono leading-relaxed">
-                Seed script creates these accounts with rich story data
-                (2 past orders for the buyer, 9 products for the seller,
-                a realistic marketplace overview for the admin).
+                Seed script populates buyer ด้วย 2 past orders, seller ด้วย 9 products,
+                admin เห็น marketplace overview เต็ม
               </p>
             </div>
             <div className="mt-4 rounded-2xl border border-white/10 bg-surface-2/60 p-5">

@@ -71,7 +71,7 @@ const SECTIONS: FeatureSection[] = [
     bullets: [
       "PaymentIntent สร้างบน connected account เก็บ application_fee_amount",
       "Webhook idempotency ผ่าน AuditLog.meta JSONB ไม่ต้องเพิ่ม table",
-      "Manual payout button บน /seller/wallet สำหรับ demo",
+      "Manual payout button บน /seller/wallet (TH default รายสัปดาห์)",
     ],
     cta: { href: "/seller/wallet", label: "ดู /seller/wallet" },
     accent: "pink",

@@ -79,7 +79,7 @@ function Hero({ stats }: { stats: Stats }) {
                   to lean on; one custom SVG in the eyebrow tells visitors
                   the brand exists before they reach the wordmark below. */}
               <BrandMark className="h-3 w-3 text-metu-yellow" title="" />
-              CPE241 · Group 8 · Live Demo
+              CPE241 · Group 8
             </Badge>
           </div>
           <h1 className="font-display text-6xl md:text-8xl font-black tracking-tighter leading-[0.92] mb-6">

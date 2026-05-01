@@ -1,10 +1,11 @@
 "use client";
-import { ChevronDown, Globe } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { LOCALES, LOCALE_NAMES, LOCALE_FLAGS } from "@/lib/i18n/messages";
+import { LOCALES, LOCALE_NAMES } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
+import { LocaleFlag } from "@/components/LocaleFlag";
 
 /**
  * Two-language picker for the TopNav. Sets the locale on the client
@@ -74,13 +75,8 @@ export function LocaleSwitcher({
         aria-label="Language"
       >
         {inCluster ? (
-          // Mint pip + bold locale code — the "third button is the
-          // odd one out, it carries text" beat.
           <>
-            <span
-              aria-hidden
-              className="inline-block h-1.5 w-1.5 rounded-full bg-mint"
-            />
+            <LocaleFlag locale={locale} className="h-3 w-4.5" />
             <span>{locale}</span>
             <ChevronDown
               className={cn("h-3 w-3 text-ink-dim transition", open && "rotate-180")}
@@ -88,8 +84,7 @@ export function LocaleSwitcher({
           </>
         ) : (
           <>
-            <Globe className="h-3.5 w-3.5 text-ink-secondary" />
-            <span aria-hidden>{LOCALE_FLAGS[locale]}</span>
+            <LocaleFlag locale={locale} className="h-3.5 w-5" />
             <span className="uppercase">{locale}</span>
             <ChevronDown className={cn("h-3 w-3 transition", open && "rotate-180")} />
           </>
@@ -117,7 +112,7 @@ export function LocaleSwitcher({
                       : "text-white hover:bg-white/5",
                   )}
                 >
-                  <span aria-hidden>{LOCALE_FLAGS[l]}</span>
+                  <LocaleFlag locale={l} className="h-4 w-6 shrink-0" />
                   <span className={l === "th" ? "font-thai" : undefined}>
                     {LOCALE_NAMES[l]}
                   </span>
