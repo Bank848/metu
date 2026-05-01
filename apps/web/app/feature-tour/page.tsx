@@ -5,8 +5,6 @@ import {
   ShieldCheck,
   Mail,
   Tags,
-  Monitor,
-  Network,
   Layers,
   ArrowRight,
   Sparkles,
@@ -14,28 +12,17 @@ import {
   Zap,
   KeyRound,
   Receipt,
-  Users,
+  Network,
   type LucideIcon,
 } from "lucide-react";
 import { Reveal } from "./Reveal";
 import { AnimatedCounter } from "./AnimatedCounter";
+import { ErDiagramView } from "@/components/admin/ErDiagramView";
 
 export const metadata = {
   title: "Feature Tour — METU",
   description: "Walk through every system in the METU marketplace.",
 };
-
-/**
- * Phase 40 - feature tour landing page.
- *
- * Designed to play on a projector during the CPE241 defense. Plain
- * HTML / Tailwind transitions + scroll-triggered IntersectionObserver
- * animations (no framer-motion dep). Each section fades in from the
- * bottom as the presenter scrolls, the hero counter animates from
- * zero, gradient orbs drift in the background.
- *
- * Public route - no auth gate so the demo loads instantly.
- */
 
 interface FeatureSection {
   icon: LucideIcon;
@@ -53,13 +40,12 @@ const SECTIONS: FeatureSection[] = [
     badge: "Schema",
     title: "27 entities · normalized to 3NF",
     body:
-      "Prisma schema เป็น single source of truth ; auto-gen migrations + ER diagram + TypeScript types ทุก deploy.",
+      "The Prisma schema is the single source of truth — every deploy auto-generates migrations, the live ER diagram, and TypeScript types from one file.",
     bullets: [
-      "Soft-delete pattern บน User / Store / Product (deletedAt column)",
-      "1 RESTRICT FK กัน hard-delete ลามถึง order_item",
-      "Triggers + Views + GRANT/REVOKE roles + 6 CHECK constraints",
+      "Soft-delete pattern on User / Store / Product (deletedAt column)",
+      "One RESTRICT FK stops hard-deletes from cascading into order_item",
+      "Triggers + views + GRANT/REVOKE roles + 6 CHECK constraints",
     ],
-    cta: { href: "/admin/er-diagram", label: "เปิด ER diagram" },
     accent: "purple",
   },
   {
@@ -67,25 +53,25 @@ const SECTIONS: FeatureSection[] = [
     badge: "Payments",
     title: "Stripe Connect (TH recipient model)",
     body:
-      "Stripe TH ห้าม platform เป็น loss-liable ; ใช้ controller-based recipient model + direct charge ผ่าน Stripe-Account header.",
+      "Stripe Thailand bans the platform from being loss-liable, so we use the controller-based recipient model with direct charges sent through the Stripe-Account header.",
     bullets: [
-      "PaymentIntent สร้างบน connected account เก็บ application_fee_amount",
-      "Webhook idempotency ผ่าน AuditLog.meta JSONB ไม่ต้องเพิ่ม table",
-      "Manual payout button บน /seller/wallet (TH default รายสัปดาห์)",
+      "PaymentIntent created on the connected account; application_fee_amount captured for the platform",
+      "Webhook idempotency stored in AuditLog.meta JSONB — no extra table needed",
+      "Manual payout button on /seller/wallet (TH default schedule is weekly)",
     ],
-    cta: { href: "/seller/wallet", label: "ดู /seller/wallet" },
+    cta: { href: "/seller/wallet", label: "View /seller/wallet" },
     accent: "pink",
   },
   {
     icon: Receipt,
     badge: "Order delivery",
-    title: "License key + download URL ส่งจริง",
+    title: "Real license keys + download URLs",
     body:
-      "หลัง Stripe webhook ยืนยันจ่าย → finalizeOrder() generate key หรือ snapshot URL ลง order_item + ส่ง receipt email grouped by store.",
+      "Once the Stripe webhook confirms payment, finalizeOrder() generates a key or snapshots the URL onto order_item, then sends a receipt email grouped by store.",
     bullets: [
-      "license_key_template (METU-XXXX-XXXX-XXXX) หรือ UUID v4 fallback",
-      "delivery_url snapshot กัน seller แก้ทีหลังกระทบบัญชีเก่า",
-      "Email + UI card on /orders/[id] ใช้ snapshot เดียวกัน",
+      "license_key_template (METU-XXXX-XXXX-XXXX) or UUID v4 fallback",
+      "delivery_url is snapshotted so seller edits don't break old buyers",
+      "Email and the /orders/[id] card both read from the same snapshot",
     ],
     accent: "mint",
   },
@@ -94,52 +80,38 @@ const SECTIONS: FeatureSection[] = [
     badge: "Auth",
     title: "better-auth + Google OAuth + TOTP step-up",
     body:
-      "Session table-backed auth ; OAuth handshake + email verify ; TOTP 2FA enrol → step-up บน sensitive routes (refund, revoke-all).",
+      "Session-table-backed auth with OAuth handshake and email verification; TOTP 2FA enrolment with step-up gating sensitive routes (refund, revoke-all).",
     bullets: [
       "Session.lastTotpAt + requireRecent2FA(15) middleware",
-      "Modal auto-retry เมื่อ 403 TotpStepUpRequired ตอน admin refund",
-      "Sessions UI revoke per-device + revoke-everywhere-else",
+      "Modal auto-retries when admin refund hits 403 TotpStepUpRequired",
+      "Sessions UI revokes per device, plus a sign-out-everywhere-else button",
     ],
-    cta: { href: "/profile/sessions", label: "ดู sessions UI" },
+    cta: { href: "/profile/sessions", label: "View sessions UI" },
     accent: "blue",
   },
   {
     icon: Tags,
     badge: "Coupons",
-    title: "Master Coupon + per-user uniqueness",
+    title: "Master coupons + per-user uniqueness",
     body:
-      "storeId nullable → master coupon ใช้ได้ทุกร้าน ; @@unique([couponId, userId]) บังคับ 1 user 1 ใช้.",
+      "storeId nullable means a master coupon works across every store; @@unique([couponId, userId]) enforces one redemption per user.",
     bullets: [
-      "Partial unique index WHERE store_id IS NULL กัน code ซ้ำ",
-      "App layer apply discount ทุก line ถ้า master ; เฉพาะร้านนั้นถ้า per-store",
-      "usage_limit field ใช้ cap จำนวนครั้งทั้ง platform",
+      "Partial unique index WHERE store_id IS NULL prevents duplicate codes",
+      "App layer applies the discount to every line for master coupons; only the matching store for per-store coupons",
+      "usage_limit caps total platform-wide redemptions",
     ],
     accent: "yellow",
-  },
-  {
-    icon: Network,
-    badge: "ER renderer",
-    title: "In-house crow-foot ER diagram",
-    body:
-      "เปิดมาจาก er-schema.ts (auto-gen จาก Prisma) วาดเอง category-grid + crow-foot connectors + drag/zoom/keyboard shortcuts.",
-    bullets: [
-      "Wheel zoom around cursor + shift+wheel pan + double-click fit",
-      "Keyboard: + / - / 0 / f shortcuts",
-      "Export SVG หรือ PNG (2x DPR) สำหรับใส่ในรายงาน",
-    ],
-    cta: { href: "/admin/er-diagram", label: "ลองเล่น" },
-    accent: "cyan",
   },
   {
     icon: ShieldCheck,
     badge: "Security",
     title: "Helmet + CSP + sliding-window rate limits",
     body:
-      "BFF + API ทั้งคู่มี HSTS / CSP / X-Frame-Options / Permissions-Policy ; 5 rate-limiters บน auth-mutating routes.",
+      "Both the BFF and the API ship Helmet with HSTS / CSP / X-Frame-Options / Permissions-Policy; five rate-limiters guard the auth-mutating routes.",
     bullets: [
       "login 5/min, register 3/hr/IP, OTP 3/min, forgot-pw 3/hr",
-      "Audit log: 10 events ครอบคลุม TOTP, sessions, password, OAuth",
-      "Better-auth cookie: httpOnly + secure + sameSite=lax",
+      "Audit log: 10 events covering TOTP, sessions, password, OAuth",
+      "better-auth cookie: httpOnly + secure + sameSite=lax",
     ],
     accent: "red",
   },
@@ -148,11 +120,11 @@ const SECTIONS: FeatureSection[] = [
     badge: "Receipts",
     title: "Resend email · grouped by store",
     body:
-      "ส่ง receipt หลัง payment_intent.succeeded fire ; HTML + plain-text alternate parts ; แยก section ต่อร้าน + ติดต่อร้านล่างสุด.",
+      "Receipts go out after payment_intent.succeeded fires, with HTML + plain-text alternate parts and a section per store plus contact details at the bottom.",
     bullets: [
-      "Console fallback ถ้า RESEND_API_KEY ไม่ set (Fly logs printable)",
-      "Subject auto: 'items from <Store>' หรือ 'items from N stores'",
-      "Inline-styled HTML ไม่พึ่ง CSS class - email-client compat",
+      "Console fallback when RESEND_API_KEY is unset (Fly logs printable)",
+      "Subject auto-fills 'items from <Store>' or 'items from N stores'",
+      "Inline-styled HTML — no CSS classes, for email-client compatibility",
     ],
     accent: "orange",
   },
@@ -161,13 +133,13 @@ const SECTIONS: FeatureSection[] = [
     badge: "Stack",
     title: "Modern monorepo · 8 layered categories",
     body:
-      "Next.js 14 BFF + Express API + Prisma + better-auth + Stripe + Resend + Helmet + 144 tests. Tech stack page โชว์ live versions.",
+      "Next.js 14 BFF + Express API + Prisma + better-auth + Stripe + Resend + Helmet + 144 tests. The tech stack page surfaces live versions on demand.",
     bullets: [
-      "Auto-extract package.json versions ตอน build → infographic",
-      "8 หมวด: Frontend / Backend / Auth / Database / Payments / Security / Tests / Build",
-      "Other deps section รวม types + peer deps + tooling glue",
+      "Auto-extracts package.json versions at build → infographic",
+      "8 categories: Frontend / Backend / Auth / Database / Payments / Security / Tests / Build",
+      "Other deps section covers types + peer deps + tooling glue",
     ],
-    cta: { href: "/admin/tech-stack", label: "ดู tech stack" },
+    cta: { href: "/admin/tech-stack", label: "View tech stack" },
     accent: "blue",
   },
 ];
@@ -186,14 +158,12 @@ const ACCENT_CLASS: Record<FeatureSection["accent"], { bg: string; text: string;
 export default function FeatureTourPage() {
   return (
     <main className="min-h-screen bg-space-black text-white relative overflow-hidden">
-      {/* Drifting gradient orbs in the background */}
       <div className="pointer-events-none absolute inset-0 -z-0">
         <div className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full bg-mint/10 blur-3xl animate-blob-slow" />
         <div className="absolute top-1/3 -right-40 w-[500px] h-[500px] rounded-full bg-purple-500/10 blur-3xl animate-blob-slow [animation-delay:-7s]" />
         <div className="absolute bottom-0 left-1/4 w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-3xl animate-blob-slow [animation-delay:-14s]" />
       </div>
 
-      {/* Hero */}
       <section className="relative px-6 md:px-12 pt-24 pb-32 max-w-6xl mx-auto">
         <Reveal from="up">
           <div className="inline-flex items-center gap-2 rounded-full border border-mint/30 bg-mint/5 px-4 py-1.5 text-xs font-semibold text-mint mb-8">
@@ -211,12 +181,11 @@ export default function FeatureTourPage() {
 
         <Reveal from="up" delay="delay-200">
           <p className="mt-6 text-lg text-ink-secondary max-w-2xl">
-            Buyers จ่าย Stripe, sellers ได้ payout, license keys ส่งทาง email + แสดงบนหน้า /orders.
-            Schema 27 entities normalized 3NF run live บน Supabase ใน Singapore.
+            Buyers pay through Stripe, sellers receive payouts, and license keys ship via email
+            and appear on /orders. The 27-entity 3NF schema runs live on Supabase in Singapore.
           </p>
         </Reveal>
 
-        {/* Hero stats */}
         <Reveal from="up" delay="delay-300">
           <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl">
             <HeroStat label="Entities" value={27} />
@@ -236,18 +205,55 @@ export default function FeatureTourPage() {
               Browse the marketplace
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/admin/er-diagram"
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 font-semibold hover:bg-white/10 transition"
-            >
-              <Network className="h-4 w-4" />
-              Open ER diagram
-            </Link>
           </div>
         </Reveal>
       </section>
 
-      {/* Feature sections */}
+      <section className="relative px-6 md:px-12 pb-24 max-w-7xl mx-auto">
+        <Reveal from="up">
+          <div className="inline-flex items-center gap-2 rounded-full bg-purple-500/10 text-purple-300 ring-1 ring-purple-400/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider mb-4">
+            <Network className="h-3.5 w-3.5" />
+            Live ER diagram
+          </div>
+        </Reveal>
+        <Reveal from="up" delay="delay-100">
+          <h2 className="font-display text-3xl md:text-4xl font-bold text-white mb-3 leading-tight">
+            Crow-foot schema · rendered straight from Prisma
+          </h2>
+        </Reveal>
+        <Reveal from="up" delay="delay-200">
+          <p className="text-ink-secondary leading-relaxed mb-6 max-w-3xl">
+            This is the same diagram you would see at /admin/er-diagram, embedded here so we
+            can walk through it during the defense. Drag to pan, ctrl+wheel to zoom, double-click
+            to fit. Every box is an entity in the schema; every line is a foreign key with crow-foot
+            cardinality on each end.
+          </p>
+        </Reveal>
+        <Reveal from="up" delay="delay-300">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-2 md:p-3 shadow-2xl">
+            <div className="h-[640px] rounded-2xl overflow-hidden">
+              <ErDiagramView />
+            </div>
+          </div>
+        </Reveal>
+        <Reveal from="up" delay="delay-400">
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <DiagramHint
+              title="Identity & sessions"
+              body="users, account, session, password_reset_token, email_verify_token — better-auth lives in this corner."
+            />
+            <DiagramHint
+              title="Catalog & orders"
+              body="store → product → product_item → order_item is the spine; cart is a parallel pre-checkout chain."
+            />
+            <DiagramHint
+              title="Money & audit"
+              body="transaction snapshots Stripe state; coupon plus coupon_usage gate discounts; audit_log captures every destructive admin action."
+            />
+          </div>
+        </Reveal>
+      </section>
+
       <section className="relative px-6 md:px-12 pb-32 max-w-6xl mx-auto">
         <div className="space-y-24">
           {SECTIONS.map((s, i) => (
@@ -256,17 +262,16 @@ export default function FeatureTourPage() {
         </div>
       </section>
 
-      {/* Final CTA */}
       <section className="relative px-6 md:px-12 pb-32 max-w-6xl mx-auto">
         <Reveal from="scale">
           <div className="rounded-3xl border border-mint/30 bg-gradient-to-br from-mint/10 via-space-900 to-mint/5 p-10 md:p-14 text-center">
             <Sparkles className="h-10 w-10 text-mint mx-auto mb-4" />
             <h2 className="font-display text-3xl md:text-4xl font-bold text-white mb-3">
-              ระบบ live อยู่แล้ว · ลองได้ทุกหน้า
+              The system is already live · every page is interactive
             </h2>
             <p className="text-ink-secondary mb-8 max-w-2xl mx-auto">
-              ใช้ buyer demo account ที่หน้า login เพื่อทดลอง buy / cart / order page.
-              Admin demo account เปิด /admin/er-diagram และ /admin/tech-stack ได้เลย.
+              Use the buyer demo account on the login page to try the buy / cart / order flows.
+              The admin demo account opens /admin/er-diagram and /admin/tech-stack directly.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link href="/login" className="inline-flex items-center gap-2 rounded-full bg-mint text-space-950 px-6 py-3 font-bold hover:bg-mint/90 transition">
@@ -295,12 +300,20 @@ function HeroStat({ label, value, suffix = "" }: { label: string; value: number;
   );
 }
 
+function DiagramHint({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+      <div className="text-[11px] uppercase tracking-wider text-ink-dim mb-1">{title}</div>
+      <div className="text-ink-secondary leading-relaxed">{body}</div>
+    </div>
+  );
+}
+
 function FeatureBlock({ section, flipped }: { section: FeatureSection; flipped: boolean }) {
   const accent = ACCENT_CLASS[section.accent];
   const Icon = section.icon;
   return (
     <div className={`grid grid-cols-1 md:grid-cols-2 gap-10 items-center ${flipped ? "md:[&>*:first-child]:order-last" : ""}`}>
-      {/* Text column */}
       <div>
         <Reveal from={flipped ? "right" : "left"}>
           <div className={`inline-flex items-center gap-2 rounded-full ${accent.bg}/10 ${accent.text} ring-1 ${accent.ring} px-3 py-1 text-[11px] font-semibold uppercase tracking-wider mb-4`}>
@@ -339,15 +352,12 @@ function FeatureBlock({ section, flipped }: { section: FeatureSection; flipped: 
         )}
       </div>
 
-      {/* Visual column */}
       <Reveal from={flipped ? "left" : "right"} delay="delay-150">
         <div className={`relative aspect-[4/3] rounded-3xl border border-white/10 bg-gradient-to-br ${accent.gradient} via-space-900 to-space-950 overflow-hidden flex items-center justify-center`}>
-          {/* Big icon */}
           <div className={`relative ${accent.text} animate-float-slow`}>
             <div className={`absolute inset-0 ${accent.bg} blur-3xl opacity-30 animate-pulse-slow`} />
             <Icon className="relative h-32 w-32" strokeWidth={1.2} />
           </div>
-          {/* Faint grid overlay */}
           <div
             className="absolute inset-0 pointer-events-none opacity-[0.04]"
             style={{
