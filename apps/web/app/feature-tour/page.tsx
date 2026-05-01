@@ -37,109 +37,109 @@ interface FeatureSection {
 const SECTIONS: FeatureSection[] = [
   {
     icon: Database,
-    badge: "Schema",
-    title: "27 entities · normalized to 3NF",
+    badge: "How data is organized",
+    title: "27 things we keep track of",
     body:
-      "The Prisma schema is the single source of truth — every deploy auto-generates migrations, the live ER diagram, and TypeScript types from one file.",
+      "Users, stores, products, orders, coupons, reviews — every piece of information has a clean home. We designed it so nothing gets duplicated and nothing accidentally gets erased.",
     bullets: [
-      "Soft-delete pattern on User / Store / Product (deletedAt column)",
-      "One RESTRICT FK stops hard-deletes from cascading into order_item",
-      "Triggers + views + GRANT/REVOKE roles + 6 CHECK constraints",
+      "Deleted accounts and stores are hidden, not erased — order history stays intact",
+      "If a sale is tied to a product, the database refuses to let that product disappear",
+      "Built-in checks block bad data — like a five-star rating that's actually 99 stars",
     ],
     accent: "purple",
   },
   {
     icon: CreditCard,
     badge: "Payments",
-    title: "Stripe Connect (TH recipient model)",
+    title: "Real money, handled by Stripe",
     body:
-      "Stripe Thailand bans the platform from being loss-liable, so we use the controller-based recipient model with direct charges sent through the Stripe-Account header.",
+      "When you check out, Stripe takes the payment and pays the seller directly. We never touch your card details, and the platform fee is calculated automatically.",
     bullets: [
-      "PaymentIntent created on the connected account; application_fee_amount captured for the platform",
-      "Webhook idempotency stored in AuditLog.meta JSONB — no extra table needed",
-      "Manual payout button on /seller/wallet (TH default schedule is weekly)",
+      "Each seller is set up as their own payout recipient inside Stripe Thailand",
+      "Sellers can see their balance and request a payout with one click on the wallet page",
+      "We log every payment event so refunds and chargebacks always have a paper trail",
     ],
-    cta: { href: "/seller/wallet", label: "View /seller/wallet" },
+    cta: { href: "/seller/wallet", label: "Open the wallet page" },
     accent: "pink",
   },
   {
     icon: Receipt,
-    badge: "Order delivery",
-    title: "Real license keys + download URLs",
+    badge: "After you pay",
+    title: "Your goods arrive automatically",
     body:
-      "Once the Stripe webhook confirms payment, finalizeOrder() generates a key or snapshots the URL onto order_item, then sends a receipt email grouped by store.",
+      "The moment Stripe confirms payment, the system generates your license key or pulls up the download link and sends it both to the order page and your email inbox.",
     bullets: [
-      "license_key_template (METU-XXXX-XXXX-XXXX) or UUID v4 fallback",
-      "delivery_url is snapshotted so seller edits don't break old buyers",
-      "Email and the /orders/[id] card both read from the same snapshot",
+      "License keys can follow the seller's pattern (like METU-XXXX-XXXX-XXXX) or default to a unique random code",
+      "Sellers can update their files later without breaking what you already bought",
+      "The receipt email and the order page always show the same delivery — they never drift apart",
     ],
     accent: "mint",
   },
   {
     icon: KeyRound,
-    badge: "Auth",
-    title: "better-auth + Google OAuth + TOTP step-up",
+    badge: "Sign-in",
+    title: "Sign in safely",
     body:
-      "Session-table-backed auth with OAuth handshake and email verification; TOTP 2FA enrolment with step-up gating sensitive routes (refund, revoke-all).",
+      "Use email and password, sign in with Google, or both. Turn on two-factor authentication if you want an extra layer on sensitive actions.",
     bullets: [
-      "Session.lastTotpAt + requireRecent2FA(15) middleware",
-      "Modal auto-retries when admin refund hits 403 TotpStepUpRequired",
-      "Sessions UI revokes per device, plus a sign-out-everywhere-else button",
+      "Two-factor codes are asked again before risky moves like refunds or signing every device out",
+      "See every device that's signed in and sign them out one by one or all at once",
+      "Forgot-password links expire after five minutes, so a leaked link tomorrow is already useless",
     ],
-    cta: { href: "/profile/sessions", label: "View sessions UI" },
+    cta: { href: "/profile/sessions", label: "See active devices" },
     accent: "blue",
   },
   {
     icon: Tags,
-    badge: "Coupons",
-    title: "Master coupons + per-user uniqueness",
+    badge: "Discounts",
+    title: "Discount codes, done right",
     body:
-      "storeId nullable means a master coupon works across every store; @@unique([couponId, userId]) enforces one redemption per user.",
+      "Codes can work across the whole site or for a single store only, and the same code can't be redeemed twice by the same person.",
     bullets: [
-      "Partial unique index WHERE store_id IS NULL prevents duplicate codes",
-      "App layer applies the discount to every line for master coupons; only the matching store for per-store coupons",
-      "usage_limit caps total platform-wide redemptions",
+      "A platform-wide code knocks money off every line in your cart",
+      "A store code only discounts items from that store",
+      "An overall usage cap stops a code from being abused or going viral",
     ],
     accent: "yellow",
   },
   {
     icon: ShieldCheck,
-    badge: "Security",
-    title: "Helmet + CSP + sliding-window rate limits",
+    badge: "Safety",
+    title: "Built-in protection against abuse",
     body:
-      "Both the BFF and the API ship Helmet with HSTS / CSP / X-Frame-Options / Permissions-Policy; five rate-limiters guard the auth-mutating routes.",
+      "We block too-many-attempts attacks, lock down what the website is allowed to do, and keep a record of every admin action.",
     bullets: [
-      "login 5/min, register 3/hr/IP, OTP 3/min, forgot-pw 3/hr",
-      "Audit log: 10 events covering TOTP, sessions, password, OAuth",
-      "better-auth cookie: httpOnly + secure + sameSite=lax",
+      "Login, register, and password-reset are all rate-limited so bots can't brute-force their way in",
+      "Every admin action is logged with who did it, from where, and when",
+      "Sign-in cookies are locked down so other websites can't steal them",
     ],
     accent: "red",
   },
   {
     icon: Mail,
     badge: "Receipts",
-    title: "Resend email · grouped by store",
+    title: "Receipts that look like real receipts",
     body:
-      "Receipts go out after payment_intent.succeeded fires, with HTML + plain-text alternate parts and a section per store plus contact details at the bottom.",
+      "After payment, a tidy email lands in your inbox with one section per store you bought from, plus how to contact each seller if something is wrong.",
     bullets: [
-      "Console fallback when RESEND_API_KEY is unset (Fly logs printable)",
-      "Subject auto-fills 'items from <Store>' or 'items from N stores'",
-      "Inline-styled HTML — no CSS classes, for email-client compatibility",
+      "Subject line tells you which store (or how many stores) the order is from at a glance",
+      "Each line lists the item, quantity, and your delivery — license key or download link",
+      "Designed to render correctly in Gmail, Outlook, and most other email apps",
     ],
     accent: "orange",
   },
   {
     icon: Layers,
-    badge: "Stack",
-    title: "Modern monorepo · 8 layered categories",
+    badge: "Foundation",
+    title: "Modern, well-tested foundation",
     body:
-      "Next.js 14 BFF + Express API + Prisma + better-auth + Stripe + Resend + Helmet + 144 tests. The tech stack page surfaces live versions on demand.",
+      "Built with proven, current tools. 144 automated tests run before every release so bugs we caught yesterday stay caught today.",
     bullets: [
-      "Auto-extracts package.json versions at build → infographic",
-      "8 categories: Frontend / Backend / Auth / Database / Payments / Security / Tests / Build",
-      "Other deps section covers types + peer deps + tooling glue",
+      "A live page lists every tool we use and which version, sorted into 8 clear categories",
+      "Updates reach the live site within minutes of a successful test run",
+      "The whole project lives in one place so changes can be reviewed end to end",
     ],
-    cta: { href: "/admin/tech-stack", label: "View tech stack" },
+    cta: { href: "/admin/tech-stack", label: "See what we use" },
     accent: "blue",
   },
 ];
@@ -181,17 +181,18 @@ export default function FeatureTourPage() {
 
         <Reveal from="up" delay="delay-200">
           <p className="mt-6 text-lg text-ink-secondary max-w-2xl">
-            Buyers pay through Stripe, sellers receive payouts, and license keys ship via email
-            and appear on /orders. The 27-entity 3NF schema runs live on Supabase in Singapore.
+            Buy digital goods from Thai creators, sellers get paid through Stripe, and your
+            license keys land on the order page and in your inbox right after checkout.
+            Everything you see here is the live system, not a mockup.
           </p>
         </Reveal>
 
         <Reveal from="up" delay="delay-300">
           <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl">
-            <HeroStat label="Entities" value={27} />
-            <HeroStat label="Migrations" value={29} />
-            <HeroStat label="Tests" value={144} />
-            <HeroStat label="Tier-1 Stripe" value={1} suffix=" mode" />
+            <HeroStat label="Things tracked" value={27} />
+            <HeroStat label="Database updates shipped" value={29} />
+            <HeroStat label="Automated tests" value={144} />
+            <HeroStat label="Live payments" value={1} suffix=" via Stripe" />
           </div>
         </Reveal>
 
@@ -213,20 +214,20 @@ export default function FeatureTourPage() {
         <Reveal from="up">
           <div className="inline-flex items-center gap-2 rounded-full bg-purple-500/10 text-purple-300 ring-1 ring-purple-400/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider mb-4">
             <Network className="h-3.5 w-3.5" />
-            Live ER diagram
+            Live database map
           </div>
         </Reveal>
         <Reveal from="up" delay="delay-100">
           <h2 className="font-display text-3xl md:text-4xl font-bold text-white mb-3 leading-tight">
-            Crow-foot schema · rendered straight from Prisma
+            How everything connects
           </h2>
         </Reveal>
         <Reveal from="up" delay="delay-200">
           <p className="text-ink-secondary leading-relaxed mb-6 max-w-3xl">
-            This is the same diagram you would see at /admin/er-diagram, embedded here so we
-            can walk through it during the defense. Drag to pan, ctrl+wheel to zoom, double-click
-            to fit. Every box is an entity in the schema; every line is a foreign key with crow-foot
-            cardinality on each end.
+            Below is the actual map of our database, drawn straight from the live system.
+            Drag to move it around, hold Ctrl and scroll to zoom, double-click to fit it back
+            in view. Each box is one kind of thing we keep track of; each line shows how two
+            of them are linked together.
           </p>
         </Reveal>
         <Reveal from="up" delay="delay-300">
@@ -239,16 +240,16 @@ export default function FeatureTourPage() {
         <Reveal from="up" delay="delay-400">
           <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
             <DiagramHint
-              title="Identity & sessions"
-              body="users, account, session, password_reset_token, email_verify_token — better-auth lives in this corner."
+              title="Accounts & sign-in"
+              body="People, the ways they sign in (email or Google), the devices they're using, and the temporary tokens we send for password reset and email verification."
             />
             <DiagramHint
-              title="Catalog & orders"
-              body="store → product → product_item → order_item is the spine; cart is a parallel pre-checkout chain."
+              title="Stores & purchases"
+              body="Each store has products, products go into a cart, the cart turns into an order. That's the path from browsing to a finished sale."
             />
             <DiagramHint
-              title="Money & audit"
-              body="transaction snapshots Stripe state; coupon plus coupon_usage gate discounts; audit_log captures every destructive admin action."
+              title="Money & history"
+              body="Payments, discount codes, who used which code, and a record of every admin action — kept for accountability."
             />
           </div>
         </Reveal>
@@ -267,11 +268,12 @@ export default function FeatureTourPage() {
           <div className="rounded-3xl border border-mint/30 bg-gradient-to-br from-mint/10 via-space-900 to-mint/5 p-10 md:p-14 text-center">
             <Sparkles className="h-10 w-10 text-mint mx-auto mb-4" />
             <h2 className="font-display text-3xl md:text-4xl font-bold text-white mb-3">
-              The system is already live · every page is interactive
+              It's all live · every page works
             </h2>
             <p className="text-ink-secondary mb-8 max-w-2xl mx-auto">
-              Use the buyer demo account on the login page to try the buy / cart / order flows.
-              The admin demo account opens /admin/er-diagram and /admin/tech-stack directly.
+              Sign in with the demo buyer account on the login page to try the cart and
+              checkout. The admin demo account opens the database map and the tools list
+              directly.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link href="/login" className="inline-flex items-center gap-2 rounded-full bg-mint text-space-950 px-6 py-3 font-bold hover:bg-mint/90 transition">
