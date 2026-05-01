@@ -23,6 +23,7 @@ export default async function VerifyPhonePage() {
   let emailVerified = false;
   let loggedIn = false;
   let demoOtp: string | undefined;
+  let hasPhone = false;
   if (me?.user?.email) {
     email = me.user.email as string;
     phoneVerified = Boolean(me.user.phoneVerifiedAt);
@@ -30,16 +31,26 @@ export default async function VerifyPhonePage() {
     loggedIn = true;
     if (typeof me.user.phone === "string" && me.user.phone.length >= 4) {
       phoneTail = `••••${me.user.phone.slice(-4)}`;
+      hasPhone = true;
     }
     demoOtp = getPendingVerify()?.otp;
   } else {
     const pending = getPendingVerify();
     email = pending?.email ?? null;
     demoOtp = pending?.otp;
+    // For pre-session register flows we always know the phone exists
+    // (register schema requires it).
+    hasPhone = true;
   }
   if (!email) redirect("/login");
   if (phoneVerified) {
     redirect(emailVerified ? "/" : "/verify-pending");
+  }
+  // Phase 44 — Google new-user has no phone yet; bounce them back to
+  // /profile/edit with a clear note instead of pretending we sent an
+  // OTP to "your phone".
+  if (loggedIn && !hasPhone) {
+    redirect("/profile/edit?need=phone");
   }
 
   return (

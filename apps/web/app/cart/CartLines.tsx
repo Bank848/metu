@@ -577,7 +577,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         {/* Money rows */}
         <div className="space-y-1.5 text-sm mb-4">
           <Row
-            label={`Subtotal (${selectedCount} item${selectedCount !== 1 ? "s" : ""})`}
+            label={`Subtotal (${selectedItems.length} line${selectedItems.length !== 1 ? "s" : ""} · ${selectedCount} qty)`}
             value={subtotal}
           />
           {discount > 0 && <Row label="Discount" value={-discount} accent="green" />}

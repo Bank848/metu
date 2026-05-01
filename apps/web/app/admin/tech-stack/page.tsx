@@ -331,7 +331,7 @@ function FlowchartTile({ node }: { node: FlowchartNode }) {
             width={20}
             height={20}
             className="h-5 w-5 object-contain"
-            loading="lazy"
+            loading="eager"
           />
         ) : (
           <span className="text-[10px] font-bold text-ink-dim">
@@ -362,7 +362,7 @@ function PackageLogo({ item }: { item: { iconSlug?: string; iconColor?: string; 
           width={18}
           height={18}
           className="h-4 w-4 object-contain"
-          loading="lazy"
+          loading="eager"
         />
       ) : (
         <span className="text-[10px] font-bold text-ink-dim">
