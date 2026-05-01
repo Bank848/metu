@@ -16,19 +16,40 @@ export function LocaleFlag({
   className?: string;
 }) {
   if (locale === "en") {
-    // Union Jack -- simplified for icon size. White diagonals + red
-    // diagonals on a navy field, plus the central white+red cross.
+    // Stars and Stripes -- 13 stripes (7 red, 6 white) + blue canton.
+    // Stars simplified to a 3x3 dot grid for icon-size legibility.
     return (
       <svg
-        viewBox="0 0 60 30"
+        viewBox="0 0 19 10"
         className={`inline-block rounded-sm shadow-sm ${className}`}
         aria-hidden
       >
-        <rect width="60" height="30" fill="#012169" />
-        <path d="M0,0 L60,30 M60,0 L0,30" stroke="#FFF" strokeWidth="6" />
-        <path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" strokeWidth="2.5" clipPath="url(#uk-clip)" />
-        <path d="M30,0 V30 M0,15 H60" stroke="#FFF" strokeWidth="10" />
-        <path d="M30,0 V30 M0,15 H60" stroke="#C8102E" strokeWidth="6" />
+        <rect width="19" height="10" fill="#B22234" />
+        <g fill="#FFFFFF">
+          <rect y="0.77" width="19" height="0.77" />
+          <rect y="2.31" width="19" height="0.77" />
+          <rect y="3.85" width="19" height="0.77" />
+          <rect y="5.38" width="19" height="0.77" />
+          <rect y="6.92" width="19" height="0.77" />
+          <rect y="8.46" width="19" height="0.77" />
+        </g>
+        <rect width="7.6" height="5.38" fill="#3C3B6E" />
+        <g fill="#FFFFFF">
+          <circle cx="1.5" cy="1.2" r="0.35" />
+          <circle cx="3.0" cy="1.2" r="0.35" />
+          <circle cx="4.5" cy="1.2" r="0.35" />
+          <circle cx="6.0" cy="1.2" r="0.35" />
+          <circle cx="2.25" cy="2.4" r="0.35" />
+          <circle cx="3.75" cy="2.4" r="0.35" />
+          <circle cx="5.25" cy="2.4" r="0.35" />
+          <circle cx="1.5" cy="3.6" r="0.35" />
+          <circle cx="3.0" cy="3.6" r="0.35" />
+          <circle cx="4.5" cy="3.6" r="0.35" />
+          <circle cx="6.0" cy="3.6" r="0.35" />
+          <circle cx="2.25" cy="4.8" r="0.35" />
+          <circle cx="3.75" cy="4.8" r="0.35" />
+          <circle cx="5.25" cy="4.8" r="0.35" />
+        </g>
       </svg>
     );
   }
