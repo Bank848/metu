@@ -38,12 +38,12 @@ export function StoreActions({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.message ?? "Failed to delete store");
-        setBusy(null);
         return;
       }
       router.refresh();
     } catch {
       setError("Network error");
+    } finally {
       setBusy(null);
     }
   }
@@ -61,12 +61,12 @@ export function StoreActions({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.message ?? "Failed to update suspended state");
-        setBusy(null);
         return;
       }
       router.refresh();
     } catch {
       setError("Network error");
+    } finally {
       setBusy(null);
     }
   }

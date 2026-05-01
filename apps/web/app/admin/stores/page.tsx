@@ -123,8 +123,20 @@ export default async function AdminStores() {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-display font-bold text-sm text-white truncate">
-                      {s.name}
+                    <div className="flex items-center gap-2">
+                      <div className="font-display font-bold text-sm text-white truncate">
+                        {s.name}
+                      </div>
+                      {(s as any).suspendedAt && (
+                        <Badge variant="coral" className="uppercase text-[10px]">
+                          Suspended
+                        </Badge>
+                      )}
+                      {(s as any).deletedAt && (
+                        <Badge variant="mist" className="uppercase text-[10px]">
+                          Deleted
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-xs text-ink-dim line-clamp-1">{s.description}</div>
                   </div>

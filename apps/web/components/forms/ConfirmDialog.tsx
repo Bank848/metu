@@ -117,7 +117,7 @@ export function ConfirmDialog({
       />
       <div
         ref={dialogRef}
-        className="relative w-full max-w-md rounded-2xl glass-morphism-strong p-6 animate-fade-in-up"
+        className="relative w-full max-w-md rounded-2xl glass-morphism-strong p-6 animate-fade-in-up overflow-hidden"
       >
         <button
           type="button"
@@ -140,7 +140,7 @@ export function ConfirmDialog({
         {body && (
           <div
             id="confirm-dialog-body"
-            className="mt-2 text-sm text-ink-secondary leading-relaxed"
+            className="mt-2 text-sm text-ink-secondary leading-relaxed break-words [overflow-wrap:anywhere]"
           >
             {body}
           </div>
