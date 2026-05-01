@@ -17,6 +17,13 @@ router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
 router.post("/forgot-password",  forgotPasswordLimiter,  ctrl.forgotPassword);
 router.post("/reset-password",                           ctrl.resetPassword);
+router.get("/reset-password/check",                      ctrl.checkResetToken);
+
+// Phase 41 - mandatory verify flow at register. All public, rate-limited.
+router.post("/verify-email",         forgotPasswordLimiter, ctrl.verifyEmail);
+router.post("/resend-email-verify",  forgotPasswordLimiter, ctrl.resendEmailVerify);
+router.post("/verify-phone-register", forgotPasswordLimiter, ctrl.verifyPhoneRegister);
+router.post("/resend-phone-otp",      forgotPasswordLimiter, ctrl.resendPhoneOtp);
 
 // Authed.
 router.get("/me",                 requireAuth(), ctrl.me);

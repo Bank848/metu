@@ -88,9 +88,13 @@ model User {
   gender               Gender?
   profileImage         String?   @map("profile_image") @db.Text
   dateOfBirth          DateTime? @map("date_of_birth")
-  // OTP scaffold.
+  // Phone + verification timestamp.
   phone                String?   @db.VarChar(20)
   phoneVerifiedAt      DateTime? @map("phone_verified_at")
+  // SHA-256 of the 6-digit OTP at register, 10-min TTL. Cleared when
+  // phoneVerifiedAt is stamped.
+  phoneOtpHash         String?   @map("phone_otp_hash") @db.VarChar(64)
+  phoneOtpExpiresAt    DateTime? @map("phone_otp_expires_at")
   // TOTP 2FA. NULL secret = never enrolled.
   totpSecret           String?   @map("totp_secret") @db.VarChar(64)
   totpEnabled          Boolean   @default(false) @map("totp_enabled")
@@ -118,6 +122,7 @@ model User {
   couponUsages        CouponUsage[]
   favorites           ProductFavorite[]
   passwordResetTokens PasswordResetToken[]
+  emailVerifyTokens   EmailVerifyToken[]
   auditLogs           AuditLog[]
 
   // better-auth relations.
@@ -516,6 +521,24 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_token")
+}
+
+// Phase 41 - email verify token, mirrors PasswordResetToken pattern.
+// Single-use; the raw token only lives in the email link, the DB
+// only stores its SHA-256.
+model EmailVerifyToken {
+  tokenId    Int       @id @default(autoincrement()) @map("token_id")
+  userId     Int       @map("user_id")
+  tokenHash  String    @unique @map("token_hash") @db.VarChar(64)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verify_token")
 }
 
 // Audit log: destructive admin/seller actions write a row here.

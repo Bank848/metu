@@ -19,6 +19,10 @@ export {
   totpEnrollStartSchema,
   totpEnrollVerifySchema,
   totpDisableSchema,
+  verifyEmailSchema,
+  resendEmailVerifySchema,
+  verifyPhoneRegisterSchema,
+  resendPhoneOtpSchema,
   type LoginInput,
   type RegisterInput,
   type UpdateProfileInput,
@@ -32,6 +36,10 @@ export {
   type TotpEnrollStartInput,
   type TotpEnrollVerifyInput,
   type TotpDisableInput,
+  type VerifyEmailInput,
+  type ResendEmailVerifyInput,
+  type VerifyPhoneRegisterInput,
+  type ResendPhoneOtpInput,
 } from "@metu/shared";
 
 import type { User, UserStats } from "@prisma/client";

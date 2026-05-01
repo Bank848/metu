@@ -84,6 +84,8 @@ describe("POST /auth/login", () => {
       email: "buyer@metu.dev",
       password: hash,
       deletedAt: null,
+      emailVerified: true,
+      phoneVerifiedAt: new Date(),
       stats: { role: "buyer" },
       carts: [{ cartId: 1 }],
     });
@@ -143,6 +145,7 @@ describe("POST /auth/register", () => {
         password: "Newone#123",
         firstName: "New",
         lastName: "One",
+        phone: "+66812345678",
       });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe("Conflict");
@@ -157,6 +160,7 @@ describe("POST /auth/register", () => {
         password: "Boy#1234",
         firstName: "First",
         lastName: "Last",
+        phone: "+66812345678",
       });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("ProfanityRejected");

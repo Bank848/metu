@@ -115,6 +115,17 @@ export function LoginForm({
           setBusy(false);
           return;
         }
+        // Phase 41 - bounce to the verify pages when login is blocked
+        // by the verify gate. The user already got the email + OTP at
+        // register, but they may have closed the page.
+        if (data?.error === "EmailNotVerified") {
+          router.push(`/verify-pending?email=${encodeURIComponent(submittedEmail)}&need=email`);
+          return;
+        }
+        if (data?.error === "PhoneNotVerified") {
+          router.push(`/verify-phone?email=${encodeURIComponent(submittedEmail)}`);
+          return;
+        }
         setError(
           data?.error === "InvalidCredentials"
             ? "Invalid email or password"

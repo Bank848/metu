@@ -40,6 +40,7 @@ export function RegisterForm({
     password: "",
     firstName: "",
     lastName: "",
+    phone: "",
     dateOfBirth: "",
     gender: "" as "" | "male" | "female" | "other",
     countryId: "" as "" | string, // string in form state, number in payload
@@ -63,6 +64,7 @@ export function RegisterForm({
         password: form.password,
         firstName: form.firstName,
         lastName: form.lastName,
+        phone: form.phone,
       };
       if (form.dateOfBirth) payload.dateOfBirth = form.dateOfBirth;
       if (form.gender) payload.gender = form.gender;
@@ -82,7 +84,10 @@ export function RegisterForm({
         return;
       }
       setBusy(false);
-      router.push("/");
+      // Phase 41 - register no longer auto-logs in. Send the user to
+      // the post-register verify page where they confirm their email
+      // (link sent) and their phone (OTP printed to server logs).
+      router.push(`/verify-phone?email=${encodeURIComponent(form.email)}`);
       router.refresh();
     } catch {
       setError("Network error");
@@ -179,6 +184,23 @@ export function RegisterForm({
           minLength={6}
           autoComplete="new-password"
         />
+      </label>
+
+      <label className="block">
+        <span className="block text-sm font-semibold text-white mb-1">Phone</span>
+        <input
+          type="tel"
+          className={inputCls}
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          required
+          placeholder="+66812345678"
+          pattern="^\+?[0-9]{8,18}$"
+          autoComplete="tel"
+        />
+        <span className="mt-1 block text-[11px] text-ink-dim">
+          ส่ง OTP ไปยังเบอร์นี้เพื่อยืนยัน · 8-18 digits with optional + prefix
+        </span>
       </label>
 
       {/* Optional demographic fields — kept in their own section so the

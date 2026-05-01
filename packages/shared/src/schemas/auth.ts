@@ -15,10 +15,34 @@ export const registerSchema = z.object({
   password: z.string().min(6).max(100),
   firstName: z.string().min(1).max(40),
   lastName: z.string().min(1).max(40),
+  // Phase 41 - phone is mandatory at register so the OTP flow has
+  // somewhere to send the code. Accept E.164 (+66...) or plain digits.
+  phone: z
+    .string()
+    .min(8)
+    .max(20)
+    .regex(/^\+?[0-9]{8,18}$/, "Phone must be 8-18 digits, optional leading +"),
   countryId: z.number().int().positive().optional(),
   gender: z.enum(["male", "female", "other"]).optional(),
-  // ISO date string from <input type="date"> — converted to Date in the API.
+  // ISO date string from <input type="date"> -- converted to Date in the API.
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+// Phase 41 - body for /auth/verify-phone-register and /auth/resend-phone-otp.
+export const verifyPhoneRegisterSchema = z.object({
+  email: z.string().email(),
+  code: z.string().regex(/^\d{6}$/, "6-digit code"),
+});
+export const resendPhoneOtpSchema = z.object({
+  email: z.string().email(),
+});
+
+// Phase 41 - body for /auth/verify-email and /auth/resend-email-verify.
+export const verifyEmailSchema = z.object({
+  token: z.string().min(20).max(120),
+});
+export const resendEmailVerifySchema = z.object({
+  email: z.string().email(),
 });
 
 export const updateProfileSchema = z.object({
@@ -132,3 +156,7 @@ export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type TotpEnrollStartInput = z.infer<typeof totpEnrollStartSchema>;
 export type TotpEnrollVerifyInput = z.infer<typeof totpEnrollVerifySchema>;
 export type TotpDisableInput = z.infer<typeof totpDisableSchema>;
+export type VerifyPhoneRegisterInput = z.infer<typeof verifyPhoneRegisterSchema>;
+export type ResendPhoneOtpInput = z.infer<typeof resendPhoneOtpSchema>;
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type ResendEmailVerifyInput = z.infer<typeof resendEmailVerifySchema>;

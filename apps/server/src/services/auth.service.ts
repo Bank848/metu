@@ -95,6 +95,16 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
     }
   }
 
+  // Phase 41 - verification gates. Run AFTER password+TOTP so we
+  // don't leak which step failed. The frontend uses these distinct
+  // codes to bounce the user to the right verify page.
+  if (!user.emailVerified) {
+    throw new AppError(403, "EmailNotVerified", "Confirm your email to finish signing in.");
+  }
+  if (!user.phoneVerifiedAt) {
+    throw new AppError(403, "PhoneNotVerified", "Verify your phone to finish signing in.");
+  }
+
   // Fire-and-forget active cart creation if missing.
   if (user.carts.length === 0) {
     void prisma.cart
@@ -136,6 +146,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
       lastName: input.lastName,
       countryId: input.countryId,
       gender: input.gender,
+      phone: input.phone,
       // Pin DOB to UTC midnight so it doesn't drift across timezones.
       dateOfBirth: input.dateOfBirth
         ? new Date(`${input.dateOfBirth}T00:00:00.000Z`)
@@ -149,6 +160,18 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
 
   await syncCredentialAccount(user.userId, user.email, hash);
 
+  // Phase 41 - mandatory verify flow. Email link goes to inbox; phone
+  // OTP goes to console (real SMS would replace logPhoneOtp).
+  const [rawEmailToken, otp] = await Promise.all([
+    issueEmailVerifyToken(user.userId),
+    issuePhoneOtp(user.userId),
+  ]);
+  await sendEmailVerifyMessage(user.email, user.firstName, rawEmailToken).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[register] email verify send failed:", err);
+  });
+  logPhoneOtp(input.phone, otp);
+
   await audit({
     actorId: user.userId,
     action: "user.register",
@@ -158,6 +181,95 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
   });
 
   return { user: sanitize(user), role: (user.stats?.role ?? "buyer") as UserRole };
+}
+
+/**
+ * Phase 41 - confirm an email-verify token from the URL. One-shot:
+ * the token row gets consumedAt stamped on success.
+ */
+export async function verifyEmail(token: string): Promise<void> {
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const row = await prisma.emailVerifyToken.findUnique({
+    where: { tokenHash },
+    include: { user: true },
+  });
+  if (!row || row.consumedAt || row.expiresAt < new Date()) {
+    throw new AppError(400, "InvalidToken", "Verify link is invalid or expired.");
+  }
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { userId: row.userId },
+      data: { emailVerified: true },
+    }),
+    prisma.emailVerifyToken.update({
+      where: { tokenId: row.tokenId },
+      data: { consumedAt: new Date() },
+    }),
+  ]);
+  await audit({
+    actorId: row.userId,
+    action: "user.email_verified",
+    targetType: "user",
+    targetId: row.userId,
+  });
+}
+
+/**
+ * Phase 41 - resend the email-verify link. Quietly succeeds if the
+ * email is already verified or doesn't exist (no enumeration).
+ */
+export async function resendEmailVerify(email: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || user.deletedAt || user.emailVerified) return;
+  const raw = await issueEmailVerifyToken(user.userId);
+  await sendEmailVerifyMessage(user.email, user.firstName, raw);
+}
+
+/**
+ * Phase 41 - verify the 6-digit OTP entered after register. Email
+ * is the lookup key (no session yet at this stage).
+ */
+export async function verifyPhoneRegister(email: string, code: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || user.deletedAt) throw new AppError(404, "UserNotFound");
+  if (user.phoneVerifiedAt) return; // already verified
+  if (!user.phoneOtpHash || !user.phoneOtpExpiresAt) {
+    throw new AppError(400, "NoPendingOtp", "No OTP is pending. Request a new one.");
+  }
+  if (user.phoneOtpExpiresAt < new Date()) {
+    throw new AppError(400, "OtpExpired", "OTP expired. Request a new one.");
+  }
+  const hash = crypto.createHash("sha256").update(code).digest("hex");
+  if (hash !== user.phoneOtpHash) {
+    throw new AppError(401, "InvalidCode", "OTP didn't match. Try again.");
+  }
+  await prisma.user.update({
+    where: { userId: user.userId },
+    data: {
+      phoneVerifiedAt: new Date(),
+      phoneOtpHash: null,
+      phoneOtpExpiresAt: null,
+    },
+  });
+  await audit({
+    actorId: user.userId,
+    action: "user.phone_verified",
+    targetType: "user",
+    targetId: user.userId,
+  });
+}
+
+/**
+ * Phase 41 - resend a fresh OTP after register (e.g. user closed the
+ * verify page or the code expired). Quietly succeeds if user is
+ * already verified or doesn't exist.
+ */
+export async function resendPhoneOtp(email: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || user.deletedAt || user.phoneVerifiedAt) return;
+  if (!user.phone) return;
+  const otp = await issuePhoneOtp(user.userId);
+  logPhoneOtp(user.phone, otp);
 }
 
 // GET /auth/me. Returns null for missing or soft-deleted users.
@@ -472,6 +584,80 @@ export async function revokeAllOtherSessions(
 }
 
 const RESET_TOKEN_TTL_MIN = 5;
+const EMAIL_VERIFY_TOKEN_TTL_MIN = 30;
+const PHONE_OTP_TTL_MIN = 10;
+const PHONE_OTP_LENGTH = 6;
+
+// Phase 41 helpers - generate + persist email-verify token, return raw
+// token for the email link.
+async function issueEmailVerifyToken(userId: number): Promise<string> {
+  const raw = crypto.randomBytes(32).toString("base64url");
+  const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
+  const expiresAt = new Date(Date.now() + EMAIL_VERIFY_TOKEN_TTL_MIN * 60_000);
+  await prisma.emailVerifyToken.create({
+    data: { userId, tokenHash, expiresAt },
+  });
+  return raw;
+}
+
+// Phase 41 - generate 6-digit OTP, hash + store on User, return raw OTP
+// to console-log. Real SMS would replace this with a Twilio send.
+async function issuePhoneOtp(userId: number): Promise<string> {
+  const code = String(Math.floor(Math.random() * 10 ** PHONE_OTP_LENGTH))
+    .padStart(PHONE_OTP_LENGTH, "0");
+  const hash = crypto.createHash("sha256").update(code).digest("hex");
+  const expiresAt = new Date(Date.now() + PHONE_OTP_TTL_MIN * 60_000);
+  await prisma.user.update({
+    where: { userId },
+    data: { phoneOtpHash: hash, phoneOtpExpiresAt: expiresAt },
+  });
+  return code;
+}
+
+async function sendEmailVerifyMessage(
+  email: string,
+  firstName: string,
+  rawToken: string,
+): Promise<void> {
+  const base = process.env.SITE_URL ?? "https://metu.fly.dev";
+  const link = `${base}/verify-email?token=${rawToken}`;
+  const html = renderEmailLayout({
+    heading: `Hi ${escapeHtml(firstName)} - confirm your email`,
+    intro: `One last step before your METU account is active. Click below to confirm <strong>${escapeHtml(email)}</strong>; the link is valid for <strong>${EMAIL_VERIFY_TOKEN_TTL_MIN} minutes</strong>.`,
+    cta: { label: "Verify email", url: link },
+    fallbackUrl: link,
+    bodyHtml: `
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+      <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #94a3b8;">
+        Didn't sign up for METU? Ignore this email - the unverified account expires automatically.
+      </p>
+    `,
+  });
+  const text = [
+    `Hi ${firstName},`,
+    "",
+    `Confirm your METU email (${email}) using this link (valid ${EMAIL_VERIFY_TOKEN_TTL_MIN} minutes):`,
+    link,
+    "",
+    "Didn't sign up? Ignore this message.",
+    "",
+    "- METU",
+  ].join("\n");
+  await sendEmail({
+    to: email,
+    subject: "Confirm your METU email",
+    html,
+    text,
+  });
+}
+
+function logPhoneOtp(phone: string, code: string): void {
+  // eslint-disable-next-line no-console
+  console.log(
+    `[phone-otp] phone=${phone} code=${code} ttl=${PHONE_OTP_TTL_MIN}min ` +
+      `(real SMS would be sent here)`,
+  );
+}
 
 /**
  * POST /auth/forgot-password. Always succeeds (no email enumeration).
@@ -529,6 +715,24 @@ export async function forgotPassword(input: ForgotPasswordInput): Promise<void> 
  * POST /auth/reset-password. Consume a valid token + write new hash.
  * Single InvalidToken error code for any rejection (missing/used/expired).
  */
+/**
+ * Quick "is this token still good?" probe used by /reset-password to
+ * render the right state before the form is submitted. Doesn't
+ * consume the token.
+ */
+export async function checkResetToken(rawToken: string): Promise<{ valid: boolean }> {
+  if (!rawToken) return { valid: false };
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const row = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    select: { consumedAt: true, expiresAt: true },
+  });
+  if (!row) return { valid: false };
+  if (row.consumedAt) return { valid: false };
+  if (row.expiresAt < new Date()) return { valid: false };
+  return { valid: true };
+}
+
 export async function resetPassword(input: ResetPasswordInput): Promise<void> {
   const tokenHash = crypto.createHash("sha256").update(input.token).digest("hex");
   const row = await prisma.passwordResetToken.findUnique({

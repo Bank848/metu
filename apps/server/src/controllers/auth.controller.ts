@@ -13,6 +13,10 @@ import {
   updatePhoneSchema,
   updateProfileSchema,
   verifyOtpSchema,
+  verifyEmailSchema,
+  resendEmailVerifySchema,
+  verifyPhoneRegisterSchema,
+  resendPhoneOtpSchema,
 } from "../models/auth.model.js";
 import * as service from "../services/auth.service.js";
 import {
@@ -295,6 +299,17 @@ export const forgotPassword: RequestHandler = async (req, res, next) => {
   }
 };
 
+/** GET /auth/reset-password/check?token=xxx - validity probe without consuming. */
+export const checkResetToken: RequestHandler = async (req, res, next) => {
+  try {
+    const token = String(req.query.token ?? "");
+    const result = await service.checkResetToken(token);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 /** POST /auth/reset-password. Service uses a single InvalidToken code. */
 export const resetPassword: RequestHandler = async (req, res, next) => {
   try {
@@ -303,6 +318,60 @@ export const resetPassword: RequestHandler = async (req, res, next) => {
       throw new AppError(400, "ValidationError", parsed.error.message);
     }
     await service.resetPassword(parsed.data);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Phase 41 - confirm email-verify token from the magic link.
+export const verifyEmail: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = verifyEmailSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    await service.verifyEmail(parsed.data.token);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Phase 41 - resend a fresh email-verify link. Always returns 200.
+export const resendEmailVerify: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = resendEmailVerifySchema.safeParse(req.body);
+    if (parsed.success) {
+      await service.resendEmailVerify(parsed.data.email);
+    }
+    res.json({ ok: true, message: "If that email is registered, a fresh link is on the way." });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Phase 41 - confirm 6-digit OTP after register.
+export const verifyPhoneRegister: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = verifyPhoneRegisterSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new AppError(400, "ValidationError", parsed.error.message);
+    }
+    await service.verifyPhoneRegister(parsed.data.email, parsed.data.code);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Phase 41 - resend a fresh OTP after register. Always 200.
+export const resendPhoneOtp: RequestHandler = async (req, res, next) => {
+  try {
+    const parsed = resendPhoneOtpSchema.safeParse(req.body);
+    if (parsed.success) {
+      await service.resendPhoneOtp(parsed.data.email);
+    }
     res.json({ ok: true });
   } catch (err) {
     next(err);

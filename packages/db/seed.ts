@@ -285,9 +285,17 @@ async function seedUsers(countries: { countryId: number; name: string }[]) {
     },
   ];
 
+  // Phase 41 - mandatory verify flow at register doesn't apply to seed
+  // accounts; mark them already-verified so the demo flow can sign in
+  // without going through the email link + OTP each fresh seed.
+  const verifiedDefaults = {
+    emailVerified: true,
+    phoneVerifiedAt: new Date(),
+    phone: "+66812345678",
+  };
   const created = [] as Awaited<ReturnType<typeof prisma.user.create>>[];
   for (const data of users) {
-    const u = await prisma.user.create({ data });
+    const u = await prisma.user.create({ data: { ...data, ...verifiedDefaults } });
     created.push(u);
   }
 
