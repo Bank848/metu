@@ -25,12 +25,23 @@ export async function forwardToApi(
   req: NextRequest,
   apiPath: string,
 ): Promise<NextResponse> {
+  // Forward Origin so better-auth's CSRF check passes on social sign-in
+  // POSTs (it rejects same-origin requests with "MISSING_OR_NULL_ORIGIN"
+  // when the header is absent). Fall back to the BFF's own URL when the
+  // browser didn't send one (curl, server-to-server probes).
+  const incomingOrigin =
+    req.headers.get("origin") ?? new URL(req.url).origin;
+
   const init: RequestInit = {
     method: req.method,
     headers: {
       "Content-Type":
         req.headers.get("content-type") ?? "application/json",
+      origin: incomingOrigin,
       ...(req.headers.get("cookie") ? { cookie: req.headers.get("cookie")! } : {}),
+      ...(req.headers.get("user-agent")
+        ? { "user-agent": req.headers.get("user-agent")! }
+        : {}),
     },
   };
   if (req.method !== "GET" && req.method !== "HEAD") {
