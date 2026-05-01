@@ -3,13 +3,8 @@ import { AppError } from "../utils/errors.js";
 import { currentUser, currentAuth } from "./auth.js";
 
 /**
- * Phase 13.9 — guard for /seller/** routes. Builds on requireAuth()
- * (which loads req.user with `include: { store: true }`); just
- * verifies the user owns a store and surfaces it as req.store for
- * downstream handlers.
- *
- * Use AFTER requireAuth() in the router chain — readToken alone is
- * not enough because we need the Prisma row to know about the store.
+ * /seller/** guard. Mount after requireAuth(); checks req.user.store
+ * and surfaces it on req.store for downstream handlers.
  */
 export function requireStore() {
   return (req: Request, _res: Response, next: NextFunction) => {

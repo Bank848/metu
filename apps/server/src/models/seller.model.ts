@@ -1,13 +1,5 @@
-/**
- * Phase 13.9 — seller resource DTOs + request schemas.
- *
- * Read-side (13.9.1) endpoints don't take request bodies — they
- * stay types-only.
- *
- * Write-side (13.9.2) re-exports zod schemas from @metu/shared so
- * the controller layer has a single import surface, plus a small
- * variant-patch schema lifted from the legacy BFF route.
- */
+// Seller resource DTOs + request schemas. Re-exports the shared
+// schemas for a single controller-side import surface.
 import { z } from "zod";
 import {
   becomeSellerSchema,
@@ -23,10 +15,7 @@ export {
   couponInputSchema,
 };
 
-/**
- * Targeted variant patch — bulk-edit page nudges price / discount /
- * stock without resending the whole product payload.
- */
+/** Variant patch for bulk-edit nudges (price, discount, stock). */
 export const patchVariantSchema = z.object({
   price: z.number().min(0).optional(),
   discountPercent: z.number().min(0).max(100).optional(),
@@ -34,11 +23,7 @@ export const patchVariantSchema = z.object({
 });
 export type PatchVariantInput = z.infer<typeof patchVariantSchema>;
 
-/**
- * Order-status update — sellers can only move orders forward
- * (fulfilled) or sideways (cancelled). Pending → paid is the
- * checkout flow; refunded is its own endpoint.
- */
+/** Sellers can only move orders to fulfilled or cancelled. */
 export const updateOrderStatusSchema = z.object({
   status: z.enum(["fulfilled", "cancelled"]),
 });

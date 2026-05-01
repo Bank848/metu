@@ -85,15 +85,21 @@ export function renderEmailLayout(opts: LayoutOptions): string {
             <td style="padding: 0 0 24px; text-align: center;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;">
                 <tr>
-                  <td style="vertical-align: middle; padding-right: 8px;">
-                    <div style="display: inline-block; width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #FFCC00 0%, #B26800 100%); box-shadow: 0 2px 6px -2px rgba(178, 104, 0, 0.5);"></div>
+                  <td style="vertical-align: middle; padding-right: 10px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-radius: 8px; background: linear-gradient(135deg, #FFCC00 0%, #B26800 100%); box-shadow: 0 2px 6px -2px rgba(178, 104, 0, 0.55);">
+                      <tr>
+                        <td width="34" height="34" align="center" valign="middle" style="font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; font-size: 20px; font-weight: 900; color: #1a1919; line-height: 34px; padding: 0; letter-spacing: -0.02em;">
+                          M
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                   <td style="vertical-align: middle;">
-                    <span style="font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #1a1919;">METU</span>
+                    <span style="font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: #1a1919;">METU</span>
                   </td>
                 </tr>
               </table>
-              <div style="margin-top: 6px; font-size: 11px; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase;">
+              <div style="margin-top: 8px; font-size: 11px; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase;">
                 Digital Marketplace
               </div>
             </td>

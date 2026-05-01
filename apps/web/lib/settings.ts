@@ -1,32 +1,13 @@
 import { apiFetch, ApiError } from "./server/api";
 
-/**
- * Phase 17.1 / 26 — BFF-side settings helper (slimmed down).
- *
- * Server components call this to read the live feature flags. The
- * Express side already caches in-memory for 30 s, so calling this
- * on every render is cheap (~5 ms warm). Callers can also use the
- * `safeGetSettings` variant which returns sensible defaults on
- * any error so a transient API outage doesn't kill page rendering.
- *
- * Phase 26 dropped: walletEnabled, chatEnabled, promptpayId,
- * withdrawalFeePercent (PromptPay/coin layer removed in favour of
- * Stripe Connect, scheduled for Phase 27).
- *
- * Example:
- *   const { favoritesEnabled } = await getSettings();
- *   if (!favoritesEnabled) return null;
- */
+// BFF-side settings helper. Server-side caches for 30s.
+// safeGetSettings returns defaults on error.
 export interface PublicSettings {
-  /** Phase 17.x — favourites surfaces hide when false. */
   favoritesEnabled: boolean;
-  /** Phase 20.1 / 26 — % the platform keeps from each order. Phase 27
-   *  wires this into Stripe's `application_fee_amount` parameter. */
+  /** Platform's cut (%); maps to Stripe's application_fee_amount. */
   platformFeePercent: number;
   updatedAt: string;
-  /** Phase 17.x — true only when GOOGLE_CLIENT_ID is set on the API.
-   *  LoginForm hides the "Continue with Google" button when false so
-   *  users don't get a 404 / PROVIDER_NOT_FOUND on click. */
+  /** Drives the visibility of the "Continue with Google" button. */
   googleEnabled: boolean;
 }
 
@@ -42,7 +23,7 @@ export async function getSettings(): Promise<PublicSettings> {
   return data.settings;
 }
 
-/** Same as getSettings but never throws — falls back to safe defaults. */
+/** Like getSettings but never throws; falls back to defaults. */
 export async function safeGetSettings(): Promise<PublicSettings> {
   try {
     return await getSettings();

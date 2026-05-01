@@ -10,11 +10,7 @@ import {
   type ReportName,
 } from "../models/admin.model.js";
 
-/**
- * Phase 13.10 — admin controllers. The router applies
- * `requireAuth(["admin"])` once, so every handler can assume the
- * caller is an admin and currentAuth() is non-null.
- */
+// Admin controllers. requireAuth(["admin"]) is applied at the router level.
 
 // ── Users ───────────────────────────────────────────────────────────
 
@@ -40,8 +36,7 @@ export const updateUserRole: RequestHandler<{ id: string }> = async (req, res, n
     if (!parsed.success) {
       throw new AppError(400, "ValidationError", parsed.error.message);
     }
-    // Phase 15.4 — pass req so the audit row captures IP + UA
-    // (security-sensitive admin actions get full request context).
+    // Pass req so the audit row captures IP + UA.
     await service.updateUserRole(targetUserId, auth.uid, parsed.data, req);
     res.json({ ok: true });
   } catch (err) {
@@ -54,8 +49,7 @@ export const deleteUser: RequestHandler<{ id: string }> = async (req, res, next)
     const auth = currentAuth(req)!;
     const targetUserId = Number(req.params.id);
     if (!Number.isFinite(targetUserId)) throw new AppError(400, "BadId");
-    // Body is optional — DELETE with no body is the silent self-delete-
-    // equivalent path; with a `reason` it's a ban.
+    // Body optional: empty = soft-delete; with reason = ban.
     const parsed = deleteUserSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError(400, "ValidationError", parsed.error.message);
@@ -127,16 +121,7 @@ export const refundTransaction: RequestHandler<{ id: string }> = async (req, res
   }
 };
 
-// ── Store suspended toggle (Phase 16.1) ─────────────────────────────
-
-/**
- * POST /admin/stores/:id/suspend
- *
- * Body: `{ value: boolean }`. true → set suspendedAt = NOW (store
- * disappears from public surfaces immediately). false → clears
- * suspendedAt back to NULL (store goes live again). Reversible
- * — distinct from DELETE /admin/stores/:id which is permanent.
- */
+/** POST /admin/stores/:id/suspend. Body: { value: boolean }. Reversible. */
 export const setStoreSuspended: RequestHandler<{ id: string }> = async (req, res, next) => {
   try {
     const auth = currentAuth(req)!;
@@ -153,17 +138,7 @@ export const setStoreSuspended: RequestHandler<{ id: string }> = async (req, res
   }
 };
 
-// ── Force-password-reset (Phase 15.5) ───────────────────────────────
-
-/**
- * POST /admin/users/:id/require-password-reset
- *
- * Body: `{ value: boolean }`. When true, forces the target user to
- * change their password before any other authed action. When false,
- * clears the flag (admins can undo a force-reset they set in error).
- *
- * Self-toggle forbidden (handled by service).
- */
+/** POST /admin/users/:id/require-password-reset. Self-toggle forbidden. */
 export const setRequirePasswordReset: RequestHandler<{ id: string }> = async (req, res, next) => {
   try {
     const auth = currentAuth(req)!;

@@ -11,16 +11,10 @@ const ITEMS = [
   { href: "/seller/products",   label: "Products",      icon: Package },
   { href: "/seller/coupons",    label: "Coupons",       icon: Ticket },
   { href: "/seller/orders",     label: "Orders",        icon: ShoppingBag },
-  // Phase 27 — Stripe Connect surfaces.
   { href: "/seller/wallet",     label: "Wallet",        icon: Wallet },
   { href: "/seller/onboarding", label: "Stripe Connect", icon: CreditCard },
 ];
 
-/**
- * Phase 26 — slimmed down: dropped the Messages + Wallet rows
- * (messaging removed, wallet/withdrawal replaced by Stripe Connect
- * in Phase 27).
- */
 export function SellerSidebar({ storeName }: { storeName?: string }) {
   const pathname = usePathname();
 

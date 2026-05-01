@@ -1,78 +1,18 @@
-/**
- * Phase 14.1 — better-auth instance.
- *
- * The instance is mounted on Express via toNodeHandler() at
- * `/auth/better/*` (see app.ts). For Phase 14.1 it ships ONLY as
- * plumbing — no UI references it yet, no middleware swap. Smoke
- * test: GET /auth/better/get-session returns `{ session: null,
- * user: null }` for an anonymous request.
- *
- * Phase 14.2 will swap apps/server/src/middleware/auth.ts to read
- * better-auth's session via `auth.api.getSession({ headers })`
- * instead of verifying our hand-rolled JWT cookie. That's Mode A
- * from the plan (better-auth owns the cookie). Until then the
- * legacy /auth/login + /auth/register continue to mint our
- * `metu_auth` JWT cookie unchanged.
- *
- * Critical config notes
- *
- * • `advanced.database.generateId = "serial"` — every PK is Int.
- *   Matches our existing User.userId Int PK so Account.userId +
- *   Session.userId are clean Int → Int FKs. better-auth's runtime
- *   auto-converts string IDs to Int when reading/writing per the
- *   docs.
- *
- * • `user.fields.id = "userId"` — better-auth's notion of `id`
- *   maps to our column `user_id` via Prisma's @map. Same trick
- *   for `image → profile_image` and `emailVerified →
- *   email_verified`.
- *
- * • `user.fields.name = "firstName"` — better-auth wants a single
- *   `name` field; our schema splits firstName + lastName. We map
- *   to firstName for now; Phase 14.2's Google sign-in handler
- *   will populate firstName from the Google profile name.
- *
- * • Google provider only mounts when GOOGLE_CLIENT_ID is set, so
- *   local dev without OAuth credentials still boots cleanly.
- */
+// better-auth instance, mounted via toNodeHandler() at /auth/better/*.
+// Owns the session cookie for both password and Google sign-ins.
 import { betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
-// Import the prisma adapter from its own package instead of the
-// `better-auth/adapters/prisma` subpath. The subpath form re-exports
-// from `@better-auth/prisma-adapter` via better-auth's dist .d.mts
-// files; resolving that re-export through Node's module lookup was
-// flaky in the Fly Docker build (worked locally, failed under
-// `npm ci --ignore-scripts`). Direct import is identical at runtime
-// and dodges the resolution chain entirely.
+// Direct import of the adapter dodges a flaky re-export chain that
+// fails under Fly's `npm ci --ignore-scripts` Docker build.
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma as realPrisma } from "../db/prisma.js";
 
 /**
- * Phase 16.3 — better-auth ALWAYS expects the user PK to be a Prisma
- * field literally named `id`. There's no config to alias this (we
- * tried `user.fields.id = "userId"` — it's silently ignored, and
- * `getDefaultFieldName` hard-codes `if (field === "id") return "id"`).
- *
- * Our schema's PK is `userId` (Prisma field) → `user_id` (SQL column).
- * Renaming would touch ~84 source files plus every `where: { userId }`,
- * `include: { user: ... }`, etc. across queries. So instead we wrap
- * the Prisma client with a tiny Proxy that mirrors `userId` onto an
- * `id` field on every result row from any user-table find call. The
- * mirror only runs for `prisma.user.find*` reads — no other models
- * touched, no writes affected.
- *
- * This unblocks two paths better-auth needs:
- *   1. handleFallbackJoin (factory.mjs:340) reads `baseData[id]` to
- *      get the FK value when joining `user → accounts`. Without the
- *      mirror, this is undefined → join returns [] → signInEmail
- *      logs "Credential account not found" even when the row exists.
- *   2. transformOutput (factory.mjs:~580) constructs the public
- *      `result.user.id` from `data.id`. Same fix.
- */
-/**
- * Mirror `userId` → `id` on every result row from prisma.user.find*.
- * Recursive so nested includes (e.g. session → user) get mirrored too.
+ * better-auth hard-codes the user PK field name as `id`. Our schema
+ * uses `userId`. We wrap prisma.user with a Proxy that mirrors
+ * `userId` -> `id` on reads and rewrites `where: { id }` to
+ * `where: { userId }` on the way in. Reads only; no writes touched.
  */
 function mirrorUserIdToId<T>(value: T): T {
   if (Array.isArray(value)) {
@@ -87,12 +27,8 @@ function mirrorUserIdToId<T>(value: T): T {
   return value;
 }
 
-/**
- * Inverse: rewrite `where: { id: ... }` to `where: { userId: ... }`.
- * better-auth's findUserById queries `prisma.user.findFirst({ where: { id: {...} } })`
- * which Prisma rejects because we have no `id` field. The rewrite
- * also walks AND / OR / NOT branches.
- */
+// Rewrite `where: { id: ... }` to `where: { userId: ... }` on every
+// branch. Walks AND/OR/NOT recursively.
 function rewriteIdToUserIdInWhere(where: unknown): unknown {
   if (Array.isArray(where)) return where.map(rewriteIdToUserIdInWhere);
   if (!where || typeof where !== "object") return where;
@@ -136,17 +72,13 @@ const prisma: typeof realPrisma = new Proxy(realPrisma, {
   },
 }) as typeof realPrisma;
 
-// Phase 14.3.5 — derive a unique username from a Google email so
-// the User row satisfies our schema's UNIQUE+NOT NULL username
-// constraint. Strategy: take the local-part (before @), strip
-// non-alphanumeric, lowercase, append a 4-digit nonce on collision
-// (retried up to 5 times before giving up). VARCHAR(20) cap so we
-// never exceed the column limit even for long emails.
+// Derive a unique username from a Google email (local-part, lowercased,
+// alphanumeric only, 4-digit nonce on collision, capped at 20 chars).
 async function deriveUsername(email: string): Promise<string> {
   const root = (email.split("@")[0] ?? "user")
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, "")
-    .slice(0, 14) || "user"; // empty input → "user"
+    .slice(0, 14) || "user";
   for (let i = 0; i < 5; i++) {
     const nonce = i === 0 ? "" : Math.floor(Math.random() * 10000).toString().padStart(4, "0");
     const candidate = (root + nonce).slice(0, 20);
@@ -156,22 +88,17 @@ async function deriveUsername(email: string): Promise<string> {
     });
     if (!exists) return candidate;
   }
-  // Last resort: timestamp-suffixed. Practically never hit but
-  // guarantees we never throw a unique-constraint violation here.
+  // Last resort: never hit in practice.
   return `${root.slice(0, 10)}${Date.now() % 1_000_000}`.slice(0, 20);
 }
 
-// Split better-auth's `name` (a single string from the Google profile,
-// e.g. "Jane Doe") into firstName + lastName. Our schema enforces
-// NOT NULL on both. Empty surname falls back to a single dash so the
-// VARCHAR(40) NOT NULL doesn't reject the insert; the user can fix
-// it from /profile/edit later.
+// Split a Google profile name into NOT-NULL firstName + lastName.
 function splitName(name: string | null | undefined): { firstName: string; lastName: string } {
   const trimmed = (name ?? "").trim();
-  if (!trimmed) return { firstName: "—", lastName: "—" };
+  if (!trimmed) return { firstName: "-", lastName: "-" };
   const parts = trimmed.split(/\s+/);
   const firstName = parts[0].slice(0, 40);
-  const lastName = (parts.slice(1).join(" ") || "—").slice(0, 40);
+  const lastName = (parts.slice(1).join(" ") || "-").slice(0, 40);
   return { firstName, lastName };
 }
 
@@ -179,51 +106,30 @@ const ENABLE_GOOGLE = Boolean(process.env.GOOGLE_CLIENT_ID);
 
 const SECRET =
   process.env.BETTER_AUTH_SECRET ??
-  // Fall back to the existing JWT secret in dev so we don't need a
-  // second env var. Production MUST set BETTER_AUTH_SECRET to a
-  // distinct 32+ byte value.
+  // Dev fallback. Prod MUST set BETTER_AUTH_SECRET.
   process.env.JWT_SECRET ??
   "dev-only-fallback-secret-change-in-production";
 
-// Phase 14.2 — base URL is the BFF, not Express. better-auth uses
-// this to generate OAuth callback URLs that Google must redirect
-// to. The browser only ever talks to https://metu.fly.dev (or
-// http://localhost:3000 in dev); the BFF then proxies
-// /api/auth/better/* to Express. Cookies set in the response are
-// scoped to the BFF host so they're sent on subsequent BFF
-// requests (same scoping trick as our JWT cookie from Phase 13.2).
+// Base URL is the BFF, not Express. The browser only ever talks to
+// the BFF; cookies are scoped to that host.
 const BASE_URL =
   process.env.BETTER_AUTH_URL ??
-  // Local dev: Next on :3000 BFF-proxies to Express on :4000.
   "http://localhost:3000";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   secret: SECRET,
   baseURL: BASE_URL,
-  // basePath matches the BFF-side path the browser hits; Express
-  // mounts its catch-all at the same path so the routes resolve
-  // identically inside better-auth regardless of which side of the
-  // proxy hop we're on.
+  // Same path on the BFF and Express so routes resolve identically.
   basePath: "/api/auth/better",
 
-  // Phase 16.3 — `generateId: "serial"` matches our autoincrement Int
-  // PKs. better-auth then knows to skip its own ID generation on
-  // INSERT (Prisma's autoincrement handles it) and to coerce
-  // string-shaped IDs back to numbers on lookups.
+  // `serial` matches our autoincrement Int PKs.
   advanced: {
     database: {
       generateId: "serial",
     },
-    // Phase 22.4 — tighten the session cookie. `sameSite: "lax"` is
-    // better-auth's default; "strict" stops the cookie from being
-    // attached to ANY cross-site navigation (including a redirect
-    // from connect.stripe.com back to /seller/onboarding/return).
-    // We need OAuth callbacks + Stripe Connect return links to keep
-    // the session, so we keep "lax" here and rely on the explicit
-    // `httpOnly: true` (default) + `secure: true` (default in prod)
-    // to lock down everything else. Setting them explicitly anyway
-    // so the contract is visible in code.
+    // sameSite: "lax" so OAuth callbacks + Stripe Connect returns
+    // keep the session. httpOnly + secure handle the rest.
     defaultCookieAttributes: {
       httpOnly: true,
       sameSite: "lax",
@@ -231,10 +137,7 @@ export const auth = betterAuth({
     },
   },
 
-  // Map better-auth's expected field names onto our existing columns.
-  // NOTE: `user.fields.id` is NOT included — that config option is
-  // silently ignored by better-auth. The `userId` → `id` mirror is
-  // handled by the Prisma client Proxy at the top of this file.
+  // Map better-auth's expected fields onto our columns.
   user: {
     modelName: "User",
     fields: {
@@ -242,37 +145,16 @@ export const auth = betterAuth({
       email: "email",
       emailVerified: "emailVerified",
       image: "profileImage",
-      // Phase 16.3 — better-auth's user schema declares createdAt +
-      // updatedAt as REQUIRED. createdAt → existing legacy column;
-      // updatedAt is a new column added by migration 20260429090000.
       createdAt: "createdDate",
       updatedAt: "updatedAt",
     },
   },
 
-  // Email + password sign-in (compat with our existing /login form).
-  //
-  // Phase 16.3 (Mode A swap) — better-auth now owns the cookie for
-  // password sign-ins too. Two important configs land here:
-  //
-  //   1. `password.{verify,hash}` adapters point at bcryptjs so
-  //      better-auth's signInEmail() can verify against the *existing*
-  //      bcrypt hashes our register flow has been writing since the
-  //      Phase 13.2 monolith split. Without this adapter, better-auth
-  //      defaults to scrypt and would fail to verify any pre-Phase
-  //      16.3 account.
-  //
-  //   2. The credential rows themselves live in the `account` table,
-  //      backfilled by migration 20260429070000_phase_16_3_credential_
-  //      account_backfill from every existing User with a non-null
-  //      password. From now on, register + set-password also write
-  //      to the `account` table to keep the two paths in sync (handled
-  //      in auth.service.ts).
+  // Bcryptjs adapters so signInEmail can verify our existing hashes
+  // (better-auth defaults to scrypt, which would reject every legacy row).
   emailAndPassword: {
     enabled: true,
-    // Don't auto-sign-in after signUp — our /auth/register controller
-    // wraps signInEmail explicitly so it can run profanity + duplicate
-    // checks first.
+    // Our /auth/register runs profanity + duplicate checks before signInEmail.
     autoSignIn: false,
     password: {
       verify: async ({ hash, password }) => bcrypt.compare(password, hash),
@@ -280,51 +162,29 @@ export const auth = betterAuth({
     },
   },
 
-  // Phase 14.3.5 — linking fork + missing-field defaults.
-  //
-  // When a Google sign-in completes, better-auth tries to insert a
-  // User row using ONLY { name, email, image } from the Google
-  // profile. Our schema requires more (firstName, lastName, username
-  // — all NOT NULL). The hook fills in those fields AND rejects with
-  // 409 EmailAlreadyRegistered if a non-deleted local account exists
-  // at the same email (security: anyone can create a Google account
-  // with someone else's email, so silently auto-linking would be a
-  // free account-takeover vector).
+  // Fill in NOT NULL fields better-auth doesn't know about, and reject
+  // Google sign-ins that collide with an existing local account
+  // (silent auto-linking would be an account-takeover vector).
   databaseHooks: {
     user: {
       create: {
         before: async (user) => {
-          // Email collision check. Soft-deleted accounts don't count
-          // (admin can re-enable; matching against a deleted ghost
-          // would block legitimate fresh signups by the same person).
           const existing = await prisma.user.findFirst({
             where: { email: user.email, deletedAt: null },
             select: { userId: true },
           });
           if (existing) {
-            // 409. better-auth surfaces this as the OAuth flow's
-            // error response; the client lands on
-            // /login?error=email-exists via the errorCallbackURL
-            // query param the Google button sets.
             throw new APIError("CONFLICT", {
               message: "EmailAlreadyRegistered",
             });
           }
 
-          // Fill in our schema's NOT NULL fields that better-auth
-          // doesn't know about. better-auth's `name` becomes our
-          // firstName via the user.fields mapping; we ALSO populate
-          // lastName + username here.
           const { firstName, lastName } = splitName(user.name);
           const username = await deriveUsername(user.email);
 
           return {
             data: {
               ...user,
-              // The mapped `name` field lives in `firstName` per our
-              // user.fields config; better-auth's runtime substitutes
-              // the column name automatically. We pass firstName too
-              // so it survives the round-trip cleanly.
               name: firstName,
               firstName,
               lastName,
@@ -336,8 +196,7 @@ export const auth = betterAuth({
     },
   },
 
-  // Google OAuth — only mounts when credentials are present so local
-  // dev boots without Google setup.
+  // Google only mounts when credentials are present.
   ...(ENABLE_GOOGLE && {
     socialProviders: {
       google: {

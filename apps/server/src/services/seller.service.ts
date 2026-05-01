@@ -18,12 +18,8 @@ type UpdateStoreInput  = z.infer<typeof updateStoreSchema>;
 type ProductInput      = z.infer<typeof productInputSchema>;
 type CouponInput       = z.infer<typeof couponInputSchema>;
 
-/**
- * Phase 13.9 — seller service. Read-side functions in 13.9.1; the
- * write-side joins this file in 13.9.2. All functions take a
- * `storeId` rather than reaching for the request — keeps them pure
- * + testable.
- */
+// Seller service. Functions take a storeId rather than reaching for
+// the request, keeping them testable in isolation.
 
 /** Current seller's store with businessType + stats. */
 export async function getStore(storeId: number) {
@@ -303,18 +299,9 @@ function escapeCsv(value: unknown): string {
   return s;
 }
 
-// =============================================================================
-//  WRITE SIDE (Phase 13.9.2)
-// =============================================================================
-
 /**
- * POST /seller/become-seller — create the user's first store +
- * promote their role buyer→seller in the same transaction.
- * 409 StoreExists if they already own one (Stores have @unique
- * ownerId so re-onboarding would crash anyway).
- *
- * Admin owners stay admin (we never demote admin→seller — admins
- * can own a store for testing without losing admin powers).
+ * Create the user's first store + promote buyer to seller in one tx.
+ * Admin owners stay admin. 409 StoreExists if they already own one.
  */
 export async function becomeSeller(userId: number, input: BecomeSellerInput) {
   const existing = await prisma.store.findUnique({ where: { ownerId: userId } });
@@ -383,10 +370,6 @@ export async function createProduct(storeId: number, input: ProductInput) {
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
-          // Phase 26 — coinPrice column dropped (coin layer removed
-          // when PromptPay was retired). THB is the only canonical
-          // price now ; Stripe handles the satang conversion at
-          // checkout time.
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
           sampleUrl: it.sampleUrl,
@@ -588,7 +571,6 @@ export async function patchVariant(
   const data: Record<string, unknown> = {};
   if (input.price !== undefined) {
     data.price = new Prisma.Decimal(input.price);
-    // Phase 26 — coinPrice column dropped, THB-only pricing now.
   }
   if (input.discountPercent !== undefined) data.discountPercent = input.discountPercent;
   if (input.quantity !== undefined) data.quantity = input.quantity;

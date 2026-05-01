@@ -17,24 +17,15 @@ import { ErConnectorPath, ErMarkers } from "./ErConnectorPath";
 import { CategoryLegend } from "./CategoryLegend";
 
 /**
- * Phase 24 — in-house ER diagram renderer.
- *
- * Layout chain:
- *   schema.prisma → er-schema.ts (build-time generator)
- *                 → layoutEr() (dagre wrapper)
- *                 → ErEntityCard (per-table HTML overlay)
- *                 + SVG <path> (FK connectors with crow-foot markers)
- *
- * Pan/zoom via CSS transform. Export via SVG serialization →
- * download (SVG) or canvas blob (PNG).
+ * In-house ER diagram renderer. dagre handles layout; entities render
+ * as HTML overlays and FK connectors as SVG paths with crow-foot markers.
  */
 
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 4;
 
 export function ErDiagramView() {
-  // Compute layout once — schema is build-time constant so this is
-  // deterministic and never changes during the page's lifetime.
+  // Schema is build-time constant; layout never changes after mount.
   const layout = useMemo<LayoutResult>(
     () => layoutEr(ER_ENTITIES, ER_RELATIONSHIPS),
     [],
@@ -106,22 +97,17 @@ export function ErDiagramView() {
     [],
   );
 
-  // Mouse wheel: plain wheel = zoom (around cursor), shift+wheel = horizontal pan.
-  // Page-scroll inside the canvas is replaced by zoom because that's the
-  // standard ER tool affordance (Lucid, dbdiagram, drawSQL all do it).
-  // Holding shift gives a fallback to pan horizontally without zooming.
+  // Wheel = zoom around cursor; shift+wheel = horizontal pan.
   useEffect(() => {
     const c = containerRef.current;
     if (!c) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (e.shiftKey) {
-        // Pan horizontally on shift+wheel (matches Figma / Miro etc.)
         setTx((prev) => prev - e.deltaY);
         return;
       }
-      // Zoom around the cursor position (not viewport center) so the
-      // user's focal point stays anchored under their pointer.
+      // Anchor zoom to the cursor position.
       const rect = c.getBoundingClientRect();
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
@@ -137,8 +123,7 @@ export function ErDiagramView() {
     return () => c.removeEventListener("wheel", onWheel);
   }, []);
 
-  // Keyboard shortcuts: + / = zoom in, - zoom out, 0 reset, f fit.
-  // Bound to the canvas so they don't fight with browser shortcuts.
+  // Keyboard: +/= zoom in, - zoom out, 0 reset, f fit.
   useEffect(() => {
     const c = containerRef.current;
     if (!c) return;
@@ -164,14 +149,11 @@ export function ErDiagramView() {
     return () => c.removeEventListener("keydown", onKey);
   }, [zoomBy, reset, fitToScreen]);
 
-  // Drag-pan with a 4px threshold so accidental click-and-release
-  // doesn't show as a "moved" pan. Below threshold the canvas counts
-  // as still ; above it we commit the translate.
+  // 4px threshold so accidental clicks don't register as pans.
   const DRAG_THRESHOLD = 4;
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
-    // Only start a pan if the mousedown originated on the canvas
-    // background — clicks on entity cards / buttons should not pan.
+    // Don't pan when the click originated on an entity or button.
     const target = e.target as HTMLElement;
     if (target.closest("[data-er-entity]") || target.closest("button")) return;
     dragStateRef.current = {
@@ -198,18 +180,14 @@ export function ErDiagramView() {
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
   };
 
-  // Double-click empty canvas → fit-to-screen. Skips when the click
-  // landed on an entity card so the click-to-highlight behaviour is
-  // preserved.
+  // Double-click empty canvas to fit-to-screen.
   const onDoubleClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest("[data-er-entity]") || target.closest("button")) return;
     fitToScreen();
   };
 
-  // Export — serialize the diagram as an SVG with HTML entity cards
-  // embedded via <foreignObject>. Saves directly without round-tripping
-  // through canvas first (cleaner for SVG, smaller payload).
+  // Serialize the diagram as inline SVG with foreignObject cards.
   const exportSvg = () => {
     const svg = serializeDiagramSvg();
     if (!svg) return;
@@ -223,7 +201,7 @@ export function ErDiagramView() {
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
-      const dpr = 2; // high-DPI export so the PDF render stays crisp
+      const dpr = 2; // high-DPI for crisp PNG/PDF output
       const canvas = document.createElement("canvas");
       canvas.width = layout.width * dpr;
       canvas.height = layout.height * dpr;
@@ -244,14 +222,12 @@ export function ErDiagramView() {
   };
 
   const serializeDiagramSvg = (): string | null => {
-    // Build a self-contained SVG representation we can hand to
-    // either an SVG download or a canvas for PNG conversion.
+    // Self-contained SVG used for both download + PNG conversion.
     const W = layout.width;
     const H = layout.height;
     let body = "";
 
-    // <defs> with crow-foot markers — must mirror ErMarkers exactly so
-    // exported SVG/PNG render identically to the on-screen view.
+    // crow-foot markers; must mirror ErMarkers for identical export.
     body += `<defs>
 <marker id="ef-one" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto">
   <line x1="3" y1="0" x2="3" y2="12" stroke="#64748b" stroke-width="1.5" />
@@ -266,7 +242,7 @@ export function ErDiagramView() {
 </marker>
 </defs>`;
 
-    // Edges first so they sit behind the cards.
+    // Edges first so cards render on top.
     body += '<g fill="none" stroke="#64748b" stroke-width="1.5">';
     for (const edge of layout.edges) {
       if (edge.points.length < 2) continue;
@@ -279,11 +255,8 @@ export function ErDiagramView() {
     }
     body += "</g>";
 
-    // Entity cards as PURE SVG primitives (no <foreignObject>). This
-    // is critical for PNG export — canvas marks the bitmap as "tainted"
-    // when SVG contains foreign HTML, throwing SecurityError on
-    // toBlob/toDataURL. Pure <rect>+<text>+<line> renders cleanly to
-    // canvas + matches the on-screen visual.
+    // Pure SVG primitives only - foreignObject taints the canvas
+    // and breaks PNG export with SecurityError on toBlob.
     for (const node of layout.nodes) {
       const entity = entityById.get(node.id);
       if (!entity) continue;
@@ -447,10 +420,6 @@ export function ErDiagramView() {
   );
 }
 
-// ──────────────────────────────────────────────────────────────────
-// Helpers — kept out of the component file to keep the JSX focused.
-// ──────────────────────────────────────────────────────────────────
-
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -459,21 +428,11 @@ function downloadBlob(blob: Blob, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  // Defer revoke a beat so older browsers finish the download.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/**
- * Pure-SVG entity card for export. No <foreignObject> so the resulting
- * SVG renders the same in:
- *   - Standalone SVG viewers (browsers, Inkscape)
- *   - Canvas drawImage → PNG export (foreignObject would taint the
- *     canvas, so we cannot toDataURL/toBlob)
- *   - PDF embed via the docx report
- *
- * Visual matches the live ErEntityCard component: white body, colored
- * header, alternating row stripes, PK/FK marker + field name + type.
- */
+// Pure-SVG entity card for export. No foreignObject so the SVG
+// stays canvas-safe for PNG conversion and renders in all viewers.
 function renderEntityCardSvg(
   entity: ErEntity,
   x: number,
@@ -488,26 +447,19 @@ function renderEntityCardSvg(
   const ROW_H = 22;
 
   let parts = "";
-  // Card background + border (rounded rect)
   parts += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" ry="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1" />`;
-  // Header bar (rounded only at top via clip — for simplicity we
-  // overlay a rectangle then redraw a thin border line at the bottom
-  // of the header to separate it from the body).
+  // Header is rounded; overlay a square rect on the bottom half.
   parts += `<rect x="${x}" y="${y}" width="${w}" height="${HEADER_H}" fill="${s.headerBg}" rx="6" ry="6" />`;
-  // Bottom of header rounded → square (overlap a non-rounded rect just below the rounded portion)
   parts += `<rect x="${x}" y="${y + HEADER_H / 2}" width="${w}" height="${HEADER_H / 2}" fill="${s.headerBg}" />`;
-  // Header text — centered horizontally, baseline ≈ vertical center
   const headerCx = x + w / 2;
   const headerBaseline = y + HEADER_H / 2 + 4;
   parts += `<text x="${headerCx}" y="${headerBaseline}" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" letter-spacing="0.5" fill="${headerColor}">${escapeHtml(entity.table.toUpperCase())}</text>`;
 
-  // Each field row
   entity.fields.forEach((f, idx) => {
     const rowY = y + HEADER_H + idx * ROW_H;
     const altBg = idx % 2 === 1 ? "#f8fafc" : "#ffffff";
     parts += `<rect x="${x + 1}" y="${rowY}" width="${w - 2}" height="${ROW_H}" fill="${altBg}" />`;
     if (idx > 0) {
-      // separator
       parts += `<line x1="${x + 1}" y1="${rowY}" x2="${x + w - 1}" y2="${rowY}" stroke="#f1f5f9" stroke-width="1" />`;
     }
     const baseline = rowY + ROW_H / 2 + 3;

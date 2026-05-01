@@ -1,31 +1,23 @@
-// METU Seed — Thai-leaning narrative-driven demo data.
-// Run:  npm run db:seed     (additive, idempotent-ish via upserts where practical)
-//       npm run db:reset    (drop + migrate + seed)
+// METU demo seed.
+// Run: npm run db:seed (idempotent-ish), npm run db:reset (drop+migrate+seed)
 //
-// Story seeded:
-//   admin@metu.dev  sees a realistic marketplace at a glance
-//   seller@metu.dev owns "Kluay Studio" (Art & Design, Bangkok) with 9 products,
-//                   8 orders across all statuses, active coupon METU10
-//   buyer@metu.dev  has past orders + an active cart for the demo
+// Seeds three accounts: admin@metu.dev, seller@metu.dev (Kluay Studio
+// with 9 products + 8 orders), buyer@metu.dev (past orders + cart).
 
 import { PrismaClient, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-// Stable abstract avatars per user (matches Canva's modern minimalist vibe).
+// Stable abstract avatars per user.
 const AVATAR = (seed: string) =>
   `https://api.dicebear.com/7.x/notionists-neutral/svg?seed=${encodeURIComponent(seed)}`;
 
-// Picsum is reliable but returns RANDOM photos by seed — fine for store covers but
-// terrible for product cards (a "Thai-Pop Instrumental" card might show an American
-// flag). Reserve IMG() for decorative placement; for products use pickImage() below.
+// Picsum returns a random photo per seed - fine for decorative placement only.
 const IMG = (seed: string, w = 800, h = 600) =>
   `https://picsum.photos/seed/${encodeURIComponent(seed)}/${w}/${h}`;
 
-// Curated Unsplash photo IDs, pooled by product category. Each pool has 5+ themed
-// images; pickImage() rotates through them deterministically based on the seed name
-// so the same seed always returns the same photo (stable across re-seeds).
+// Themed Unsplash pools per category; pickImage() picks deterministically from the seed name.
 const IMAGE_POOLS: Record<string, string[]> = {
   Templates: [
     "1551288049-bebda4e38f71", // dashboard mockup
@@ -116,12 +108,12 @@ function hashSeed(s: string): number {
 
 function pickImage(category: string, seed: string, index = 0, w = 1200, h = 800): string {
   const pool = IMAGE_POOLS[category];
-  if (!pool || pool.length === 0) return IMG(seed, w, h); // fall back to picsum
+  if (!pool || pool.length === 0) return IMG(seed, w, h);
   const id = pool[(hashSeed(seed) + index) % pool.length];
   return `https://images.unsplash.com/photo-${id}?w=${w}&h=${h}&fit=crop&q=80&auto=format`;
 }
 
-// THB pricing (≈ x35 of USD for plausible Thai marketplace prices).
+// THB pricing helper.
 const baht = (n: number) => new Prisma.Decimal(n);
 
 async function clear() {
@@ -149,7 +141,7 @@ async function clear() {
 }
 
 async function seedCountries() {
-  // Thailand first so it's the default country in dropdowns.
+  // Thailand first; it's the default country in dropdowns.
   const data = [
     { countryCode: 66, name: "Thailand" },
     { countryCode: 65, name: "Singapore" },
@@ -369,10 +361,7 @@ async function seedStores(sellers: U[], businessTypes: { typeId: number; name: s
         description: d.description,
         coverImage: d.cover,
         profileImage: d.profile,
-        // Phase 33 — backfill contact channels from the owner's
-        // account so the receipt email's "Contact <store>" footer has
-        // something to render. Real sellers can override these later
-        // via /seller/store/edit.
+        // Default contact info; sellers can edit later from /seller/store/edit.
         contactEmail: d.seller.email,
         phone: "+66812345678",
       },

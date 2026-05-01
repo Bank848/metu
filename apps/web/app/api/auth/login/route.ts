@@ -1,8 +1,4 @@
-/**
- * Phase 13.2 — thin forwarder to Express `POST /auth/login`. See
- * `lib/server/proxy.ts` for why we proxy instead of letting the
- * browser call Express directly (cookie-domain story).
- */
+// Forwards POST /auth/login to Express via the BFF proxy.
 import { type NextRequest } from "next/server";
 import { forwardToApi } from "@/lib/server/proxy";
 

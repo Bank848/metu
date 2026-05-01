@@ -1,27 +1,10 @@
-/**
- * Phase 27 — Stripe Connect (test mode) integration.
- *
- * Stripe is the system of record for payment / balance / refund /
- * payout state. We persist only the IDs we need to drive UI +
- * webhooks ; no Wallet, Topup, or Withdrawal tables anymore.
- *
- * The whole module is `isConfigured()`-guarded so a deploy without
- * STRIPE_SECRET_KEY still boots — checkout falls back to "demo
- * mode" (Order created in `paid` status without a Stripe charge),
- * the seller-onboarding page renders an instructional state, and
- * the webhook endpoint returns 503.
- *
- * Test mode is the default mental model for this project — Stripe
- * Thailand can't be put into live mode without a registered Thai
- * business + ภพ.20 + bank verification, none of which a CPE241
- * group has access to. Test mode is free, unlimited, and exposes
- * the full Connect / refund / payout API surface.
- */
+// Stripe Connect (test mode) integration. Stripe owns the payment
+// state; we persist only the IDs we need. Module is isConfigured()
+// guarded so a deploy without STRIPE_SECRET_KEY still boots in demo mode.
 import Stripe from "stripe";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 
-// One singleton per process. Module-level so `getClient()` is cheap.
 let _client: Stripe | null = null;
 
 /** Return `true` when STRIPE_SECRET_KEY is set in the environment. */
@@ -40,28 +23,15 @@ export function getClient(): Stripe {
   }
   if (!_client) {
     _client = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      // Tag the integration so logs in the Stripe dashboard read
-      // "metu/0.1.0" instead of "stripe-node/x.y.z". apiVersion is
-      // intentionally omitted so we pin to the SDK's bundled default —
-      // bumping the SDK is the explicit signal to test webhooks
-      // against any payload-schema changes.
       appInfo: { name: "metu", version: "0.1.0" },
     });
   }
   return _client;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Stripe Connect (Express accounts)
-// ─────────────────────────────────────────────────────────────────
-
 /**
- * Create a Stripe Connect Express account for a seller. Idempotent —
- * if the store already has `stripeAccountId`, return the existing one.
- *
- * `country: "TH"` so the account onboards into the Thai capability
- * matrix. Express accounts get Stripe-hosted onboarding (KYC, bank
- * info, identity docs) — we don't have to build that UI.
+ * Create a Stripe Connect account for a seller. Idempotent: returns
+ * the existing stripeAccountId if the store already has one.
  */
 export async function createConnectAccount(storeId: number): Promise<string> {
   const stripe = getClient();
@@ -69,14 +39,9 @@ export async function createConnectAccount(storeId: number): Promise<string> {
   if (!store) throw new AppError(404, "StoreNotFound");
   if (store.stripeAccountId) return store.stripeAccountId;
 
-  // Phase 32 — TH compliance forces a recipient model (Stripe is
-  // loss-liable + collects requirements via hosted onboarding). The
-  // legacy `type:"express"` shortcut isn't allowed in TH because it
-  // would make the application loss-liable. We spell it out via the
-  // `controller` shape: stripe handles losses, application pays fees,
-  // no Stripe-hosted dashboard for the seller (we surface balance /
-  // payouts ourselves under /seller/wallet), Stripe runs the hosted
-  // onboarding flow that captures tos_acceptance.
+  // TH compliance: explicit `controller` shape so Stripe is loss-
+  // liable and runs the hosted onboarding flow. `type:"express"`
+  // isn't allowed in Thailand.
   const acct = await stripe.accounts.create({
     country: "TH",
     email: undefined,
@@ -104,10 +69,7 @@ export async function createConnectAccount(storeId: number): Promise<string> {
   return acct.id;
 }
 
-/**
- * Generate a single-use onboarding link. The seller clicks it, fills in
- * Stripe-hosted forms, then gets bounced back to our return URL.
- */
+// Single-use onboarding link returned to the seller.
 export async function createOnboardingLink(storeId: number): Promise<string> {
   const stripe = getClient();
   const accountId = await createConnectAccount(storeId);
@@ -142,29 +104,11 @@ export async function refreshAccountStatus(storeId: number) {
   return { stripeAccountId: store.stripeAccountId, payoutsEnabled, chargesEnabled };
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Checkout — direct charge on connected account (Platform model)
-// ─────────────────────────────────────────────────────────────────
-
 /**
- * Create a PaymentIntent for an order. Direct-charge model: the
- * PaymentIntent is created ON the seller's Connect account (not on
- * the platform). Platform takes a cut via `application_fee_amount`.
- *
- * The Stripe TH free-tier doesn't allow the Marketplace
- * (destination-charge) model — it's "Unavailable in Thailand". The
- * Platform (direct charge) model works fine and is functionally
- * equivalent: buyer pays, seller is the merchant of record, platform
- * collects its fee, Stripe handles tax docs at the seller side.
- *
- * Important: webhooks for these PaymentIntents fire on the connected
- * account (not the platform). The webhook endpoint subscribed via
- * "Connected accounts" wiring receives them with `event.account` set.
- *
- * Single-store orders only — multi-store carts split into separate
- * intents.
- *
- * Returns `{ paymentIntentId, clientSecret }`.
+ * Create a PaymentIntent on the seller's connected account
+ * (direct-charge model; destination-charge isn't available in TH).
+ * Platform takes a cut via application_fee_amount.
+ * Single-store orders only.
  */
 export async function createPaymentIntent(opts: {
   orderId: number;
@@ -188,7 +132,7 @@ export async function createPaymentIntent(opts: {
       receipt_email: opts.buyerEmail,
       metadata: { orderId: String(opts.orderId) },
     },
-    // Stripe-Account header — creates the PI on the connected account.
+    // Routes the create to the connected account.
     { stripeAccount: opts.sellerStripeAccountId },
   );
 
@@ -198,16 +142,9 @@ export async function createPaymentIntent(opts: {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Refund
-// ─────────────────────────────────────────────────────────────────
-
 /**
- * Refund a Stripe-charged order. Direct-charge model: the refund is
- * created on the connected account where the PaymentIntent lives.
- * `refund_application_fee:true` returns the platform's fee. We don't
- * need `reverse_transfer` because there's no transfer — the charge
- * was made directly on the seller's account.
+ * Refund a Stripe-charged order. Direct-charge model: the refund
+ * runs on the seller's account; refund_application_fee returns ours.
  */
 export async function refundOrder(
   paymentIntentId: string,
@@ -226,15 +163,11 @@ export async function refundOrder(
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Reads — `/seller/wallet` proxies these to render the dashboard
-// without ever materialising balance / transactions in our DB.
-// ─────────────────────────────────────────────────────────────────
+// /seller/wallet proxies these so we never persist balance ourselves.
 
 export async function getStoreBalance(stripeAccountId: string) {
   const stripe = getClient();
-  // `balance.retrieve` doesn't accept params in v22 SDK — the
-  // Connect-account scoping is via the second `RequestOptions` arg.
+  // v22 SDK: scope via the RequestOptions arg, not params.
   const balance = await stripe.balance.retrieve(undefined, { stripeAccount: stripeAccountId });
   return balance;
 }
@@ -250,13 +183,8 @@ export async function listStoreCharges(stripeAccountId: string, limit = 20) {
 }
 
 /**
- * Phase 33B — trigger a manual payout from the seller's Stripe Connect
- * account into their bank. Stripe Connect TH defaults to weekly
- * automatic payouts ; this endpoint exists so the demo can show a
- * "Request payout" CTA on /seller/wallet without waiting a week.
- *
- * Stripe rejects (400) if amount > available balance ; the controller
- * surfaces the message so the seller can adjust.
+ * Trigger a manual payout to the seller's bank. Stripe rejects (400)
+ * when amount > available balance.
  */
 export async function createManualPayout(
   stripeAccountId: string,

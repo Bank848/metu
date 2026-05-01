@@ -11,64 +11,37 @@ import { requireRecent2FA } from "../middleware/require-recent-2fa.js";
 
 const router = Router();
 
-// Public — Phase 15.1 rate-limited. Per-route limiters share state
-// across requests (singletons in middleware/rate-limit.ts).
+// Public, rate-limited.
 router.post("/login",            loginLimiter,           ctrl.login);
 router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
 router.post("/forgot-password",  forgotPasswordLimiter,  ctrl.forgotPassword);
 router.post("/reset-password",                           ctrl.resetPassword);
 
-// Authed — requireAuth() resolves req.auth + req.user before handler
+// Authed.
 router.get("/me",                 requireAuth(), ctrl.me);
 router.patch("/me",               requireAuth(), ctrl.updateMe);
-// Phase 23.3 — change-password gates on a recent TOTP step-up so a
-// stolen session can't rotate the password without the authenticator.
+// Sensitive ops require a fresh TOTP step-up.
 router.post("/change-password",   requireAuth(), requireRecent2FA(15), ctrl.changePassword);
-// Phase 14.3 — first-time password set for OAuth-only users.
 router.post("/set-password",      requireAuth(), ctrl.setPassword);
 
-// Phase 14.4 — phone + OTP scaffold.
-// Phase 15.1 — request-otp also rate-limited (cap SMS spend).
 router.patch("/phone",            requireAuth(), ctrl.updatePhone);
 router.post("/request-otp",       requireAuth(), requestOtpLimiter, ctrl.requestOtp);
 router.post("/verify-otp",        requireAuth(), ctrl.verifyOtp);
 
-// Phase 15.2 — sessions UI. Lists + revokes better-auth's session
-// rows for the current user. The legacy JWT cookie path doesn't
-// have rows here; clearing it is "change your password" or "logout".
-// /all-others mounted BEFORE /:id so the literal path wins the
-// route match (Express matches by registration order within router).
+// Sessions UI. /all-others must mount before /:id so the literal path wins.
 router.get("/sessions",                requireAuth(), ctrl.listSessions);
-// Phase 35 — revoke-all-others is sensitive (one click signs every
-// other device out). Gate on requireRecent2FA(15) so a brief AFK +
-// hijacked cookie can't mass-logout. Per-row revoke stays open
-// because the user is just disconnecting one device.
 router.delete("/sessions/all-others",  requireAuth(), requireRecent2FA(15), ctrl.revokeAllOtherSessions);
 router.delete("/sessions/:id",         requireAuth(), ctrl.revokeSession);
 
-// Phase 16.2 — TOTP 2FA enrolment + management. Three endpoints,
-// all auth-only. Login itself takes optional totpCode in body
-// (handled in the existing POST /login) — these three only
-// manage the secret + enabled flag.
+// TOTP 2FA.
 router.post("/totp/enroll-start",  requireAuth(), ctrl.totpEnrollStart);
 router.post("/totp/enroll-verify", requireAuth(), ctrl.totpEnrollVerify);
 router.post("/totp/disable",       requireAuth(), ctrl.totpDisable);
-// Phase 23.3 — TOTP step-up for sensitive actions (withdrawal,
-// change-password, unlink Google, account deletion). Stamps
-// Session.lastTotpAt so requireRecent2FA(maxMin) lets the next
-// sensitive request through.
 router.post("/totp/step-up",       requireAuth(), ctrl.totpStepUp);
 
-// Phase 18 — connected social accounts (link / unlink).
-// Linking is handled by better-auth's existing /auth/better/sign-in/google
-// flow when called from inside an active session — no new endpoint needed
-// for that. These two endpoints surface the linked-account list and let
-// the user unlink Google explicitly.
-//
-// Phase 23.3 — DELETE gates on requireRecent2FA(15) so a stolen
-// session can't strip the user's social-login fallback. The list
-// endpoint stays open so the UI can render the "linked" state.
+// Connected social accounts. Linking goes through better-auth's
+// /auth/better/sign-in/google flow inside an active session.
 router.get(   "/connected-accounts",         requireAuth(), ctrl.listConnectedAccounts);
 router.delete("/connected-accounts/google",  requireAuth(), requireRecent2FA(15), ctrl.unlinkGoogle);
 

@@ -92,16 +92,9 @@ export const exportOrders: RequestHandler = async (req, res, next) => {
   }
 };
 
-// =============================================================================
-//  WRITE SIDE (Phase 13.9.2)
-// =============================================================================
-
 /**
- * POST /seller/become-seller — create the user's first store.
- *
- * Special: requires auth ONLY (NOT requireStore — the user doesn't
- * have a store yet, that's the point). Mounted on the router BEFORE
- * the router.use(requireStore) line.
+ * POST /seller/become-seller. Auth only - the user has no store yet.
+ * Mounted before the router.use(requireStore) line.
  */
 export const becomeSeller: RequestHandler = async (req, res, next) => {
   try {

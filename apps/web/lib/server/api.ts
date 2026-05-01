@@ -1,25 +1,7 @@
 import { headers } from "next/headers";
 
-/**
- * Phase 13.1 — BFF → API server fetch wrapper.
- *
- * Server Components in `app/**` call these helpers (or queries.ts
- * functions that delegate here) instead of importing Prisma. The
- * wrapper:
- *
- *   1. Picks the API base from `INTERNAL_API_URL` env (falls back to
- *      localhost:4000 for `npm run dev` parity).
- *   2. Forwards the inbound request's `cookie` header so the API
- *      server can resolve the session for routes that need
- *      `requireAuth()`. (Phase 13.1 catalog endpoints don't need it,
- *      but every future migration will — wire it once.)
- *   3. Throws `ApiError` (typed status + body) on non-2xx so callers
- *      can branch on `status`.
- *
- * Caching: defaults to `cache: "no-store"` because nearly every page
- * that consumes these helpers is `force-dynamic`. Callers that want
- * Next's data cache pass `next: { revalidate: N }` via `init`.
- */
+// BFF -> API server fetch wrapper. Forwards the request's cookie header
+// so authed endpoints work. Throws ApiError on non-2xx.
 
 const API_BASE = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
 
@@ -34,15 +16,8 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * `skipAuth: true` tells the wrapper NOT to read `headers()`. Required
- * when the caller is wrapped in Next's `unstable_cache(...)` — the
- * cache scope rejects every dynamic source, and `headers()` is one.
- * Public reference-data lookups (categories, tags, business-types,
- * countries) pass `skipAuth: true`. Anything that needs the session
- * cookie (basically every authed endpoint Phase 13.2+ will add)
- * leaves it false (the default).
- */
+// `skipAuth: true` skips headers() so the call is safe inside
+// unstable_cache (which rejects dynamic sources). Public reads pass it.
 export interface ApiFetchInit extends RequestInit {
   skipAuth?: boolean;
 }
@@ -70,20 +45,15 @@ export async function apiFetch<T>(
     try {
       body = await res.json();
     } catch {
-      // non-JSON error body; leave as null
+      // non-JSON error body
     }
     throw new ApiError(res.status, body);
   }
-  // 204 No Content → return undefined
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
-/**
- * Build a query-string from a plain object, dropping empty / null
- * / undefined values. Mirrors the URLSearchParams idiom but easier
- * to read at the call site.
- */
+// Build a query-string, dropping empty/null/undefined values.
 export function qs(params: Record<string, string | number | undefined | null>): string {
   const usp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {

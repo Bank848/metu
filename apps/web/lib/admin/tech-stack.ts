@@ -1,29 +1,5 @@
-/**
- * Phase 21.2 — curated tech-stack metadata for /admin/tech-stack.
- *
- * This list maps every "headline" dependency to a layer label, a
- * one-line purpose, and a link to its docs. Versions are NOT
- * hard-coded — the page cross-references with the live package.json
- * values at build time so the table can never drift from what's
- * actually installed.
- *
- * Anything in package.json that's NOT in this curated list shows up
- * under "Other dependencies" on the page so reviewers can spot
- * helpers + types without cluttering the headline section.
- *
- * Phase 36 — refreshed for the post-Phase-32 reality:
- *   - dropped: promptpay-qr, jsqr, pngjs, jpeg-js (Phase 26 trim of
- *     the PromptPay slip-OCR pipeline ; Stripe handles payments now)
- *   - dropped: jsonwebtoken (legacy JWT cookie path retired in
- *     Phase 16.3 when better-auth took over session management)
- *   - added: helmet (Phase 22 security hardening)
- *   - added: stripe + @stripe/stripe-js + @stripe/react-stripe-js
- *     (Phase 27 Stripe Connect, replaces wallet/coin layer)
- *   - added: resend (Phase 33 receipt email provider)
- *   - reorganised "Build" into "Build / Tooling" + carved out
- *     "Payments" and "Security" categories so the infographic has
- *     visually distinct columns instead of one giant Backend slab
- */
+// Curated tech-stack metadata for /admin/tech-stack. Versions read
+// from package.json at build time so the table never drifts.
 export type TechLayer =
   | "Frontend"
   | "Backend"

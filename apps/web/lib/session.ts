@@ -2,34 +2,15 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { apiFetch, ApiError } from "./server/api";
 
-/**
- * Phase 13.2 — `getMe()` now calls `GET /auth/me` on the Express
- * server instead of reading the JWT cookie + loading from Prisma
- * directly. The cookie itself is forwarded by `apiFetch()` — it
- * reads `headers().get("cookie")` and threads it through.
- *
- * Return shape preserved 1:1 so consumer pages (`app/admin/layout.tsx`,
- * every server component that gates on role, etc.) keep working
- * unchanged. 401 from the API → caller sees `null` (logged-out
- * surface). Anything else propagates so genuine outages don't get
- * swallowed.
- */
+// getMe calls GET /auth/me. apiFetch threads the request cookie.
+// Returns null on 401; anything else propagates.
 export async function getMe() {
   try {
     const data = await apiFetch<{
       user: any;
       role: "buyer" | "seller" | "admin";
-      // Phase 14.3 — present when the server resolved the user.
-      // Older API responses (pre-14.3) won't include it; coerce
-      // missing → true to keep the legacy change-password flow
-      // as the safe default for existing users.
       hasPassword?: boolean;
-      // Phase 15.5 — admin force-password-reset flag. When true, the
-      // app should redirect to /profile/edit until the user changes
-      // their password (which clears the flag server-side).
       requirePasswordReset?: boolean;
-      // Phase 16.2 — drives the TOTP section in /profile/edit
-      // (Disable vs Enrol-start) and the LoginForm 2-step prompt.
       totpEnabled?: boolean;
     }>("/auth/me");
     if (!data?.user) return null;
@@ -47,18 +28,8 @@ export async function getMe() {
 }
 
 /**
- * Phase 15.5 — when the user has been force-reset by an admin
- * (User.requirePasswordReset=true), bounce them to /profile/edit
- * with a banner. Server pages call this AFTER getMe() but before
- * rendering anything else, so the user can't act on stale-state UI.
- *
- * Self-call: `requireResetGuard(me, currentPath)` where currentPath
- * is the page's own path. We intentionally allow /profile/edit
- * itself + /api/auth/* (for /change-password / /set-password) to
- * pass through, otherwise the user couldn't actually clear the flag.
- *
- * Returns void on the happy path; throws (via Next's redirect()) on
- * the must-reset path.
+ * Bounce force-reset users to /profile/edit. Pages call this after
+ * getMe(). Allows /profile/edit and the auth endpoints through.
  */
 export function requireResetGuard(
   me: { requirePasswordReset?: boolean } | null,
@@ -70,15 +41,8 @@ export function requireResetGuard(
   redirect("/profile/edit?must-reset=1");
 }
 
-/**
- * Authenticated server-side fetch — forwards the user cookie when calling
- * an internal /api endpoint. Falls back gracefully on errors.
- *
- * NOTE: prefer importing from `lib/server/queries` for catalog reads where
- * possible — direct Prisma is faster and avoids URL-base detection. This
- * helper is kept for cart/orders/seller/admin endpoints that have richer
- * auth/business logic still living in the route handlers.
- */
+// Server-side fetch that forwards the user cookie. Returns null on
+// 401/403/404 so callers can branch cleanly.
 export async function apiAuth<T = unknown>(path: string, init?: RequestInit): Promise<T | null> {
   const cookie = cookies().toString();
   const base = absoluteBase();

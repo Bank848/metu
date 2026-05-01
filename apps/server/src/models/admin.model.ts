@@ -1,10 +1,4 @@
-/**
- * Phase 13.10 — admin resource: zod input schemas + DTOs.
- *
- * Re-uses no @metu/shared schemas because admin actions are server-
- * only (no shared form schemas like the seller side). Everything
- * lives here.
- */
+// Admin resource: zod input schemas + DTOs.
 import { z } from "zod";
 
 export const ALLOWED_ROLES = ["buyer", "seller", "admin"] as const;
@@ -24,13 +18,9 @@ export const updateUserRoleSchema = z.object({
 export type UpdateUserRoleInput = z.infer<typeof updateUserRoleSchema>;
 
 /**
- * DELETE /admin/users/:id body — optional reason. When supplied,
- * the user is BANNED (deletedAt + bannedAt + bannedReason set + audit
- * action 'user.ban'). When absent, the user is just SOFT-DELETED
- * (deletedAt only + audit action 'user.delete').
- *
- * Phase 12.2 distinguishes admin-removal-for-cause from
- * user-self-delete; this body shape is what carries that signal.
+ * DELETE /admin/users/:id body. With reason: ban (sets deletedAt +
+ * bannedAt + bannedReason, audits "user.ban"). Without: plain
+ * soft-delete (deletedAt only, audits "user.delete").
  */
 export const deleteUserSchema = z.object({
   reason: z.string().optional(),

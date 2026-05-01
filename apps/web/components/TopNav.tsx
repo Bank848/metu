@@ -40,9 +40,7 @@ const TABS: Tab[] = [
 ];
 
 export async function TopNav({ q }: { q?: string } = {}) {
-  // Phase 17.x — TopNav reads runtime feature flags so the chat
-  // and favorites icons hide when an admin disables them. Fetched
-  // in parallel with getMe so we don't add a serial round-trip.
+  // Read feature flags in parallel with getMe.
   const [me, settings] = await Promise.all([getMe(), safeGetSettings()]);
   const hasStore = Boolean(me?.user?.store);
   const isAdmin = me?.role === "admin";
@@ -50,26 +48,13 @@ export async function TopNav({ q }: { q?: string } = {}) {
 
   return (
     <header className="sticky top-0 z-40 glass-morphism-strong border-b border-white/6">
-      {/* Row 1 — asymmetric spacing: tight `gap-3` between logo + search,
-          breathing `gap-5` between the search and the action stack. The
-          old uniform `gap-4` was part of the AI-tell. */}
       <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 md:gap-5 md:px-6">
         <Logo size="md" />
 
         <SearchPill defaultValue={q ?? ""} />
 
-        {/* Action stack — three visually distinct groups so the row
-            stops reading as a uniform pill parade:
-              1. Activity icons  (round, ghost — Star/Heart/Cart)
-              2. Control cluster (one rounded shell, three nested btns)
-              3. Primary CTA     (pill button-gradient)
-            Tight `gap-1.5` inside group 1, breathing `gap-3` between
-            groups — the staggered visual weight the audit asked for. */}
+        {/* Action stack: activity icons | control cluster | primary CTA. */}
         <div className="hidden md:flex items-center gap-3 shrink-0">
-          {/* Group 1: activity icons. Round, no border, ghost-fill on
-              hover. Cart deliberately uses a *different* hover tint
-              (yellow) than Heart (coral) so they're not interchangeable
-              dots — the differentiation point from the playbook. */}
           <div className="flex items-center gap-1.5">
             <Link
               href={me ? "/my-reviews" : "/browse?sort=rating"}
@@ -79,9 +64,8 @@ export async function TopNav({ q }: { q?: string } = {}) {
             >
               <Star className="h-[18px] w-[18px]" />
             </Link>
-            {/* Phase 17.x — favorites icon hides entirely when admin
-                turns the feature off via /admin/settings. The /favorites
-                route is server-gated separately (returns 404). */}
+            {/* Heart hides when admin disables favourites; the
+                /favorites route is server-gated too. */}
             {settings.favoritesEnabled && (
               <Link
                 href={me ? "/favorites" : "/login?next=/favorites"}
@@ -92,17 +76,11 @@ export async function TopNav({ q }: { q?: string } = {}) {
                 <Heart className="h-[18px] w-[18px]" />
               </Link>
             )}
-            {/* Phase 11 run #2 / F8 — Cart icon. Moved to a client
-                component so the badge can update immediately after
-                Add-to-cart fires the `cart:update` window event.
-                Phase 26 — Messages icon + Wallet pill removed. */}
+            {/* Client component so the badge updates on cart:update. */}
             <CartNavIcon />
           </div>
 
-          {/* Group 2: control cluster — Sound · Theme · Locale all
-              nested inside a single rounded-pill shell with hairline
-              dividers. The shell makes the three buttons read as ONE
-              control unit (settings) instead of three duplicate pills. */}
+          {/* Sound + Theme + Locale share one shell so they read as one control. */}
           <div className="flex items-center rounded-full border border-white/8 bg-white/[0.03] px-1 py-1">
             <SoundToggle inCluster />
             <span aria-hidden className="mx-0.5 h-4 w-px bg-white/10" />
@@ -111,7 +89,7 @@ export async function TopNav({ q }: { q?: string } = {}) {
             <LocaleSwitcher inCluster />
           </div>
 
-          {/* Group 3: primary CTAs. Admin pill + Add Store / Dashboard. */}
+          {/* Admin pill + Add Store / Dashboard. */}
           {isAdmin && (
             <Link
               href="/admin"
@@ -122,11 +100,7 @@ export async function TopNav({ q }: { q?: string } = {}) {
               {t("nav.admin")}
             </Link>
           )}
-          {/* Phase 11 / F11 — guests no longer see the "+ Add Store"
-              pill. The CTA used to render unconditionally and bounced
-              guests through /login, wasting attention before sign-up.
-              Sellers / buyers still see the appropriate "Dashboard" /
-              "+ Add Store" label per their store state. */}
+          {/* Guests don't see the Add Store CTA. */}
           {me && (
             <AddStoreButton
               hasStore={hasStore}
@@ -145,8 +119,6 @@ export async function TopNav({ q }: { q?: string } = {}) {
         />
       </div>
 
-      {/* Row 2 — category pill chips. Coral underline accent on the
-          active hover state retires the "everything is yellow" tell. */}
       <nav className="mx-auto max-w-[1440px] px-4 md:px-6">
         <div className="no-scrollbar flex items-center gap-2 overflow-x-auto py-2.5">
           {TABS.map((tab) => (

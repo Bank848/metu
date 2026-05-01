@@ -2,16 +2,10 @@ import { Sparkles, Zap, Store, ShoppingBag, Shield, Wrench, GitCommit, ExternalL
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 
-// Must be dynamic so the parent admin layout's getMe() cookie read
-// runs per-request. If we let this prerender at build time the layout
-// sees no cookie, redirects to /login, and bakes that redirect into a
-// static page that everyone hits.
+// Dynamic so the admin layout's cookie check runs per request.
 export const dynamic = "force-dynamic";
 
-/**
- * Admin-only changelog. Server component, no JS shipped.
- * Behind the admin layout's role gate.
- */
+// Admin-only changelog. Server component, behind the admin layout role gate.
 
 type Item = { title: string; detail?: string; commit?: string };
 

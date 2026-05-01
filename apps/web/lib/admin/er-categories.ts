@@ -1,16 +1,7 @@
 /**
- * Phase 24 — manual table → category map + per-category style.
- *
- * Each table is grouped into a category whose color matches the
- * Lucidchart palette in the friend's CPE241 report PDF (see Phase 25
- * docx). Header colors are picked to mirror that visual so a side-by-
- * side comparison reads as the same project, just at different
- * versions.
- *
- * When adding a new table to schema.prisma:
- *   1. Run `node scripts/generate-er-schema.mjs` to refresh er-schema.ts
- *   2. Add an entry here mapping the new table to a category
- *   3. (Optional) tweak `CATEGORY_STYLE` if the palette needs a new colour
+ * Manual table -> category map for the ER diagram.
+ * Adding a new table: run scripts/generate-er-schema.mjs, then add a
+ * category entry below.
  */
 
 export type ErCategory =
@@ -25,11 +16,9 @@ export type ErCategory =
   | "system";
 
 interface CategoryStyle {
-  /** Header background colour (hex, applied to entity card top bar). */
   headerBg: string;
-  /** Header text colour — pick "white" or "black" per WCAG contrast. */
+  /** "white" or "black" per WCAG contrast. */
   headerText: "white" | "black";
-  /** Display label for the legend. */
   label: string;
 }
 
@@ -45,13 +34,9 @@ export const CATEGORY_STYLE: Record<ErCategory, CategoryStyle> = {
   system:   { headerBg: "#94a3b8", headerText: "white", label: "System & Audit" },
 };
 
-/**
- * Table-name → category. Tables not in this map fall back to "system"
- * so the diagram never breaks on a fresh entity — the maintainer just
- * gets a gray header until they classify it properly.
- */
+// Unmapped tables fall back to "system".
 export const ENTITY_CATEGORY: Record<string, ErCategory> = {
-  // Identity & Auth (Phase 13.2, 14-16, 23.x)
+  // Identity & Auth
   users: "identity",
   user_stats: "identity",
   country: "identity",
@@ -60,48 +45,41 @@ export const ENTITY_CATEGORY: Record<string, ErCategory> = {
   verification: "identity",
   password_reset_token: "identity",
 
-  // Store (Phase 12-13)
+  // Store
   store: "store",
   store_stats: "store",
   business_type: "store",
 
-  // Catalog (Phase 13.7-13.8, 17.2)
+  // Catalog
   category: "catalog",
   product: "catalog",
   product_item: "catalog",
   product_image: "catalog",
   product_review: "catalog",
   product_favorite: "catalog",
-  // Phase 26 — product_question + stock_alert removed (messaging surface
-  // and stock-alert subscription cut). Earlier entries kept here in
-  // git history if anyone needs to re-introduce them.
 
-  // Tag junction (separate slot so the colour isn't drowned by catalog)
+  // Tags
   product_n_tag: "tag",
   product_tag: "tag",
 
-  // Cart & Transactions (Phase 13.3)
+  // Cart + Transactions
   cart: "cart",
   cart_item: "cart",
   transactions: "cart",
 
-  // Orders (Phase 13.4)
+  // Orders
   orders: "order",
   order_item: "order",
 
-  // Coupons (Phase 13.3)
+  // Coupons
   coupon: "coupon",
   coupon_usage: "coupon",
 
-  // Payments (Phase 27) — externalised to Stripe ; the schema only
-  // holds soft-FK varchar IDs on Order and Store. No dedicated entity
-  // belongs in this slot today, but the colour is reserved so a
-  // future "stripe_event" or "payout" table lands somewhere obvious.
+  // Payments live in Stripe; schema only holds soft-FK varchar IDs.
 
-  // System & audit (Phase 12.2, 17.1)
+  // System
   system_setting: "system",
   audit_log: "system",
-  // Phase 26 — message removed.
 };
 
 /** Resolve a table to its category, defaulting to "system". */

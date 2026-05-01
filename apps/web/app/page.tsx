@@ -48,7 +48,7 @@ export default async function Home() {
 function Hero({ stats }: { stats: Stats }) {
   return (
     <section className="relative overflow-hidden bg-hero-radial min-h-[680px]">
-      {/* Layered Jupiter — pure CSS, four radial gradients to fake atmospheric bands */}
+      {/* Pure-CSS Jupiter; layered radial gradients fake atmospheric bands. */}
       <div aria-hidden className="pointer-events-none absolute -right-40 -bottom-32 md:-right-24 md:bottom-[-180px] h-[820px] w-[820px] rounded-full opacity-95 mix-blend-screen"
         style={{
           background: `
@@ -69,15 +69,10 @@ function Hero({ stats }: { stats: Stats }) {
       <StarField density="high" />
 
       <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pt-20 md:pt-28 pb-24 grid md:grid-cols-2 gap-10 items-center min-h-[600px]">
-        {/* Each child carries a stagger delay so the hero copy cascades on
-            first paint instead of every line popping in together — Wave-1
-            keyframe `stagger-rise` already respects reduced-motion. */}
+        {/* Stagger delays cascade hero copy on first paint. */}
         <div>
           <div className="animate-stagger-rise" style={{ animationDelay: "0ms" }}>
             <Badge variant="yellow" className="mb-6 !px-3 !py-1 inline-flex items-center gap-1.5">
-              {/* The BrandMark replaces the lone Lucide spark this row used
-                  to lean on; one custom SVG in the eyebrow tells visitors
-                  the brand exists before they reach the wordmark below. */}
               <BrandMark className="h-3 w-3 text-metu-yellow" title="" />
               CPE241 · Group 8
             </Badge>
@@ -119,14 +114,7 @@ function Hero({ stats }: { stats: Stats }) {
         <div className="hidden md:block" />
       </div>
 
-      {/* Stats strip — F16 (QA 2026-04-26): the previous layout gave
-          SELLERS a `md:col-span-2` and REVIEWS a `md:col-span-2 lg:col-span-1`
-          which on the md breakpoint produced a 3-up first row + an
-          orphan REVIEWS tile in row 2. All four counters carry the
-          same weight at this density, so the row is now four equal
-          tiles (2x2 on mobile, 4-wide from md upward). The earlier
-          F26 fix (no `highlight` mint accent on SELLERS) is preserved
-          — every card stays on `surface-flat`. */}
+      {/* 2x2 on mobile, 4-wide from md up. */}
       <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pb-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatCard label="Sellers"  value={stats.sellers}  icon={Users} />
@@ -141,9 +129,7 @@ function Hero({ stats }: { stats: Stats }) {
 
 function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]; favSet: Set<number> }) {
   if (!products.length) return null;
-  // Split the first product off as the editorial "feature" card. The rest
-  // flow into a 3-col grid where the feature occupies 2 cols on desktop —
-  // this kills the symmetric 4×N grid that was the loudest AI tell.
+  // First product is the feature card (spans 2 cols on desktop).
   const [feature, ...rest] = products;
   return (
     <section className="mx-auto max-w-[1440px] px-6 md:px-10 py-16">
@@ -164,9 +150,6 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
           See all →
         </Link>
       </div>
-      {/* Asymmetric layout: feature spans 2 cols on lg, rest fall into the
-          remaining slots. The 3-col base grid means desktop reads as
-          2+1 / 1+1+1 / 1+1+1, mobile stays 2-up.  */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
         <div className="col-span-2 md:col-span-2 row-span-1">
           <ProductCard
@@ -177,15 +160,8 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
           />
         </div>
         {rest.slice(0, 7).map((p, i) => (
-          // Phase 11 / F4 (priority={i<2}) → QA r3/F1: the feature card
-          // (variant="feature") above already gets implicit priority via
-          // ProductCard's auto-promotion (eagerLoad = priority || isFeature).
-          // Adding 2 MORE priority+fill <Image> on the same render pushes
-          // us into Next 14's known multi-priority hydration mismatch
-          // (React #418 + #422). The feature card is the LCP element;
-          // letting the trending grid drop to lazy keeps the page warning-
-          // free without touching LCP — the trending grid was below the
-          // fold on most viewports anyway.
+          // Feature card is the LCP element; rest stay lazy to dodge
+          // Next 14's multi-priority hydration mismatch warnings.
           <ProductCard
             key={p.productId}
             product={p}
@@ -199,9 +175,7 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
 
 function FeaturedStores({ stores }: { stores: Store[] }) {
   if (!stores.length) return null;
-  // 1-large + 3-small layout — first store is the editorial standout
-  // (mint surface-accent + larger cover); the rest are flat cards
-  // stacked beside it on desktop, full-width on mobile.
+  // Lead store gets the larger accent card; others are flat side cards.
   const [lead, ...others] = stores;
   return (
     <section className="bg-surface-2/60 py-16 border-y border-white/6">
@@ -215,9 +189,7 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
           </p>
         </div>
         <div className="grid gap-5 lg:grid-cols-3">
-          {/* Standout store — mint surface-accent, taller cover, gold
-              hairline preserved here (per playbook §9: hairline is for
-              the feature card only, not every grid card). */}
+          {/* Lead store: accent surface, taller cover, gold hairline. */}
           {lead && (
             <Link
               href={`/store/${lead.storeId}`}
@@ -234,10 +206,7 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
                     unoptimized={isDataUrl(lead.coverImage)}
                   />
                 )}
-                {/* Gold hairline kept on the standout only */}
                 <div className="absolute bottom-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-metu-yellow to-transparent opacity-80" />
-                {/* Editorial eyebrow on the cover — mint chip ties the
-                    card back to the surface-accent tint. */}
                 <div className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-mint/20 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-mint border border-mint/40">
                   <Sparkles className="h-3 w-3" /> Featured
                 </div>
@@ -263,8 +232,6 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
             </Link>
           )}
 
-          {/* Three small stores stacked into the right-hand column on
-              desktop, then sit in their own row on mobile. */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:col-span-2 lg:grid-rows-3 lg:grid-cols-1">
             {others.slice(0, 3).map((s) => (
               <Link
@@ -311,11 +278,7 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
   );
 }
 
-/* Per-tile recipe for the category row. Each tile gets its own radius +
-   tone so the row stops reading as nine identical glass squares — see
-   docs/design-system.md §1 row 5. We rotate through three radius
-   families and three tones; the modulo math means any number of
-   categories still produces a varied row. */
+// Rotate radius + tone so category tiles don't all look identical.
 const TILE_RADII = ["rounded-2xl", "rounded-3xl", "rounded-xl", "rounded-lg", "rounded-2xl"] as const;
 const TILE_TONES = [
   "surface-accent text-mint hover:border-mint/45",
@@ -348,7 +311,6 @@ function CategoryTiles({ categories }: { categories: Category[] }) {
             >
               <div className="text-[10px] uppercase tracking-wider opacity-60">Category</div>
               <div className="mt-1 text-lg">{c.categoryName}</div>
-              {/* visible explore affordance on hover */}
               <div className="mt-3 text-xs font-normal text-ink-dim opacity-0 group-hover:opacity-100 transition-all">
                 Explore →
               </div>
@@ -361,9 +323,7 @@ function CategoryTiles({ categories }: { categories: Category[] }) {
 }
 
 function WhyMetu() {
-  // First card opts into surface-accent (mint) so it visually outranks
-  // the other two — same "1 hero + N flat" rhythm we use across the
-  // home page. Per Wave-1 handoff doc.
+  // First card uses the accent surface so it outranks the other two.
   const items = [
     {
       icon: Zap,

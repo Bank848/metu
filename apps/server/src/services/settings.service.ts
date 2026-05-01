@@ -3,22 +3,8 @@ import { audit } from "../utils/audit.js";
 import { AppError } from "../utils/errors.js";
 import type { PublicSettings, SettingsPatch } from "../models/settings.model.js";
 
-/**
- * Phase 17.1 / 26 — system settings service (slimmed down).
- *
- * The settings row is single-row by SQL CHECK constraint (id=1).
- * Reads are cached in-memory for 30 s so every request to /browse
- * doesn't pay a round-trip just to check the favouritesEnabled flag.
- *
- * Writes go through `updateSettings(actor, patch)` which:
- *   1. Patches the row.
- *   2. Invalidates the cache.
- *   3. Writes a structured AuditLog row capturing the diff.
- *
- * Phase 26 dropped walletEnabled, chatEnabled, promptpayId, and
- * withdrawalFeePercent from the row (PromptPay/coin layer removed —
- * Stripe Connect takes over in Phase 27).
- */
+// Single-row settings (CHECK id=1). Reads cached for 30s.
+// updateSettings patches, busts cache, then writes a diffed audit row.
 
 interface CachedSettings {
   value: PublicSettings;
@@ -40,8 +26,7 @@ export async function getSettings(): Promise<PublicSettings> {
   if (!row) {
     row = await prisma.systemSetting.create({ data: { id: 1 } });
   }
-  // googleEnabled is derived from the env at request time so we don't
-  // have to re-cache the settings row when secrets get rotated.
+  // Derived at request time so secret rotations don't need a cache bust.
   const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID);
   const value: PublicSettings = {
     favoritesEnabled: row.favoritesEnabled,
@@ -69,8 +54,7 @@ export async function updateSettings(
   const row = await prisma.systemSetting.update({ where: { id: 1 }, data });
   bustCache();
 
-  // Build a diff for the audit row — only include fields that
-  // actually changed value.
+  // Diff only the fields that actually changed.
   const diff: Record<string, { from: unknown; to: unknown }> = {};
   for (const k of Object.keys(data)) {
     const beforeVal = (before as unknown as Record<string, unknown>)[k];

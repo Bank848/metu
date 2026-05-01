@@ -4,25 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
-// Phase 16.3 — frontend rebuild for the better-auth Mode A backend.
-//
-// Same external surface (POST /api/auth/login → BFF → Express →
-// better-auth.signInEmail), refreshed UI:
-//   • single-card layout instead of stacked sections
-//   • visible 2-step indicator when TOTP kicks in
-//   • clearer state for each loading/error case
-//   • DOM-listener for demo chips replaced with a window event
-//     channel so the page can prefill via dispatchEvent rather than
-//     scraping `data-*` attrs
+// Login form. Posts to /api/auth/login -> BFF -> Express ->
+// better-auth.signInEmail. Two-step UI when TOTP is required.
 
-// Phase 17.x — Google button visibility is gated by the live
-// `googleEnabled` flag from /api/settings, computed server-side from
-// the presence of GOOGLE_CLIENT_ID on the API. Earlier code had a
-// `const GOOGLE_ENABLED = true` that always rendered the button,
-// which caused a hard 404 / PROVIDER_NOT_FOUND on deployments
-// without the OAuth credentials configured.
-
-// Phase 14.3.5 — Google sign-in error reasons surfaced in the URL.
+// Map URL ?error= codes from the Google OAuth flow.
 function errorMessage(code: string | null): string | null {
   if (!code) return null;
   switch (code) {
@@ -40,10 +25,7 @@ type Step = "credentials" | "totp";
 
 export function LoginForm({
   next,
-  /** Phase 17.x — when false, the "Continue with Google" button is
-   *  hidden entirely and the OR-divider is dropped. The page server
-   *  component reads /api/settings.googleEnabled and threads it
-   *  through here. */
+  /** When false, hide the Google button and the OR-divider. */
   googleEnabled = false,
 }: {
   next?: string;
@@ -121,9 +103,7 @@ export function LoginForm({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        // Phase 16.2 — TOTP 2-step prompt. Server surfaces a clean
-        // 401 NeedsTotp after a successful password check; flip the
-        // form into step 2 instead of treating it as a hard error.
+        // 401 NeedsTotp -> flip to step 2 instead of treating as a hard error.
         if (data?.error === "NeedsTotp") {
           setStep("totp");
           setError(null);
@@ -155,11 +135,8 @@ export function LoginForm({
     }
   }
 
-  // Phase 30 — better-auth v1.6.9 ditched the GET catch-all and only
-  // exposes social sign-in via POST /sign-in/social with a JSON body.
-  // We do the fetch manually and follow the {url} response back to
-  // Google. Keeping this as a client-side handler (not <a href>) means
-  // the BFF cookie jar is preserved across the redirect.
+  // better-auth exposes social sign-in via POST /sign-in/social with
+  // a JSON body; follow the {url} response to Google.
   const callbackURL = next ?? "/";
   const errorCallbackURL = "/login?error=email-exists";
   async function onClickGoogle(e: React.MouseEvent<HTMLButtonElement>) {

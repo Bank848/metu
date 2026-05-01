@@ -94,10 +94,7 @@ export function AuthMenu({
           open && "border-brand-yellow/60",
         )}
       >
-        {/* Phase 11 / F15 — fall back to initials over a deterministic
-            colour instead of a flat coloured circle when the user has
-            no profile image. The `<Avatar>` primitive handles both the
-            uploaded-photo and the fallback path. */}
+        {/* Avatar handles both photo and initials fallback. */}
         <Avatar
           name={`${user.firstName} ${user.lastName}`}
           email={user.username}
@@ -118,16 +115,8 @@ export function AuthMenu({
               {user.firstName} {user.lastName}
             </div>
             <div className="text-xs text-ink-dim">@{user.username}</div>
-            {/* Phase 11 / F6 — when the user is BOTH a buyer (per
-                stats.role) AND owns a store, render two badges side by
-                side instead of forcing a single role pill. The previous
-                copy showed only `role` which read as wrong on the
-                seeded buyer demo (Thana Siri owns store id 19 but
-                stats.role = "buyer"). Schema is unchanged — we're just
-                surfacing the dual-role data more accurately. Admin
-                trumps everything (admins always render the admin pill
-                alone). Match Phase 10 admin-tables convention:
-                buyer = mist (neutral), seller = success (mint). */}
+            {/* Two badges when the user is both a buyer and owns a store.
+                Admin trumps everything. */}
             <RoleBadges role={role} hasStore={hasStore} />
           </div>
 
@@ -193,16 +182,8 @@ function MenuItem({
 }
 
 /**
- * Phase 11 / F6 — exported so /profile can render the same row of
- * badges in its header card. See `<AuthMenu>` for the rationale.
- *
- * Badge map (matches /admin/users):
- *   admin  → yellow  (privileged)
- *   seller → success (mint — "live" relationship)
- *   buyer  → mist    (neutral)
- *
- * `hasStore` is enough to claim the seller badge even when stats.role
- * still says "buyer" — that's the whole point of the dual-role fix.
+ * Role badges. admin -> yellow, seller -> mint, buyer -> mist.
+ * hasStore alone qualifies for the seller badge.
  */
 export function RoleBadges({
   role,

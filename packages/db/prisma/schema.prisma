@@ -1,7 +1,6 @@
-// METU Digital Marketplace — Prisma Schema
-// Derived from: Database ER diagram (crow's foot).pdf
-// All 19 entities. snake_case in DB, camelCase in JS via @map.
-// Cascading deletes are applied where child rows depend on the parent.
+// METU Digital Marketplace - Prisma schema.
+// snake_case in DB, camelCase in JS via @map.
+// Cascading deletes apply where child rows depend on the parent.
 
 generator client {
   provider      = "prisma-client-js"
@@ -78,54 +77,35 @@ model Country {
 model User {
   userId               Int       @id @default(autoincrement()) @map("user_id")
   countryId            Int?      @map("country_id")
-  // Phase 14.1 — nullable so future Google-only signups can have
-  // NULL passwords until they Set Password from /profile/edit.
+  // Nullable: Google-only signups have no password until they Set Password.
   password             String?   @db.Text
   username             String    @unique @db.VarChar(20)
   firstName            String    @map("first_name") @db.VarChar(40)
   lastName             String    @map("last_name") @db.VarChar(40)
   email                String    @unique @db.VarChar(80)
-  // Phase 14.1 — better-auth's `emailVerified` flag, mapped via
-  // user.fields.emailVerified config in apps/server/src/lib/auth.ts.
-  // Defaults false; password-login flow doesn't gate on it but
-  // Google sign-in flips it true on create.
+  // better-auth flag; password login doesn't gate on it, Google sign-in flips true.
   emailVerified        Boolean   @default(false) @map("email_verified")
   gender               Gender?
   profileImage         String?   @map("profile_image") @db.Text
   dateOfBirth          DateTime? @map("date_of_birth")
-  // Phase 14.4 OTP scaffold — phone + verification timestamp.
+  // OTP scaffold.
   phone                String?   @db.VarChar(20)
   phoneVerifiedAt      DateTime? @map("phone_verified_at")
-  // Phase 16.2 — TOTP 2FA. totpSecret is the base32-encoded shared
-  // secret stored at enrol-start; totpEnabled flips to true on first
-  // successful verify. When true, /auth/login requires a 6-digit
-  // code in the body. NULL secret = never enrolled.
+  // TOTP 2FA. NULL secret = never enrolled.
   totpSecret           String?   @map("totp_secret") @db.VarChar(64)
   totpEnabled          Boolean   @default(false) @map("totp_enabled")
-  // Phase 15.5 — admin force-password-reset flag. When true, the
-  // BFF redirects every authed page to /profile/edit until the
-  // user successfully changes their password (which clears the
-  // flag). Default false; admins flip it from /admin/users.
+  // Admin-imposed force-reset flag. While true, the BFF redirects
+  // every authed page to /profile/edit until the user changes pwd.
   requirePasswordReset Boolean   @default(false) @map("require_password_reset")
   createdDate          DateTime  @default(now()) @map("created_date")
-  // Phase 16.3 — better-auth's user schema requires `updatedAt` on
-  // every model; without it the Prisma adapter throws "Unknown
-  // argument" on findUserByEmail and returns an empty accounts array,
-  // which signInEmail surfaces as the misleading "Credential account
-  // not found" error. Migration 20260429090000 added + backfilled.
+  // Required by better-auth's adapter on every model.
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  // Soft-delete: when set, public surfaces hide the user but admin /
-  // audit queries can still see them. Used by /api/admin/users/[id]
-  // DELETE so order history and reviews don't FK-cascade away.
+  // Soft-delete: hides user from public surfaces, keeps order/review FKs intact.
   deletedAt DateTime? @map("deleted_at")
 
-  // Phase 12.2 — moderation metadata. NULL when:
-  //   (a) user is active, OR
-  //   (b) user soft-deleted themselves (deletedAt set, bannedAt NULL).
-  // Populated only by admin-driven removals (profanity, fraud, abuse).
-  // Decoupled from deletedAt so we can later support "ban without
-  // delete" (account stays visible in moderation queue) if needed.
+  // Moderation metadata. NULL for active users + self-deletes;
+  // populated only by admin-driven removals (profanity, fraud, abuse).
   bannedAt     DateTime? @map("banned_at")
   bannedReason String?   @map("banned_reason") @db.VarChar(120)
 
@@ -140,7 +120,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   auditLogs           AuditLog[]
 
-  // Phase 14.1 — better-auth relations (managed by its Prisma adapter).
+  // better-auth relations.
   accounts Account[]
   sessions Session[]
 
@@ -187,27 +167,17 @@ model Store {
   profileImage         String?   @map("profile_image") @db.Text
   coverImage           String?   @map("cover_image") @db.Text
   createdAt            DateTime  @default(now()) @map("created_at")
-  // Soft-delete — hides from public catalogue + storefronts but keeps
-  // historical orders / reviews intact.
+  // Soft-delete: hides from public surfaces, keeps history intact.
   deletedAt            DateTime? @map("deleted_at")
-  // Phase 16.1 — intermediate state: HIDDEN from public surfaces but
-  // not yet deleted. Admin toggles via /admin/stores. Seller still
-  // sees the store in /seller dashboard with a banner. Reversible by
-  // clearing the column. NULL = live.
+  // Suspended: hidden from buyers, still visible to the seller. Reversible.
   suspendedAt          DateTime? @map("suspended_at")
-  /// Phase 27 — Stripe Connect Express account ID (`acct_…`). NULL = the
-  /// seller hasn't onboarded yet ; non-null but capability flags off =
-  /// onboarding link generated but not completed. Charges + payouts
-  /// are gated client-side on the capability flags so we don't try
-  /// to settle through an account Stripe hasn't enabled.
+  /// Stripe Connect Express account. NULL = not onboarded yet.
+  /// Charges + payouts gated on the capability flags below.
   stripeAccountId      String?   @unique @map("stripe_account_id") @db.VarChar(40)
   stripePayoutsEnabled Boolean   @default(false) @map("stripe_payouts_enabled")
   stripeChargesEnabled Boolean   @default(false) @map("stripe_charges_enabled")
 
-  // Phase 33 — appended to the Phase 27 Stripe block. Optional public
-  // contact channels surfaced in the buyer's receipt email
-  // ("Contact <store name>: email ..." / "phone ..."). Backfilled from
-  // owner's email at seed time so existing rows aren't blank.
+  // Optional public contact channels surfaced in the buyer's receipt.
   contactEmail         String?   @map("contact_email") @db.VarChar(120)
   phone                String?   @db.VarChar(20)
 
@@ -266,21 +236,14 @@ model Product {
   categoryId  Int       @map("category_id")
   name        String    @db.VarChar(100)
   description String    @db.VarChar(255)
-  // Soft-hide flag — paused products vanish from public catalogue
-  // (browse, store page, featured) but remain visible in the seller
-  // dashboard and in any order history that already references them.
+  // Paused products hide from public surfaces; seller dashboard still shows them.
   isActive    Boolean   @default(true) @map("is_active")
-  // Soft-delete: when set, the product is removed from every public
-  // surface AND the seller dashboard, but order history, reviews, and
-  // favourites still resolve to a real row (no orphan FKs).
+  // Soft-delete: hidden everywhere except order history / reviews / favourites.
   deletedAt   DateTime? @map("deleted_at")
 
   createdAt DateTime @default(now()) @map("created_at")
-  // Phase 13.6.5 — owned by Postgres trigger `product_touch_updated_at`
-  // (BEFORE UPDATE on product). NOT decorated with `@updatedAt` so
-  // Prisma never writes it from the app side; the trigger is the only
-  // source of truth, which is exactly the demo line for the CPE241
-  // rubric (Lecture 10 § Triggers).
+  // Owned by the product_touch_updated_at trigger; no @updatedAt
+  // so Prisma never writes it from the app side.
   updatedAt DateTime @default(now()) @map("updated_at")
 
   store        Store             @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
@@ -306,15 +269,11 @@ model ProductItem {
   price           Decimal        @db.Decimal(10, 2)
   discountPercent Int            @default(0) @map("discount_percent")
   discountAmount  Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  // Optional URL to a free preview / sample (e.g. low-res PDF, audio
-  // clip) so buyers can check the goods before paying.
+  // Public preview link (low-res PDF, audio clip, etc.).
   sampleUrl       String?        @map("sample_url") @db.Text
-  // Phase 33 — post-purchase delivery references. delivery_url is the
-  // PRIVATE link the buyer gets after payment (vs sample_url which is
-  // public preview). license_key_template lets the seller pre-define
-  // a pattern like "METU-XXXX-XXXX-XXXX" — XXXX gets replaced with a
-  // random 4-char alphanumeric at fulfillment. Null template falls
-  // back to a UUID v4.
+  // Private post-purchase link + license-key template.
+  // Template "METU-XXXX-XXXX-XXXX" replaces XXXX with random alphanumerics;
+  // null template falls back to a UUID v4.
   deliveryUrl         String?    @map("delivery_url") @db.Text
   licenseKeyTemplate  String?    @map("license_key_template") @db.VarChar(80)
   createdDate     DateTime       @default(now()) @map("created_date")
@@ -327,8 +286,7 @@ model ProductItem {
   @@map("product_item")
 }
 
-// NOTE: ER diagram models one image per product; we expand to many for realistic demo.
-// Surrogate PK (product_image_id) added while keeping product_id + product_image from the ER.
+// Many images per product (extension of the ER diagram which had one).
 model ProductImage {
   productImageId Int    @id @default(autoincrement()) @map("product_image_id")
   productId      Int    @map("product_id")
@@ -370,8 +328,7 @@ model ProductNTag {
   @@map("product_n_tag")
 }
 
-// User-level wishlist / saved products. Distinct from cart — a favourite
-// doesn't mean buy-later, it means "come back to this".
+// User wishlist. Separate from cart; favourite means "come back to this".
 model ProductFavorite {
   favoriteId Int      @id @default(autoincrement()) @map("favorite_id")
   userId     Int      @map("user_id")
@@ -404,15 +361,13 @@ model Cart {
   order Order?
   items CartItem[]
 
-  // A user has many carts over time; at most one should have status=active at a time
-  // (enforced at the application layer for simplicity).
+  // At most one active cart per user (enforced in the app layer).
   @@index([userId, status])
   @@index([status])
   @@map("cart")
 }
 
-// Extension beyond the original ER diagram: explicitly model cart lines so we can
-// demonstrate the classic "items-in-cart-before-checkout" flow in the demo.
+// Explicit cart-lines model (extension of the original ER diagram).
 model CartItem {
   cartItemId    Int      @id @default(autoincrement()) @map("cart_item_id")
   cartId        Int      @map("cart_id")
@@ -453,17 +408,12 @@ model Order {
   createdAt          DateTime    @default(now()) @map("created_at")
   updatedAt          DateTime    @updatedAt @map("updated_at")
   expiredAt          DateTime?   @map("expired_at")
-  // Gift checkout — when set, the receipt shows the recipient instead of
-  // the buyer + (in a future batch) emails the recipient a redeem link.
+  // Gift checkout: receipt shows recipient instead of buyer.
   giftRecipientEmail String?     @map("gift_recipient_email") @db.VarChar(80)
   giftMessage        String?     @map("gift_message") @db.VarChar(500)
 
-  /// Phase 27 — Stripe payment / refund mapping. All NULL for orders
-  /// placed in demo mode (no Stripe keys configured) ; live mode
-  /// populates `stripePaymentIntentId` at order create time and the
-  /// rest land via webhook (charge.updated, charge.refunded). The
-  /// VARCHAR columns act as soft FKs to Stripe — Stripe is the system
-  /// of record for the payment state.
+  /// Stripe payment/refund mapping. NULL in demo mode; live mode
+  /// fills paymentIntentId at create, the rest from webhooks.
   stripePaymentIntentId String? @map("stripe_payment_intent_id") @db.VarChar(40)
   stripeChargeId        String? @map("stripe_charge_id") @db.VarChar(40)
   stripeRefundId        String? @map("stripe_refund_id") @db.VarChar(40)
@@ -512,14 +462,8 @@ model OrderItem {
 
 model Coupon {
   couponId      Int          @id @default(autoincrement()) @map("coupon_id")
-  // Phase 38C — storeId is now nullable to support "Master Coupons":
-  // platform-wide promo codes that work on any cart line, regardless
-  // of which store sold the item. The existing per-store flow keeps
-  // working when storeId is set ; null means platform-wide.
-  // Pair this with usage_limit=1 (or any small N) to limit how many
-  // times the master coupon can be redeemed across the whole platform.
-  // Per-user uniqueness is enforced separately via the @@unique on
-  // coupon_usage(coupon_id, user_id) — see Phase 38B.
+  // Nullable storeId enables "Master Coupons" (platform-wide).
+  // Per-store coupons keep storeId set; usage_limit caps total redemptions.
   storeId       Int?         @map("store_id")
   code          String       @db.VarChar(50)
   startDate     DateTime     @map("start_date")
@@ -529,17 +473,11 @@ model Coupon {
   discountValue Int          @map("discount_value")
   isActive      Boolean      @default(true) @map("is_active")
 
-  // Cascade still applies — when a store is deleted its per-store
-  // coupons go with it. Master coupons (storeId=null) have no store
-  // to cascade from, so they're unaffected by any store deletion.
   store      Store?        @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
   usages     CouponUsage[]
   orderItems OrderItem[]
 
-  // Per-store unique on (storeId, code). Postgres treats NULL as
-  // distinct by default, so two master coupons could share a code
-  // through this index alone — that's prevented by a partial unique
-  // index added in the migration: WHERE store_id IS NULL.
+  // Master-coupon code uniqueness is enforced by a partial index in the migration.
   @@unique([storeId, code])
   @@index([code])
   @@index([isActive])
@@ -555,31 +493,19 @@ model CouponUsage {
   coupon Coupon @relation(fields: [couponId], references: [couponId], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
-  // Phase 38B — Business Rule 4.i: a user may apply each coupon at most
-  // once. Enforced at the schema level rather than in application code
-  // so concurrent checkouts can't slip through a TOCTOU window.
+  // One redemption per user per coupon (Business Rule 4.i).
   @@unique([couponId, userId])
   @@index([couponId])
   @@index([userId])
   @@map("coupon_usage")
 }
 
-// ============================================================================
-// Phase 26 — Removed: Message, ProductQuestion, StockAlert.
-// Backup snapshot at git tag pre-feature-trim-2026-04-30 + branch
-// archive/messages-qna-stockalert-promptpay.
-// ============================================================================
-
-// ============================================================================
-//  PASSWORD RESET — token-based flow. Token stored as a SHA-256 hex hash so
-//  the raw value is only ever in the user's email link. 30-min lifetime.
-// ============================================================================
-
+// Password reset: token stored as a SHA-256 hex hash so the raw
+// value is only ever in the user's email link. 30-min lifetime.
 model PasswordResetToken {
   tokenId    Int       @id @default(autoincrement()) @map("token_id")
   userId     Int       @map("user_id")
-  // SHA-256 hash of the random token sent in the URL — never store the
-  // raw value so a leaked DB row can't be replayed.
+  // Stored as the SHA-256 hash; raw token is only in the email link.
   tokenHash  String    @unique @map("token_hash") @db.VarChar(64)
   expiresAt  DateTime  @map("expires_at")
   consumedAt DateTime? @map("consumed_at")
@@ -592,23 +518,16 @@ model PasswordResetToken {
   @@map("password_reset_token")
 }
 
-// ============================================================================
-//  AUDIT LOG — destructive admin/seller actions write a row here so we have
-//  a "who did what when" trail for the demo presentation.
-// ============================================================================
-
+// Audit log: destructive admin/seller actions write a row here.
 model AuditLog {
   logId      Int      @id @default(autoincrement()) @map("log_id")
-  // Nullable: a system action (e.g. cleanup cron) may not have an actor.
+  // NULL for system actions (cleanup cron, etc.).
   actorId    Int?     @map("actor_id")
   action     String   @db.VarChar(60) // e.g. "user.delete", "store.delete", "order.refund"
   targetType String   @map("target_type") @db.VarChar(40) // e.g. "user", "store", "order"
   targetId   Int      @map("target_id")
-  meta       Json? // optional JSON snapshot of pre-change state or extra context
-  // Phase 15.4 — request context. NULL for pre-15.4 rows + system
-  // actions that don't originate from an HTTP request. VARCHAR(45)
-  // sized for IPv6 worst case; VARCHAR(255) for UA per existing
-  // session table convention.
+  meta       Json? // optional snapshot/context
+  // Request context. NULL for system actions.
   ipAddress  String?  @map("ip_address") @db.VarChar(45)
   userAgent  String?  @map("user_agent") @db.VarChar(255)
   createdAt  DateTime @default(now()) @map("created_at")
@@ -621,16 +540,8 @@ model AuditLog {
   @@map("audit_log")
 }
 
-// ============================================================================
-//  PHASE 14 — better-auth tables (Prisma adapter)
-//
-//  Three tables better-auth's adapter expects. We configure
-//  `advanced.database.generateId = "serial"` so every PK is Int
-//  (not the default cuid string) — that way Account.userId +
-//  Session.userId are clean Int → Int FKs into our existing
-//  `users.user_id`. Field names use camelCase + @map to match
-//  the snake_case columns in the migration.
-// ============================================================================
+// better-auth tables. PKs are Int (via generateId: "serial") so the
+// FKs into users.user_id stay clean.
 
 model Account {
   id                    Int       @id @default(autoincrement())
@@ -643,10 +554,7 @@ model Account {
   refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
   scope                 String?   @db.VarChar(255)
   idToken               String?   @map("id_token") @db.Text
-  // For credential providers (email+password) better-auth stores
-  // the bcrypt hash here too. We keep the legacy User.password
-  // column populated as well so existing JWT login keeps working
-  // until Phase 14.2 swaps the middleware.
+  // Bcrypt hash for credential providers (mirror of User.password).
   password              String?   @db.Text
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
@@ -667,11 +575,8 @@ model Session {
   userAgent  String?   @map("user_agent") @db.VarChar(255)
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-  /// Phase 23.3 — last successful TOTP step-up timestamp. Set by the
-  /// /auth/totp/step-up endpoint; checked by requireRecent2FA(maxMin)
-  /// middleware on sensitive routes (withdrawal request, change
-  /// password, unlink Google, account deletion). NULL = never proven
-  /// on this session; the middleware always rejects in that state.
+  /// Last successful TOTP step-up; checked by requireRecent2FA on
+  /// sensitive routes. NULL = never proven on this session.
   lastTotpAt DateTime? @map("last_totp_at")
 
   user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
@@ -693,28 +598,14 @@ model Verification {
   @@map("verification")
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Phase 17.1 / 26 — system settings (slimmed down).
-// ─────────────────────────────────────────────────────────────────
-
-/// Single-row config for runtime feature flags. The CHECK
-/// constraint at the SQL level pins id=1 so we can never
-/// accidentally insert a second row.
-///
-/// Phase 26 — dropped: walletEnabled, chatEnabled, promptpayId,
-/// withdrawalFeePercent (PromptPay/coin layer removed in favour of
-/// Stripe Connect, scheduled for Phase 27).
+/// Single-row runtime config. CHECK constraint pins id=1 so we
+/// can never accidentally insert a second row.
 model SystemSetting {
   id                 Int      @id @default(1)
-  /// Phase 17.x — favourites surfaces (heart icon, /favorites inbox,
-  /// FavoriteButton on cards) hide when this is false. The
-  /// favorite_product table is preserved so flipping back ON shows
-  /// every prior favourite — no data lost on a temporary disable.
+  /// Hides favourites UI when false; underlying rows are preserved.
   favoritesEnabled   Boolean  @default(true) @map("favorites_enabled")
-  /// Phase 20.1 — % of every order the platform keeps at checkout.
-  /// Default 5.00 = sellers earn 95% of each sale. Decimal(5,2) so
-  /// admins can configure fractional percents (e.g. 5.5%). In Phase
-  /// 27 this becomes Stripe's `application_fee_amount` parameter.
+  /// % of every order the platform keeps. Default 5.00 = sellers
+  /// earn 95% of each sale. Maps to Stripe's application_fee_amount.
   platformFeePercent Decimal  @default(5.00) @map("platform_fee_percent") @db.Decimal(5, 2)
   updatedAt          DateTime @updatedAt @map("updated_at")
 

@@ -10,20 +10,11 @@ import {
   type ReportName,
 } from "../models/admin.model.js";
 
-// Phase 15.4 — narrow type for the request shape audit() needs.
-// Lets services accept "anything req-shaped" without dragging the
-// full Express.Request into their signatures.
+// Narrow type so services don't have to drag in the full Express.Request.
 type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 
-/**
- * Phase 13.10 — admin service. Pure functions taking IDs / params,
- * no req coupling. Every destructive action also writes an
- * AuditLog row through utils/audit.ts.
- */
-
-// =============================================================================
-//  USERS
-// =============================================================================
+// Admin service. Pure functions taking ids/params; destructive
+// actions write an AuditLog row through utils/audit.ts.
 
 export async function listUsers(q: UserListQuery) {
   const where = {
@@ -109,12 +100,8 @@ export async function updateUserRole(
 }
 
 /**
- * Soft-delete a user. The optional `reason` flips this from a
- * silent self-delete-equivalent into an admin BAN — populates
- * bannedAt + bannedReason and writes 'user.ban' to the audit log
- * instead of 'user.delete' (Phase 12.2 convention).
- *
- * Self-delete forbidden — same lockout reasoning as the role swap.
+ * Soft-delete a user. With `reason`, treats it as a ban (sets
+ * bannedAt + bannedReason, audits "user.ban"). Self-delete forbidden.
  */
 export async function deleteUser(
   targetUserId: number,
@@ -154,15 +141,8 @@ export async function deleteUser(
 
 // =============================================================================
 //  STORES
-// =============================================================================
-
 /**
- * Phase 11 / F1, F12, F14, F20 — exclude soft-deleted stores so the
- * /admin/stores headline count agrees with /, /health, /admin overview.
- *
- * `_count.products` also filters deletedAt:null so per-store product
- * counts match the public /browse view (otherwise an admin sees
- * "12 products" while /browse shows 11).
+ * Excludes soft-deleted stores so counts match /browse + /admin overview.
  */
 export async function listStores() {
   return prisma.store.findMany({
@@ -202,18 +182,8 @@ export async function deleteStore(storeId: number, actorUserId: number, req?: Au
 }
 
 /**
- * Phase 16.1 — admin store-suspended toggle.
- *
- * Sets `suspendedAt` to NOW (or clears to NULL when value=false).
- * Public catalog queries filter on suspendedAt:null AND
- * deletedAt:null so a suspended store immediately disappears from
- * /browse + /store/[id] + featured + sitemap; the seller still
- * sees it in /seller dashboard with a banner explaining the
- * suspension.
- *
- * Distinct from deleteStore — suspension is reversible by passing
- * value=false (the column resets to NULL). Admins use Suspend for
- * "warning + temporary freeze"; Delete for permanent removal.
+ * Reversible store suspension. Sets/clears suspendedAt; suspended
+ * stores hide from public surfaces but remain visible to the seller.
  */
 export async function setStoreSuspended(
   storeId: number,
@@ -252,8 +222,7 @@ export async function getStats(): Promise<AdminStatsResponse> {
   ] = await Promise.all([
     prisma.user.count({ where: { deletedAt: null } }),
     prisma.store.count({ where: { deletedAt: null } }),
-    // Phase 11 run #2 / F14 — products gates on live store too so the
-    // four KPI surfaces agree.
+    // Gates on live store too so KPIs match /browse counts.
     prisma.product.count({
       where: { deletedAt: null, store: { deletedAt: null } },
     }),
@@ -398,15 +367,9 @@ export async function refundTransaction(
 }
 
 /**
- * Phase 15.5 — admin force-password-reset toggle.
- *
- * Sets User.requirePasswordReset to `value` (boolean). When true,
- * the BFF will redirect the user to /profile/edit on every authed
- * page until they successfully change/set their password (which
- * the auth service clears as a side effect).
- *
- * Self-toggle forbidden — admin couldn't undo it without locking
- * themselves into the password-change flow first.
+ * Admin force-password-reset toggle. While true, the BFF redirects
+ * authed pages to /profile/edit until the user changes their password.
+ * Self-toggle forbidden.
  */
 export async function setRequirePasswordReset(
   targetUserId: number,

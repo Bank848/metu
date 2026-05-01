@@ -5,11 +5,7 @@ import { User, Lock, Save, Phone, ShieldCheck, Monitor, Trash2, Smartphone, Copy
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
 
-/**
- * Phase 15.2 — Active session entry shape returned by GET /auth/sessions.
- * `id`, `createdAt`, `expiresAt` from the better-auth session row;
- * `ipAddress` + `userAgent` populated when the session was created.
- */
+// Active session entry from GET /auth/sessions.
 type SessionRow = {
   id: number;
   createdAt: string;
@@ -28,15 +24,10 @@ type Initial = {
   countryId: number | null;
   gender: "male" | "female" | "other" | null;
   dateOfBirth: string; // YYYY-MM-DD or ""
-  // Phase 14.3 — when false (Google-only signups), the password
-  // section renders the SET-password flow instead of the
-  // change-password flow (no currentPassword required).
+  // false = Google-only; renders the SET-password flow instead of change-password.
   hasPassword: boolean;
-  // Phase 14.4 — phone + verification status drive the OTP UI.
   phone: string | null;
   phoneVerified: boolean;
-  // Phase 16.2 — when true, TOTP is active for this user; UI shows
-  // Disable instead of the enrol-start flow.
   totpEnabled: boolean;
 };
 
@@ -59,24 +50,14 @@ export function EditProfileForm({
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [passwordMsg, setPasswordMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [phoneMsg, setPhoneMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // Phase 14.4 phone state — independent of the main profile form so
-  // the user can update their phone without re-saving every other
-  // field.
+  // Phone state lives outside the main form so phone updates don't
+  // require re-saving every other field.
   const [phoneInput, setPhoneInput] = useState(initial.phone ?? "");
   const [otpCode, setOtpCode] = useState("");
-  // Once a code has been requested in this session, show the verify
-  // input. The server-side state of "pending OTP" survives reloads,
-  // but for UX we don't auto-show the input on a fresh page load —
-  // user has to click "Send code" again.
+  // Don't auto-show the verify input after a refresh - user must re-request.
   const [otpRequested, setOtpRequested] = useState(false);
 
-  // Phase 16.2 — TOTP enrolment state. Three-step UI:
-  //   1. Click "Enable 2FA" → POST enroll-start → server returns
-  //      { secret, otpauthUri }. UI shows secret + scannable URI.
-  //   2. User scans/types into Google Authenticator etc.
-  //   3. Types first 6-digit code → POST enroll-verify → on success,
-  //      router.refresh() so initial.totpEnabled becomes true and
-  //      the section flips to Disable.
+  // TOTP enrolment: enroll-start -> scan QR -> enroll-verify.
   const [totpBusy, setTotpBusy] = useState<null | "enroll-start" | "enroll-verify" | "disable">(null);
   const [totpEnrollment, setTotpEnrollment] = useState<{ secret: string; otpauthUri: string } | null>(null);
   const [totpVerifyCode, setTotpVerifyCode] = useState("");
@@ -167,9 +148,7 @@ export function EditProfileForm({
     }
   }
 
-  // Phase 15.2 — sessions UI state. Loaded lazily on mount via
-  // useEffect; no SSR hydration so the page renders fast and the
-  // sessions table fills in async.
+  // Sessions load lazily on mount.
   const [sessions, setSessions] = useState<SessionRow[] | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [sessionsMsg, setSessionsMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -252,9 +231,7 @@ export function EditProfileForm({
     dateOfBirth: initial.dateOfBirth,
   });
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  // Phase 15.3 — OTP code for sensitive password ops. Only surfaced
-  // when initial.phoneVerified=true (server gates the requirement
-  // there too — UI is just consistent with what the server expects).
+  // OTP code for sensitive password ops. Only surfaced when phoneVerified.
   const [pwOtp, setPwOtp] = useState("");
 
   const inputCls =
@@ -399,12 +376,8 @@ export function EditProfileForm({
     }
     setBusy("password");
     try {
-      // Phase 14.3 — Google-only users (initial.hasPassword=false)
-      // hit /set-password (no currentPassword check); existing users
-      // hit /change-password (verifies the current password first).
-      // Phase 15.3 — when phoneVerified=true the body also carries
-      // otpCode (server gates on it server-side; UI requires the
-      // user to fetch + enter it before submit).
+      // Google-only users use /set-password; existing users /change-password.
+      // phoneVerified users must include otpCode.
       const url = initial.hasPassword
         ? "/api/auth/change-password"
         : "/api/auth/set-password";
@@ -423,7 +396,6 @@ export function EditProfileForm({
         const fallback = initial.hasPassword
           ? "Failed to change password"
           : "Failed to set password";
-        // Phase 15.3 — distinct OTP error codes get helpful hints.
         const otpHint =
           data?.error === "OtpRequired"
             ? "Phone verified — enter a fresh SMS code below to confirm this change."
@@ -560,7 +532,7 @@ export function EditProfileForm({
         </div>
       </form>
 
-      {/* ───── Phone + OTP verification (Phase 14.4) ─────
+      {/* Phone + OTP verification.
           Three-step flow: enter phone → request 6-digit code → enter
           code to verify. Each step is its own button so the user has
           full control (we never auto-trigger SMS sends — those cost
@@ -635,11 +607,7 @@ export function EditProfileForm({
         )}
       </section>
 
-      {/* ───── Account & security: password ─────
-          Phase 14.3 — UI flips between SET (no current pw required,
-          shown to Google-only users) and CHANGE (verifies current
-          first) based on the initial.hasPassword flag the page sets
-          from the User row's password column. */}
+      {/* Password: SET (Google-only) vs CHANGE based on hasPassword. */}
       <form onSubmit={changePassword} className="rounded-2xl glass-morphism p-6 space-y-4">
         <h2 className="font-display font-bold text-white flex items-center gap-2">
           <Lock className="h-4 w-4 text-metu-yellow" />
@@ -692,11 +660,7 @@ export function EditProfileForm({
           </label>
         </div>
 
-        {/* Phase 15.3 — OTP gate on sensitive password ops. Only
-            shown when the user has VERIFIED their phone — until
-            then the server doesn't gate. 'Send code' reuses the
-            existing /request-otp flow; user copy-pastes the code
-            from their SMS into the field. */}
+        {/* OTP gate, only shown for phone-verified users. */}
         {initial.phoneVerified && (
           <div className="rounded-xl border border-white/10 bg-surface-2 p-3 space-y-2">
             <div className="flex items-center justify-between gap-3">
@@ -741,12 +705,7 @@ export function EditProfileForm({
         </div>
       </form>
 
-      {/* ───── Two-factor authentication (Phase 16.2) ─────
-          Three-state UI:
-            1. NOT enrolled → "Enable 2FA" button (calls enroll-start)
-            2. Mid-enrolment (totpEnrollment set) → show secret +
-               otpauth:// URI + first-code verify form
-            3. ENABLED → show Disable form (requires current password) */}
+      {/* 2FA: not enrolled / mid-enrolment / enabled. */}
       <section className="rounded-2xl glass-morphism p-6 space-y-4">
         <h2 className="font-display font-bold text-white flex items-center gap-2">
           <Smartphone className="h-4 w-4 text-metu-yellow" />
@@ -878,13 +837,8 @@ export function EditProfileForm({
         )}
       </section>
 
-      {/* ───── Active sessions (Phase 15.2) ─────
-          Lists better-auth session rows for the current user. The
-          legacy JWT-cookie path doesn't have rows here (the cookie
-          itself is the session); for those users the table shows
-          empty + a hint. The current better-auth session, if any,
-          gets a "(this device)" badge and a disabled Revoke button
-          so the user can't accidentally sign themselves out. */}
+      {/* Active sessions list. Current session gets a (this device)
+          badge and a disabled Revoke button. */}
       <section className="rounded-2xl glass-morphism p-6 space-y-4">
         <h2 className="font-display font-bold text-white flex items-center gap-2">
           <Monitor className="h-4 w-4 text-metu-yellow" />

@@ -1,17 +1,7 @@
 /**
- * Phase 27 — Stripe webhook receiver.
- *
- * Mounted in app.ts BEFORE express.json() and with a per-route
- * `express.raw()` body parser. Stripe signs the raw bytes — any
- * JSON parsing before signature verification trips the verifier
- * and we reject every event as a forgery.
- *
- * Idempotency: every event already has a unique `event.id`. We
- * record successful processing as an AuditLog row keyed on that
- * id, then check for it before re-processing. The constraint
- * "อย่าเพิ่ม table" rules out a dedicated WebhookEvent table —
- * AuditLog is the closest fit and we already log destructive
- * actions for the demo trail.
+ * Stripe webhook receiver. MUST be mounted before express.json() and
+ * with express.raw() so Stripe signature verification sees raw bytes.
+ * Idempotency: events are recorded in AuditLog keyed on event.id.
  */
 import { Router, raw } from "express";
 import type { Request, Response, NextFunction } from "express";
@@ -24,20 +14,13 @@ const router = Router();
 
 router.post(
   "/",
-  // Raw body up to 1 MB — Stripe's largest payload (charge.dispute.created
-  // with attached evidence file metadata) tops out around 100 KB.
   raw({ type: "application/json", limit: "1mb" }),
   async (req: Request, res: Response, next: NextFunction) => {
     if (!isConfigured()) {
-      // Webhook must always 503 cleanly when Stripe isn't configured —
-      // Stripe's retry logic backs off on 5xx, our logs stay clean.
       return res.status(503).json({ error: "StripeNotConfigured" });
     }
     const sig = req.header("stripe-signature");
-    // Support multiple signing secrets — one webhook endpoint can be
-    // shared across "Your account" and "Connected accounts" sources,
-    // each with its own secret. STRIPE_WEBHOOK_SECRET may be a single
-    // value or comma-separated list ; we try each until one verifies.
+    // Comma-separated list supports both account + connected sources.
     const rawSecret = process.env.STRIPE_WEBHOOK_SECRET ?? "";
     const candidateSecrets = rawSecret
       .split(",")
@@ -67,7 +50,7 @@ router.post(
       return res.status(400).json({ error: "InvalidSignature" });
     }
 
-    // Idempotency check — skip events we've already processed.
+    // Skip events already processed.
     const existing = await prisma.auditLog.findFirst({
       where: { action: "stripe.event.processed", meta: { path: ["eventId"], equals: event.id } },
       select: { logId: true },
@@ -76,8 +59,6 @@ router.post(
 
     try {
       await handleEvent(event);
-      // Record success — both for idempotency AND for the audit-log
-      // explorer admins use to debug "did this charge actually arrive?".
       await prisma.auditLog.create({
         data: {
           action: "stripe.event.processed",
@@ -88,8 +69,7 @@ router.post(
       });
       res.json({ received: true });
     } catch (err) {
-      // Unhandled processing error → 500 so Stripe retries (they back
-      // off exponentially up to ~3 days).
+      // 500 so Stripe retries.
       next(err);
     }
   },
@@ -101,7 +81,7 @@ async function handleEvent(event: Stripe.Event) {
     case "payment_intent.payment_failed": return onPaymentIntentFailed(event);
     case "charge.refunded":                return onChargeRefunded(event);
     case "account.updated":                return onAccountUpdated(event);
-    // payout.paid: Connect-account event ; we only audit, no DB write.
+    // payout.paid: audit only, no DB write.
     case "payout.paid":                    return onPayoutPaid(event);
     default: {
       // eslint-disable-next-line no-console
@@ -115,9 +95,6 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
   const orderId = Number(pi.metadata?.orderId ?? 0);
   if (!orderId) return;
 
-  // latest_charge is a string id ; we resolve the charge object only
-  // when we need the receipt URL (skipped here — receipt lives in
-  // Stripe dashboard for the demo).
   const chargeId = typeof pi.latest_charge === "string" ? pi.latest_charge : null;
 
   await prisma.order.update({
@@ -129,9 +106,7 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     },
   });
 
-  // Phase 33 — fulfilment + receipt email. finalizeOrder is idempotent
-  // (short-circuits if every line has deliveredAt set), so Stripe's
-  // webhook retry policy is safe to re-fire this handler.
+  // finalizeOrder is idempotent so Stripe retries are safe.
   await finalizeOrder(orderId);
 }
 
@@ -156,17 +131,13 @@ async function onChargeRefunded(event: Stripe.Event) {
   });
   if (!order) return;
 
-  // Pick the most recent refund.id from the list ; full vs partial is
-  // captured by `charge.amount_refunded`.
   const lastRefund = charge.refunds?.data[0];
   await prisma.order.update({
     where: { orderId: order.orderId },
     data: {
       stripeRefundId: lastRefund?.id ?? null,
       stripeAmountRefunded: charge.amount_refunded,
-      // Mark the order refunded only when fully refunded — partial
-      // refunds keep the order in `paid` so the seller still sees
-      // it as fulfilled.
+      // Only fully-refunded orders flip status; partials stay `paid`.
       status: charge.amount === charge.amount_refunded ? "refunded" : undefined,
     },
   });
@@ -174,7 +145,6 @@ async function onChargeRefunded(event: Stripe.Event) {
 
 async function onAccountUpdated(event: Stripe.Event) {
   const acct = event.data.object as Stripe.Account;
-  // `acct.id` is the Connect account that changed. Resolve store.
   await prisma.store.updateMany({
     where: { stripeAccountId: acct.id },
     data: {
@@ -185,9 +155,7 @@ async function onAccountUpdated(event: Stripe.Event) {
 }
 
 async function onPayoutPaid(_event: Stripe.Event) {
-  // No-op for now — the seller-wallet UI fetches payout history live
-  // from Stripe so we don't materialise it. Audit row will still be
-  // written by the outer handler.
+  // No-op: seller-wallet UI fetches payout history live from Stripe.
 }
 
 export default router;

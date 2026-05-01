@@ -25,25 +25,15 @@ export async function findStores(filters: ListStoreQuery): Promise<StoreListResp
 }
 
 /**
- * Storefront detail — owner identity + the store's active product
- * grid + aggregate ratings. Returns the BFF-friendly envelope
- * `{ store, products, productCount, reviewCount, avgRating }`
- * (same shape `apps/web/lib/server/queries.ts:getStore` returned
- * before Phase 13.1, so server pages don't have to re-shape).
- *
- * Returns `null` when the store is unknown OR has been
- * soft-deleted, so the controller can decide between 404 and an
- * alternate behaviour.
+ * Storefront detail. Returns null for missing/deleted/suspended.
+ * Envelope: { store, products, productCount, reviewCount, avgRating }.
  */
 export async function findStoreById(
   storeId: number,
 ): Promise<StoreDetailResponse | null> {
   const [store, products] = await Promise.all([
     prisma.store.findFirst({
-      // Phase 16.1 — also filter suspendedAt:null. A suspended store
-      // is HIDDEN from public surfaces (vs the seller dashboard, which
-      // sees it with a banner). Returning null here makes the
-      // controller surface 404 — same shape as a deleted/missing store.
+      // Suspended stores are hidden from public surfaces.
       where: { storeId, deletedAt: null, suspendedAt: null },
       include: {
         owner: {
@@ -60,10 +50,7 @@ export async function findStoreById(
       },
     }),
     prisma.product.findMany({
-      // Phase 16.1 — by the time we reach this query the parent
-      // store is already verified live (suspended store would have
-      // returned null above), so no extra suspendedAt filter on the
-      // product side is needed.
+      // Parent store already verified live above.
       where: { storeId, isActive: true, deletedAt: null },
       orderBy: { productId: "desc" },
       include: {
@@ -80,10 +67,7 @@ export async function findStoreById(
   ]);
   if (!store) return null;
 
-  // Shape products into `ProductListItem` (mirrors the products
-  // service shaper — duplicated here to avoid a cross-service import
-  // for one helper). When we add a Reviews module in Phase 13.X,
-  // both services can pull the shaper from a shared `lib/`.
+  // Shape products inline; mirrors the products service shaper.
   const items = products.map((p) => {
     const prices = p.items.map((i) => Number(i.price));
     const ratings = p.reviews.map((r) => r.rating);

@@ -18,7 +18,7 @@ export async function createReview(
   input: ReviewInput,
 ): Promise<ReviewWithAuthor> {
   const product = await prisma.product.findFirst({
-    // Phase 16.1 — also reject suspended stores (parent hidden from public).
+    // Reject suspended stores too.
     where: { productId, deletedAt: null, store: { deletedAt: null, suspendedAt: null } },
     select: { productId: true },
   });

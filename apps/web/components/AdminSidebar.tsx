@@ -11,13 +11,8 @@ const items = [
   { href: "/admin/stores",       label: "Stores",     icon: Store },
   { href: "/admin/reports",      label: "Reports",    icon: FileBarChart },
   { href: "/admin/audit",        label: "Audit log",  icon: History },
-  // Phase 27 — Stripe refund queue (only Stripe-charged orders).
   { href: "/admin/refunds",      label: "Refunds",    icon: RotateCcw },
-  // Phase 17.1 / 26 — runtime feature flags (slimmed to favoritesEnabled
-  // + platformFeePercent after the wallet/PromptPay layer was removed).
   { href: "/admin/settings",     label: "Settings",   icon: Settings },
-  // Phase 21 — split the dead /admin/architecture link into two
-  // dedicated pages: ER diagram (in-house live render) + tech stack.
   { href: "/admin/er-diagram",   label: "ER Diagram", icon: Network },
   { href: "/admin/tech-stack",   label: "Tech Stack", icon: Layers },
   { href: "/admin/changelog",    label: "What's new", icon: Sparkles },

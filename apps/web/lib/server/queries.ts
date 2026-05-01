@@ -1,18 +1,5 @@
-/**
- * Server-component data layer.
- *
- * Phase 13.1 — the catalog-read functions (getCategories, getTags,
- * getFeaturedProducts, browseProducts, getProduct, getStore) now
- * delegate to the Express API server via `apiFetch()`. Their public
- * signatures + return shapes are preserved 1:1 so consumer pages
- * (`app/page.tsx`, `app/browse/page.tsx`, `app/product/[id]/page.tsx`,
- * `app/store/[id]/page.tsx`) keep working unchanged.
- *
- * Functions NOT yet migrated (favorites, recent purchases, related
- * products, business-types, countries, admin queries, …) still talk
- * to Prisma directly. They'll move to the API server in their
- * respective Phase 13.X module migrations.
- */
+// Server-component data layer. Catalog reads go through apiFetch();
+// remaining helpers still talk to Prisma directly.
 import { Prisma } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
@@ -26,22 +13,8 @@ function safeDelivery(v: string | undefined): DeliveryMethod | undefined {
 }
 
 export async function getStats() {
-  // Public counters — exclude soft-deleted rows so the homepage never shows
-  // a number that includes ghosts.
-  //
-  // Phase 11 / F10 (CEO Decision 3) — the "Sellers" tile previously
-  // counted `UserStats.role = seller` (i.e. "users with the seller
-  // role") which diverged from `/health` and `/admin` (both of which
-  // count `Store` rows). Unify on `Store.count` so the same number
-  // appears on every counter surface; the human-facing "Sellers" label
-  // stays unchanged because each store has exactly one owner.
-  //
-  // Phase 11 run #2 / F14 (CEO Decision 2) — the products tile used to
-  // count every non-deleted product, but `/admin/stores` summed only
-  // products that belong to live stores (off-by-one when one product
-  // sat under a soft-deleted store). Match the admin view here so home,
-  // /health, /admin overview, and /admin/stores all read the same
-  // number. Counts now reflect what an admin can act on.
+  // Public counters: exclude soft-deletes; products gate on live store
+  // too so /, /health, /admin all show the same number.
   const [sellers, products, orders, reviews] = await Promise.all([
     prisma.store.count({ where: { deletedAt: null } }),
     prisma.product.count({ where: { deletedAt: null, store: { deletedAt: null } } }),
@@ -101,13 +74,8 @@ export async function getFavoriteProducts(userId: number) {
   });
 }
 
-// Phase 13.1 — delegated to GET /products/featured. The server's
-// products.service.findFeatured() applies the same isActive +
-// deletedAt + store.deletedAt gates the BFF used to inline.
+// Server endpoint hardcodes 8; slice client-side for smaller N.
 export async function getFeaturedProducts(take = 8) {
-  // The server endpoint hardcodes 8 (matches every BFF caller today).
-  // We slice client-side for the rare caller that asks for a
-  // different N — cheap because the response is already capped at 8.
   const items = await apiFetch<Array<Awaited<ReturnType<typeof apiFetch<unknown[]>>>[number]>>(
     "/products/featured",
   );
@@ -132,14 +100,7 @@ export async function getFeaturedStores(take = 4) {
   });
 }
 
-/**
- * Public store page: store + owner + products grid + aggregate ratings.
- *
- * Phase 13.1 — delegated to GET /stores/:id. The server's
- * stores.service.findStoreById() returns the same envelope shape
- * (`{store, products, productCount, reviewCount, avgRating}`) so
- * server pages don't need re-shaping.
- */
+// Public store page envelope.
 export async function getStore(storeId: number) {
   try {
     return await apiFetch<{
@@ -232,16 +193,8 @@ export async function getReviewsForStore(storeId: number) {
   });
 }
 
-// Reference data that ~never changes within a session. Cached for 1 hour so
-// `/` and `/browse` stop hitting Neon on every render.
-// Phase 13.1 — delegated to GET /categories on the API server.
-// Cached at the BFF layer for an hour because reference data
-// changes ~never — a cold call per hour against the API server is
-// the right trade-off vs serving stale links across 1000 page
-// loads.
-// `skipAuth: true` so `apiFetch` doesn't call `headers()` inside the
-// `unstable_cache` scope (Next forbids dynamic sources there).
-// These endpoints are public reference data — no cookie needed.
+// Reference data: cached for an hour. skipAuth so headers() doesn't
+// run inside the unstable_cache scope (Next rejects dynamic sources there).
 export const getCategories = unstable_cache(
   async () =>
     apiFetch<Array<{ categoryId: number; categoryName: string; description: string }>>(
@@ -268,9 +221,7 @@ export const getBusinessTypes = unstable_cache(
   { revalidate: 3600, tags: ["business-types"] },
 );
 
-// Country list for the profile-edit / register dropdowns. Effectively static
-// (countries don't change within a session, or a year). Cached to keep the
-// /profile/edit cold path off Neon.
+// Country list for form dropdowns. Effectively static, cached.
 export const getCountries = unstable_cache(
   async () =>
     prisma.country.findMany({
@@ -282,13 +233,8 @@ export const getCountries = unstable_cache(
 );
 
 /**
- * Phase 13.1 — delegated to GET /products on the API server.
- *
- * The API does the heavy lifting (filters + sort + pagination +
- * shaping). The BFF still owns the `minRating` HAVING-clause logic
- * because the server's catalog service hasn't ported it yet — once
- * the Reviews module lands in Phase 13.X, that filter moves
- * server-side and this BFF wrapper drops the HAVING workaround.
+ * Browse products. API handles filters/sort/paging/shaping. BFF still
+ * owns the minRating HAVING-clause until Reviews migrates server-side.
  */
 export async function browseProducts(params: {
   category?: number;
@@ -300,8 +246,7 @@ export async function browseProducts(params: {
   sort?: "newest" | "price_asc" | "price_desc" | "rating";
   page?: number;
   pageSize?: number;
-  // 1..5 — keeps only products whose average review rating is at least this.
-  // Still BFF-side until Reviews migrates (see comment above).
+  /** 1..5; minimum average review rating. Still BFF-side. */
   minRating?: number;
 }) {
   const sort = params.sort ?? "newest";
@@ -310,8 +255,7 @@ export async function browseProducts(params: {
 
   const minRating = params.minRating && params.minRating > 0 ? params.minRating : null;
 
-  // Build the base API query string. minRating is excluded — applied
-  // BFF-side below.
+  // minRating is applied BFF-side below.
   const baseQuery = qs({
     category: params.category,
     tags: params.tags,
@@ -345,23 +289,11 @@ export async function browseProducts(params: {
     totalPages: number;
   };
 
-  // No rating filter — straight pass-through.
   if (minRating === null) {
     return apiFetch<ApiResp>(`/products${baseQuery}`);
   }
 
-  // Rating filter active: ask the API for the unfiltered candidate
-  // set (no pagination yet) so we can apply the HAVING-clause
-  // post-filter without lying about total/totalPages. We over-fetch
-  // pageSize × pageCount worth of pages from the API… too expensive.
-  // Instead: pull the qualifying productIds via raw SQL (BFF still
-  // has Prisma until the Reviews module migrates), then ask the API
-  // for the page restricted to those ids via the same /products
-  // endpoint. The API doesn't accept an `id IN (…)` filter today, so
-  // for now we keep the original direct-Prisma path for this branch
-  // ONLY. Once Reviews lands server-side, this whole branch deletes
-  // and the function returns the simple `apiFetch` above.
-
+  // minRating branch: resolve qualifying ids via raw SQL, then page.
   const where: Prisma.ProductWhereInput = {
     isActive: true,
     deletedAt: null,
@@ -474,30 +406,14 @@ export async function browseProducts(params: {
   };
 }
 
-/**
- * NOT YET MIGRATED — Phase 13.1 leaves `getProduct` on direct Prisma.
- *
- * The BFF needs review-author soft-delete cascade (`reviews.where:
- * { user: { deletedAt: null } }`), specific select fields on the
- * store (ownerId for "Ask the seller", responseTime), and a
- * different review take limit (5 vs the API server's 20). Once
- * Phase 13.X (Reviews) ports the soft-delete-cascade logic
- * server-side, the API's `GET /products/:id` envelope can be
- * widened to match and this function becomes a one-liner
- * `apiFetch("/products/" + id)`. Until then, BFF stays direct.
- */
+// Product detail. BFF-direct until Reviews moves server-side.
 export async function getProduct(id: number) {
-  // Public product detail must hide soft-deleted products and products
-  // whose store was soft-deleted (orphans).
   const product = await prisma.product.findFirst({
     where: { productId: id, deletedAt: null, store: { deletedAt: null } },
     include: {
       store: {
         select: {
           storeId: true,
-          // Owner id powers the "Ask the seller" link on the product
-          // page — Phase 10 Step 3c surfaces messaging from the
-          // existing store-info card without an extra query.
           ownerId: true,
           name: true,
           profileImage: true,
@@ -510,18 +426,12 @@ export async function getProduct(id: number) {
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
       reviews: {
-        // Phase 11 / F1 — cascade the soft-delete on `User` into review
-        // visibility on the public product page. Without this filter a
-        // reviewer flagged + soft-deleted via `DELETE /api/admin/users`
-        // still has their comment + display name visible to every
-        // guest, defeating the moderation pipeline.
+        // Hide reviews from soft-deleted users (cascade moderation).
         where: { user: { deletedAt: null } },
         orderBy: { createdAt: "desc" },
         take: 5,
         include: {
-          // userId is required by the moderation UI so we can show the
-          // edit/delete buttons to the review's author (in addition to
-          // any admin viewing the page).
+          // userId for the edit/delete affordance on the review.
           user: { select: { userId: true, firstName: true, lastName: true, profileImage: true, username: true } },
         },
       },
@@ -533,11 +443,7 @@ export async function getProduct(id: number) {
   return { ...product, avgRating, reviewCount: ratings.length };
 }
 
-/**
- * "More like this" — same category, ideally sharing at least one tag,
- * excludes the source product. Returns up to `take` ProductCard rows
- * suitable for the existing <ProductCard /> component.
- */
+// More like this: same category and shared tags, excludes self.
 export async function getRelatedProducts(productId: number, take = 4) {
   const source = await prisma.product.findUnique({
     where: { productId },
@@ -592,15 +498,12 @@ export async function getRelatedProducts(productId: number, take = 4) {
 }
 
 /**
- * Distinct buyers who paid for this product in the last `days` window.
- * Used by the social-proof line on /product/[id]: "X people bought this
- * in the last week". Returns 0 when nothing crosses the threshold so the
- * UI can simply hide the line.
+ * Distinct buyers in the last `days`. Used by the social-proof line.
+ * Returns 0 when no rows so the UI can hide the line.
  */
 export async function getRecentPurchaseCount(productId: number, days = 7): Promise<number> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  // groupBy on order.cart.userId so multiple orders by the same buyer
-  // count as one — feels more honest than raw line-item counts.
+  // Distinct by userId so repeated orders count once.
   const rows = await prisma.orderItem.findMany({
     where: {
       productItem: { productId },
@@ -614,31 +517,7 @@ export async function getRecentPurchaseCount(productId: number, days = 7): Promi
   return new Set(rows.map((r) => r.order.cart.userId)).size;
 }
 
-/**
- * Phase 11 / F13 — Admin store list. Mirrors the shape and predicates of
- * the `/api/admin/stores` route handler so server components can skip
- * the same-host HTTP round-trip that was costing /admin/stores ~2.5s of
- * skeleton-flash on cold load (see brief F13).
- *
- * Two reasons to bypass the proxied /api route from a server component:
- *
- *   1. **Latency.** A same-host HTTP hop (cookie forwarding + JSON
- *      encode/decode + a fresh fetch with `cache: "no-store"`) runs on
- *      every cold render. Skipping it is what made `/admin/users` and
- *      `/admin/audit` feel instant in Phase 10.
- *   2. **Environment parity.** The proxied path 404s on Vercel preview
- *      URLs with deployment protection (the same trap the queries.ts
- *      header warns about) — direct Prisma works the same on every
- *      environment.
- *
- * Predicates match `/api/admin/stores` after S1's CEO-Decision-2 fix:
- *   - `deletedAt: null` so the table + headline subtitle align with `/`,
- *     `/health`, `/admin` (all of which honour the soft-delete flag).
- *   - `_count.products` is restricted to non-deleted products so an
- *     admin never sees "12 products" on a store row while /browse shows
- *     11. The KPI tile sums those counts, so this also keeps the
- *     "Products listed" total in lock-step with `getStats().products`.
- */
+// Admin store list. Direct Prisma to skip the same-host HTTP hop.
 export async function getAdminStores() {
   return prisma.store.findMany({
     where: { deletedAt: null },

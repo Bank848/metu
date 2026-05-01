@@ -23,25 +23,8 @@ export function count(n: number | string | null | undefined): string {
 }
 
 /**
- * Format baht with K/M/B abbreviation for compact slots (KPI cards).
- *
- * Phase 11.2 — `money()` produces "฿1,234,567" which overflows the
- * highlight StatCard slot at the seller / admin dashboards. The
- * compact form ("฿45.6K", "฿1.2M") fits the headline number into the
- * slot without truncation. Below ฿1,000 we fall through to the full
- * format because abbreviating "฿665" → "฿665" would just confuse the
- * reader (no compaction happens).
- *
- * Examples:
- *   moneyCompact(665)      → "฿665"
- *   moneyCompact(45623)    → "฿45.6K"
- *   moneyCompact(1234567)  → "฿1.2M"
- *   moneyCompact(1.5e9)    → "฿1.5B"
- *
- * Locale note: we use `en-US` for the compact half so the suffix is
- * the universal K/M/B (Thai locale would emit พ/ล which adds
- * cognitive load for the bilingual seller dashboard). The currency
- * symbol stays "฿" via manual prefix to avoid Intl injecting "THB".
+ * Compact baht: "฿45.6K", "฿1.2M". Falls back to money() under ฿1,000.
+ * en-US locale keeps the K/M/B suffix universal.
  */
 export function moneyCompact(n: number | string | null | undefined): string {
   const num = typeof n === "string" ? Number(n) : (n ?? 0);
@@ -55,23 +38,9 @@ export function moneyCompact(n: number | string | null | undefined): string {
 }
 
 /**
- * Phase 17.2 — coin formatter. The buyer-facing currency since the
- * 1 ฿ → 10 coins migration. We deliberately spell out "coins" rather
- * than using a symbol — there's no Unicode glyph that reads as
- * "in-app token", and a plain word avoids the "is that ฿ or M?"
- * ambiguity at small font sizes.
- *
- * Phase 26 — coin layer removed. The `coins()` / `coinsCompact()` /
- * `thbToCoins()` helpers stay as thin shims around `money()` so the
- * 19 existing call-sites keep working without a sweep — each one now
- * emits a baht string. A future codemod can rewrite the imports
- * directly, but the demo doesn't need it and the shim avoids a 60-
- * file diff dropped on the day before the presentation.
- *
- * coins(1234)        → "฿1,234.00" (was: "1,234 coins")
- * coins(0)           → "Free"
- * coinsCompact(...)  → moneyCompact(...)
- * thbToCoins(thb)    → thb (passthrough — coin/baht ratio is now 1:1)
+ * Coin shims around money(): coins() returns baht (or "Free" at 0),
+ * thbToCoins() is now passthrough. Kept as shims so existing call-sites
+ * don't need a sweep.
  */
 export function coins(n: number | string | null | undefined): string {
   const num = typeof n === "string" ? Number(n) : (n ?? 0);

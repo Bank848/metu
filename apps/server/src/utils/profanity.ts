@@ -1,11 +1,4 @@
-/**
- * Server-side profanity guard. Mirrors apps/web/lib/server/profanity.ts
- * 1:1 — kept BFF-side until Phase 13.2 ports auth here, now lives
- * server-side so register / change-name flows reject slurs before
- * touching the DB (saves Neon round-trips on bot floods + matches
- * the Phase 11 / F3 contract that the same dictionary applies on
- * every write path).
- */
+// Server-side profanity guard. Same dictionary as the BFF copy.
 import filter from "leo-profanity";
 
 const CUSTOM_BLOCKLIST = [
@@ -56,7 +49,7 @@ export function findFirstProfaneField(
     if (containsProfanity(value)) {
       return {
         field,
-        message: "That word isn't allowed here — please pick something else.",
+        message: "That word isn't allowed here - please pick something else.",
       };
     }
   }

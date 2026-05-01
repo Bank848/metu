@@ -50,3 +50,4 @@ shots/
 .supabase-credentials.local
 .google-oauth-credentials.local
 .stripe-credentials.local
+.resend-credentials.local

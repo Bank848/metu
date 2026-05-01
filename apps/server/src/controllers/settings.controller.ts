@@ -4,19 +4,8 @@ import * as service from "../services/settings.service.js";
 import { currentAuth } from "../middleware/auth.js";
 import { AppError } from "../utils/errors.js";
 
-/**
- * Phase 17.1 — system settings controller.
- *
- * GET  /settings       — public read, returns the current flags
- *                        so the BFF can gate UI surfaces (chat
- *                        icon, wallet pill, etc.) on every render.
- *                        No auth required because the values
- *                        themselves aren't secret — they're
- *                        observable from any unauthenticated UI.
- *
- * PATCH /admin/settings — admin-only write. Auth + role gating
- *                         are applied at the route layer.
- */
+// System settings: GET /settings is public; admin-only writes
+// gate at the route layer.
 
 export const getSettings: RequestHandler = async (_req, res, next) => {
   try {

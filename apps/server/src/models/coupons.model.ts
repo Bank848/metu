@@ -1,7 +1,4 @@
-/**
- * Coupons data contracts (Phase 13.3 scope: validate only — seller
- * CRUD comes in Phase 13.9).
- */
+// Coupon validate-only data contracts.
 export {
   validateCouponSchema,
   type ValidateCouponInput,
@@ -14,7 +11,7 @@ export type CouponValidateResult =
       couponId: number;
       discountType: string;
       discountValue: number;
-      /** Phase 38C — null = master / platform-wide coupon. */
+      /** null = master / platform-wide coupon. */
       store: { storeId: number; name: string } | null;
     }
   | {
