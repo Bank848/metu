@@ -5,6 +5,7 @@ import { AppError } from "../utils/errors.js";
 import { isConfigured as stripeConfigured, createPaymentIntent } from "./stripe.service.js";
 import { getSettings } from "./settings.service.js";
 import { sendEmail } from "../utils/email.js";
+import { renderEmailLayout } from "../utils/email-template.js";
 import type {
   CheckoutInput,
   CheckoutResponse,
@@ -13,28 +14,8 @@ import type {
 } from "../models/orders.model.js";
 
 /**
- * Checkout — the headline business-logic endpoint.
- *
- * Flow (single Prisma transaction so we never end up with a half-
- * created order):
- *   1. Resolve the user's active cart + lines + product + store joins.
- *   2. Optionally split into "selected" + "unselected" lines (partial
- *      checkout — unselected items get re-parented to the user's NEW
- *      active cart at the end).
- *   3. Resolve coupon (if any) — gated on isActive + date window.
- *   4. Compute per-line unit price (Decimal arithmetic; floats lose
- *      cents on percent discounts), subtotal, coupon-eligible
- *      subtotal (only lines from the coupon's store count), then
- *      apply discount (cap at the eligible subtotal).
- *   5. Create transaction + order + order_items rows in one
- *      transaction. Stamp couponId only on lines from the coupon's
- *      store so the receipt can show which lines were discounted.
- *   6. Flip the spent cart to "checked_out" + create a fresh active
- *      cart. Re-parent unselected items into it.
- *   7. Record CouponUsage (one per checkout, not per line).
- *
- * Returns the same envelope as the legacy BFF route so the UI doesn't
- * need re-shaping (orderId + transactionId + numbers).
+ * Checkout. Wraps cart resolution, coupon, line totals, order create,
+ * stock decrement, and cart swap in a single Prisma transaction.
  */
 export async function checkout(
   userId: number,
@@ -64,7 +45,7 @@ export async function checkout(
     throw new AppError(400, "EmptyCart", "No items selected for checkout.");
   }
 
-  // Coupon resolution — only the active row + within the date window.
+  // Active row inside the date window.
   let resolvedCoupon: Awaited<ReturnType<typeof prisma.coupon.findFirst>> | null = null;
   if (input.couponCode) {
     const now = new Date();
@@ -78,9 +59,7 @@ export async function checkout(
     });
   }
 
-  // Decimal math throughout — JS float arithmetic on percent
-  // discounts loses cents that the receipt would surface
-  // ("฿123.456" instead of "฿123.46").
+  // Decimal math: float arithmetic on percent discounts loses cents.
   const unitPrice = (ci: (typeof selectedItems)[number]) =>
     new Prisma.Decimal(ci.productItem.price).mul(
       new Prisma.Decimal(100 - (ci.productItem.discountPercent ?? 0)).div(100),
@@ -88,9 +67,8 @@ export async function checkout(
 
   let subtotal = new Prisma.Decimal(0);
   let couponEligibleSubtotal = new Prisma.Decimal(0);
-  // Phase 38C — a master coupon (storeId === null) is platform-wide and
-  // discounts every line in the cart. Per-store coupons keep the old
-  // behaviour: only lines belonging to the coupon's store count.
+  // Master coupon (storeId === null) is platform-wide; per-store
+  // coupons only discount lines belonging to that store.
   const couponIsMaster = resolvedCoupon !== null && resolvedCoupon.storeId === null;
   for (const ci of selectedItems) {
     const line = unitPrice(ci).mul(ci.quantity);
@@ -114,18 +92,14 @@ export async function checkout(
       couponDiscount = new Prisma.Decimal(resolvedCoupon.discountValue);
     }
     if (couponDiscount.gt(couponEligibleSubtotal)) {
-      // Discount can't exceed the eligible subtotal (e.g. ฿1000 off
-      // a single ฿200 item is capped at ฿200).
+      // Cap discount at the eligible subtotal.
       couponDiscount = couponEligibleSubtotal;
     }
   }
   const total = subtotal.sub(couponDiscount);
 
-  // Phase 27 — single-store, Stripe-configured carts get a real
-  // PaymentIntent ; otherwise the order lands in demo mode (`paid`
-  // status, no Stripe charge). Multi-store carts always use demo
-  // mode for now — Stripe Connect doesn't natively support N-way
-  // splits in one charge.
+  // Single-store + Stripe-configured carts get a real PaymentIntent;
+  // multi-store carts fall back to demo mode (no Stripe charge).
   const storeIds = new Set(selectedItems.map((ci) => ci.productItem.product.storeId));
   const singleStoreId = storeIds.size === 1 ? selectedItems[0]!.productItem.product.storeId : null;
   let useStripe = false;
@@ -155,9 +129,7 @@ export async function checkout(
       data: {
         cartId: cart.cartId,
         totalPrice: total,
-        // Stripe path: order starts `pending` and a webhook flips it
-        // to `paid` after the buyer confirms. Demo path: straight to
-        // `paid` so the rest of the app works without Stripe wired up.
+        // Stripe path starts `pending` (webhook flips to `paid`); demo path is paid.
         status: useStripe ? "pending" : "paid",
         transactionId: txn.transactionId,
         giftRecipientEmail: input.giftRecipientEmail || null,
@@ -167,9 +139,7 @@ export async function checkout(
             productItemId: ci.productItemId,
             quantity: ci.quantity,
             priceAtPurchase: unitPrice(ci),
-            // Phase 38C — master coupon (storeId === null) stamps every
-            // line ; per-store coupon stamps only its own lines so the
-            // receipt shows which lines were actually discounted.
+            // Master coupon stamps every line; per-store stamps only its own lines.
             couponId:
               resolvedCoupon &&
               (couponIsMaster ||
@@ -181,14 +151,8 @@ export async function checkout(
       },
     });
 
-    // Phase 33C — atomic stock decrement. Digital delivery methods
-    // (download, email, license_key, streaming) skip the decrement
-    // entirely since their "quantity" tracks how many keys are pre-
-    // generated, not a finite stock pool ; physical-style variants
-    // (extend the enum later) would decrement here. The conditional
-    // UPDATE returns 0 rows when stock has been depleted by a
-    // concurrent buyer, which we detect and roll the transaction
-    // back so neither order goes through with a negative quantity.
+    // Atomic stock decrement; digital delivery methods skip it.
+    // Conditional UPDATE returns 0 rows on a concurrent depletion - we throw to roll back.
     const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
     for (const ci of selectedItems) {
       if (DIGITAL_METHODS.has(ci.productItem.deliveryMethod)) continue;
@@ -229,10 +193,7 @@ export async function checkout(
     return { order, txn };
   });
 
-  // Stripe-side work happens AFTER the DB transaction so a Stripe
-  // outage can't roll back a successful order create. If the intent
-  // call fails the order is still recorded (in `pending`) and a
-  // future retry path can re-issue the PaymentIntent.
+  // Stripe call after the DB tx so an outage can't roll back the order.
   let stripeClientSecret: string | null = null;
   if (useStripe && sellerStripeAccountId) {
     try {
@@ -253,17 +214,13 @@ export async function checkout(
         data: { stripePaymentIntentId: intent.paymentIntentId },
       });
     } catch (err) {
-      // Don't surface the Stripe error to the buyer — log + move on.
-      // Order remains `pending` ; admin can investigate via dashboard.
+      // Order stays `pending`; admin can investigate via dashboard.
       // eslint-disable-next-line no-console
       console.error("[orders.checkout] Stripe createPaymentIntent failed:", err);
     }
   }
 
-  // Phase 33 — demo orders (no Stripe path) jump straight to fulfilled
-  // because the order is already `paid` in the DB ; otherwise the
-  // buyer would never see their license keys / download links. Stripe
-  // orders go through finalizeOrder() via the webhook handler later.
+  // Demo orders skip Stripe and finalise immediately so keys are visible.
   if (!useStripe) {
     await finalizeOrder(result.order.orderId).catch((err) => {
       // eslint-disable-next-line no-console
@@ -282,20 +239,9 @@ export async function checkout(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Phase 33 — order delivery
-// ─────────────────────────────────────────────────────────────────
-
 /**
- * Generate a license key from an optional template. The template uses
- * `XXXX` as a placeholder for a 4-char random alphanumeric block (we
- * use a 31-char alphabet with the visually-confusing 0/O/1/I/L stripped
- * so customers don't mistype them). Null template falls back to a
- * UUID v4.
- *
- * Examples:
- *   template="METU-XXXX-XXXX-XXXX" → "METU-A3F2-9B11-CDEF"
- *   template=null                  → "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+ * Generate a license key from a template. `XXXX` blocks are replaced
+ * with random alphanumerics (no 0/O/1/I/L). Null template returns a UUID.
  */
 function generateLicenseKey(template: string | null): string {
   if (!template) return crypto.randomUUID();
@@ -310,17 +256,8 @@ function generateLicenseKey(template: string | null): string {
 }
 
 /**
- * Finalise an order after Stripe confirms payment. Generates per-item
- * delivery payloads (license keys for `license_key` / `email` methods,
- * snapshots `delivery_url` for `download` / `streaming`), flips the
- * order to `fulfilled`, then fires the receipt email.
- *
- * Idempotent: short-circuits when every item already has `deliveredAt`
- * set, so webhook retries are safe to no-op.
- *
- * Demo orders (no Stripe charge) also pass through this function — the
- * checkout path calls finalizeOrder() directly when the order skips
- * Stripe, so demo buyers see the same delivery UI as real buyers.
+ * Finalise an order: generate delivery payloads, flip to `fulfilled`,
+ * fire the receipt email. Idempotent when items already have deliveredAt.
  */
 export async function finalizeOrder(orderId: number): Promise<void> {
   const order = await prisma.order.findUnique({
@@ -357,20 +294,14 @@ export async function finalizeOrder(orderId: number): Promise<void> {
     data: { status: "fulfilled" },
   });
 
-  // Fire-and-forget email; receipt failures must NOT roll back the
-  // delivery — the buyer can always re-download from /orders/[id].
+  // Fire-and-forget; receipt failures don't roll back delivery.
   sendOrderReceipt(orderId).catch((err) => {
     // eslint-disable-next-line no-console
     console.error("[order] receipt email failed:", err);
   });
 }
 
-/**
- * Render + send the buyer's receipt email. Items are grouped by store
- * so the email reads "here's what you got from Store A / Store B / ..."
- * with each store's contact info inline. Triggered by finalizeOrder()
- * after fulfilment ; never called from the checkout path directly.
- */
+// Render + send the buyer's receipt email, grouped by store.
 export async function sendOrderReceipt(orderId: number): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { orderId },
@@ -448,67 +379,63 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
     "— METU Marketplace",
   );
 
-  // Minimal inline-styled HTML mirror — kept simple for email-client
-  // compat (no <style> blocks, no external CSS).
+  // Compose the per-store body cards using the shared branded layout.
   const escape = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const htmlParts: string[] = [
-    `<div style="font-family: -apple-system, Segoe UI, sans-serif; max-width: 560px; margin: 0 auto; color: #0f172a;">`,
-    `<h2 style="color:#0f172a; margin: 0 0 12px;">Order #${orderId} delivered</h2>`,
-    `<p style="margin: 0 0 16px;">Hi ${escape(buyer.firstName)}, your payment cleared and the items below are ready.</p>`,
-  ];
+  const storeCards: string[] = [];
   for (const { store, lines } of stores) {
-    htmlParts.push(
-      `<div style="border:1px solid #e2e8f0; border-radius:8px; padding:14px 16px; margin-bottom:14px;">`,
-      `<div style="background:#10b981; color:white; font-weight:600; padding:6px 10px; border-radius:4px; display:inline-block; margin-bottom:10px;">${escape(store.name)}</div>`,
+    storeCards.push(
+      `<div style="margin: 20px 0 0; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; background: #fafbfc;">`,
+      `<div style="display: inline-block; background: #10b981; color: #ffffff; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
     );
     for (const it of lines) {
       const name = escape(it.productItem.product.name);
-      htmlParts.push(
-        `<div style="margin: 8px 0; padding: 8px; background:#f8fafc; border-radius:4px;">`,
-        `<div style="font-weight:600;">${it.quantity}× ${name}</div>`,
+      storeCards.push(
+        `<div style="margin: 10px 0; padding: 12px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">`,
+        `<div style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 6px;">${it.quantity}&times; ${name}</div>`,
       );
       if (it.deliveredKey) {
-        htmlParts.push(
-          `<div style="font-family:ui-monospace,monospace; background:#0f172a; color:#a7f3d0; padding:6px 10px; border-radius:4px; margin-top:6px; word-break:break-all;">${escape(it.deliveredKey)}</div>`,
+        storeCards.push(
+          `<div style="margin-top: 8px;">`,
+          `<div style="font-size: 10px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">License key</div>`,
+          `<div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; background: #0f172a; color: #6EE7B7; padding: 10px 12px; border-radius: 8px; word-break: break-all; font-size: 13px; letter-spacing: 0.02em;">${escape(it.deliveredKey)}</div>`,
+          `</div>`,
         );
       }
       if (it.deliveredUrl) {
-        htmlParts.push(
-          `<a href="${escape(it.deliveredUrl)}" style="display:inline-block; margin-top:6px; background:#10b981; color:white; padding:8px 14px; border-radius:6px; text-decoration:none; font-weight:600;">Download</a>`,
+        storeCards.push(
+          `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;"><tr><td style="border-radius: 8px; background: #10b981;"><a href="${escape(it.deliveredUrl)}" style="display: inline-block; padding: 10px 18px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none;">Download &rarr;</a></td></tr></table>`,
         );
       }
-      htmlParts.push(`</div>`);
+      storeCards.push(`</div>`);
     }
     const contact: string[] = [];
-    if (store.contactEmail) contact.push(`email ${escape(store.contactEmail)}`);
-    if (store.phone) contact.push(`phone ${escape(store.phone)}`);
+    if (store.contactEmail) contact.push(`<a href="mailto:${escape(store.contactEmail)}" style="color: #047857; text-decoration: none;">${escape(store.contactEmail)}</a>`);
+    if (store.phone) contact.push(escape(store.phone));
     if (contact.length) {
-      htmlParts.push(
-        `<div style="font-size:12px; color:#64748b; margin-top:8px;">Contact ${escape(store.name)}: ${contact.join(" · ")}</div>`,
+      storeCards.push(
+        `<div style="font-size: 12px; color: #64748b; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #cbd5e1;">Contact ${escape(store.name)}: ${contact.join(" &middot; ")}</div>`,
       );
     }
-    htmlParts.push(`</div>`);
+    storeCards.push(`</div>`);
   }
-  htmlParts.push(
-    `<p style="font-size:13px; color:#64748b; margin-top:20px;">View this order: <a href="https://metu.fly.dev/orders/${orderId}" style="color:#10b981;">metu.fly.dev/orders/${orderId}</a></p>`,
-    `<p style="font-size:11px; color:#94a3b8; margin-top:24px;">— METU Marketplace</p>`,
-    `</div>`,
-  );
+
+  const html = renderEmailLayout({
+    heading: `Hi ${escape(buyer.firstName)} - your goods are ready`,
+    intro: `Payment cleared. License keys + download links for order <strong>#${orderId}</strong> are below; everything stays available on your account too.`,
+    cta: { label: "View order", url: `https://metu.fly.dev/orders/${orderId}` },
+    bodyHtml: storeCards.join(""),
+  });
 
   await sendEmail({
     to: buyer.email,
     subject,
-    html: htmlParts.join("\n"),
+    html,
     text: textLines.join("\n"),
   });
 }
 
-/**
- * List — every order belonging to the user (newest first), with the
- * minimum joins the receipts page renders. Same shape as the legacy
- * BFF /api/orders so the UI stays unchanged.
- */
+// List the user's orders newest first.
 export async function listForUser(userId: number): Promise<OrderListItem[]> {
   return prisma.order.findMany({
     where: { cart: { userId } },
@@ -533,10 +460,7 @@ export async function listForUser(userId: number): Promise<OrderListItem[]> {
   });
 }
 
-/**
- * Detail — single order, gated on ownership (the cart.userId join is
- * the gate; another user's orderId returns null → 404).
- */
+// Single order; ownership gated via cart.userId.
 export async function findByIdForUser(
   userId: number,
   orderId: number,

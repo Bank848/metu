@@ -5,6 +5,7 @@ import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { findFirstProfaneField } from "../utils/profanity.js";
 import { sendEmail } from "../utils/email.js";
+import { renderEmailLayout, escapeHtml } from "../utils/email-template.js";
 import { audit } from "../utils/audit.js";
 import type {
   ChangePasswordInput,
@@ -29,39 +30,17 @@ import {
 } from "../utils/otp.js";
 import { buildOtpauthUri, generateSecret, verifyCode as verifyTotpCode } from "../utils/totp.js";
 
-/**
- * Strip the bcrypt hash before any user object crosses the network.
- * Single source of truth — every controller that returns a user
- * passes the row through this.
- */
+// Strip the bcrypt hash before returning a user object.
 function sanitize(user: any): SafeUser {
   if (!user) return user;
   const { password, ...safe } = user;
   return safe as SafeUser;
 }
 
-/**
- * Hashing cost — 10 rounds matches the legacy Next route. Higher
- * costs (12+) feel safer but add ~250 ms per login on the demo Fly
- * machine, which is more than the rest of the request combined.
- */
 const BCRYPT_ROUNDS = 10;
 
-/**
- * Phase 16.3 — keep the `account` row's credential password in sync
- * with `user.password`. Every place that writes a password hash to
- * the user (register, changePassword, setPassword, resetPassword)
- * also calls this so better-auth's `signInEmail` can verify against
- * the same hash via the bcrypt adapter wired in lib/auth.ts.
- *
- * Idempotent — uses upsert so re-runs are safe. The unique key is
- * (provider_id, account_id) and we always pass `email` as account_id
- * for credential rows (matches the migration backfill convention).
- *
- * The `id` is autoincrement so we don't synthesize it. Email moves
- * are handled by `updateProfile` updating `account.accountId` in
- * lock-step.
- */
+// Mirror user.password into better-auth's credential account row so
+// signInEmail can verify against the same hash. Idempotent (upsert).
 export async function syncCredentialAccount(
   userId: number,
   email: string,
@@ -76,7 +55,7 @@ export async function syncCredentialAccount(
       password: passwordHash,
     },
     update: {
-      userId, // protect against rare collisions where the email moved
+      userId,
       password: passwordHash,
     },
   });
@@ -87,14 +66,8 @@ export interface AuthOutcome {
   role: UserRole;
 }
 
-/**
- * Login — verifies credentials, side-effects an active cart row if
- * the user doesn't have one yet (a demo convenience inherited from
- * the BFF route), throws `AppError(401)` for ANY failure mode so
- * callers can't distinguish "wrong email" from "wrong password" or
- * "soft-deleted account" — keeps the response surface flat to
- * attackers.
- */
+// Verify credentials. Throws 401 for any failure mode so callers
+// can't distinguish wrong email vs wrong password vs deleted user.
 export async function login(input: LoginInput): Promise<AuthOutcome> {
   const user = await prisma.user.findUnique({
     where: { email: input.email },
@@ -106,19 +79,12 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
   if (!user || user.deletedAt) {
     throw new AppError(401, "InvalidCredentials");
   }
-  // Phase 14.1 — User.password is nullable now (Google-only signups
-  // have no password until they Set Password from /profile/edit).
-  // Treat NULL the same as a wrong password — same surface, no
-  // information leak about WHY the credential check failed.
+  // Google-only users have a NULL password; same response as wrong password.
   if (!user.password) throw new AppError(401, "InvalidCredentials");
   const ok = await bcrypt.compare(input.password, user.password);
   if (!ok) throw new AppError(401, "InvalidCredentials");
 
-  // Phase 16.2 — TOTP 2FA gate. AFTER password verifies (so we
-  // never leak whether 2FA is enabled to a wrong-password caller),
-  // require a fresh authenticator code when totpEnabled=true.
-  // 401 NeedsTotp = "your password worked but we need the code".
-  // 401 InvalidTotp = "code didn't match (try the next 30s window)".
+  // TOTP gate runs AFTER password check so we don't leak whether 2FA is on.
   if (user.totpEnabled && user.totpSecret) {
     if (!input.totpCode) {
       throw new AppError(401, "NeedsTotp");
@@ -129,8 +95,7 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
     }
   }
 
-  // Background-create active cart if missing — fire-and-forget so
-  // the login response isn't blocked on it.
+  // Fire-and-forget active cart creation if missing.
   if (user.carts.length === 0) {
     void prisma.cart
       .create({ data: { userId: user.userId, status: "active" } })
@@ -142,11 +107,8 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
 }
 
 /**
- * Register — runs the profanity gate (same dictionary as Phase 11/F3)
- * BEFORE the duplicate check + DB write so a banned name never
- * pollutes Neon. Throws:
- *   • 400 ProfanityRejected  — slur in username / first / last name
- *   • 409 Conflict           — duplicate username or email
+ * Register a new buyer. Runs profanity gate before duplicate check.
+ * Throws 400 ProfanityRejected or 409 Conflict (username/email).
  */
 export async function register(input: RegisterInput): Promise<AuthOutcome> {
   const profane = findFirstProfaneField({
@@ -174,8 +136,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
       lastName: input.lastName,
       countryId: input.countryId,
       gender: input.gender,
-      // dateOfBirth comes in YYYY-MM-DD; pin to UTC midnight so the
-      // value doesn't shift across timezones in the DB.
+      // Pin DOB to UTC midnight so it doesn't drift across timezones.
       dateOfBirth: input.dateOfBirth
         ? new Date(`${input.dateOfBirth}T00:00:00.000Z`)
         : undefined,
@@ -186,15 +147,8 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
     include: { stats: true },
   });
 
-  // Phase 16.3 — mirror the bcrypt hash into better-auth's credential
-  // account so signInEmail can verify against it on the very next
-  // request. Without this the user would be unable to log in via the
-  // Mode A flow that the controller now uses.
   await syncCredentialAccount(user.userId, user.email, hash);
 
-  // Phase 23.2 — audit account creation. The actorId === targetId
-  // because the user signed themselves up; admin-created accounts
-  // (Phase 14 grant flow) would have different actorId.
   await audit({
     actorId: user.userId,
     action: "user.register",
@@ -206,12 +160,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
   return { user: sanitize(user), role: (user.stats?.role ?? "buyer") as UserRole };
 }
 
-/**
- * Resolve the user behind a given userId — used by GET /auth/me
- * after the auth middleware has decoded the cookie. Returns `null`
- * when the row is missing or soft-deleted (signals "session is
- * stale, log out").
- */
+// GET /auth/me. Returns null for missing or soft-deleted users.
 export async function getById(userId: number): Promise<SafeUser | null> {
   const user = await prisma.user.findUnique({
     where: { userId },
@@ -221,11 +170,7 @@ export async function getById(userId: number): Promise<SafeUser | null> {
   return sanitize(user);
 }
 
-/**
- * PATCH /auth/me — same profanity gate as register, plus an email
- * uniqueness check (only if the email actually changed — saves a
- * query on every save).
- */
+// PATCH /auth/me. Profanity gate + email uniqueness (only if email changed).
 export async function updateProfile(
   userId: number,
   input: UpdateProfileInput,
@@ -266,10 +211,7 @@ export async function updateProfile(
     include: { stats: true },
   });
 
-  // Phase 16.3 — when the email changes, better-auth's credential
-  // account_id needs to follow it (the column is the lookup key for
-  // signInEmail). Update in place when the row exists; no-op
-  // otherwise (Google-only users have no credential row yet).
+  // Keep the credential account_id in sync with the new email.
   if (input.email && input.email !== currentEmail) {
     await prisma.account.updateMany({
       where: { userId, providerId: "credential", accountId: currentEmail },
@@ -279,51 +221,32 @@ export async function updateProfile(
   return sanitize(updated);
 }
 
-/**
- * POST /auth/change-password — requires the current password to be
- * correct (so a stolen session token can't pivot the account
- * password without the old one).
- */
+// POST /auth/change-password. Requires the current password.
 export async function changePassword(
   userId: number,
   input: ChangePasswordInput,
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { userId },
-    // Phase 15.3 — pull phone + phoneVerifiedAt so we know whether
-    // to gate on a fresh OTP (only when the user has actually
-    // verified their phone).
     select: { password: true, phone: true, phoneVerifiedAt: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
-  // Phase 14.1 — Google-only users have no password set. They must
-  // use the Phase 14.3 `POST /auth/set-password` flow first (which
-  // skips currentPassword verification because there is none yet).
+  // Google-only users must use /auth/set-password instead.
   if (!user.password) throw new AppError(400, "NoPasswordSet");
 
   const ok = await bcrypt.compare(input.currentPassword, user.password);
   if (!ok) throw new AppError(401, "InvalidCurrentPassword");
 
-  // Phase 15.3 — when phone is verified, sensitive password change
-  // requires a fresh OTP. Defends against a stolen session: an
-  // attacker with a valid cookie can't change the password without
-  // also having access to the user's SMS messages.
+  // Require a fresh OTP if the user has verified their phone.
   await ensureSensitiveOtpIfVerified(userId, user.phone, user.phoneVerifiedAt, input.otpCode);
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
-  // Phase 15.5 — successful change clears the admin-imposed
-  // force-reset flag (if it was set). Idempotent for users who
-  // didn't have it set; net cost is one extra column in the UPDATE.
   const updated = await prisma.user.update({
     where: { userId },
     data: { password: hash, requirePasswordReset: false },
     select: { email: true },
   });
-  // Phase 16.3 — keep better-auth's credential row in lock-step with
-  // user.password so signInEmail keeps working after a password change.
   await syncCredentialAccount(userId, updated.email, hash);
-  // Phase 23.2 — security signal. Admins can see a password-change
-  // trail in the audit log without leaking the old/new hash.
   await audit({
     actorId: userId,
     action: "auth.password.change",
@@ -333,20 +256,8 @@ export async function changePassword(
 }
 
 /**
- * POST /auth/set-password — Phase 14.3.
- *
- * First-time password set for OAuth-only users (User.password is
- * NULL because they signed up via Google). No `currentPassword`
- * required — there is none. Once set, the user can sign in via
- * either Google OR email+password from then on.
- *
- * Refuses (400 PasswordAlreadySet) if the user already has a
- * password — those calls should go through changePassword instead,
- * which protects the password-change with the existing-password
- * check.
- *
- * Audit row written so admins can see when a Google-only account
- * promoted to a hybrid (Google + password) account.
+ * POST /auth/set-password. First-time password set for OAuth-only
+ * users (User.password is NULL). Refuses if password already set.
  */
 export async function setPassword(
   userId: number,
@@ -354,9 +265,6 @@ export async function setPassword(
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { userId },
-    // Phase 15.3 — same OTP-gating story as changePassword. A user
-    // who set a phone + verified it before clicking 'Set password'
-    // proves possession via fresh OTP.
     select: { password: true, phone: true, phoneVerifiedAt: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
@@ -370,8 +278,6 @@ export async function setPassword(
     data: { password: hash, requirePasswordReset: false },
     select: { email: true },
   });
-  // Phase 16.3 — provision the credential account row so the user
-  // can immediately sign in via email + password (Mode A flow).
   await syncCredentialAccount(userId, updated.email, hash);
   await audit({
     actorId: userId,
@@ -381,26 +287,10 @@ export async function setPassword(
   });
 }
 
-// =============================================================================
-//  PHASE 15.3 — OTP enforcement helper
-// =============================================================================
-
 /**
- * Phase 15.3 — gate sensitive password operations on a fresh OTP
- * when the user has verified their phone. No-op when phone isn't
- * verified (Phase 14.4's scaffold is opt-in; users who haven't
- * verified can still change passwords with just their current one).
- *
- * Failure modes (all 400 with distinct error codes):
- *   • OtpRequired       — phone is verified but no code in body
- *   • InvalidOtp        — code didn't match the pending hash
- *   • NoPendingOtp      — no /request-otp was called recently
- *   • OtpExpired        — pending code is past TTL
- *
- * Consumes the verification row on success — exactly the same
- * behaviour as the standalone /auth/verify-otp endpoint, just
- * inline so /change-password and /set-password can require a
- * single round-trip.
+ * Require a fresh OTP for sensitive password ops when the user has a
+ * verified phone. No-op otherwise. Consumes the verification row on
+ * success. Throws 400 OtpRequired/InvalidOtp/NoPendingOtp/OtpExpired.
  */
 async function ensureSensitiveOtpIfVerified(
   userId: number,
@@ -408,7 +298,6 @@ async function ensureSensitiveOtpIfVerified(
   phoneVerifiedAt: Date | null,
   otpCode: string | undefined,
 ): Promise<void> {
-  // No phone OR not verified → OTP not required. Bail early.
   if (!phone || !phoneVerifiedAt) return;
 
   if (!otpCode) throw new AppError(400, "OtpRequired");
@@ -427,25 +316,13 @@ async function ensureSensitiveOtpIfVerified(
   const expected = hashCode(userId, phone, otpCode);
   if (expected !== pending.value) throw new AppError(400, "InvalidOtp");
 
-  // Consume the row so the same code can't be replayed against a
-  // second sensitive action.
+  // Consume so the same code can't be replayed against another action.
   await prisma.verification.delete({ where: { id: pending.id } });
 }
 
-// =============================================================================
-//  PHASE 14.4 — phone + OTP scaffold
-// =============================================================================
-
 /**
- * PATCH /auth/phone — set/update the user's phone number.
- *
- * Clears phoneVerifiedAt because the new number hasn't been verified
- * yet. Strips non-digits + leading + before storage so the value is
- * normalised and OTP delivery doesn't choke on stray whitespace.
- *
- * Doesn't auto-trigger OTP delivery — the caller hits POST
- * /auth/request-otp explicitly. Two-step flow keeps the cost
- * boundary (Twilio SMS credits) in the user's hands.
+ * PATCH /auth/phone. Clears phoneVerifiedAt and normalises the
+ * number. OTP delivery is a separate POST /auth/request-otp call.
  */
 export async function updatePhone(
   userId: number,
@@ -461,16 +338,8 @@ export async function updatePhone(
 }
 
 /**
- * POST /auth/request-otp — issue a 6-digit code to the user's phone.
- *
- * Reads User.phone (set via PATCH /auth/phone). Returns 400
- * NoPhoneOnFile if missing. Wipes any pending code for the same
- * user before inserting a new one (so the latest code always wins;
- * stops attackers replaying a stale code if they intercept it).
- *
- * Returns the transport name so the dev/demo flow can show "Code
- * was logged to console" vs "Code was SMS-ed". Production stays
- * silent on transport (server logs cover the audit need).
+ * POST /auth/request-otp. Issues a 6-digit code; latest code wins.
+ * Returns the transport name so the demo UI can hint console vs SMS.
  */
 export async function requestOtp(
   userId: number,
@@ -487,15 +356,13 @@ export async function requestOtp(
   const hash = hashCode(userId, user.phone, code);
   const identifier = otpIdentifier(userId);
 
-  // Wipe any pending code for this user (only one active OTP at a
-  // time). deleteMany so an absent row doesn't throw.
+  // Only one active OTP per user.
   await prisma.verification.deleteMany({ where: { identifier } });
   await prisma.verification.create({
     data: { identifier, value: hash, expiresAt: otpExpiresAt() },
   });
 
-  // Fire delivery; surface failures as 502 so the client knows the
-  // code didn't actually go out (not the user's fault).
+  // 502 on failure so the client knows the code didn't actually go out.
   try {
     await deliverCode(user.phone, code);
   } catch (err) {
@@ -510,17 +377,8 @@ export async function requestOtp(
 }
 
 /**
- * POST /auth/verify-otp — consume the pending code and set
- * phoneVerifiedAt.
- *
- * Failure modes (all 400 with distinct error codes so the UI can
- * surface helpful messages):
- *   • NoPendingOtp — user never requested or it expired+swept
- *   • OtpExpired — found one but past TTL (5 min)
- *   • InvalidOtp — hash mismatch (wrong code or wrong phone)
- *
- * Always deletes the verification row on a successful verify so
- * a code can't be replayed.
+ * POST /auth/verify-otp. Consume the pending code and stamp
+ * phoneVerifiedAt. Throws 400 NoPendingOtp/OtpExpired/InvalidOtp.
  */
 export async function verifyOtp(
   userId: number,
@@ -540,7 +398,6 @@ export async function verifyOtp(
   });
   if (!pending) throw new AppError(400, "NoPendingOtp");
   if (pending.expiresAt.getTime() < Date.now()) {
-    // Sweep the stale row so the next request gets a clean slate.
     await prisma.verification.delete({ where: { id: pending.id } });
     throw new AppError(400, "OtpExpired");
   }
@@ -550,7 +407,6 @@ export async function verifyOtp(
     throw new AppError(400, "InvalidOtp");
   }
 
-  // Atomic: mark phone verified + drop the pending row in one tx.
   await prisma.$transaction([
     prisma.user.update({
       where: { userId },
@@ -564,26 +420,11 @@ export async function verifyOtp(
     action: "user.phone_verified",
     targetType: "user",
     targetId: userId,
-    meta: { phone: user.phone.slice(-4) }, // last 4 digits only — PII
+    meta: { phone: user.phone.slice(-4) }, // last 4 only - PII
   });
 }
 
-// =============================================================================
-//  PHASE 15.2 — sessions UI (better-auth's session table)
-// =============================================================================
-//
-// Phase 14.2's dual-stack means the User has two paths to be signed
-// in: our hand-rolled JWT cookie OR better-auth's session row in
-// the `session` table. The Sessions UI only manages the latter
-// (the JWT cookie can be revoked just by changing the password,
-// since requireAuth re-verifies on every request).
-
-/**
- * GET /auth/sessions — list every active better-auth session for the
- * current user. Ordered most-recent-first. Strips the bcrypt-style
- * `token` field — even hashed it's user-secret, no UI need surfaces
- * it (we identify rows by integer id).
- */
+// GET /auth/sessions. List active better-auth sessions, newest first.
 export async function listSessions(userId: number) {
   const rows = await prisma.session.findMany({
     where: { userId, expiresAt: { gt: new Date() } },
@@ -599,11 +440,7 @@ export async function listSessions(userId: number) {
   return rows;
 }
 
-/**
- * DELETE /auth/sessions/:id — revoke one session. Ownership check
- * via the userId predicate so a malicious user can't enumerate +
- * delete other users' sessions by guessing IDs.
- */
+// DELETE /auth/sessions/:id. Ownership-checked via the userId predicate.
 export async function revokeSession(userId: number, sessionId: number): Promise<void> {
   const result = await prisma.session.deleteMany({
     where: { id: sessionId, userId },
@@ -612,14 +449,8 @@ export async function revokeSession(userId: number, sessionId: number): Promise<
 }
 
 /**
- * DELETE /auth/sessions/all-others — revoke every session for the
- * user EXCEPT the current one. The "current" sessionId comes from
- * the controller (which has access to auth.api.getSession headers).
- *
- * If currentSessionId is null (the user is logged in via the legacy
- * JWT cookie, not better-auth), this revokes ALL better-auth sessions
- * unconditionally — useful for a user who wants to nuke everything
- * after a Google sign-in scare.
+ * DELETE /auth/sessions/all-others. Revokes every session except the
+ * current one (or all of them if currentSessionId is null).
  */
 export async function revokeAllOtherSessions(
   userId: number,
@@ -640,24 +471,15 @@ export async function revokeAllOtherSessions(
   return { revoked: result.count };
 }
 
-const RESET_TOKEN_TTL_MIN = 30;
+const RESET_TOKEN_TTL_MIN = 5;
 
 /**
- * POST /auth/forgot-password — issue a password reset token + email
- * the link.
- *
- * Always succeeds (return value is meaningless to the controller —
- * never expose whether the email was found, otherwise an attacker
- * can enumerate registered accounts). Soft-deleted users get the
- * same silent treatment.
- *
- * The raw token goes into the email link; we store its SHA-256 hash
- * in the DB so a leaked DB row alone can't reset anyone's password.
- * TTL: 30 minutes (matches the BFF behaviour the email asks for).
+ * POST /auth/forgot-password. Always succeeds (no email enumeration).
+ * Stores SHA-256 of the token; raw token only goes in the email link.
  */
 export async function forgotPassword(input: ForgotPasswordInput): Promise<void> {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
-  if (!user || user.deletedAt) return; // silent no-op
+  if (!user || user.deletedAt) return;
 
   const raw = crypto.randomBytes(32).toString("base64url");
   const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
@@ -667,34 +489,45 @@ export async function forgotPassword(input: ForgotPasswordInput): Promise<void> 
     data: { userId: user.userId, tokenHash, expiresAt },
   });
 
-  // Link points at the BFF, not the API server — that's where the
-  // user-facing /reset-password page lives. SITE_URL falls back to
-  // the prod URL so the email is always actionable.
+  // Link points at the BFF where /reset-password lives.
   const base = process.env.SITE_URL ?? "https://metu.fly.dev";
   const link = `${base}/reset-password?token=${raw}`;
+
+  const firstName = user.firstName ?? "there";
+  const html = renderEmailLayout({
+    heading: `Hi ${escapeHtml(firstName)} — reset your password`,
+    intro: `Click the button below to set a new password. The link is valid for <strong>${RESET_TOKEN_TTL_MIN} minutes</strong>, after that you'll need to request another one.`,
+    cta: { label: "Reset password", url: link },
+    fallbackUrl: link,
+    bodyHtml: `
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+      <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #94a3b8;">
+        Didn't ask to reset your password? You can ignore this email - your current password stays unchanged. The link expires automatically and can only be used once.
+      </p>
+    `,
+  });
+  const text = [
+    `Hi ${firstName},`,
+    "",
+    `Reset your METU password using this link (valid ${RESET_TOKEN_TTL_MIN} minutes):`,
+    link,
+    "",
+    "Didn't ask for this? Ignore the email - your password stays the same.",
+    "",
+    "- METU",
+  ].join("\n");
 
   await sendEmail({
     to: user.email,
     subject: "Reset your METU password",
-    html: `
-      <p>Hi ${user.firstName ?? ""},</p>
-      <p>Use the link below to set a new password. It expires in ${RESET_TOKEN_TTL_MIN} minutes.</p>
-      <p><a href="${link}">${link}</a></p>
-      <p>If you didn't request this, ignore this email — your password stays the same.</p>
-      <p>— The METU team</p>
-    `,
+    html,
+    text,
   });
 }
 
 /**
- * POST /auth/reset-password — consume a valid token + write a new
- * bcrypt hash. We hash the raw token client-side then look up by
- * the hash. The hashed lookup means a leaked DB row alone can't
- * reset anyone's password.
- *
- * Throws `AppError(400, "InvalidToken")` for any rejection mode
- * (missing / consumed / expired) so an attacker can't tell which
- * branch they hit.
+ * POST /auth/reset-password. Consume a valid token + write new hash.
+ * Single InvalidToken error code for any rejection (missing/used/expired).
  */
 export async function resetPassword(input: ResetPasswordInput): Promise<void> {
   const tokenHash = crypto.createHash("sha256").update(input.token).digest("hex");
@@ -711,12 +544,7 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
 
-  // Three-statement transaction:
-  //  1. Update the user's password.
-  //  2. Mark the consumed token (this token can't be reused).
-  //  3. Invalidate any OTHER outstanding tokens for the same user
-  //     so an attacker who grabbed a separate fresh token (e.g.
-  //     before this reset) can't use it after the password rotates.
+  // Update password, mark token consumed, invalidate other outstanding tokens.
   const [updatedUser] = await prisma.$transaction([
     prisma.user.update({
       where: { userId: row.userId },
@@ -733,11 +561,6 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
     }),
   ]);
 
-  // Phase 16.3 — keep better-auth's credential row in sync. Outside
-  // the transaction (account.upsert isn't part of the password-reset
-  // atomicity contract) so a failure here just means the next login
-  // attempt would fall back to the old hash — caught immediately by
-  // the user.
   await syncCredentialAccount(row.userId, updatedUser.email, hash);
 
   await audit({
@@ -748,21 +571,9 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
   });
 }
 
-// =============================================================================
-//  PHASE 16.2 — TOTP 2FA enrolment + management
-// =============================================================================
-
 /**
- * POST /auth/totp/enroll-start — Phase 16.2.
- *
- * Returns the base32 secret + the otpauth:// URI the UI uses to
- * render the QR. Idempotent for users mid-enrolment (totpSecret
- * already set but totpEnabled still false): we re-return the
- * pending secret so a refresh-during-enrolment doesn't lose state.
- *
- * Refuses 400 AlreadyEnrolled when totpEnabled=true — to swap
- * secrets, the user must disable first (which requires their
- * password) then re-enroll.
+ * POST /auth/totp/enroll-start. Returns the base32 secret + otpauth
+ * URI. Idempotent mid-enrolment; refuses if 2FA is already enabled.
  */
 export async function totpEnrollStart(
   userId: number,
@@ -774,8 +585,7 @@ export async function totpEnrollStart(
   if (!user) throw new AppError(404, "UserNotFound");
   if (user.totpEnabled) throw new AppError(400, "AlreadyEnrolled");
 
-  // Reuse the pending secret if one exists (resumes the in-flight
-  // enrolment), otherwise mint a fresh one.
+  // Reuse pending secret if mid-enrolment; otherwise mint fresh.
   const secret = user.totpSecret ?? generateSecret();
   if (!user.totpSecret) {
     await prisma.user.update({
@@ -787,15 +597,8 @@ export async function totpEnrollStart(
 }
 
 /**
- * POST /auth/totp/enroll-verify — Phase 16.2.
- *
- * Confirms the secret with the first authenticator code. Flips
- * totpEnabled=true on success; from then on /auth/login requires
- * a code in the body.
- *
- * 400 NoEnrollmentInProgress when totpSecret is null (user never
- * called enroll-start). 400 AlreadyEnrolled when totpEnabled=true.
- * 400 InvalidTotp on a mismatch.
+ * POST /auth/totp/enroll-verify. First authenticator code confirms
+ * the secret and flips totpEnabled=true.
  */
 export async function totpEnrollVerify(
   userId: number,
@@ -823,14 +626,8 @@ export async function totpEnrollVerify(
 }
 
 /**
- * POST /auth/totp/disable — Phase 16.2.
- *
- * Disables 2FA + wipes the secret. Requires the user's CURRENT
- * password (not a TOTP code) so a stolen-session attacker can't
- * disable 2FA without also knowing the password — defence in
- * depth against the very threat 2FA is supposed to mitigate.
- *
- * No-op (200) when totpEnabled is already false.
+ * POST /auth/totp/disable. Requires the user's current password
+ * (not a TOTP code) so a stolen session alone can't turn 2FA off.
  */
 export async function totpDisable(
   userId: number,
@@ -841,7 +638,7 @@ export async function totpDisable(
     select: { password: true, totpEnabled: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
-  if (!user.totpEnabled) return; // already disabled — no-op
+  if (!user.totpEnabled) return;
   if (!user.password) throw new AppError(400, "NoPasswordSet");
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) throw new AppError(401, "InvalidPassword");
@@ -859,13 +656,8 @@ export async function totpDisable(
 }
 
 /**
- * Phase 23.3 — TOTP step-up. Verifies a fresh 6-digit code and
- * stamps `Session.lastTotpAt = now()` so the requireRecent2FA
- * middleware lets the user proceed with the original sensitive
- * action. Throws 400 InvalidTotp on a wrong code; 400 NotEnrolled
- * when the user hasn't enabled 2FA (UI shouldn't have let them get
- * here, but defence in depth); 401 NoSession when the request is
- * on the legacy JWT cookie path with no better-auth Session row.
+ * TOTP step-up. Verifies a fresh code and stamps Session.lastTotpAt
+ * so requireRecent2FA lets the user proceed with the sensitive action.
  */
 export async function totpStepUp(
   userId: number,
@@ -905,22 +697,9 @@ export async function totpStepUp(
   });
 }
 
-// =============================================================================
-//  Phase 18 — connected social accounts
-// =============================================================================
-
 /**
- * Returns the user's social-login Account rows (provider, accountId,
- * createdAt). Filters out the `credential` provider row — that's the
- * password row backing better-auth's signInEmail and not a "connected
- * account" the user manages from /profile/edit.
- *
- * Note: for Google, `accountId` is the OAuth `sub` claim (numeric Google
- * user id), not the email. The frontend treats it as an opaque token
- * and only uses it for "Linked since DATE" / unlink confirmation. The
- * better-auth schema does not store the linked email separately, so if
- * we ever want to display the Google email we'd need to inspect the
- * stored `idToken` JWT — out of scope for the initial Phase 18 ship.
+ * List the user's social-login Account rows. Excludes the credential
+ * row. For Google, accountId is the OAuth `sub` claim, not the email.
  */
 export async function listConnectedAccounts(
   userId: number,
@@ -944,14 +723,8 @@ export async function listConnectedAccounts(
 }
 
 /**
- * Removes the Google account row(s) for `userId`.
- *
- * Lockout guard: refuses with 400 PasswordNotSet when the user has no
- * credential row with a non-null password. Without a password,
- * unlinking would leave them unable to sign back in.
- *
- * Audits as `auth.unlink.google` so admin can trace deliberate unlinks
- * (e.g. for shared-account incident response).
+ * Remove the Google account row(s). Refuses with PasswordNotSet
+ * when no credential password exists - would lock the user out.
  */
 export async function unlinkGoogle(userId: number): Promise<void> {
   const credential = await prisma.account.findFirst({
@@ -966,7 +739,7 @@ export async function unlinkGoogle(userId: number): Promise<void> {
     throw new AppError(
       400,
       "PasswordNotSet",
-      "Set a password before unlinking Google — otherwise you'll be locked out.",
+      "Set a password before unlinking Google - otherwise you'll be locked out.",
     );
   }
   const result = await prisma.account.deleteMany({
