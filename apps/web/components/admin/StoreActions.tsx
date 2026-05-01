@@ -1,8 +1,18 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Trash2, PauseCircle, PlayCircle } from "lucide-react";
 import { ActionRow, type ActionRowItem } from "./ActionRow";
+
+/**
+ * Phase 45 follow-up — same cache-busting reload helper as
+ * UserRowActions (kept inline to avoid a one-function shared
+ * util module). Mirrors comment there.
+ */
+function hardRefresh() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("_t", Date.now().toString());
+  window.location.replace(url.toString());
+}
 
 /**
  * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
@@ -23,7 +33,6 @@ export function StoreActions({
   name: string;
   suspended?: boolean;
 }) {
-  const router = useRouter();
   const [busy, setBusy] = useState<"suspend" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +49,7 @@ export function StoreActions({
         setError(data?.message ?? "Failed to delete store");
         return;
       }
-      router.refresh();
+      hardRefresh();
     } catch {
       setError("Network error");
     } finally {
@@ -63,7 +72,7 @@ export function StoreActions({
         setError(data?.message ?? "Failed to update suspended state");
         return;
       }
-      router.refresh();
+      hardRefresh();
     } catch {
       setError("Network error");
     } finally {

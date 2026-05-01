@@ -7,6 +7,21 @@ import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 type Role = "buyer" | "seller" | "admin";
 
 /**
+ * Phase 45 follow-up — `window.location.reload()` was sometimes
+ * returning a cached page (the user reported "Remove user" on
+ * /admin/users wrote an audit log row but the deleted user kept
+ * showing in the table even after the reload). Bumping a `_t`
+ * cache-bust query param + `location.replace()` forces every layer
+ * (browser HTTP cache, Next router cache, Fly.io edge if any) to
+ * treat it as a brand new URL and re-fetch from origin.
+ */
+function hardRefresh() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("_t", Date.now().toString());
+  window.location.replace(url.toString());
+}
+
+/**
  * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
  *
  * The bespoke role-select + trash-button cluster is replaced with a
@@ -69,7 +84,7 @@ export function UserRowActions({
       // A single hard reload is sufficient — `dynamic = "force-dynamic"`
       // on /admin/users + `cache: "no-store"` in apiAuth guarantee
       // the new page render reads fresh role data.
-      window.location.reload();
+      hardRefresh();
     } catch {
       setError("Network error");
       setBusy(null);
@@ -95,7 +110,7 @@ export function UserRowActions({
       // Hard reload so the row's badge + dropdown labels reflect the
       // new flag value — router.refresh() alone left the menu showing
       // the old "Force password reset" label after the toggle.
-      window.location.reload();
+      hardRefresh();
     } catch {
       setError("Network error");
     }
@@ -129,7 +144,7 @@ export function UserRowActions({
       // Hard reload — the deleted row should disappear, but
       // router.refresh() alone sometimes left the dialog's
       // post-close repaint showing the old row for a beat.
-      window.location.reload();
+      hardRefresh();
     } catch {
       setError("Network error");
     }

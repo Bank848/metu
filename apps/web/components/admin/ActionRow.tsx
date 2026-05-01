@@ -60,25 +60,55 @@ export interface ActionRowProps {
 export function ActionRow({ actions, ariaLabel = "Row actions", className }: ActionRowProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  // Phase 45 follow-up — flip the popover above the trigger when the
+  // trigger sits near the bottom of the viewport. Without this, a row
+  // dropdown on the last user/store in the table dangled below the
+  // page bottom and forced a scrollbar (see screenshot in chat). We
+  // measure on each open + on resize so the direction stays correct
+  // even when the user scrolls the page or rotates a device.
+  const [openUp, setOpenUp] = useState(false);
   // Phase 11 / F19 — when a picked action carries a `confirm: string`
   // we stash the action here and open the in-page <ConfirmDialog>
   // primitive instead of calling `window.confirm()`. The dropdown
   // closes immediately on pick so the modal can take over the page.
   const [pendingAction, setPendingAction] = useState<ActionRowItem | null>(null);
 
+  // Approximate menu height — tall enough to cover all admin menus
+  // (5 items × 36px ≈ 180, plus padding). We don't measure the menu
+  // itself because that would require a render pass; this estimate
+  // is comfortably larger than every existing menu, so the flip is
+  // accurate as long as menus stay under ~6 items.
+  const ESTIMATED_MENU_HEIGHT = 220;
+
+  function decideDirection() {
+    const trigger = ref.current?.querySelector("button");
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    setOpenUp(spaceBelow < ESTIMATED_MENU_HEIGHT && rect.top > spaceBelow);
+  }
+
   useEffect(() => {
     if (!open) return;
+    decideDirection();
     function onDoc(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     }
     function onEsc(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
+    function onResize() {
+      decideDirection();
+    }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onEsc);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onResize, true);
     return () => {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onEsc);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onResize, true);
     };
   }, [open]);
 
@@ -115,7 +145,13 @@ export function ActionRow({ actions, ariaLabel = "Row actions", className }: Act
             // Anchor right so the menu doesn't push off the right edge of
             // a table row. shadow-floating matches the elevation scale
             // intended for popovers (see tailwind.config.ts §boxShadow).
-            "absolute right-0 top-full mt-1.5 w-48 rounded-xl border border-line bg-space-900 shadow-floating py-1 z-50",
+            "absolute right-0 w-48 rounded-xl border border-line bg-space-900 shadow-floating py-1 z-50",
+            // Phase 45 follow-up — flip up when there isn't enough room
+            // below the trigger so the menu never dangles past the
+            // viewport bottom (admin tables routinely had this on the
+            // last row). `bottom-full` anchors the menu's bottom edge
+            // to the trigger's top instead of dropping below.
+            openUp ? "bottom-full mb-1.5" : "top-full mt-1.5",
           )}
         >
           {actions.map((action, i) => {

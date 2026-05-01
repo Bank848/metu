@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, ShieldAlert, Monitor, MailWarning, PhoneCall } from "lucide-react";
+import { ArrowLeft, Download, ShieldAlert, Monitor, MailWarning, PhoneCall, KeyRound } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -37,6 +37,14 @@ export default async function EditProfilePage({
   // a visible nudge.
   const emailUnverified = !me.user.emailVerified;
   const phoneUnverified = !me.user.phoneVerifiedAt;
+  // Phase 45 follow-up — Google sign-up creates an account with no
+  // local password (only the OAuth account row). We expose the
+  // "Set a password" form further down the page, but users who
+  // signed up with Google routinely missed it. A prominent banner
+  // up top with an in-page anchor link makes the option discoverable
+  // — they keep using Google sign-in by default but now see the
+  // pathway to add an email+password fallback.
+  const passwordMissing = !me.hasPassword;
 
   return (
     <>
@@ -91,6 +99,27 @@ export default async function EditProfilePage({
             >
               Verify now →
             </Link>
+          </div>
+        )}
+        {passwordMissing && (
+          <div className="mb-4 rounded-xl border border-metu-yellow/40 bg-metu-yellow/10 p-4 flex items-start gap-3">
+            <KeyRound className="h-5 w-5 text-metu-yellow mt-0.5 shrink-0" />
+            <div className="text-sm flex-1">
+              <div className="font-semibold text-metu-yellow mb-0.5">
+                Add a password (recommended)
+              </div>
+              <div className="text-metu-yellow/80">
+                You signed up with Google. Set a password so you can also sign in
+                with email + password — useful as a backup if your Google account
+                is ever unavailable. Both sign-in methods will work side by side.
+              </div>
+            </div>
+            <a
+              href="#set-password"
+              className="self-center rounded-lg bg-metu-yellow text-space-950 px-4 py-2 text-sm font-semibold hover:bg-amber-300 whitespace-nowrap"
+            >
+              Set a password →
+            </a>
           </div>
         )}
 
