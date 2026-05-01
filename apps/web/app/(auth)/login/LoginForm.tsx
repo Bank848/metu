@@ -16,6 +16,10 @@ function errorMessage(code: string | null): string | null {
       return "An account already exists with that email. Sign in with your password below, then link Google from your profile settings.";
     case "google-not-configured":
       return "Google sign-in is temporarily unavailable on this deployment. Use email + password below, or contact admin.";
+    case "state_mismatch":
+    case "state_security_mismatch":
+      return "The Google sign-in took too long or your browser dropped a cookie. Please click \"Continue with Google\" again.";
+    case "oauth-failed":
     default:
       return "Google sign-in didn't complete. Please try again or use email + password.";
   }
@@ -152,7 +156,11 @@ export function LoginForm({
   // better-auth exposes social sign-in via POST /sign-in/social with
   // a JSON body; follow the {url} response to Google.
   const callbackURL = next ?? "/";
-  const errorCallbackURL = "/login?error=email-exists";
+  // Phase 42 — used to pre-decide "email-exists" for every OAuth
+  // failure, which masked unrelated errors (state_mismatch, network,
+  // cancelled-by-user). Use a generic param and let the error-message
+  // helper map known codes; everything else shows the generic copy.
+  const errorCallbackURL = "/login?error=oauth-failed";
   async function onClickGoogle(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     setError(null);

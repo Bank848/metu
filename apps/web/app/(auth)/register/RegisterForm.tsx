@@ -124,7 +124,7 @@ export function RegisterForm({
           <GoogleSignInButton
             label="Sign up with Google"
             callbackURL="/"
-            errorCallbackURL="/login?error=email-exists"
+            errorCallbackURL="/login?error=oauth-failed"
             onError={(msg) => setError(msg)}
           />
           <div className="relative my-2 flex items-center">

@@ -139,7 +139,7 @@ export function ConnectedAccounts({ hasPassword }: Props) {
         <GoogleSignInButton
           label="Link Google account"
           callbackURL="/profile/edit"
-          errorCallbackURL="/profile/edit?error=link-failed"
+          errorCallbackURL="/profile/edit?error=oauth-failed"
           onError={(msg) => setError(msg)}
         />
       )}

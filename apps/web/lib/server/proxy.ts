@@ -45,6 +45,21 @@ export async function forwardToApi(
     if (v) res.headers.set(h, v);
   }
   const cookies = (upstream.headers as any).getSetCookie?.() ?? [];
-  for (const c of cookies) res.headers.append("set-cookie", c);
+  for (const c of cookies) {
+    // Phase 42 fix — better-auth's Set-Cookie carries `Domain=metu-api.fly.dev`
+    // because the API runs on that host. When we mirror that header
+    // verbatim through the BFF (served from metu.fly.dev), the browser
+    // refuses to set a cookie for a sibling domain → OAuth state cookie
+    // never persists → callback returns "state_mismatch". Strip the
+    // Domain attribute so the cookie scopes to the BFF host instead.
+    res.headers.append("set-cookie", stripDomainAttr(c));
+  }
   return res;
+}
+
+function stripDomainAttr(cookie: string): string {
+  return cookie
+    .split(";")
+    .filter((seg) => !/^\s*domain=/i.test(seg))
+    .join(";");
 }
