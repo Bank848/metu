@@ -145,8 +145,20 @@ export default async function ProductPage({ params }: { params: { id: string } }
             <div className="mb-6" />
 
             {me && me.user.userId === product.store.ownerId ? (
-              <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                This is your own store. Sign in as a buyer if you want to test the checkout flow.
+              <div className="space-y-3">
+                <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  This is your own store. Sign in as a buyer if you want to test the checkout flow.
+                </div>
+                {items.some((it) => it.sampleUrl) && (
+                  <a
+                    href={items.find((it) => it.sampleUrl)!.sampleUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-line bg-space-900 px-4 py-2 text-sm font-semibold text-white hover:border-brand-yellow/50 hover:text-brand-yellow transition"
+                  >
+                    Preview your free sample →
+                  </a>
+                )}
               </div>
             ) : (
               <AddToCart items={items} />
