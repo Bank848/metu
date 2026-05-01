@@ -147,6 +147,19 @@ export const auth = betterAuth({
       createdAt: "createdDate",
       updatedAt: "updatedAt",
     },
+    // Phase 43 — declare every extra User column so better-auth's
+    // hook layer doesn't strip them from the create payload. Without
+    // this list, the user.create.before hook returns
+    // `{ ...user, firstName, lastName, username }` but better-auth
+    // filters down to only its known fields, Prisma rejects the
+    // create with "username: String" missing, and the OAuth callback
+    // ends in "unable_to_create_user".
+    additionalFields: {
+      firstName: { type: "string", required: true, input: false },
+      lastName:  { type: "string", required: true, input: false },
+      username:  { type: "string", required: true, input: false },
+      phone:     { type: "string", required: false, input: false },
+    },
   },
 
   // Bcryptjs adapters so signInEmail can verify our existing hashes
