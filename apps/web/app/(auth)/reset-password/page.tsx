@@ -6,6 +6,8 @@ import { ResetPasswordForm } from "./ResetPasswordForm";
 
 export const metadata = { title: "Reset password — METU" };
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 // Server-side check so an expired link shows the right state on load
 // instead of letting the user fill in the form first.
