@@ -163,6 +163,23 @@ const config: Config = {
           "0%":   { opacity: "0", transform: "translateY(14px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        // Phase 40 — feature tour ambience.
+        // blob: drifting gradient orbs in the hero background.
+        // float: gentle vertical bob for the icon in each feature visual.
+        // pulse-slow: soft breathing glow behind the icon.
+        "blob-slow": {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "33%":      { transform: "translate(40px, -30px) scale(1.05)" },
+          "66%":      { transform: "translate(-30px, 25px) scale(0.95)" },
+        },
+        "float-slow": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%":      { transform: "translateY(-10px)" },
+        },
+        "pulse-slow": {
+          "0%, 100%": { opacity: "0.3" },
+          "50%":      { opacity: "0.5" },
+        },
       },
       animation: {
         "fade-in-up":   "fade-in-up 0.4s ease-out",
@@ -170,6 +187,9 @@ const config: Config = {
         "shimmer":      "shimmer 3s linear infinite",
         "border-spin":  "border-spin 6s linear infinite",
         "stagger-rise": "stagger-rise 0.5s ease-out both",
+        "blob-slow":    "blob-slow 22s ease-in-out infinite",
+        "float-slow":   "float-slow 6s ease-in-out infinite",
+        "pulse-slow":   "pulse-slow 3.5s ease-in-out infinite",
       },
     },
   },
