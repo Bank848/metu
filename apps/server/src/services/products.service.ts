@@ -72,15 +72,22 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
   const pageSize = (filters.pageSize as number | undefined) ?? 12;
 
   // Public catalogue gates: paused, soft-deleted, deleted-store,
-  // suspended-store, and store has not finished Stripe Connect onboarding
-  // yet (charges_enabled=false would mean no checkout is possible).
+  // suspended-store, and (when any store has finished Stripe Connect
+  // onboarding) only stores that can actually accept payment. The
+  // "any store ready" check is a safety fallback so /browse isn't
+  // empty in pre-onboarding demos — users still see the catalogue,
+  // and our cart guard rejects checkout against non-ready stores
+  // with a clear error.
+  const anyStoreReady = await prisma.store.count({
+    where: { stripeChargesEnabled: true, deletedAt: null, suspendedAt: null },
+  });
   const where: Prisma.ProductWhereInput = {
     isActive: true,
     deletedAt: null,
     store: {
       deletedAt: null,
       suspendedAt: null,
-      stripeChargesEnabled: true,
+      ...(anyStoreReady > 0 ? { stripeChargesEnabled: true } : {}),
     },
   };
   if (category) where.categoryId = category;
@@ -147,6 +154,12 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
  * public-catalogue gates as `findProducts`.
  */
 export async function findFeatured(limit = 8): Promise<ProductListItem[]> {
+  // Same safety fallback as findProducts — only enforce the Stripe
+  // gate once at least one store is actually ready, otherwise show
+  // the seed catalogue as-is.
+  const anyStoreReady = await prisma.store.count({
+    where: { stripeChargesEnabled: true, deletedAt: null, suspendedAt: null },
+  });
   return listProducts(
     {
       isActive: true,
@@ -154,7 +167,7 @@ export async function findFeatured(limit = 8): Promise<ProductListItem[]> {
       store: {
         deletedAt: null,
         suspendedAt: null,
-        stripeChargesEnabled: true,
+        ...(anyStoreReady > 0 ? { stripeChargesEnabled: true } : {}),
       },
     },
     { reviews: { _count: "desc" } },

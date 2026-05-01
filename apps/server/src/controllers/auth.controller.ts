@@ -80,9 +80,9 @@ export const register: RequestHandler = async (req, res, next) => {
     if (!parsed.success) {
       throw parsed.error;
     }
-    const { user } = await service.register(parsed.data);
+    const { user, role, demo } = await service.register(parsed.data);
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
-    res.json({ user });
+    res.json({ user, role, ...(demo ? { demo } : {}) });
   } catch (err) {
     next(err);
   }

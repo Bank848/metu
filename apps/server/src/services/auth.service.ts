@@ -64,6 +64,15 @@ export async function syncCredentialAccount(
 export interface AuthOutcome {
   user: SafeUser;
   role: UserRole;
+  /**
+   * Phase 43 — only populated by `register()` when DEMO_REVEAL_TOKENS=true.
+   * Carries the raw OTP + email-verify token so the BFF can stamp them
+   * into the verify-page demo banner.
+   */
+  demo?: {
+    otp?: string;
+    emailToken?: string;
+  };
 }
 
 // Verify credentials. Throws 401 for any failure mode so callers

@@ -10,6 +10,12 @@ vi.mock("../src/db/prisma.js", () => ({
       count: vi.fn(),
       findUnique: vi.fn(),
     },
+    // Phase 43 — findProducts now probes store.count to decide whether
+    // to enforce stripeChargesEnabled. Default to "0 stores ready" so
+    // the legacy test data passes through unchanged.
+    store: {
+      count: vi.fn(async () => 0),
+    },
   },
 }));
 
