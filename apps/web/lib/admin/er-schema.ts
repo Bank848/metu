@@ -204,7 +204,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 13
       },
       {
-        "name": "totp_secret",
+        "name": "phone_otp_hash",
         "type": "VARCHAR(64)",
         "pk": false,
         "fk": null,
@@ -213,13 +213,31 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 14
       },
       {
+        "name": "phone_otp_expires_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 15
+      },
+      {
+        "name": "totp_secret",
+        "type": "VARCHAR(64)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 16
+      },
+      {
         "name": "totp_enabled",
         "type": "BOOLEAN",
         "pk": false,
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 15
+        "ordinal": 17
       },
       {
         "name": "require_password_reset",
@@ -228,7 +246,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 16
+        "ordinal": 18
       },
       {
         "name": "created_date",
@@ -237,7 +255,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 17
+        "ordinal": 19
       },
       {
         "name": "updated_at",
@@ -246,7 +264,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 18
+        "ordinal": 20
       },
       {
         "name": "deleted_at",
@@ -255,7 +273,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 19
+        "ordinal": 21
       },
       {
         "name": "banned_at",
@@ -264,7 +282,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 20
+        "ordinal": 22
       },
       {
         "name": "banned_reason",
@@ -273,7 +291,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 21
+        "ordinal": 23
       }
     ]
   },
@@ -487,6 +505,24 @@ export const ER_ENTITIES: ErEntity[] = [
         "unique": false,
         "nullable": false,
         "ordinal": 13
+      },
+      {
+        "name": "contact_email",
+        "type": "VARCHAR(120)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 14
+      },
+      {
+        "name": "phone",
+        "type": "VARCHAR(20)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 15
       }
     ]
   },
@@ -680,13 +716,31 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 6
       },
       {
+        "name": "delivery_method",
+        "type": "DELIVERYMETHOD",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 7
+      },
+      {
+        "name": "is_stackable",
+        "type": "BOOLEAN",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 8
+      },
+      {
         "name": "deleted_at",
         "type": "DATETIME",
         "pk": false,
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 7
+        "ordinal": 9
       },
       {
         "name": "created_at",
@@ -695,7 +749,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 8
+        "ordinal": 10
       },
       {
         "name": "updated_at",
@@ -704,7 +758,51 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 9
+        "ordinal": 11
+      }
+    ]
+  },
+  {
+    "table": "product_detail",
+    "fields": [
+      {
+        "name": "product_detail_id",
+        "type": "INT",
+        "pk": true,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 1
+      },
+      {
+        "name": "product_id",
+        "type": "INT",
+        "pk": false,
+        "fk": {
+          "table": "product",
+          "column": "product_id"
+        },
+        "unique": false,
+        "nullable": false,
+        "ordinal": 2
+      },
+      {
+        "name": "detail_name",
+        "type": "VARCHAR(80)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 3
+      },
+      {
+        "name": "detail_value",
+        "type": "VARCHAR(255)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 4
       }
     ]
   },
@@ -733,13 +831,40 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 2
       },
       {
+        "name": "name",
+        "type": "VARCHAR(100)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 3
+      },
+      {
+        "name": "description",
+        "type": "VARCHAR(255)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 4
+      },
+      {
+        "name": "image",
+        "type": "TEXT",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 5
+      },
+      {
         "name": "delivery_method",
         "type": "DELIVERYMETHOD",
         "pk": false,
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 3
+        "ordinal": 6
       },
       {
         "name": "quantity",
@@ -748,7 +873,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 4
+        "ordinal": 7
       },
       {
         "name": "price",
@@ -757,7 +882,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 5
+        "ordinal": 8
       },
       {
         "name": "discount_percent",
@@ -766,7 +891,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 6
+        "ordinal": 9
       },
       {
         "name": "discount_amount",
@@ -775,7 +900,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 7
+        "ordinal": 10
       },
       {
         "name": "sample_url",
@@ -784,7 +909,25 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 8
+        "ordinal": 11
+      },
+      {
+        "name": "delivery_url",
+        "type": "TEXT",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 12
+      },
+      {
+        "name": "license_key_template",
+        "type": "VARCHAR(80)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 13
       },
       {
         "name": "created_date",
@@ -793,7 +936,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 9
+        "ordinal": 14
       }
     ]
   },
@@ -1205,13 +1348,25 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 2
       },
       {
+        "name": "user_id",
+        "type": "INT",
+        "pk": false,
+        "fk": {
+          "table": "users",
+          "column": "user_id"
+        },
+        "unique": false,
+        "nullable": false,
+        "ordinal": 3
+      },
+      {
         "name": "total_price",
         "type": "DECIMAL(12, 2)",
         "pk": false,
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 3
+        "ordinal": 4
       },
       {
         "name": "status",
@@ -1220,7 +1375,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 4
+        "ordinal": 5
       },
       {
         "name": "transaction_id",
@@ -1232,7 +1387,7 @@ export const ER_ENTITIES: ErEntity[] = [
         },
         "unique": false,
         "nullable": true,
-        "ordinal": 5
+        "ordinal": 6
       },
       {
         "name": "created_at",
@@ -1241,7 +1396,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 6
+        "ordinal": 7
       },
       {
         "name": "updated_at",
@@ -1250,7 +1405,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 7
+        "ordinal": 8
       },
       {
         "name": "expired_at",
@@ -1259,7 +1414,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 8
+        "ordinal": 9
       },
       {
         "name": "gift_recipient_email",
@@ -1268,7 +1423,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 9
+        "ordinal": 10
       },
       {
         "name": "gift_message",
@@ -1277,7 +1432,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 10
+        "ordinal": 11
       },
       {
         "name": "stripe_payment_intent_id",
@@ -1286,7 +1441,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 11
+        "ordinal": 12
       },
       {
         "name": "stripe_charge_id",
@@ -1295,7 +1450,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 12
+        "ordinal": 13
       },
       {
         "name": "stripe_refund_id",
@@ -1304,7 +1459,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 13
+        "ordinal": 14
       },
       {
         "name": "stripe_amount_received",
@@ -1313,7 +1468,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 14
+        "ordinal": 15
       },
       {
         "name": "stripe_amount_refunded",
@@ -1322,7 +1477,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 15
+        "ordinal": 16
       }
     ]
   },
@@ -1384,13 +1539,40 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 5
       },
       {
-        "name": "price_at_purchase",
-        "type": "DECIMAL(10, 2)",
+        "name": "price_per_unit",
+        "type": "DECIMAL(12, 2)",
         "pk": false,
         "fk": null,
         "unique": false,
         "nullable": false,
         "ordinal": 6
+      },
+      {
+        "name": "delivered_url",
+        "type": "TEXT",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 7
+      },
+      {
+        "name": "delivered_key",
+        "type": "VARCHAR(80)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 8
+      },
+      {
+        "name": "delivered_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 9
       }
     ]
   },
@@ -1415,7 +1597,7 @@ export const ER_ENTITIES: ErEntity[] = [
           "column": "store_id"
         },
         "unique": false,
-        "nullable": false,
+        "nullable": true,
         "ordinal": 2
       },
       {
@@ -1532,6 +1714,68 @@ export const ER_ENTITIES: ErEntity[] = [
   },
   {
     "table": "password_reset_token",
+    "fields": [
+      {
+        "name": "token_id",
+        "type": "INT",
+        "pk": true,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 1
+      },
+      {
+        "name": "user_id",
+        "type": "INT",
+        "pk": false,
+        "fk": {
+          "table": "users",
+          "column": "user_id"
+        },
+        "unique": false,
+        "nullable": false,
+        "ordinal": 2
+      },
+      {
+        "name": "token_hash",
+        "type": "VARCHAR(64)",
+        "pk": false,
+        "fk": null,
+        "unique": true,
+        "nullable": false,
+        "ordinal": 3
+      },
+      {
+        "name": "expires_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 4
+      },
+      {
+        "name": "consumed_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 5
+      },
+      {
+        "name": "created_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 6
+      }
+    ]
+  },
+  {
+    "table": "email_verify_token",
     "fields": [
       {
         "name": "token_id",
@@ -2055,6 +2299,14 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
     "fromOptional": false
   },
   {
+    "from": "product_detail",
+    "fromColumn": "product_id",
+    "to": "product",
+    "toColumn": "product_id",
+    "cardinality": "one-to-many",
+    "fromOptional": false
+  },
+  {
     "from": "product_item",
     "fromColumn": "product_id",
     "to": "product",
@@ -2160,6 +2412,14 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
   },
   {
     "from": "orders",
+    "fromColumn": "user_id",
+    "to": "users",
+    "toColumn": "user_id",
+    "cardinality": "one-to-many",
+    "fromOptional": false
+  },
+  {
+    "from": "orders",
     "fromColumn": "transaction_id",
     "to": "transactions",
     "toColumn": "transaction_id",
@@ -2196,7 +2456,7 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
     "to": "store",
     "toColumn": "store_id",
     "cardinality": "one-to-many",
-    "fromOptional": false
+    "fromOptional": true
   },
   {
     "from": "coupon_usage",
@@ -2216,6 +2476,14 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
   },
   {
     "from": "password_reset_token",
+    "fromColumn": "user_id",
+    "to": "users",
+    "toColumn": "user_id",
+    "cardinality": "one-to-many",
+    "fromOptional": false
+  },
+  {
+    "from": "email_verify_token",
     "fromColumn": "user_id",
     "to": "users",
     "toColumn": "user_id",

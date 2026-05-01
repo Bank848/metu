@@ -153,18 +153,41 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   }
 
   async function remove(cartItemId: number) {
-    const res = await fetch(`${API}/cart/items/${cartItemId}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (res.ok) {
-      setCart({ ...cart, items: cart.items.filter((l) => l.cartItemId !== cartItemId) });
-      // Phase 11 run #2 / F8 — keep the TopNav badge in sync after a
-      // line removal (otherwise a buyer empties the cart but the icon
-      // still shows the old count for ~60s).
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("cart:update"));
-      }
+    setLineError((p) => ({ ...p, [cartItemId]: "" }));
+    let res: Response;
+    try {
+      res = await fetch(`${API}/cart/items/${cartItemId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+    } catch {
+      // Phase 45 follow-up — used to silently swallow network errors,
+      // so the trash icon looked broken when the BFF was unreachable.
+      // Surface a per-line message instead of pretending it worked.
+      setLineError((p) => ({ ...p, [cartItemId]: "Network error — please try again" }));
+      return;
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({} as { message?: string }));
+      setLineError((p) => ({
+        ...p,
+        [cartItemId]: data?.message ?? `Couldn't remove item (HTTP ${res.status})`,
+      }));
+      return;
+    }
+    const remaining = cart.items.filter((l) => l.cartItemId !== cartItemId);
+    setCart({ ...cart, items: remaining });
+    // Phase 11 run #2 / F8 — keep the TopNav badge in sync after a
+    // line removal (otherwise a buyer empties the cart but the icon
+    // still shows the old count for ~60s).
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("cart:update"));
+    }
+    // When the last line is removed, fall back to the server-rendered
+    // EmptyState card on /cart so the buyer sees the empty experience
+    // (recommendations, "browse" CTA) instead of a stranded summary.
+    if (remaining.length === 0) {
+      router.refresh();
     }
   }
 

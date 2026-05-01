@@ -58,7 +58,7 @@ export default async function CouponReportPage({ params }: { params: { id: strin
   };
   const rows = new Map<number, Row>();
   for (const li of lines) {
-    const subtotal = Number(li.priceAtPurchase) * li.quantity;
+    const subtotal = Number(li.pricePerUnit) * li.quantity;
     const r = rows.get(li.orderId);
     if (!r) {
       rows.set(li.orderId, {

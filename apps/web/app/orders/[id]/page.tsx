@@ -25,7 +25,7 @@ type Order = {
   items: Array<{
     orderItemId: number;
     quantity: number;
-    priceAtPurchase: string | number;
+    pricePerUnit: string | number;
     coupon?: { code: string; discountType: string; discountValue: number } | null;
     /** Phase 33 — delivery snapshot. null until finalizeOrder() runs. */
     deliveredKey?: string | null;
@@ -84,7 +84,7 @@ export default async function OrderDetail({
 
   const isNew = Boolean(searchParams.new);
   const subtotal = order.items.reduce(
-    (a, it) => a + Number(it.priceAtPurchase) * it.quantity,
+    (a, it) => a + Number(it.pricePerUnit) * it.quantity,
     0,
   );
   const total = Number(order.totalPrice);
@@ -227,7 +227,7 @@ export default async function OrderDetail({
                         </div>
                       )}
                       <div className="text-xs text-ink-dim mt-1.5">
-                        Qty {it.quantity} · {coins(thbToCoins(Number(it.priceAtPurchase)))} each
+                        Qty {it.quantity} · {coins(thbToCoins(Number(it.pricePerUnit)))} each
                       </div>
                       {canReview && (
                         <div className="mt-2">
@@ -267,7 +267,7 @@ export default async function OrderDetail({
                       )}
                     </div>
                     <div className="text-right font-display text-lg font-bold text-gold-gradient">
-                      {coins(thbToCoins(Number(it.priceAtPurchase) * it.quantity))}
+                      {coins(thbToCoins(Number(it.pricePerUnit) * it.quantity))}
                     </div>
                   </li>
                 ))}

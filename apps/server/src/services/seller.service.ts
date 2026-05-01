@@ -100,7 +100,7 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
     >`
       SELECT
         COUNT(DISTINCT CASE WHEN o.status IN ('paid','fulfilled') THEN o.order_id END)::bigint AS paid_count,
-        COALESCE(SUM(CASE WHEN o.status IN ('paid','fulfilled') THEN oi.price_at_purchase * oi.quantity END), 0)::text AS total_revenue,
+        COALESCE(SUM(CASE WHEN o.status IN ('paid','fulfilled') THEN oi.price_per_unit * oi.quantity END), 0)::text AS total_revenue,
         COUNT(DISTINCT CASE WHEN o.status = 'fulfilled' THEN o.order_id END)::bigint AS fulfilled_count,
         COUNT(DISTINCT CASE WHEN o.status = 'pending' THEN o.order_id END)::bigint AS pending_count
       FROM order_item oi
@@ -129,7 +129,7 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
     Array<{ product_id: number; name: string; revenue: string; units: bigint }>
   >`
     SELECT p.product_id, p.name,
-           COALESCE(SUM(oi.price_at_purchase * oi.quantity), 0)::text AS revenue,
+           COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
            COALESCE(SUM(oi.quantity), 0)::bigint AS units
     FROM product p
     LEFT JOIN product_item pi ON pi.product_id = p.product_id
@@ -269,7 +269,7 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
     for (const li of o.items) {
       // Skip lines belonging to OTHER stores — order may be multi-store.
       if (li.productItem.product.storeId !== storeId) continue;
-      const subtotal = Number(li.priceAtPurchase) * li.quantity;
+      const subtotal = Number(li.pricePerUnit) * li.quantity;
       const cells = [
         o.orderId,
         o.createdAt.toISOString(),
@@ -281,7 +281,7 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
         li.productItem.product.name,
         li.productItem.deliveryMethod,
         li.quantity,
-        Number(li.priceAtPurchase).toFixed(2),
+        Number(li.pricePerUnit).toFixed(2),
         subtotal.toFixed(2),
       ];
       rows.push(cells.map(escapeCsv).join(","));
@@ -359,14 +359,29 @@ export async function updateStore(storeId: number, input: UpdateStoreInput) {
 
 /** POST /seller/products — create a product (with variants, images, tags). */
 export async function createProduct(storeId: number, input: ProductInput) {
+  // Phase 45 — Product now carries its own deliveryMethod (per the
+  // docx report). We mirror the first variant's method onto Product;
+  // the seller form lists all variants with the same method today, so
+  // the two stay in sync. The variant-level column is kept for now
+  // until every consumer migrates to read from Product.
+  const productDeliveryMethod = input.items[0]!.deliveryMethod;
   return prisma.product.create({
     data: {
       storeId,
       categoryId: input.categoryId,
       name: input.name,
       description: input.description,
+      deliveryMethod: productDeliveryMethod,
       items: {
-        create: input.items.map((it) => ({
+        create: input.items.map((it, idx) => ({
+          // Phase 45 — ProductItem.name is required (the report models
+          // each variant as a sellable line with its own name). Until
+          // the seller form exposes per-variant naming, default to
+          // "<product> — Variant N" so the column always has a value.
+          name:
+            input.items.length > 1
+              ? `${input.name} — Variant ${idx + 1}`.slice(0, 100)
+              : input.name.slice(0, 100),
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
@@ -435,6 +450,9 @@ export async function updateProduct(
         name: input.name,
         description: input.description,
         categoryId: input.categoryId,
+        // Phase 45 — keep Product.deliveryMethod in sync with the
+        // first variant's method (see createProduct rationale).
+        deliveryMethod: input.items[0]!.deliveryMethod,
       },
     });
     await tx.productImage.deleteMany({ where: { productId } });
@@ -482,6 +500,12 @@ export async function updateProduct(
         await tx.productItem.create({
           data: {
             productId,
+            // Phase 45 — ProductItem.name is required. Mirror the
+            // create flow's naming convention.
+            name:
+              input.items.length > 1
+                ? `${input.name} — Variant ${i + 1}`.slice(0, 100)
+                : input.name.slice(0, 100),
             deliveryMethod: it.deliveryMethod,
             quantity: it.quantity,
             price: new Prisma.Decimal(it.price),
@@ -553,8 +577,16 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
       name: newName,
       description: source.description,
       isActive: false,
+      // Phase 45 — copy the source product's deliveryMethod onto the
+      // clone (Product now owns this field; see createProduct).
+      deliveryMethod: source.deliveryMethod,
+      isStackable: source.isStackable,
       items: {
         create: source.items.map((it) => ({
+          // Phase 45 — ProductItem.name is required; carry the source
+          // variant's name forward (it might be the per-variant label
+          // we set on create, or the bare product name).
+          name: it.name,
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
@@ -730,8 +762,11 @@ export async function refundOrder(
     prisma.transaction.create({
       data: {
         userId: order.cart.userId,
-        transactionType: "refund",
-        totalAmount: order.totalPrice,
+        // Phase 45 — TransactionType is now { purchase, payout } per
+        // the docx report. A refund logs as a "payout" with a negative
+        // amount (the platform paying the buyer back).
+        transactionType: "payout",
+        totalAmount: new Prisma.Decimal(order.totalPrice).neg(),
       },
     }),
   ]);

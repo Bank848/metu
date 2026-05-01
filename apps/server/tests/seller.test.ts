@@ -220,7 +220,7 @@ describe("GET /seller/orders/export", () => {
         items: [
           {
             quantity: 2,
-            priceAtPurchase: "50.00",
+            pricePerUnit: "50.00",
             productItem: {
               deliveryMethod: "download",
               product: { storeId: 11, name: "Widget" },

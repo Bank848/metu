@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
@@ -343,11 +344,14 @@ export async function refundTransaction(
       where: { transactionId },
       data: { status: "refunded" },
     }),
+    // Phase 45 — TransactionType enum is now { purchase, payout } per
+    // the docx report. A refund logs as a "payout" with a negative
+    // amount (the platform paying the buyer back).
     prisma.transaction.create({
       data: {
         userId: tx.userId,
-        transactionType: "refund",
-        totalAmount: tx.totalAmount,
+        transactionType: "payout",
+        totalAmount: new Prisma.Decimal(tx.totalAmount).neg(),
       },
     }),
   ]);
@@ -416,7 +420,7 @@ export async function runReport(
     case "revenue-by-category": {
       const sql = `
 SELECT c.category_id, c.category_name,
-       SUM(oi.price_at_purchase * oi.quantity)::text AS revenue,
+       SUM(oi.price_per_unit * oi.quantity)::text AS revenue,
        COUNT(DISTINCT o.order_id)::bigint AS orders
 FROM orders o
 JOIN order_item oi  ON oi.order_id = o.order_id
@@ -438,7 +442,7 @@ ORDER BY revenue DESC`;
         }>
       >`
         SELECT c.category_id, c.category_name,
-               SUM(oi.price_at_purchase * oi.quantity)::text AS revenue,
+               SUM(oi.price_per_unit * oi.quantity)::text AS revenue,
                COUNT(DISTINCT o.order_id)::bigint AS orders
         FROM orders o
         JOIN order_item oi  ON oi.order_id = o.order_id
@@ -464,7 +468,7 @@ ORDER BY revenue DESC`;
     case "top-stores": {
       const sql = `
 SELECT s.store_id, s.name,
-       COALESCE(SUM(oi.price_at_purchase * oi.quantity), 0)::text AS revenue,
+       COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
        COUNT(DISTINCT o.order_id)::bigint AS orders
 FROM store s
 LEFT JOIN product p       ON p.store_id = s.store_id
@@ -479,7 +483,7 @@ LIMIT 10`;
         Array<{ store_id: number; name: string; revenue: string; orders: bigint }>
       >`
         SELECT s.store_id, s.name,
-               COALESCE(SUM(oi.price_at_purchase * oi.quantity), 0)::text AS revenue,
+               COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
                COUNT(DISTINCT o.order_id)::bigint AS orders
         FROM store s
         LEFT JOIN product p       ON p.store_id = s.store_id

@@ -17,7 +17,7 @@ type Order = {
   items: Array<{
     orderItemId: number;
     quantity: number;
-    priceAtPurchase: string | number;
+    pricePerUnit: string | number;
     productItem: { product: { name: string; productId: number; images: Array<{ productImage: string }> } };
   }>;
 };

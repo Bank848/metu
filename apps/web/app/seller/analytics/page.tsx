@@ -44,7 +44,7 @@ export default async function SellerAnalyticsPage() {
     prisma.$queryRaw<Array<{ day: string; revenue: string; order_count: bigint }>>`
       SELECT
         TO_CHAR(d::date, 'YYYY-MM-DD') AS day,
-        COALESCE(SUM(oi.price_at_purchase * oi.quantity)
+        COALESCE(SUM(oi.price_per_unit * oi.quantity)
           FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::text AS revenue,
         COUNT(DISTINCT o.order_id)
           FILTER (WHERE o.status IN ('paid','fulfilled')) AS order_count
@@ -81,7 +81,7 @@ export default async function SellerAnalyticsPage() {
         p.product_id,
         p.name,
         COALESCE(SUM(oi.quantity), 0) AS units,
-        COALESCE(SUM(oi.price_at_purchase * oi.quantity), 0)::text AS revenue
+        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue
       FROM product p
       LEFT JOIN product_item pi ON pi.product_id = p.product_id
       LEFT JOIN order_item oi ON oi.product_item_id = pi.product_item_id
@@ -103,7 +103,7 @@ export default async function SellerAnalyticsPage() {
       SELECT
         u.user_id, u.username, u.first_name, u.last_name,
         COUNT(DISTINCT o.order_id) AS orders,
-        COALESCE(SUM(oi.price_at_purchase * oi.quantity), 0)::text AS spent
+        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS spent
       FROM users u
       JOIN cart c ON c.user_id = u.user_id
       JOIN orders o ON o.cart_id = c.cart_id AND o.status IN ('paid','fulfilled')
@@ -120,7 +120,7 @@ export default async function SellerAnalyticsPage() {
       SELECT
         COUNT(DISTINCT o.order_id) AS orders,
         COALESCE(SUM(oi.quantity), 0) AS units,
-        COALESCE(SUM(oi.price_at_purchase * oi.quantity), 0)::text AS revenue,
+        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
         COUNT(DISTINCT c.user_id) AS buyers
       FROM orders o
       JOIN cart c ON c.cart_id = o.cart_id

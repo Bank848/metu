@@ -78,7 +78,24 @@ export async function getCart(userId: number): Promise<CartResponse> {
  * `(cartId, productItemId)` constraint means duplicate adds collapse
  * into a quantity bump — UX expectation is "click + again, see qty 2",
  * not "see two rows".
+ *
+ * Phase 45 follow-up — enforce the cap promised in
+ * `addToCartSchema`'s "server enforces the real cap" comment:
+ *   - Digital deliveryMethods (download / email / license_key /
+ *     streaming) are single-use, so the merged quantity caps at 1.
+ *     Without this cap, "Add to cart" + "Buy now" on a digital item
+ *     bumped it to qty=2 (frontend max=1 disagreed with stored state,
+ *     so the qty stepper looked broken and the line refused to update).
+ *   - Physical / service lines cap at the variant's `stock` so we
+ *     never reserve more than the seller has on hand.
  */
+const DIGITAL_DELIVERY = new Set([
+  "download",
+  "email",
+  "license_key",
+  "streaming",
+]);
+
 export async function addItem(
   userId: number,
   input: AddToCartInput,
@@ -88,11 +105,22 @@ export async function addItem(
   // the-button check is bypassed (e.g. someone hits the API directly).
   const productItem = await prisma.productItem.findUnique({
     where: { productItemId: input.productItemId },
-    select: { product: { select: { store: { select: { ownerId: true } } } } },
+    select: {
+      deliveryMethod: true,
+      quantity: true, // stock
+      product: { select: { store: { select: { ownerId: true } } } },
+    },
   });
-  if (productItem?.product.store.ownerId === userId) {
+  if (!productItem) {
+    throw new AppError(404, "ProductItemNotFound");
+  }
+  if (productItem.product.store.ownerId === userId) {
     throw new AppError(400, "CannotBuyOwnProduct", "You can't buy from your own store.");
   }
+
+  const isDigital = DIGITAL_DELIVERY.has(productItem.deliveryMethod);
+  const stockCap = isDigital ? 1 : Math.max(1, productItem.quantity);
+
   const cart = await getOrCreateActiveCart(userId);
   const existing = await prisma.cartItem.findUnique({
     where: {
@@ -103,9 +131,18 @@ export async function addItem(
     },
   });
   if (existing) {
+    // Cap the merged quantity at the variant's real ceiling so we never
+    // store a qty above what the buyer can actually check out with.
+    const desired = existing.quantity + input.quantity;
+    const capped = Math.min(desired, stockCap);
+    if (capped === existing.quantity) {
+      // Already at the cap — return existing row untouched (idempotent
+      // no-op for "Add to cart" then "Buy now" on a digital item).
+      return { cartItem: existing, merged: true };
+    }
     const updated = await prisma.cartItem.update({
       where: { cartItemId: existing.cartItemId },
-      data: { quantity: existing.quantity + input.quantity },
+      data: { quantity: capped },
     });
     return { cartItem: updated, merged: true };
   }
@@ -113,7 +150,7 @@ export async function addItem(
     data: {
       cartId: cart.cartId,
       productItemId: input.productItemId,
-      quantity: input.quantity,
+      quantity: Math.min(input.quantity, stockCap),
     },
   });
   return { cartItem: created, merged: false };

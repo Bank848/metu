@@ -128,6 +128,11 @@ export async function checkout(
     const order = await tx.order.create({
       data: {
         cartId: cart.cartId,
+        // Phase 45 — Order.userId is now a direct FK (denormalised from
+        // Cart.userId per the submitted report). Set it from the cart
+        // owner so reports/analytics can join Order → User without the
+        // cart hop.
+        userId,
         totalPrice: total,
         // Stripe path starts `pending` (webhook flips to `paid`); demo path is paid.
         status: useStripe ? "pending" : "paid",
@@ -138,7 +143,7 @@ export async function checkout(
           create: selectedItems.map((ci) => ({
             productItemId: ci.productItemId,
             quantity: ci.quantity,
-            priceAtPurchase: unitPrice(ci),
+            pricePerUnit: unitPrice(ci),
             // Master coupon stamps every line; per-store stamps only its own lines.
             couponId:
               resolvedCoupon &&

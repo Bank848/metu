@@ -659,12 +659,25 @@ async function seedProducts(
   for (const store of stores) {
     const catalog = CATALOG[store.name] ?? [];
     for (const def of catalog) {
+      // Phase 45 — Product now owns deliveryMethod + isStackable per
+      // the docx report. Mirror the first variant's deliveryMethod so
+      // the column matches what buyers see on the product page.
       const product = await prisma.product.create({
         data: {
           storeId: store.storeId,
           categoryId: catByName.get(def.category)!,
           name: def.name,
           description: def.description,
+          deliveryMethod: def.items[0]!.delivery,
+          // Most digital goods are single-use (license keys, audio
+          // packs are typically bought once); we default isStackable
+          // to true for download/streaming and false for license_key
+          // /email so the seed reflects realistic business rules.
+          isStackable:
+            def.items[0]!.delivery === "license_key" ||
+            def.items[0]!.delivery === "email"
+              ? false
+              : true,
         },
       });
       products.push(product);
@@ -738,6 +751,15 @@ async function seedProducts(
         const pi = await prisma.productItem.create({
           data: {
             productId: product.productId,
+            // Phase 45 — ProductItem.name is required (the report
+            // models each variant as a sellable line). Single-variant
+            // products keep the bare product name; multi-variant
+            // products tag with the delivery method so the cart
+            // reads "<product> — license key" cleanly.
+            name:
+              def.items.length > 1
+                ? `${def.name} — ${it.delivery.replace("_", " ")}`.slice(0, 100)
+                : def.name.slice(0, 100),
             deliveryMethod: it.delivery,
             quantity: it.qty,
             price: baht(it.price),
@@ -868,8 +890,16 @@ async function seedOrders(
       });
       transactionId = tx.transactionId;
     } else if (status === "refunded") {
+      // Phase 45 — refund logs as a "payout" with negative amount
+      // (TransactionType is now { purchase, payout } per the report).
       const tx = await prisma.transaction.create({
-        data: { transactionType: "refund", userId: buyer.userId, totalAmount: total, date: createdAt, createdAt },
+        data: {
+          transactionType: "payout",
+          userId: buyer.userId,
+          totalAmount: total.neg(),
+          date: createdAt,
+          createdAt,
+        },
       });
       transactionId = tx.transactionId;
     }
@@ -877,6 +907,8 @@ async function seedOrders(
     await prisma.order.create({
       data: {
         cartId: cart.cartId,
+        // Phase 45 — Order.userId is now a direct FK; mirror the cart's owner.
+        userId: buyer.userId,
         totalPrice: total,
         status,
         transactionId: transactionId ?? undefined,
@@ -886,7 +918,7 @@ async function seedOrders(
           create: lines.map((l) => ({
             productItemId: l.productItemId,
             quantity: l.qty,
-            priceAtPurchase: l.price,
+            pricePerUnit: l.price,
           })),
         },
       },
