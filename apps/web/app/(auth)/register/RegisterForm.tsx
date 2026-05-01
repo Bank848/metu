@@ -209,8 +209,9 @@ export function RegisterForm({
           required
         />
         <span className="mt-1 block text-[11px] text-ink-dim">
-          Pick your country, then type your number. We&apos;ll text a one-time
-          code so we know it&apos;s really you.
+          Pick your country, then type your number — for Thailand that&apos;s
+          the 9-digit international form, no leading 0. We&apos;ll text a
+          one-time code so we know it&apos;s really you.
         </span>
       </label>
 

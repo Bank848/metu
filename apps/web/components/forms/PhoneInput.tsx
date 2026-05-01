@@ -2,21 +2,28 @@
 import { useId, useMemo } from "react";
 
 /**
- * Phase 42 — phone input with a small country-code picker.
+ * Phase 42 → 44 — phone input with a small country-code picker.
  *
  * The component owns the dial-code dropdown and the digit field. Its
  * `value` is always the canonical E.164 string (e.g. `+66812345678`)
  * so callers can drop it straight into a JSON payload without parsing.
  *
- * Thai users sometimes type a leading 0 out of habit — when the
- * selected country is Thailand we strip a single leading 0 before
- * concatenating with `+66`. Other dial codes are left as-is.
+ * For Thailand we enforce the international form at the input layer:
+ * the user MUST type 9 digits with no leading 0 (e.g. `812345678`).
+ * Any leading zeros they paste in get stripped silently so the
+ * 0812345678 habit doesn't surface as a validation error. Storage is
+ * canonical: `+66` + 9 digits.
+ *
+ * Other dial codes accept up to 15 digits without the leading-0 rule
+ * because that prefix is country-specific.
  *
  * The country list is intentionally short. We picked the common ASEAN
  * markets plus a handful of global ones the demo audience cares about.
  * Each option has an inline SVG flag so the dropdown looks the same
  * on every OS (Windows in particular doesn't ship colour emoji flags).
  */
+
+const TH_LOCAL_DIGITS = 9;
 
 type Country = {
   code: string; // ISO 3166-1 alpha-2
@@ -60,15 +67,25 @@ export function splitPhone(stored: string | null | undefined): {
   return { countryCode: "TH", digits: safe.replace(/^\+/, "") };
 }
 
+/**
+ * Normalise raw user input for the digit field. Strips non-digits and
+ * for Thailand strips any leading zeros (a domestic-trunk artefact)
+ * + caps at exactly 9 digits. Other countries cap at 15 digits.
+ *
+ * Used by both the input's onChange handler and joinPhone() so the
+ * normalisation rules can't drift between display and storage.
+ */
+export function normalisePhoneDigits(countryCode: string, raw: string): string {
+  const onlyDigits = raw.replace(/\D/g, "");
+  if (countryCode === "TH") {
+    return onlyDigits.replace(/^0+/, "").slice(0, TH_LOCAL_DIGITS);
+  }
+  return onlyDigits.slice(0, 15);
+}
+
 export function joinPhone(countryCode: string, digits: string): string {
   const country = PHONE_COUNTRIES.find((c) => c.code === countryCode) ?? PHONE_COUNTRIES[0];
-  let body = digits.replace(/\D/g, "");
-  // Common Thai habit — typing 0812345678 instead of 812345678. The
-  // leading 0 is a domestic-trunk prefix and should be stripped before
-  // we prepend +66.
-  if (country.code === "TH" && body.startsWith("0")) {
-    body = body.replace(/^0+/, "");
-  }
+  const body = normalisePhoneDigits(country.code, digits);
   return body ? `${country.dial}${body}` : "";
 }
 
@@ -124,9 +141,13 @@ export function PhoneInput({
         inputMode="numeric"
         autoComplete={autoComplete}
         required={required}
-        placeholder={country.code === "TH" ? "0812345678" : "812345678"}
+        // TH: 9 digits, no leading 0 (international format). Other
+        // countries: up to 15 digits, no leading-zero rule.
+        placeholder={country.code === "TH" ? "812345678" : "812345678"}
+        maxLength={country.code === "TH" ? TH_LOCAL_DIGITS : 15}
+        pattern={country.code === "TH" ? "[1-9][0-9]{8}" : undefined}
         value={digits}
-        onChange={(e) => onDigitsChange(e.target.value.replace(/\D/g, "").slice(0, 15))}
+        onChange={(e) => onDigitsChange(normalisePhoneDigits(country.code, e.target.value))}
         className={
           digitsClassName ??
           "flex-1 rounded-xl border border-line bg-space-900 px-4 py-2.5 text-white outline-none focus:border-brand-yellow"
