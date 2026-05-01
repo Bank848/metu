@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Trash2, ShieldCheck, Store, User, KeyRound } from "lucide-react";
 import { ActionRow, type ActionRowItem } from "./ActionRow";
@@ -38,7 +37,6 @@ export function UserRowActions({
   isSelf: boolean;
   requirePasswordReset?: boolean;
 }) {
-  const router = useRouter();
   const [busy, setBusy] = useState<"role" | "delete" | "force-reset" | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Phase 12.2 — separate dialog state from the dropdown's built-in
@@ -64,12 +62,13 @@ export function UserRowActions({
         setBusy(null);
         return;
       }
-      // Belt-and-braces refresh: router.refresh() doesn't always
-      // visibly update on the very next paint when the API responds
-      // before the server-component re-fetch flushes (the user reported
-      // the role badge stayed stale until manual reload). Force a hard
-      // navigation as a fallback.
-      router.refresh();
+      // Phase 45 follow-up — used to call BOTH router.refresh() AND
+      // window.location.reload(); they raced and on a slow network
+      // the reload sometimes fired before the server component had
+      // re-rendered, leaving the badge stale on the post-reload paint.
+      // A single hard reload is sufficient — `dynamic = "force-dynamic"`
+      // on /admin/users + `cache: "no-store"` in apiAuth guarantee
+      // the new page render reads fresh role data.
       window.location.reload();
     } catch {
       setError("Network error");
@@ -93,7 +92,10 @@ export function UserRowActions({
         setBusy(null);
         return;
       }
-      router.refresh();
+      // Hard reload so the row's badge + dropdown labels reflect the
+      // new flag value — router.refresh() alone left the menu showing
+      // the old "Force password reset" label after the toggle.
+      window.location.reload();
     } catch {
       setError("Network error");
     }
@@ -124,7 +126,10 @@ export function UserRowActions({
       // doesn't pre-fill with the previous reason.
       setReason("");
       setRemoving(false);
-      router.refresh();
+      // Hard reload — the deleted row should disappear, but
+      // router.refresh() alone sometimes left the dialog's
+      // post-close repaint showing the old row for a beat.
+      window.location.reload();
     } catch {
       setError("Network error");
     }

@@ -41,7 +41,11 @@ export async function listUsers(q: UserListQuery) {
       include: {
         country: true,
         stats: true,
-        store: { select: { storeId: true, name: true } },
+        // Pull deletedAt so we can hide the store column for sellers
+        // whose store was soft-deleted from /admin/stores. Without
+        // this, the row kept showing the dead store's name even
+        // though /admin/stores itself dropped the row.
+        store: { select: { storeId: true, name: true, deletedAt: true } },
       },
     }),
     prisma.user.count({ where }),
@@ -50,7 +54,15 @@ export async function listUsers(q: UserListQuery) {
   return {
     // Strip `password` even though it might be hashed — admin UI
     // never needs it and accidental log-leak risk is real.
-    items: items.map(({ password, ...u }) => u),
+    items: items.map(({ password, store, ...u }) => ({
+      ...u,
+      // Phase 45 follow-up — null out store when it's been
+      // soft-deleted so /admin/users reflects the real "no active
+      // store" state instead of pointing at a tombstoned row.
+      store: store && !store.deletedAt
+        ? { storeId: store.storeId, name: store.name }
+        : null,
+    })),
     page: q.page,
     pageSize: q.pageSize,
     total,

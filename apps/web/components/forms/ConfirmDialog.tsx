@@ -131,7 +131,11 @@ export function ConfirmDialog({
         <h3
           id="confirm-dialog-title"
           className={cn(
-            "font-display text-xl font-bold pr-8",
+            // Phase 45 follow-up — centre the title (and body below) so
+            // the modal reads as a confirmation, not a left-aligned
+            // notification. `px-8` instead of `pr-8` keeps symmetric
+            // breathing room around the close X on both sides.
+            "font-display text-xl font-bold text-center px-8",
             isDestructive ? "text-coral" : "text-white",
           )}
         >
@@ -140,13 +144,13 @@ export function ConfirmDialog({
         {body && (
           <div
             id="confirm-dialog-body"
-            className="mt-2 text-sm text-ink-secondary leading-relaxed min-w-0 whitespace-normal break-words [overflow-wrap:anywhere] [word-break:break-word]"
+            className="mt-2 text-sm text-ink-secondary leading-relaxed text-center min-w-0 whitespace-normal break-words [overflow-wrap:anywhere] [word-break:break-word]"
           >
             {body}
           </div>
         )}
 
-        <div className="mt-6 flex gap-2 justify-end">
+        <div className="mt-6 flex gap-2 justify-center">
           <GlassButton tone="glass" type="button" onClick={onCancel}>
             {cancelLabel}
           </GlassButton>
