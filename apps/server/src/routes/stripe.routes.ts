@@ -45,7 +45,12 @@ sellerRouter.get("/stripe/status", requireAuth(), requireStore(), async (req, re
       return res.status(503).json({ error: "StripeNotConfigured" });
     }
     const status = await refreshAccountStatus(currentStore(req).storeId);
-    res.json(status);
+    // Phase 44 — page reads `status.configured` to decide whether to
+    // render the "Stripe not configured" warning. We were returning
+    // only the account flags so `configured` resolved to undefined →
+    // falsy → page mistakenly told sellers Stripe wasn't set up at
+    // all even though the secret was deployed.
+    res.json({ configured: true, ...status });
   } catch (err) {
     next(err);
   }
