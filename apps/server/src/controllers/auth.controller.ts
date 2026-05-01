@@ -382,6 +382,24 @@ export const verifyPhoneRegister: RequestHandler = async (req, res, next) => {
   }
 };
 
+// Phase 46 — verify a Firebase Phone Auth ID token + stamp our
+// `phoneVerifiedAt`. Authed route — caller must be the user we'll
+// stamp. Body: { idToken: string }.
+export const verifyPhoneFirebase: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const idToken = String((req.body ?? {}).idToken ?? "");
+    if (!idToken) {
+      throw new AppError(400, "MissingIdToken", "idToken is required.");
+    }
+    const out = await service.verifyPhoneFirebase(auth.uid, idToken);
+    res.json({ ok: true, ...out });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Phase 41 - resend a fresh OTP after register. Always 200.
 export const resendPhoneOtp: RequestHandler = async (req, res, next) => {
   try {

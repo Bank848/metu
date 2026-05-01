@@ -296,6 +296,70 @@ export async function verifyPhoneRegister(email: string, code: string): Promise<
 }
 
 /**
+ * Phase 46 — verify a Firebase Phone Auth ID token + stamp the user's
+ * `phoneVerifiedAt`. Used as an alternative to our home-grown OTP
+ * flow when the user opts to verify with SMS via Firebase (10 free
+ * SMS/day at the time of writing).
+ *
+ * The client SDK takes the user through reCAPTCHA + SMS, then hands
+ * back an ID token containing `phone_number`. We verify the token
+ * server-side, confirm the phone matches what we have on file (or
+ * just adopt it if the user didn't have one yet), and stamp
+ * `phoneVerifiedAt`. Idempotent — already-verified users return
+ * 200 with no change.
+ */
+export async function verifyPhoneFirebase(
+  userId: number,
+  idToken: string,
+): Promise<{ phone: string; phoneVerifiedAt: Date }> {
+  // Lazy-import so unconfigured envs don't crash module load. Phase 46
+  // landing without Firebase secrets keeps the API healthy; only the
+  // route that calls this service surfaces the 503.
+  const { verifyFirebaseIdToken } = await import("../lib/firebase-admin.js");
+  const decoded = await verifyFirebaseIdToken(idToken);
+  const firebasePhone = decoded.phone_number; // e.g. "+66812345678"
+  if (!firebasePhone) {
+    throw new AppError(
+      400,
+      "FirebaseTokenMissingPhone",
+      "Firebase token did not include a phone number — try the OTP again.",
+    );
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { phone: true, phoneVerifiedAt: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (user.phoneVerifiedAt && user.phone === firebasePhone) {
+    return { phone: user.phone, phoneVerifiedAt: user.phoneVerifiedAt };
+  }
+
+  const updated = await prisma.user.update({
+    where: { userId },
+    data: {
+      phone: firebasePhone,
+      phoneVerifiedAt: new Date(),
+      // Clear any pending in-house OTP so the two flows can't conflict.
+      phoneOtpHash: null,
+      phoneOtpExpiresAt: null,
+    },
+    select: { phone: true, phoneVerifiedAt: true },
+  });
+  await audit({
+    actorId: userId,
+    action: "user.phone_verified",
+    targetType: "user",
+    targetId: userId,
+    meta: { method: "firebase" },
+  });
+  return {
+    phone: updated.phone!,
+    phoneVerifiedAt: updated.phoneVerifiedAt!,
+  };
+}
+
+/**
  * Phase 41 - resend a fresh OTP after register (e.g. user closed the
  * verify page or the code expired). Quietly succeeds if user is
  * already verified or doesn't exist.

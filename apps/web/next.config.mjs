@@ -51,11 +51,15 @@ const nextConfig = {
       "default-src 'self'",
       "img-src 'self' data: blob: https:",
       "media-src 'self' data: blob:",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://m.stripe.network",
+      // Phase 46 — Firebase Phone Auth needs:
+      //   • script-src for Firebase JS SDK + reCAPTCHA challenge
+      //   • connect-src for the identitytoolkit + securetoken endpoints
+      //   • frame-src for the reCAPTCHA challenge iframe
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://m.stripe.network https://www.gstatic.com https://www.google.com https://apis.google.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://metu-api.fly.dev https://api.stripe.com https://m.stripe.network https://accounts.google.com https://oauth2.googleapis.com https://*.sentry.io",
-      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://connect.stripe.com",
+      "connect-src 'self' https://metu-api.fly.dev https://api.stripe.com https://m.stripe.network https://accounts.google.com https://oauth2.googleapis.com https://*.sentry.io https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com",
+      "frame-src 'self' https://js.stripe.com https://hooks.stripe.com https://connect.stripe.com https://www.google.com https://*.firebaseapp.com",
       "frame-ancestors 'none'",
       "object-src 'none'",
       "base-uri 'self'",

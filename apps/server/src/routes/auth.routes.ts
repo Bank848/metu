@@ -27,6 +27,11 @@ router.post("/verify-email",         forgotPasswordLimiter, ctrl.verifyEmail);
 router.post("/resend-email-verify",  forgotPasswordLimiter, ctrl.resendEmailVerify);
 router.post("/verify-phone-register", forgotPasswordLimiter, ctrl.verifyPhoneRegister);
 router.post("/resend-phone-otp",      forgotPasswordLimiter, ctrl.resendPhoneOtp);
+// Phase 46 — alternative phone-verify path: client uses Firebase Phone
+// Auth (10 free SMS/day on the Spark plan), hands us back the ID
+// token, and we mark phoneVerifiedAt. Authed because we mutate the
+// caller's row.
+router.post("/verify-phone-firebase", requireAuth(), ctrl.verifyPhoneFirebase);
 
 // Authed.
 router.get("/me",                 requireAuth(), ctrl.me);

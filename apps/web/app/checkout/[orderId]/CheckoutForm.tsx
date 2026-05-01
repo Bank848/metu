@@ -19,14 +19,25 @@ export function CheckoutForm({
   orderId,
   clientSecret,
   publishableKey,
+  stripeAccount,
 }: {
   orderId: number;
   clientSecret: string;
   publishableKey: string;
+  /**
+   * Phase 46 follow-up — for direct-charge Connect orders the
+   * PaymentIntent lives on the seller's Connect account, so Stripe.js
+   * must be scoped with `stripeAccount`. Without this, PaymentElement
+   * fails to mount with `Unhandled payment Element loaderror`.
+   */
+  stripeAccount: string | null;
 }) {
   const stripePromise = useMemo<Promise<Stripe | null>>(
-    () => loadStripe(publishableKey),
-    [publishableKey],
+    () =>
+      stripeAccount
+        ? loadStripe(publishableKey, { stripeAccount })
+        : loadStripe(publishableKey),
+    [publishableKey, stripeAccount],
   );
 
   return (
