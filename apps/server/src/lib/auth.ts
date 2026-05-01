@@ -54,11 +54,24 @@ function rewriteUserArgs(args: unknown): unknown {
 const userProxy = new Proxy(realPrisma.user, {
   get(target, prop, receiver) {
     const value = Reflect.get(target, prop, receiver);
-    if (typeof value === "function" && typeof prop === "string" && /^find/.test(prop)) {
-      return (args?: unknown) =>
-        (value as (a?: unknown) => Promise<unknown>)
-          .call(target, rewriteUserArgs(args))
-          .then(mirrorUserIdToId);
+    if (typeof value === "function" && typeof prop === "string") {
+      // Phase 43 — must mirror userId → id on create + update results
+      // too. The OAuth flow does `createdUser.id` immediately after
+      // user.create to set the new account's userId; without the
+      // mirror that read returns undefined and the account create
+      // ends with "Argument user is missing" → "unable_to_create_user".
+      if (/^find/.test(prop)) {
+        return (args?: unknown) =>
+          (value as (a?: unknown) => Promise<unknown>)
+            .call(target, rewriteUserArgs(args))
+            .then(mirrorUserIdToId);
+      }
+      if (prop === "create" || prop === "update" || prop === "upsert") {
+        return (args?: unknown) =>
+          (value as (a?: unknown) => Promise<unknown>)
+            .call(target, rewriteUserArgs(args))
+            .then(mirrorUserIdToId);
+      }
     }
     return typeof value === "function" ? value.bind(target) : value;
   },
