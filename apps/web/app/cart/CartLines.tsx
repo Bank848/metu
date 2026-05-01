@@ -355,17 +355,14 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                       >
                         {l.image && (
                           // Phase 11 / F10 (originally `priority` on every
-                          // cart line) → QA r3/F1 reverted: stacking N
-                          // priority+fill <Image> on one route triggers Next
-                          // 14 App Router's known hydration mismatch (multi-
-                          // priority preload links inserted into <head>
-                          // post-render don't match the SSR snapshot,
-                          // throwing React #418 + #422). Cart line images
-                          // are 80×80 — eager loading via the default
-                          // intersection observer is fast enough on the
-                          // small N typical of a real cart. The empty-rect
-                          // flash F10 was meant to fix is now invisible at
-                          // this size.
+                          // cart line) → QA r3/F1 reverted to lazy → Phase 44
+                          // QA caught lazy-loading the 80×80 images leaves
+                          // them as empty boxes when Next's IntersectionObserver
+                          // doesn't fire (small viewport box, full-page paint
+                          // already complete). `loading="eager"` loads them
+                          // immediately; the F10 hydration risk only manifests
+                          // with `priority` (which inserts <link rel=preload>
+                          // into <head>), not eager.
                           <Image
                             src={l.image}
                             alt=""
@@ -373,7 +370,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                             sizes="80px"
                             className="object-cover"
                             unoptimized={isDataUrl(l.image)}
-                            loading="lazy"
+                            loading="eager"
                           />
                         )}
                       </Link>
