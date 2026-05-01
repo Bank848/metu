@@ -30,7 +30,17 @@ export async function forwardToApi(
   }
 
   // redirect:manual so OAuth 302s reach the browser instead of getting collapsed.
-  const upstream = await fetch(`${API_BASE}${apiPath}`, { ...init, redirect: "manual" });
+  // Phase 45 follow-up — explicit cache: "no-store" so the BFF's outbound
+  // fetch is never reused from Next.js's data cache. Without this, GET
+  // /api/cart was returning stale snapshots even on `dynamic = "force-
+  // dynamic"` routes (writes via POST/DELETE went through fresh, but
+  // the next GET re-read from a memoised result captured before the
+  // writes landed).
+  const upstream = await fetch(`${API_BASE}${apiPath}`, {
+    ...init,
+    redirect: "manual",
+    cache: "no-store",
+  });
   const text = await upstream.text();
   const res = new NextResponse(text, {
     status: upstream.status,
