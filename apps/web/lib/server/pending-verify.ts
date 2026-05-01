@@ -3,20 +3,22 @@ import crypto from "node:crypto";
 
 /**
  * Phase 42 — short-lived signed cookie that carries the email of the
- * account currently in the verify-email / verify-phone flow.
+ * account currently in the verify-email / verify-phone flow, so the
+ * pages don't need `?email=` in the URL.
  *
- * Why: we used to put `?email=...` in the URL after register and after
- * a verification-blocked login attempt. That leaks via referrer,
- * browser history, and Fly access logs. A signed cookie keeps the
- * value off the URL while still letting verify pages know who they're
- * verifying without requiring a full session.
+ * Phase 43 — same cookie also carries optional demo fields. The Resend
+ * sandbox sender only delivers email to the account owner, and the
+ * phone OTP only logs to Fly stdout. For the live defense we surface
+ * those values directly on the verify pages as a "demo" banner so the
+ * presenter can finish the flow in front of the panel without digging
+ * through `flyctl logs`.
  *
  * Format: base64url(payload).hex(hmacSha256(payload))
- *   payload = JSON { email, exp }
+ *   payload = JSON { email, otp?, link?, exp }
  *
- * exp is 1 hour after issuance — long enough to read the email and
- * type a 6-digit OTP, short enough that a stolen cookie has limited
- * value (and the cookie itself is HttpOnly + Secure + SameSite=Lax).
+ * The cookie is HttpOnly + SameSite=Lax + Secure (prod) so it stays
+ * scoped to the user's own browser. Demo fields self-expire after the
+ * cookie's 1h TTL.
  */
 
 const COOKIE_NAME = "metu_pv";
@@ -35,13 +37,26 @@ function sign(payload: string): string {
   return crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
 }
 
-export function makePendingVerifyToken(email: string): string {
-  const payload = JSON.stringify({ email, exp: Math.floor(Date.now() / 1000) + TTL_SECONDS });
+export interface PendingVerifyPayload {
+  email: string;
+  /** Phone OTP delivered out-of-band (or in demo, surfaced on the page). */
+  otp?: string;
+  /** Raw email-verify token; combined with /verify-email for a clickable demo link. */
+  emailToken?: string;
+}
+
+export function makePendingVerifyToken(input: PendingVerifyPayload): string {
+  const payload = JSON.stringify({
+    email: input.email,
+    ...(input.otp ? { otp: input.otp } : {}),
+    ...(input.emailToken ? { emailToken: input.emailToken } : {}),
+    exp: Math.floor(Date.now() / 1000) + TTL_SECONDS,
+  });
   const b64 = Buffer.from(payload, "utf8").toString("base64url");
   return `${b64}.${sign(b64)}`;
 }
 
-export function readPendingVerifyToken(token: string | undefined): string | null {
+export function readPendingVerifyToken(token: string | undefined): PendingVerifyPayload | null {
   if (!token) return null;
   const dot = token.indexOf(".");
   if (dot < 0) return null;
@@ -49,26 +64,36 @@ export function readPendingVerifyToken(token: string | undefined): string | null
   const sig = token.slice(dot + 1);
   if (sign(b64) !== sig) return null;
   try {
-    const payload = JSON.parse(Buffer.from(b64, "base64url").toString("utf8")) as {
-      email: string;
-      exp: number;
-    };
-    if (typeof payload.email !== "string") return null;
+    const payload = JSON.parse(Buffer.from(b64, "base64url").toString("utf8")) as
+      | (PendingVerifyPayload & { exp: number })
+      | null;
+    if (!payload || typeof payload.email !== "string") return null;
     if (payload.exp * 1000 < Date.now()) return null;
-    return payload.email;
+    return {
+      email: payload.email,
+      otp: typeof payload.otp === "string" ? payload.otp : undefined,
+      emailToken: typeof payload.emailToken === "string" ? payload.emailToken : undefined,
+    };
   } catch {
     return null;
   }
 }
 
-/** Read the pending-verify email from the active request cookies. */
-export function getPendingVerifyEmail(): string | null {
+/** Read the pending-verify payload from the active request cookies. */
+export function getPendingVerify(): PendingVerifyPayload | null {
   return readPendingVerifyToken(cookies().get(COOKIE_NAME)?.value);
 }
 
+/** Backwards-compat: only the email. Use `getPendingVerify()` for full payload. */
+export function getPendingVerifyEmail(): string | null {
+  return getPendingVerify()?.email ?? null;
+}
+
 /** Headers helper used by BFF route handlers. */
-export function buildPendingVerifyCookie(email: string): string {
-  const token = makePendingVerifyToken(email);
+export function buildPendingVerifyCookie(input: PendingVerifyPayload | string): string {
+  const payload: PendingVerifyPayload =
+    typeof input === "string" ? { email: input } : input;
+  const token = makePendingVerifyToken(payload);
   const isProd = process.env.NODE_ENV === "production";
   return [
     `${COOKIE_NAME}=${token}`,

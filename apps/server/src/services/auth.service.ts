@@ -134,8 +134,16 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
     prisma.user.findUnique({ where: { username: input.username } }),
     prisma.user.findUnique({ where: { email: input.email } }),
   ]);
-  if (dupUsername) throw new AppError(409, "Conflict", "username");
-  if (dupEmail) throw new AppError(409, "Conflict", "email");
+  if (dupUsername) {
+    throw new AppError(409, "UsernameTaken", "That username is already taken. Pick another.");
+  }
+  if (dupEmail) {
+    throw new AppError(
+      409,
+      "EmailTaken",
+      "An account with that email already exists. Sign in with your password or use \"Forgot password\".",
+    );
+  }
 
   const hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
   const user = await prisma.user.create({
@@ -180,7 +188,21 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
     meta: { email: user.email },
   });
 
-  return { user: sanitize(user), role: (user.stats?.role ?? "buyer") as UserRole };
+  // Phase 43 — demo escape hatch. When DEMO_REVEAL_TOKENS=true, the
+  // raw OTP and email-verify token come back in the response so the
+  // BFF can surface them on the verify pages. The Resend sandbox
+  // sender only delivers email to the account owner and SMS isn't
+  // wired to a real provider, so without this escape hatch a fresh
+  // demo register has no way to read the values.
+  const demo =
+    process.env.DEMO_REVEAL_TOKENS === "true"
+      ? { otp, emailToken: rawEmailToken }
+      : undefined;
+  return {
+    user: sanitize(user),
+    role: (user.stats?.role ?? "buyer") as UserRole,
+    ...(demo ? { demo } : {}),
+  };
 }
 
 /**
@@ -218,11 +240,16 @@ export async function verifyEmail(token: string): Promise<void> {
  * Phase 41 - resend the email-verify link. Quietly succeeds if the
  * email is already verified or doesn't exist (no enumeration).
  */
-export async function resendEmailVerify(email: string): Promise<void> {
+export async function resendEmailVerify(
+  email: string,
+): Promise<{ demo?: { emailToken: string } }> {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || user.deletedAt || user.emailVerified) return;
+  if (!user || user.deletedAt || user.emailVerified) return {};
   const raw = await issueEmailVerifyToken(user.userId);
   await sendEmailVerifyMessage(user.email, user.firstName, raw);
+  return process.env.DEMO_REVEAL_TOKENS === "true"
+    ? { demo: { emailToken: raw } }
+    : {};
 }
 
 /**
@@ -264,12 +291,15 @@ export async function verifyPhoneRegister(email: string, code: string): Promise<
  * verify page or the code expired). Quietly succeeds if user is
  * already verified or doesn't exist.
  */
-export async function resendPhoneOtp(email: string): Promise<void> {
+export async function resendPhoneOtp(
+  email: string,
+): Promise<{ demo?: { otp: string } }> {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || user.deletedAt || user.phoneVerifiedAt) return;
-  if (!user.phone) return;
+  if (!user || user.deletedAt || user.phoneVerifiedAt) return {};
+  if (!user.phone) return {};
   const otp = await issuePhoneOtp(user.userId);
   logPhoneOtp(user.phone, otp);
+  return process.env.DEMO_REVEAL_TOKENS === "true" ? { demo: { otp } } : {};
 }
 
 // GET /auth/me. Returns null for missing or soft-deleted users.
@@ -302,7 +332,11 @@ export async function updateProfile(
       select: { userId: true },
     });
     if (dup && dup.userId !== userId) {
-      throw new AppError(409, "Conflict", "email");
+      throw new AppError(
+        409,
+        "EmailTaken",
+        "Another account is already using that email.",
+      );
     }
   }
 

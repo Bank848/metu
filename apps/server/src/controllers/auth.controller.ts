@@ -353,10 +353,16 @@ export const verifyEmail: RequestHandler = async (req, res, next) => {
 export const resendEmailVerify: RequestHandler = async (req, res, next) => {
   try {
     const parsed = resendEmailVerifySchema.safeParse(req.body);
+    let demo: { emailToken: string } | undefined;
     if (parsed.success) {
-      await service.resendEmailVerify(parsed.data.email);
+      const out = await service.resendEmailVerify(parsed.data.email);
+      demo = out.demo;
     }
-    res.json({ ok: true, message: "If that email is registered, a fresh link is on the way." });
+    res.json({
+      ok: true,
+      message: "If that email is registered, a fresh link is on the way.",
+      ...(demo ? { demo } : {}),
+    });
   } catch (err) {
     next(err);
   }
@@ -380,10 +386,12 @@ export const verifyPhoneRegister: RequestHandler = async (req, res, next) => {
 export const resendPhoneOtp: RequestHandler = async (req, res, next) => {
   try {
     const parsed = resendPhoneOtpSchema.safeParse(req.body);
+    let demo: { otp: string } | undefined;
     if (parsed.success) {
-      await service.resendPhoneOtp(parsed.data.email);
+      const out = await service.resendPhoneOtp(parsed.data.email);
+      demo = out.demo;
     }
-    res.json({ ok: true });
+    res.json({ ok: true, ...(demo ? { demo } : {}) });
   } catch (err) {
     next(err);
   }

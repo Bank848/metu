@@ -64,11 +64,17 @@ export function UserRowActions({
         setBusy(null);
         return;
       }
+      // Belt-and-braces refresh: router.refresh() doesn't always
+      // visibly update on the very next paint when the API responds
+      // before the server-component re-fetch flushes (the user reported
+      // the role badge stayed stale until manual reload). Force a hard
+      // navigation as a fallback.
       router.refresh();
+      window.location.reload();
     } catch {
       setError("Network error");
+      setBusy(null);
     }
-    setBusy(null);
   }
 
   async function toggleForceReset() {

@@ -1,8 +1,12 @@
 // Forwards POST /auth/register to Express. Turnstile + profanity gate server-side.
 //
-// Phase 42: on a successful register, stamp a short-lived signed
+// Phase 42 → 43: on a successful register, stamp a short-lived signed
 // `metu_pv` cookie carrying the email so the verify pages can read it
-// without it sitting in `?email=` query strings.
+// without it sitting in `?email=` query strings. When the API echoes
+// back demo OTP / email-verify token (DEMO_REVEAL_TOKENS=true on the
+// server), include those in the cookie payload so the verify pages
+// can show them inline — Resend sandbox sender + console-only SMS
+// can't deliver them out-of-band during a live demo.
 import { type NextRequest } from "next/server";
 import { forwardToApi } from "@/lib/server/proxy";
 import { buildPendingVerifyCookie } from "@/lib/server/pending-verify";
@@ -24,7 +28,22 @@ export async function POST(req: NextRequest) {
 
   const res = await forwardToApi(req, "/auth/register");
   if (pendingEmail && (res.status === 200 || res.status === 201)) {
-    res.headers.append("Set-Cookie", buildPendingVerifyCookie(pendingEmail));
+    let demo: { otp?: string; emailToken?: string } | undefined;
+    try {
+      const cloned = res.clone();
+      const data = (await cloned.json()) as { demo?: { otp?: string; emailToken?: string } };
+      if (data?.demo) demo = data.demo;
+    } catch {
+      // Response wasn't JSON — fine, the cookie just carries the email.
+    }
+    res.headers.append(
+      "Set-Cookie",
+      buildPendingVerifyCookie({
+        email: pendingEmail,
+        otp: demo?.otp,
+        emailToken: demo?.emailToken,
+      }),
+    );
   }
   return res;
 }

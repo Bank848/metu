@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { StarField } from "@/components/DotGrid";
 import { getMe } from "@/lib/session";
-import { getPendingVerifyEmail } from "@/lib/server/pending-verify";
+import { getPendingVerify } from "@/lib/server/pending-verify";
 import { VerifyPhoneForm } from "./VerifyPhoneForm";
 
 export const dynamic = "force-dynamic";
@@ -21,15 +21,21 @@ export default async function VerifyPhonePage() {
   let phoneTail = "your phone";
   let phoneVerified = false;
   let emailVerified = false;
+  let loggedIn = false;
+  let demoOtp: string | undefined;
   if (me?.user?.email) {
     email = me.user.email as string;
     phoneVerified = Boolean(me.user.phoneVerifiedAt);
     emailVerified = Boolean(me.user.emailVerified);
+    loggedIn = true;
     if (typeof me.user.phone === "string" && me.user.phone.length >= 4) {
       phoneTail = `••••${me.user.phone.slice(-4)}`;
     }
+    demoOtp = getPendingVerify()?.otp;
   } else {
-    email = getPendingVerifyEmail();
+    const pending = getPendingVerify();
+    email = pending?.email ?? null;
+    demoOtp = pending?.otp;
   }
   if (!email) redirect("/login");
   if (phoneVerified) {
@@ -50,24 +56,41 @@ export default async function VerifyPhonePage() {
             <strong className="text-white">{phoneTail}</strong>. Enter it below
             to finish setting up your account.
           </p>
+          {demoOtp && (
+            <div className="mb-5 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+              <div className="font-bold uppercase tracking-wider text-amber-200 mb-1.5">
+                Demo mode · SMS not actually sent
+              </div>
+              <p className="mb-2 text-amber-100/80">
+                Real SMS isn&apos;t wired up for the defense, so we surface
+                the code here instead. In production this comes through
+                Twilio / similar.
+              </p>
+              <div className="font-mono text-2xl font-extrabold tracking-[0.4em] text-amber-100 select-all">
+                {demoOtp}
+              </div>
+            </div>
+          )}
           <VerifyPhoneForm email={email} />
 
-          <div className="mt-6 pt-5 border-t border-white/10">
-            <p className="text-xs text-ink-dim">
-              Wrong number?{" "}
-              <Link href="/profile/edit" className="text-metu-yellow hover:underline">
-                Update it from your profile
-              </Link>{" "}
-              after sign-in.
-            </p>
-            <p className="text-xs text-ink-dim mt-1">
-              Registered the wrong account?{" "}
-              <Link href="/register" className="text-metu-yellow hover:underline">
-                Start over
+          {loggedIn ? (
+            <div className="mt-6 pt-5 border-t border-white/10">
+              <Link href="/profile/edit" className="text-xs text-metu-yellow hover:underline">
+                ← Back to profile (you can change your phone there)
               </Link>
-              .
-            </p>
-          </div>
+            </div>
+          ) : (
+            <div className="mt-6 pt-5 border-t border-white/10 text-xs text-ink-dim">
+              <p>
+                You can&apos;t skip this step — we need a working phone before
+                sign-in unlocks. Registered the wrong account?{" "}
+                <Link href="/register" className="text-metu-yellow hover:underline">
+                  Start over
+                </Link>
+                .
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </main>

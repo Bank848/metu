@@ -148,7 +148,10 @@ describe("POST /auth/register", () => {
         phone: "+66812345678",
       });
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe("Conflict");
+    // Phase 43 — error codes split into UsernameTaken / EmailTaken so
+    // the frontend can render a tailored message instead of the bare
+    // word "email" / "username".
+    expect(res.body.error).toBe("EmailTaken");
   });
 
   it("rejects profanity in display fields", async () => {
