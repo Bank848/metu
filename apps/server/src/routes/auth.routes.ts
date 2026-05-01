@@ -17,6 +17,9 @@ router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
 router.post("/forgot-password",  forgotPasswordLimiter,  ctrl.forgotPassword);
 router.post("/reset-password",                           ctrl.resetPassword);
+// Phase 42 — POST keeps the token in the body so it never lands in
+// access logs. GET stays for backward compatibility.
+router.post("/reset-password/check",                     ctrl.checkResetToken);
 router.get("/reset-password/check",                      ctrl.checkResetToken);
 
 // Phase 41 - mandatory verify flow at register. All public, rate-limited.

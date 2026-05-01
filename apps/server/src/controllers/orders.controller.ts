@@ -15,7 +15,7 @@ export const checkout: RequestHandler = async (req, res, next) => {
     if (!auth) throw new AppError(401, "Unauthorized");
     const parsed = checkoutSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const result = await service.checkout(auth.uid, parsed.data);
     res.json(result);

@@ -71,12 +71,17 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
   const page = (filters.page as number | undefined) ?? 1;
   const pageSize = (filters.pageSize as number | undefined) ?? 12;
 
-  // Public-catalogue gates — the BFF used to apply these inline. We
-  // Public catalogue gates: paused, soft-deleted, deleted-store, suspended-store.
+  // Public catalogue gates: paused, soft-deleted, deleted-store,
+  // suspended-store, and store has not finished Stripe Connect onboarding
+  // yet (charges_enabled=false would mean no checkout is possible).
   const where: Prisma.ProductWhereInput = {
     isActive: true,
     deletedAt: null,
-    store: { deletedAt: null, suspendedAt: null },
+    store: {
+      deletedAt: null,
+      suspendedAt: null,
+      stripeChargesEnabled: true,
+    },
   };
   if (category) where.categoryId = category;
   if (q) {
@@ -146,7 +151,11 @@ export async function findFeatured(limit = 8): Promise<ProductListItem[]> {
     {
       isActive: true,
       deletedAt: null,
-      store: { deletedAt: null, suspendedAt: null },
+      store: {
+        deletedAt: null,
+        suspendedAt: null,
+        stripeChargesEnabled: true,
+      },
     },
     { reviews: { _count: "desc" } },
     limit,

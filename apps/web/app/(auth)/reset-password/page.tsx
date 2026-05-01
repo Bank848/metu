@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { StarField } from "@/components/DotGrid";
+import { TokenScrubber } from "@/components/TokenScrubber";
 import { ResetPasswordForm } from "./ResetPasswordForm";
 
 export const metadata = { title: "Reset password — METU" };
@@ -10,15 +11,19 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
 // Server-side check so an expired link shows the right state on load
-// instead of letting the user fill in the form first.
+// instead of letting the user fill in the form first. Uses POST with
+// the token in the body (not a GET query) so reset tokens never land
+// in BFF / Fly access logs.
 async function tokenIsValid(token: string): Promise<boolean> {
   if (!token) return false;
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   try {
-    const res = await fetch(
-      `${base}/api/auth/reset-password/check?token=${encodeURIComponent(token)}`,
-      { cache: "no-store" },
-    );
+    const res = await fetch(`${base}/api/auth/reset-password/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+      cache: "no-store",
+    });
     if (!res.ok) return false;
     const data = await res.json().catch(() => ({}));
     return Boolean(data?.valid);
@@ -34,6 +39,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
   return (
     <main id="main" className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
+      <TokenScrubber />
       <div
         aria-hidden
         className="pointer-events-none absolute -right-40 -top-40 h-[560px] w-[560px] rounded-full opacity-60"

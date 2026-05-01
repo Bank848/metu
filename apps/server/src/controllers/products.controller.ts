@@ -12,7 +12,7 @@ export const browse: RequestHandler = async (req, res, next) => {
   try {
     const parsed = browseQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const result = await service.findProducts(parsed.data);
     res.json(result);

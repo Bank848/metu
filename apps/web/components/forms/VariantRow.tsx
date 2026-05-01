@@ -44,6 +44,8 @@ export type VariantRowValue = {
   discountPercent: number;
   discountAmount: number;
   sampleUrl?: string | null;
+  deliveryUrl?: string | null;
+  licenseKeyTemplate?: string | null;
 };
 
 export interface VariantRowProps {
@@ -204,12 +206,39 @@ export function VariantRow({
 
       <TextInput
         label="Free sample URL"
-        helperText="Optional — link to a low-res preview / sample"
+        helperText="Optional — link to a low-res preview / sample. Anyone can click it before buying."
         type="url"
         value={value.sampleUrl ?? ""}
         onChange={(e) => onChange({ sampleUrl: e.target.value || null })}
         placeholder="https://…"
       />
+
+      {/* Delivery URL is the private link buyers receive after payment.
+          Only relevant for download / streaming methods. */}
+      {(value.deliveryMethod === "download" || value.deliveryMethod === "streaming") && (
+        <TextInput
+          label="Delivery URL (private — sent to buyer after payment)"
+          helperText="The link emailed to the buyer once Stripe confirms payment. Only verified buyers will see this."
+          type="url"
+          value={value.deliveryUrl ?? ""}
+          onChange={(e) => onChange({ deliveryUrl: e.target.value || null })}
+          placeholder="https://…"
+        />
+      )}
+
+      {/* License-key template applies to license_key + email methods.
+          The XXXX runs get replaced with random alphanumerics; leave
+          blank to fall back to a UUID v4. */}
+      {(value.deliveryMethod === "license_key" || value.deliveryMethod === "email") && (
+        <TextInput
+          label="License key template (optional)"
+          helperText="Use XXXX where you want random characters. Example: METU-XXXX-XXXX-XXXX. Leave blank to send a random UUID."
+          type="text"
+          value={value.licenseKeyTemplate ?? ""}
+          onChange={(e) => onChange({ licenseKeyTemplate: e.target.value || null })}
+          placeholder="METU-XXXX-XXXX-XXXX"
+        />
+      )}
     </div>
   );
 }

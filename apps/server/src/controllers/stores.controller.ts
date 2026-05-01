@@ -7,7 +7,7 @@ export const list: RequestHandler = async (req, res, next) => {
   try {
     const parsed = listQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const stores = await service.findStores(parsed.data);
     res.json(stores);

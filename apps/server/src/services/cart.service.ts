@@ -83,6 +83,16 @@ export async function addItem(
   userId: number,
   input: AddToCartInput,
 ): Promise<{ cartItem: unknown; merged: boolean }> {
+  // Guard: a store owner shouldn't buy from their own store. We catch
+  // it here so the BFF gives a clean 400 even if the frontend's hide-
+  // the-button check is bypassed (e.g. someone hits the API directly).
+  const productItem = await prisma.productItem.findUnique({
+    where: { productItemId: input.productItemId },
+    select: { product: { select: { store: { select: { ownerId: true } } } } },
+  });
+  if (productItem?.product.store.ownerId === userId) {
+    throw new AppError(400, "CannotBuyOwnProduct", "You can't buy from your own store.");
+  }
   const cart = await getOrCreateActiveCart(userId);
   const existing = await prisma.cartItem.findUnique({
     where: {

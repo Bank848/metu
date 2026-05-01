@@ -104,8 +104,10 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
           items: variants.map((v) => ({
             ...v,
             discountAmount: (v.price * v.discountPercent) / 100,
-            // Send empty string as undefined so Zod's optional URL passes.
+            // Send empty strings as undefined so Zod's optional URL/text passes.
             sampleUrl: v.sampleUrl?.trim() || undefined,
+            deliveryUrl: v.deliveryUrl?.trim() || undefined,
+            licenseKeyTemplate: v.licenseKeyTemplate?.trim() || undefined,
           })),
         }),
       });

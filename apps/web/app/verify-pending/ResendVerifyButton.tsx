@@ -8,7 +8,7 @@ export function ResendVerifyButton({ email }: { email: string }) {
 
   async function send() {
     if (!email) {
-      setMsg("Email missing from URL.");
+      setMsg("We don't have an email on file for this session.");
       return;
     }
     setBusy(true);
@@ -20,9 +20,9 @@ export function ResendVerifyButton({ email }: { email: string }) {
         body: JSON.stringify({ email }),
       });
       if (res.ok) {
-        setMsg("ส่งใหม่แล้ว — check your inbox + spam folder.");
+        setMsg("Email sent — check your inbox and the spam folder.");
       } else {
-        setMsg("ส่งไม่สำเร็จ. ลองอีกที.");
+        setMsg("Couldn't send right now. Please try again in a minute.");
       }
     } catch {
       setMsg("Network error.");

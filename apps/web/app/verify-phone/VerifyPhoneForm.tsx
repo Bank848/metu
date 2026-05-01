@@ -18,11 +18,11 @@ export function VerifyPhoneForm({ email }: { email: string }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!email) {
-      setError("Email is missing from the URL ; restart from /register.");
+      setError("Your session has expired. Please sign in again from /login.");
       return;
     }
     if (!/^\d{6}$/.test(code)) {
-      setError("Enter the 6-digit code.");
+      setError("Enter the 6-digit code from the SMS.");
       return;
     }
     setBusy(true);
@@ -39,9 +39,12 @@ export function VerifyPhoneForm({ email }: { email: string }) {
         return;
       }
       setVerified(true);
-      // Send the user to login - they still need to confirm their email
-      // before login will succeed, but the phone gate is now off.
-      setTimeout(() => router.push("/login"), 1500);
+      // After phone is verified, send the user to the email-verify
+      // pending page if email isn't confirmed yet, otherwise home.
+      setTimeout(() => {
+        router.push(data?.emailVerified ? "/" : "/verify-pending");
+        router.refresh();
+      }, 1200);
     } catch {
       setError("Network error.");
     } finally {
@@ -59,8 +62,8 @@ export function VerifyPhoneForm({ email }: { email: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      if (res.ok) setResentMsg("New OTP sent. Check your phone.");
-      else setResentMsg("Couldn't resend right now.");
+      if (res.ok) setResentMsg("New code sent. Check your phone.");
+      else setResentMsg("Couldn't resend right now. Try again in a minute.");
     } catch {
       setResentMsg("Network error.");
     } finally {
@@ -74,7 +77,7 @@ export function VerifyPhoneForm({ email }: { email: string }) {
         <CheckCircle2 className="h-5 w-5 text-mint mt-0.5 shrink-0" />
         <div className="text-sm">
           <div className="font-semibold text-mint mb-0.5">Phone verified ✓</div>
-          <div className="text-mint/80">Redirecting to login…</div>
+          <div className="text-mint/80">Redirecting…</div>
         </div>
       </div>
     );

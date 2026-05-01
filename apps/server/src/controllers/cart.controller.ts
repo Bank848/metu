@@ -27,7 +27,7 @@ export const addItem: RequestHandler = async (req, res, next) => {
     if (!auth) throw new AppError(401, "Unauthorized");
     const parsed = addToCartSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const result = await service.addItem(auth.uid, parsed.data);
     res.json({ ok: true, ...result });
@@ -44,7 +44,7 @@ export const updateItem: RequestHandler = async (req, res, next) => {
     if (!Number.isFinite(id)) throw new AppError(400, "BadId");
     const parsed = updateCartItemSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const cartItem = await service.updateItem(auth.uid, id, parsed.data);
     res.json({ ok: true, cartItem });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, ShieldAlert, Monitor } from "lucide-react";
+import { ArrowLeft, Download, ShieldAlert, Monitor, MailWarning, PhoneCall } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -30,6 +30,13 @@ export default async function EditProfilePage({
   // cases hit me.requirePasswordReset=true; the URL param just
   // affirms the reason if the link came from the redirect.
   const showResetBanner = me.requirePasswordReset || mustReset;
+  // Phase 42 — surface the unverified state at the very top of the
+  // profile so the user can't keep using the site without finishing
+  // verify. The login gate already blocks sensitive actions, but a
+  // logged-in OAuth user (Google) skips the password gate, so we need
+  // a visible nudge.
+  const emailUnverified = !me.user.emailVerified;
+  const phoneUnverified = !me.user.phoneVerifiedAt;
 
   return (
     <>
@@ -43,6 +50,49 @@ export default async function EditProfilePage({
           Back to profile
         </Link>
         <PageHeader title="Edit profile" subtitle="Update your name, contact, and password." />
+
+        {emailUnverified && (
+          <div className="mb-4 rounded-xl border border-red-400/40 bg-red-500/10 p-4 flex items-start gap-3">
+            <MailWarning className="h-5 w-5 text-red-300 mt-0.5 shrink-0" />
+            <div className="text-sm flex-1">
+              <div className="font-semibold text-red-100 mb-0.5">
+                Email not verified
+              </div>
+              <div className="text-red-100/80">
+                Confirm your email address so you can sign in normally and
+                receive purchase receipts. We sent a link to{" "}
+                <strong className="text-white">{me.user.email}</strong>.
+              </div>
+            </div>
+            <Link
+              href="/verify-pending"
+              className="self-center rounded-lg bg-red-400 text-space-950 px-4 py-2 text-sm font-semibold hover:bg-red-300 whitespace-nowrap"
+            >
+              Resend link →
+            </Link>
+          </div>
+        )}
+        {phoneUnverified && (
+          <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 flex items-start gap-3">
+            <PhoneCall className="h-5 w-5 text-amber-300 mt-0.5 shrink-0" />
+            <div className="text-sm flex-1">
+              <div className="font-semibold text-amber-100 mb-0.5">
+                Phone not verified
+              </div>
+              <div className="text-amber-100/80">
+                Confirm your phone with a one-time SMS code so we can reach you
+                about your purchases. Buying and selling are paused until both
+                checks are complete.
+              </div>
+            </div>
+            <Link
+              href="/verify-phone"
+              className="self-center rounded-lg bg-amber-400 text-space-950 px-4 py-2 text-sm font-semibold hover:bg-amber-300 whitespace-nowrap"
+            >
+              Verify now →
+            </Link>
+          </div>
+        )}
 
         {showResetBanner && (
           <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 flex items-start gap-3">

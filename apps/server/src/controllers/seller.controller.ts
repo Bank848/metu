@@ -101,7 +101,7 @@ export const becomeSeller: RequestHandler = async (req, res, next) => {
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
     const parsed = becomeSellerSchema.safeParse(req.body);
-    if (!parsed.success) throw new AppError(400, "ValidationError", parsed.error.message);
+    if (!parsed.success) throw parsed.error;
     const store = await service.becomeSeller(auth.uid, parsed.data);
     res.json(store);
   } catch (err) {
@@ -114,7 +114,7 @@ export const updateStore: RequestHandler = async (req, res, next) => {
   try {
     const store = currentStore(req);
     const parsed = updateStoreSchema.safeParse(req.body);
-    if (!parsed.success) throw new AppError(400, "ValidationError", parsed.error.message);
+    if (!parsed.success) throw parsed.error;
     const result = await service.updateStore(store.storeId, parsed.data);
     if (result.noop) {
       res.json({ ok: true, noop: true });
@@ -131,7 +131,7 @@ export const createProduct: RequestHandler = async (req, res, next) => {
   try {
     const store = currentStore(req);
     const parsed = productInputSchema.safeParse(req.body);
-    if (!parsed.success) throw new AppError(400, "ValidationError", parsed.error.message);
+    if (!parsed.success) throw parsed.error;
     const product = await service.createProduct(store.storeId, parsed.data);
     res.json(product);
   } catch (err) {
@@ -158,7 +158,7 @@ export const updateProduct: RequestHandler<{ id: string }> = async (req, res, ne
       return;
     }
     const parsed = productInputSchema.safeParse(body);
-    if (!parsed.success) throw new AppError(400, "ValidationError", parsed.error.message);
+    if (!parsed.success) throw parsed.error;
     await service.updateProduct(productId, store.storeId, parsed.data);
     res.json({ ok: true });
   } catch (err) {
@@ -201,7 +201,7 @@ export const patchVariant: RequestHandler<{ id: string }> = async (req, res, nex
     const productItemId = Number(req.params.id);
     if (!Number.isFinite(productItemId)) throw new AppError(400, "BadId");
     const parsed = patchVariantSchema.safeParse(req.body);
-    if (!parsed.success) throw new AppError(400, "ValidationError", parsed.error.message);
+    if (!parsed.success) throw parsed.error;
     const productItem = await service.patchVariant(productItemId, store.storeId, parsed.data);
     res.json({ ok: true, productItem });
   } catch (err) {
@@ -225,7 +225,7 @@ export const createCoupon: RequestHandler = async (req, res, next) => {
   try {
     const store = currentStore(req);
     const parsed = couponInputSchema.safeParse(req.body);
-    if (!parsed.success) throw new AppError(400, "ValidationError", parsed.error.message);
+    if (!parsed.success) throw parsed.error;
     const created = await service.createCoupon(store.storeId, parsed.data);
     res.json(created);
   } catch (err) {
@@ -241,7 +241,7 @@ export const updateOrderStatus: RequestHandler<{ id: string }> = async (req, res
     const orderId = Number(req.params.id);
     if (!Number.isFinite(orderId)) throw new AppError(400, "BadId");
     const parsed = updateOrderStatusSchema.safeParse(req.body);
-    if (!parsed.success) throw new AppError(400, "ValidationError", parsed.error.message);
+    if (!parsed.success) throw parsed.error;
     await service.updateOrderStatus(orderId, store.storeId, auth.uid, parsed.data);
     res.json({ ok: true });
   } catch (err) {

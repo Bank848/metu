@@ -131,6 +131,8 @@ export function EditProductForm({
             ...v,
             discountAmount: (v.price * v.discountPercent) / 100,
             sampleUrl: v.sampleUrl?.trim() || undefined,
+            deliveryUrl: v.deliveryUrl?.trim() || undefined,
+            licenseKeyTemplate: v.licenseKeyTemplate?.trim() || undefined,
           })),
         }),
       });

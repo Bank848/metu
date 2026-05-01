@@ -28,6 +28,24 @@ export const productItemInputSchema = z.object({
     .max(500)
     .optional()
     .or(z.literal("").transform(() => undefined)),
+  // Private post-purchase link sent to the buyer once Stripe confirms
+  // payment. Only meaningful for download / streaming methods; the
+  // controller leaves it null otherwise.
+  deliveryUrl: z
+    .string()
+    .url()
+    .max(500)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  // Optional license-key template; XXXX runs are replaced with random
+  // alphanumerics at delivery time. Falls back to a UUID when blank.
+  licenseKeyTemplate: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/^[A-Za-z0-9\-_]+$/, "Use letters, digits, hyphens, or underscores only")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 });
 
 export const productInputSchema = z.object({

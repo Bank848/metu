@@ -18,7 +18,7 @@ export const listUsers: RequestHandler = async (req, res, next) => {
   try {
     const parsed = userListQuerySchema.safeParse(req.query);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const result = await service.listUsers(parsed.data);
     res.json(result);
@@ -34,7 +34,7 @@ export const updateUserRole: RequestHandler<{ id: string }> = async (req, res, n
     if (!Number.isFinite(targetUserId)) throw new AppError(400, "BadId");
     const parsed = updateUserRoleSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     // Pass req so the audit row captures IP + UA.
     await service.updateUserRole(targetUserId, auth.uid, parsed.data, req);
@@ -52,7 +52,7 @@ export const deleteUser: RequestHandler<{ id: string }> = async (req, res, next)
     // Body optional: empty = soft-delete; with reason = ban.
     const parsed = deleteUserSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     await service.deleteUser(targetUserId, auth.uid, parsed.data, req);
     res.json({ ok: true });

@@ -1,11 +1,25 @@
 import type { ErrorRequestHandler } from "express";
+import { ZodError } from "zod";
 import { AppError } from "../utils/errors.js";
+import { humaniseZodError } from "../utils/zod-humanise.js";
+
+// Duck-type ZodError so we still catch instances coming from a
+// duplicated zod copy (test runner / monorepo workspace) where
+// `instanceof` would lie.
+function isZodError(err: unknown): err is ZodError {
+  if (err instanceof ZodError) return true;
+  if (!err || typeof err !== "object") return false;
+  const e = err as { name?: unknown; issues?: unknown };
+  return e.name === "ZodError" && Array.isArray(e.issues);
+}
 
 /**
  * Express error handler — the LAST middleware mounted in `app.ts`.
  *
  * Contract:
  *   - `AppError` instances → `res.status(err.status).json({ error: err.code, message: err.message })`
+ *   - `ZodError` instances → 400 + a single human sentence picked from
+ *     the first issue (no raw issues array).
  *   - Anything else → 500 + the message logged to stderr (Pino in
  *     prod). Prevents accidentally leaking stack traces / internal
  *     SQL errors to the client.
@@ -17,6 +31,11 @@ import { AppError } from "../utils/errors.js";
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof AppError) {
     res.status(err.status).json({ error: err.code, message: err.message });
+    return;
+  }
+  if (isZodError(err)) {
+    const { message, field } = humaniseZodError(err);
+    res.status(400).json({ error: "ValidationError", message, field });
     return;
   }
   // Unknown — log + generic 500.

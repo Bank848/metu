@@ -2,8 +2,11 @@ import Link from "next/link";
 import { CheckCircle2, AlertCircle, Mail } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { StarField } from "@/components/DotGrid";
+import { TokenScrubber } from "@/components/TokenScrubber";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 export const metadata = { title: "Verify email — METU" };
 
 // Phase 41 - landing for the email-verify magic link. POSTs token to
@@ -42,6 +45,7 @@ export default async function VerifyEmailPage({
   return (
     <main className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
+      <TokenScrubber />
       <div className="relative mx-auto max-w-md px-6 py-20">
         <Logo size="lg" />
         <div className="mt-12 rounded-2xl border border-white/10 bg-surface-2 p-8">

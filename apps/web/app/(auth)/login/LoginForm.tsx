@@ -115,15 +115,18 @@ export function LoginForm({
           setBusy(false);
           return;
         }
-        // Phase 41 - bounce to the verify pages when login is blocked
-        // by the verify gate. The user already got the email + OTP at
-        // register, but they may have closed the page.
+        // Phase 42 — bounce to the verify pages without exposing the
+        // email in the URL. The session cookie + the failed-login
+        // marker the API set on res lets each verify page read the
+        // address from /auth/me on the next request.
         if (data?.error === "EmailNotVerified") {
-          router.push(`/verify-pending?email=${encodeURIComponent(submittedEmail)}&need=email`);
+          router.push("/verify-pending");
+          router.refresh();
           return;
         }
         if (data?.error === "PhoneNotVerified") {
-          router.push(`/verify-phone?email=${encodeURIComponent(submittedEmail)}`);
+          router.push("/verify-phone");
+          router.refresh();
           return;
         }
         setError(

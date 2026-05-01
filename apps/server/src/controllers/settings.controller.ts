@@ -22,7 +22,7 @@ export const adminUpdate: RequestHandler = async (req, res, next) => {
     if (!auth) throw new AppError(401, "Unauthorized");
     const parsed = settingsPatchSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const updated = await service.updateSettings(auth.uid, parsed.data, req);
     res.json({ ok: true, settings: updated });

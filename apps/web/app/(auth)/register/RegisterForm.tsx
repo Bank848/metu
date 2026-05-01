@@ -79,15 +79,19 @@ export function RegisterForm({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data?.field ? `That ${data.field} is taken` : "Registration failed");
+        setError(
+          data?.message
+            ?? (data?.field ? `That ${data.field} is taken` : "Registration failed"),
+        );
         setBusy(false);
         return;
       }
       setBusy(false);
-      // Phase 41 - register no longer auto-logs in. Send the user to
-      // the post-register verify page where they confirm their email
-      // (link sent) and their phone (OTP printed to server logs).
-      router.push(`/verify-phone?email=${encodeURIComponent(form.email)}`);
+      // Phase 41 → 42 — register no longer auto-logs in. The BFF
+      // forwarder set a signed `metu_pv` cookie so the verify pages
+      // know which account this is without putting the email in the
+      // URL.
+      router.push("/verify-phone");
       router.refresh();
     } catch {
       setError("Network error");

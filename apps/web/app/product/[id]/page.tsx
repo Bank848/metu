@@ -144,7 +144,13 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
             <div className="mb-6" />
 
-            <AddToCart items={items} />
+            {me && me.user.userId === product.store.ownerId ? (
+              <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                This is your own store. Sign in as a buyer if you want to test the checkout flow.
+              </div>
+            ) : (
+              <AddToCart items={items} />
+            )}
           </div>
         </div>
 

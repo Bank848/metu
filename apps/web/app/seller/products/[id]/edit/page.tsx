@@ -60,6 +60,8 @@ export default async function EditProductPage({ params }: { params: { id: string
             discountPercent: it.discountPercent,
             discountAmount: Number(it.discountAmount),
             sampleUrl: it.sampleUrl ?? "",
+            deliveryUrl: it.deliveryUrl ?? "",
+            licenseKeyTemplate: it.licenseKeyTemplate ?? "",
           })),
         }}
         categories={categories}

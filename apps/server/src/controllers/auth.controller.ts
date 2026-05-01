@@ -48,7 +48,7 @@ export const login: RequestHandler = async (req, res, next) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const { user } = await service.login(parsed.data);
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
@@ -78,7 +78,7 @@ export const register: RequestHandler = async (req, res, next) => {
 
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const { user } = await service.register(parsed.data);
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
@@ -124,7 +124,7 @@ export const updateMe: RequestHandler = async (req, res, next) => {
   try {
     const parsed = updateProfileSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     const user = currentUser(req);
@@ -141,7 +141,7 @@ export const changePassword: RequestHandler = async (req, res, next) => {
   try {
     const parsed = changePasswordSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
@@ -158,7 +158,7 @@ export const setPassword: RequestHandler = async (req, res, next) => {
   try {
     const parsed = setPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
@@ -175,7 +175,7 @@ export const updatePhone: RequestHandler = async (req, res, next) => {
   try {
     const parsed = updatePhoneSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
@@ -192,7 +192,7 @@ export const requestOtp: RequestHandler = async (req, res, next) => {
   try {
     const parsed = requestOtpSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
@@ -209,7 +209,7 @@ export const verifyOtp: RequestHandler = async (req, res, next) => {
   try {
     const parsed = verifyOtpSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
@@ -299,10 +299,21 @@ export const forgotPassword: RequestHandler = async (req, res, next) => {
   }
 };
 
-/** GET /auth/reset-password/check?token=xxx - validity probe without consuming. */
+/**
+ * Validity probe without consuming the token.
+ *   POST /auth/reset-password/check  body: { token }
+ *   GET  /auth/reset-password/check?token=xxx (legacy)
+ *
+ * The POST shape keeps the token off URLs and access logs (Phase 42
+ * URL hardening); the GET shape is preserved for backward compat.
+ */
 export const checkResetToken: RequestHandler = async (req, res, next) => {
   try {
-    const token = String(req.query.token ?? "");
+    const bodyToken =
+      req.body && typeof (req.body as { token?: unknown }).token === "string"
+        ? (req.body as { token: string }).token
+        : "";
+    const token = bodyToken || String(req.query.token ?? "");
     const result = await service.checkResetToken(token);
     res.json(result);
   } catch (err) {
@@ -315,7 +326,7 @@ export const resetPassword: RequestHandler = async (req, res, next) => {
   try {
     const parsed = resetPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     await service.resetPassword(parsed.data);
     res.json({ ok: true });
@@ -329,7 +340,7 @@ export const verifyEmail: RequestHandler = async (req, res, next) => {
   try {
     const parsed = verifyEmailSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     await service.verifyEmail(parsed.data.token);
     res.json({ ok: true });
@@ -356,7 +367,7 @@ export const verifyPhoneRegister: RequestHandler = async (req, res, next) => {
   try {
     const parsed = verifyPhoneRegisterSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     await service.verifyPhoneRegister(parsed.data.email, parsed.data.code);
     res.json({ ok: true });
@@ -383,7 +394,7 @@ export const totpEnrollStart: RequestHandler = async (req, res, next) => {
   try {
     const parsed = totpEnrollStartSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
@@ -399,7 +410,7 @@ export const totpEnrollVerify: RequestHandler = async (req, res, next) => {
   try {
     const parsed = totpEnrollVerifySchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
@@ -432,7 +443,7 @@ export const totpDisable: RequestHandler = async (req, res, next) => {
   try {
     const parsed = totpDisableSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");

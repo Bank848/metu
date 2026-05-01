@@ -373,6 +373,18 @@ export async function createProduct(storeId: number, input: ProductInput) {
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
           sampleUrl: it.sampleUrl,
+          // Only persist deliveryUrl/licenseKeyTemplate when the
+          // delivery method actually uses them — the controller still
+          // accepts the fields but we strip them to avoid leaking a
+          // download link that nobody will ever consume.
+          deliveryUrl:
+            it.deliveryMethod === "download" || it.deliveryMethod === "streaming"
+              ? it.deliveryUrl ?? null
+              : null,
+          licenseKeyTemplate:
+            it.deliveryMethod === "license_key" || it.deliveryMethod === "email"
+              ? it.licenseKeyTemplate ?? null
+              : null,
         })),
       },
       images: {
@@ -446,6 +458,10 @@ export async function updateProduct(
     for (let i = 0; i < input.items.length; i++) {
       const it = input.items[i];
       const target = existing[i];
+      const usesDeliveryUrl =
+        it.deliveryMethod === "download" || it.deliveryMethod === "streaming";
+      const usesLicenseTemplate =
+        it.deliveryMethod === "license_key" || it.deliveryMethod === "email";
       if (target) {
         await tx.productItem.update({
           where: { productItemId: target.productItemId },
@@ -456,6 +472,10 @@ export async function updateProduct(
             discountPercent: it.discountPercent,
             discountAmount: new Prisma.Decimal(it.discountAmount),
             sampleUrl: it.sampleUrl,
+            deliveryUrl: usesDeliveryUrl ? it.deliveryUrl ?? null : null,
+            licenseKeyTemplate: usesLicenseTemplate
+              ? it.licenseKeyTemplate ?? null
+              : null,
           },
         });
       } else {
@@ -468,6 +488,10 @@ export async function updateProduct(
             discountPercent: it.discountPercent,
             discountAmount: new Prisma.Decimal(it.discountAmount),
             sampleUrl: it.sampleUrl,
+            deliveryUrl: usesDeliveryUrl ? it.deliveryUrl ?? null : null,
+            licenseKeyTemplate: usesLicenseTemplate
+              ? it.licenseKeyTemplate ?? null
+              : null,
           },
         });
       }

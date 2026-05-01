@@ -22,6 +22,11 @@ vi.mock("../src/db/prisma.js", () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    // Phase 42 — addItem checks the productItem's owning store so a
+    // seller can't buy from their own store. Tests default the lookup
+    // to a different owner so the existing happy-path expectations
+    // still pass.
+    productItem: { findUnique: vi.fn() },
   },
 }));
 
@@ -54,6 +59,11 @@ beforeEach(async () => {
     deletedAt: null,
     stats: { role: "buyer" },
     store: null,
+  });
+  // Default: the product belongs to a different seller (ownerId: 99)
+  // so the own-store guard never fires for these happy-path tests.
+  (prisma.productItem.findUnique as any).mockResolvedValue({
+    product: { store: { ownerId: 99 } },
   });
 });
 

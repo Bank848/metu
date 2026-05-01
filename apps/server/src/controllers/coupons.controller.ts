@@ -16,7 +16,7 @@ export const validate: RequestHandler = async (req, res, next) => {
   try {
     const parsed = validateCouponSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const result = await service.validateCoupon(parsed.data.code);
     res.json(result);

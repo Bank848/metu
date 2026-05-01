@@ -688,7 +688,53 @@ async function seedProducts(
         }
       }
 
+      // Build a URL-safe slug from the product name so the sample +
+      // delivery links look hand-crafted per product on the live site.
+      const slug = def.name
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60);
+      // Pick a sample-file extension that matches the product category
+      // so /product/<id> shows a believable "Free sample" link.
+      const samplePreviewExt = (() => {
+        switch (def.category) {
+          case "Stock Music":
+          case "Sound Effects":
+            return "mp3";
+          case "Stock Photos":
+          case "Illustrations":
+          case "Icons":
+          case "UI Kits":
+          case "Fonts":
+            return "jpg";
+          case "Video Templates":
+          case "Motion Graphics":
+            return "mp4";
+          case "3D Models":
+            return "glb";
+          default:
+            return "pdf";
+        }
+      })();
+
       for (const it of def.items) {
+        // sampleUrl is the public preview shown to anyone before buying.
+        const sampleUrl = `https://samples.metu.dev/${slug}-preview.${samplePreviewExt}`;
+        // deliveryUrl + licenseKeyTemplate are post-purchase secrets,
+        // only filled in for the methods that need them.
+        let deliveryUrl: string | null = null;
+        let licenseKeyTemplate: string | null = null;
+        if (it.delivery === "download") {
+          deliveryUrl = `https://files.metu.dev/${slug}.zip`;
+        } else if (it.delivery === "streaming") {
+          deliveryUrl = `https://stream.metu.dev/${slug}/index.m3u8`;
+        } else if (it.delivery === "license_key") {
+          licenseKeyTemplate = "METU-XXXX-XXXX-XXXX";
+        } else if (it.delivery === "email") {
+          licenseKeyTemplate = "METU-EMAIL-XXXX";
+        }
         const pi = await prisma.productItem.create({
           data: {
             productId: product.productId,
@@ -697,6 +743,9 @@ async function seedProducts(
             price: baht(it.price),
             discountPercent: it.discountPercent ?? 0,
             discountAmount: baht(((it.discountPercent ?? 0) * it.price) / 100),
+            sampleUrl,
+            deliveryUrl,
+            licenseKeyTemplate,
           },
         });
         items.push(pi);

@@ -22,7 +22,7 @@ export const create: RequestHandler<{ productId: string }> = async (
     if (!Number.isFinite(productId)) throw new AppError(400, "BadId");
     const parsed = reviewInputSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const review = await service.createReview(auth.uid, productId, parsed.data);
     res.json({ review });
@@ -44,7 +44,7 @@ export const update: RequestHandler<{ id: string }> = async (req, res, next) => 
     if (!Number.isFinite(reviewId)) throw new AppError(400, "BadId");
     const parsed = reviewEditSchema.safeParse(req.body);
     if (!parsed.success) {
-      throw new AppError(400, "ValidationError", parsed.error.message);
+      throw parsed.error;
     }
     const updated = await service.updateReview(
       reviewId,
