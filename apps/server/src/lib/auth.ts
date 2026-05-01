@@ -1,7 +1,6 @@
 // better-auth instance, mounted via toNodeHandler() at /auth/better/*.
 // Owns the session cookie for both password and Google sign-ins.
 import { betterAuth } from "better-auth";
-import { APIError } from "better-auth/api";
 // Direct import of the adapter dodges a flaky re-export chain that
 // fails under Fly's `npm ci --ignore-scripts` Docker build.
 import { prismaAdapter } from "@better-auth/prisma-adapter";
@@ -162,23 +161,15 @@ export const auth = betterAuth({
     },
   },
 
-  // Fill in NOT NULL fields better-auth doesn't know about, and reject
-  // Google sign-ins that collide with an existing local account
-  // (silent auto-linking would be an account-takeover vector).
+  // Fill in NOT NULL fields better-auth doesn't know about. Account
+  // linking by trusted provider (below) keeps a Google sign-in for an
+  // already-registered email from creating a duplicate user; the
+  // dedicated unique index on `users.email` is the safety net if a
+  // race manages to slip through.
   databaseHooks: {
     user: {
       create: {
         before: async (user) => {
-          const existing = await prisma.user.findFirst({
-            where: { email: user.email, deletedAt: null },
-            select: { userId: true },
-          });
-          if (existing) {
-            throw new APIError("CONFLICT", {
-              message: "EmailAlreadyRegistered",
-            });
-          }
-
           const { firstName, lastName } = splitName(user.name);
           const username = await deriveUsername(user.email);
 
@@ -189,10 +180,24 @@ export const auth = betterAuth({
               firstName,
               lastName,
               username,
+              // Google guarantees the email; phone still has to be
+              // verified by SMS so the gate stays intact.
+              emailVerified: true,
             },
           };
         },
       },
+    },
+  },
+
+  // Phase 42 — automatically merge a new Google sign-in into an
+  // existing local account when the email matches. Without this the
+  // user hits "An account already exists with that email" instead of
+  // a smooth link.
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
     },
   },
 

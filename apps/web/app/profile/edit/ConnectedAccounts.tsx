@@ -21,6 +21,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link2, Link2Off, AlertCircle } from "lucide-react";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 type ConnectedAccount = {
   provider: string;
@@ -135,13 +136,12 @@ export function ConnectedAccounts({ hasPassword }: Props) {
           </button>
         </div>
       ) : (
-        <a
-          href="/api/auth/better/sign-in/google?callbackURL=/profile/edit&errorCallbackURL=/profile/edit?error=link-failed"
-          className="inline-flex items-center gap-2 rounded-full border border-line bg-space-900 px-4 py-2 text-sm font-semibold text-white hover:border-brand-yellow/50 hover:text-brand-yellow transition"
-        >
-          <Link2 className="h-4 w-4" />
-          Link Google account
-        </a>
+        <GoogleSignInButton
+          label="Link Google account"
+          callbackURL="/profile/edit"
+          errorCallbackURL="/profile/edit?error=link-failed"
+          onError={(msg) => setError(msg)}
+        />
       )}
     </section>
   );

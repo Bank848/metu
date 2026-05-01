@@ -4,6 +4,7 @@ import { StarField } from "@/components/DotGrid";
 import { prisma } from "@/lib/server/prisma";
 import { RegisterForm } from "./RegisterForm";
 import { safeGetSettings } from "@/lib/settings";
+import { detectDefaultCountry } from "@/lib/server/detectCountry";
 
 export const metadata = { title: "Sign up — METU" };
 
@@ -37,7 +38,11 @@ export default async function RegisterPage() {
         <p className="text-ink-secondary mb-6">
           It takes less than a minute. You can start selling later from your profile.
         </p>
-        <RegisterForm countries={countries} googleEnabled={settings.googleEnabled} />
+        <RegisterForm
+          countries={countries}
+          googleEnabled={settings.googleEnabled}
+          defaultPhoneCountry={detectDefaultCountry()}
+        />
         <p className="mt-4 text-sm text-ink-secondary">
           Already have an account?{" "}
           <Link href="/login" className="font-semibold text-brand-yellow hover:underline">

@@ -24,19 +24,25 @@ function humaniseIssue(issue: ZodIssue, field: string): string {
       return `${field} doesn't look right.`;
     case "too_small": {
       const min = (issue as { minimum?: number }).minimum;
-      if (issue.type === "string") {
+      const t = (issue as { type?: string }).type;
+      if (t === "string" || t === undefined) {
         if (min === 1) return `${field} can't be empty.`;
-        return `${field} must be at least ${min} characters.`;
+        if (typeof min === "number") return `${field} must be at least ${min} characters.`;
+        return `${field} is too short.`;
       }
-      if (issue.type === "number") return `${field} must be at least ${min}.`;
-      if (issue.type === "array") return `Add at least ${min} ${field.toLowerCase()}.`;
+      if (t === "number") return `${field} must be at least ${min}.`;
+      if (t === "array") return `Add at least ${min} ${field.toLowerCase()}.`;
       return `${field} is too small.`;
     }
     case "too_big": {
       const max = (issue as { maximum?: number }).maximum;
-      if (issue.type === "string") return `${field} must be at most ${max} characters.`;
-      if (issue.type === "number") return `${field} can be at most ${max}.`;
-      if (issue.type === "array") return `${field} can have at most ${max} entries.`;
+      const t = (issue as { type?: string }).type;
+      if (t === "string" || t === undefined) {
+        if (typeof max === "number") return `${field} must be at most ${max} characters.`;
+        return `${field} is too long.`;
+      }
+      if (t === "number") return `${field} can be at most ${max}.`;
+      if (t === "array") return `${field} can have at most ${max} entries.`;
       return `${field} is too long.`;
     }
     case "invalid_string": {
