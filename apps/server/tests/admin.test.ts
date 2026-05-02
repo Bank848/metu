@@ -228,22 +228,33 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
     });
   });
 
-  it("with reason → 'user.ban' audit, deletedAt + bannedAt + bannedReason", async () => {
+  it("with reason → 'user.ban' audit, deletedAt + bannedAt + bannedReason + sessions dropped", async () => {
     // Phase 48 — last-admin guard runs first; mock target as buyer
     // and admin-count > 1 so the guard passes.
     (prisma.userStats.findUnique as any).mockResolvedValue({ role: "buyer" });
     (prisma.userStats.count as any).mockResolvedValue(2);
-    (prisma.user.update as any).mockResolvedValue({});
     (prisma.auditLog.create as any).mockResolvedValue({});
+    // Phase 48 follow-up — ban path now wraps user.update +
+    // session.deleteMany in a transaction so the kick-out is atomic.
+    // Capture the tx mock so we can assert both writes happened.
+    const txUserUpdate = vi.fn().mockResolvedValue({});
+    const txSessionDeleteMany = vi.fn().mockResolvedValue({ count: 3 });
+    (prisma.$transaction as any).mockImplementation(async (cb: any) => {
+      return cb({
+        user: { update: txUserUpdate },
+        session: { deleteMany: txSessionDeleteMany },
+      });
+    });
     const res = await request(buildApp())
       .delete("/admin/users/9")
       .set("Cookie", await cookieFor(1, "admin"))
       .send({ reason: "Racial slur in display name" });
     expect(res.status).toBe(200);
-    const update = (prisma.user.update as any).mock.calls[0][0];
+    const update = txUserUpdate.mock.calls[0][0];
     expect(update.data.deletedAt).toBeInstanceOf(Date);
     expect(update.data.bannedAt).toBeInstanceOf(Date);
     expect(update.data.bannedReason).toBe("Racial slur in display name");
+    expect(txSessionDeleteMany).toHaveBeenCalledWith({ where: { userId: 9 } });
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: "user.ban",

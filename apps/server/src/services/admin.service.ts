@@ -232,12 +232,22 @@ export async function deleteUser(
     }
   }
 
-  // BAN PATH — keep the existing behaviour.
+  // BAN PATH — soft-state the row + drop the live session so the
+  // banned user is kicked out of every open tab on their next request
+  // (better-auth's session token stops resolving). Audit follow-up
+  // (Scenario 1) — without the deleteMany call the better-auth session
+  // row stayed alive in DB; even though `requireAuth` already rejected
+  // on `deletedAt`, dropping the row makes the kick-out clean at every
+  // layer (no orphan rows, no race where a slow read sees the user but
+  // misses the deletedAt flip).
   if (reason) {
     const now = new Date();
-    await prisma.user.update({
-      where: { userId: targetUserId },
-      data: { deletedAt: now, bannedAt: now, bannedReason: reason },
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { userId: targetUserId },
+        data: { deletedAt: now, bannedAt: now, bannedReason: reason },
+      });
+      await tx.session.deleteMany({ where: { userId: targetUserId } });
     });
     await audit({
       actorId: actorUserId,
