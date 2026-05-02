@@ -1,5 +1,6 @@
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
+import { capQuantity, loadPurchasableProductItem } from "../utils/purchasable.js";
 import type {
   AddToCartInput,
   CartLine,
@@ -89,38 +90,19 @@ export async function getCart(userId: number): Promise<CartResponse> {
  *   - Physical / service lines cap at the variant's `stock` so we
  *     never reserve more than the seller has on hand.
  */
-const DIGITAL_DELIVERY = new Set([
-  "download",
-  "email",
-  "license_key",
-  "streaming",
-]);
-
 export async function addItem(
   userId: number,
   input: AddToCartInput,
 ): Promise<{ cartItem: unknown; merged: boolean }> {
+  // Phase 50 — single source of truth for "is this productItem buyable
+  // right now?". Throws 404 ProductItemNotFound, 409 ProductUnavailable,
+  // or 409 StoreUnavailable for any availability gate failure.
+  const item = await loadPurchasableProductItem(input.productItemId);
+
   // Guard: a store owner shouldn't buy from their own store. We catch
   // it here so the BFF gives a clean 400 even if the frontend's hide-
   // the-button check is bypassed (e.g. someone hits the API directly).
-  const productItem = await prisma.productItem.findUnique({
-    where: { productItemId: input.productItemId },
-    select: {
-      deliveryMethod: true,
-      quantity: true, // stock
-      product: {
-        select: {
-          productId: true,
-          isStackable: true,
-          store: { select: { ownerId: true } },
-        },
-      },
-    },
-  });
-  if (!productItem) {
-    throw new AppError(404, "ProductItemNotFound");
-  }
-  if (productItem.product.store.ownerId === userId) {
+  if (item.product.store.ownerId === userId) {
     throw new AppError(400, "CannotBuyOwnProduct", "You can't buy from your own store.");
   }
 
@@ -129,13 +111,13 @@ export async function addItem(
   // can't be bought twice by the same buyer. license_key + seller-
   // override products bypass this rule. Refunded orders are excluded
   // from the lookup so a buyer can re-purchase after a refund.
-  if (!productItem.product.isStackable) {
+  if (!item.product.isStackable) {
     const owned = await prisma.order.findFirst({
       where: {
         userId,
         status: { in: ["paid", "fulfilled", "pending"] },
         items: {
-          some: { productItem: { productId: productItem.product.productId } },
+          some: { productItem: { productId: item.product.productId } },
         },
       },
       select: { orderId: true, status: true },
@@ -149,9 +131,6 @@ export async function addItem(
     }
   }
 
-  const isDigital = DIGITAL_DELIVERY.has(productItem.deliveryMethod);
-  const stockCap = isDigital ? 1 : Math.max(1, productItem.quantity);
-
   const cart = await getOrCreateActiveCart(userId);
   const existing = await prisma.cartItem.findUnique({
     where: {
@@ -164,8 +143,7 @@ export async function addItem(
   if (existing) {
     // Cap the merged quantity at the variant's real ceiling so we never
     // store a qty above what the buyer can actually check out with.
-    const desired = existing.quantity + input.quantity;
-    const capped = Math.min(desired, stockCap);
+    const capped = capQuantity(existing.quantity + input.quantity, item);
     if (capped === existing.quantity) {
       // Already at the cap — return existing row untouched (idempotent
       // no-op for "Add to cart" then "Buy now" on a digital item).
@@ -181,7 +159,7 @@ export async function addItem(
     data: {
       cartId: cart.cartId,
       productItemId: input.productItemId,
-      quantity: Math.min(input.quantity, stockCap),
+      quantity: capQuantity(input.quantity, item),
     },
   });
   return { cartItem: created, merged: false };
@@ -192,6 +170,12 @@ export async function addItem(
  * can't edit another user's cart line — the controller throws 404
  * on either "no such row" or "row belongs to someone else" (don't
  * leak whether the id exists).
+ *
+ * Phase 50 — also re-validates availability + caps quantity through
+ * the same `loadPurchasableProductItem` path that addItem uses, so
+ * a PATCH to qty=10 on a digital line caps to 1 instead of writing
+ * the raw value (the previous code path didn't cap at all, which
+ * let the digital cap from addItem be bypassed).
  */
 export async function updateItem(
   userId: number,
@@ -205,9 +189,10 @@ export async function updateItem(
   if (!ci || ci.cart.userId !== userId) {
     throw new AppError(404, "CartItemNotFound");
   }
+  const item = await loadPurchasableProductItem(ci.productItemId);
   return prisma.cartItem.update({
     where: { cartItemId },
-    data: { quantity: input.quantity },
+    data: { quantity: capQuantity(input.quantity, item) },
   });
 }
 

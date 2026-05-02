@@ -17,6 +17,20 @@ import { execSync } from "node:child_process";
 const migrateUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 const hasDb = Boolean(migrateUrl);
 
+// Phase 50 — `prisma migrate deploy` failure used to be swallowed,
+// which let production deploys ship with an out-of-date schema (the
+// new code then crashed at runtime when it touched a missing column
+// or table). The new policy:
+//
+//   - If `ALLOW_MIGRATION_FAILURE=true` is set explicitly, the script
+//     warns and continues (developer escape hatch for local builds
+//     where a malformed migration shouldn't block `next build`).
+//   - Otherwise, a migration error throws and the build aborts — the
+//     Fly release_command then fails the deploy, leaving the previous
+//     version serving instead of putting code into prod against the
+//     wrong schema.
+const allowMigrationFailure = process.env.ALLOW_MIGRATION_FAILURE === "true";
+
 if (hasDb) {
   try {
     execSync(
@@ -30,12 +44,20 @@ if (hasDb) {
       },
     );
   } catch (err) {
-    console.warn(
-      "[build] prisma migrate deploy failed — continuing to next build. " +
-        "Verify DATABASE_URL(_UNPOOLED) is correct and the migration file is well-formed.",
-    );
-    // Don't throw — pre-existing builds shouldn't break if a migration is
-    // malformed; we'd rather see the type-check error from `next build`.
+    if (allowMigrationFailure) {
+      console.warn(
+        "[build] prisma migrate deploy failed — continuing because " +
+          "ALLOW_MIGRATION_FAILURE=true. Verify DATABASE_URL(_UNPOOLED) " +
+          "is correct and the migration file is well-formed.",
+      );
+    } else {
+      console.error(
+        "[build] prisma migrate deploy failed — aborting build. " +
+          "Set ALLOW_MIGRATION_FAILURE=true if you want to bypass this " +
+          "(local dev only — never in CI/prod).",
+      );
+      throw err;
+    }
   }
 } else {
   console.log("[build] DATABASE_URL not set — skipping prisma migrate deploy");

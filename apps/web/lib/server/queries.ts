@@ -407,9 +407,21 @@ export async function browseProducts(params: {
 }
 
 // Product detail. BFF-direct until Reviews moves server-side.
+//
+// Phase 50 — also gate `isActive` and `store.suspendedAt` so paused
+// products + suspended stores can't be reached by direct URL. The
+// rating/count aggregate now uses `_count` + `_avg.rating` instead of
+// counting the `take: 5` review preview list (which capped reviewCount
+// at 5 even for products with hundreds of reviews and skewed avg
+// toward whichever 5 reviews happened to be newest).
 export async function getProduct(id: number) {
   const product = await prisma.product.findFirst({
-    where: { productId: id, deletedAt: null, store: { deletedAt: null } },
+    where: {
+      productId: id,
+      deletedAt: null,
+      isActive: true,
+      store: { deletedAt: null, suspendedAt: null },
+    },
     include: {
       store: {
         select: {
@@ -438,9 +450,17 @@ export async function getProduct(id: number) {
     },
   });
   if (!product) return null;
-  const ratings = product.reviews.map((r) => r.rating);
-  const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined;
-  return { ...product, avgRating, reviewCount: ratings.length };
+  const aggregate = await prisma.productReview.aggregate({
+    where: { productId: id, user: { deletedAt: null } },
+    _count: { _all: true },
+    _avg: { rating: true },
+  });
+  const reviewCount = aggregate._count._all;
+  const avgRating =
+    aggregate._avg.rating !== null && aggregate._avg.rating !== undefined
+      ? Number(aggregate._avg.rating)
+      : undefined;
+  return { ...product, avgRating, reviewCount };
 }
 
 /**
@@ -483,7 +503,10 @@ export async function getRelatedProducts(productId: number, take = 4) {
     where: {
       isActive: true,
       deletedAt: null,
-      store: { deletedAt: null },
+      // Phase 50 — `suspendedAt` was missing from the related-products
+      // gate, so a product on a suspended store could surface as a
+      // recommendation while the same store was hidden from /browse.
+      store: { deletedAt: null, suspendedAt: null },
       productId: { not: productId },
       OR: [
         { categoryId: source.categoryId },

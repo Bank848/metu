@@ -116,16 +116,21 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
     };
   }
 
-  // Note: price_asc / price_desc need an in-memory pass after the
-  // query because `minPrice` is computed across the variants table —
-  // Postgres can't `ORDER BY MIN(items.price)` without a GROUP BY
-  // dance that complicates pagination. We accept the small N within
-  // a page.
+  // Phase 50 — price sort needs to be DB-side so pagination is
+  // correct across the whole result set. Previously we ordered by
+  // `productId` then sorted by `minPrice` in JS *after* paginating,
+  // which meant cheap products on later pages stayed there — the
+  // user's "cheapest first" page was actually "cheapest within an
+  // arbitrary id slice". For price sort we run a separate
+  // `groupBy(productItem)` to compute MIN(effective price), then
+  // page through the resulting id list and load the cards by id.
+  if (sort === "price_asc" || sort === "price_desc") {
+    return findProductsOrderedByPrice(where, page, pageSize, sort);
+  }
+
   const orderBy: Prisma.ProductOrderByWithRelationInput = (() => {
     switch (sort) {
       case "newest":     return { createdAt: "desc" };
-      case "price_asc":  return { productId: "asc" };
-      case "price_desc": return { productId: "desc" };
       case "rating":     return { reviews: { _count: "desc" } };
       default:           return { createdAt: "desc" };
     }
@@ -136,11 +141,84 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
     prisma.product.count({ where }),
   ]);
 
-  if (sort === "price_asc")  items.sort((a, b) => a.minPrice - b.minPrice);
-  if (sort === "price_desc") items.sort((a, b) => b.minPrice - a.minPrice);
-
   return {
     items,
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+/**
+ * Phase 50 — DB-level price sort. Strategy:
+ *   1. List every product matching the filter, but only its
+ *      productId + a synthetic `effectiveMinPrice` aggregated from
+ *      product_item (price * (1 - discount/100)). Done in raw SQL
+ *      so we get a window-friendly ORDER BY without GROUP BY pain.
+ *   2. Slice the ordered ids to the current page.
+ *   3. Hand the slice to `listProducts` with an id-preserving
+ *      ORDER BY so the cards come back in the right order.
+ */
+async function findProductsOrderedByPrice(
+  where: Prisma.ProductWhereInput,
+  page: number,
+  pageSize: number,
+  sort: "price_asc" | "price_desc",
+): Promise<ProductBrowseResponse> {
+  // Pull candidate ids first; we only need the id list to compute the
+  // MIN price. `findMany` with this where lets Prisma handle the
+  // complex `store: { … }` and `productNTags: { some: { … } }` joins
+  // we'd otherwise have to repeat in raw SQL.
+  const candidates = await prisma.product.findMany({
+    where,
+    select: { productId: true },
+  });
+  if (candidates.length === 0) {
+    return { items: [], page, pageSize, total: 0, totalPages: 1 };
+  }
+  const candidateIds = candidates.map((c) => c.productId);
+
+  // Effective unit price = price * (100 - discountPercent) / 100.
+  // MIN across the variants is the card's "from" price. We coalesce
+  // missing variants to a sentinel so a product with no items still
+  // appears (sorted to the bottom for asc, top for desc — operationally
+  // these are mis-configured products we want the seller to notice).
+  const direction = sort === "price_asc" ? "ASC" : "DESC";
+  const sentinel = sort === "price_asc" ? Number.MAX_SAFE_INTEGER : -1;
+  const orderedRows = await prisma.$queryRaw<
+    Array<{ product_id: number }>
+  >(Prisma.sql`
+    SELECT p.product_id
+      FROM product p
+      LEFT JOIN LATERAL (
+        SELECT MIN(price::float * (100 - COALESCE(discount_percent, 0)) / 100.0) AS min_price
+          FROM product_item
+         WHERE product_id = p.product_id
+      ) i ON true
+     WHERE p.product_id IN (${Prisma.join(candidateIds)})
+     ORDER BY COALESCE(i.min_price, ${sentinel}) ${Prisma.raw(direction)},
+              p.product_id ${Prisma.raw(direction)}
+  `);
+
+  const total = orderedRows.length;
+  const start = (page - 1) * pageSize;
+  const pageIds = orderedRows.slice(start, start + pageSize).map((r) => r.product_id);
+  if (pageIds.length === 0) {
+    return { items: [], page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  // Load the page of cards. Prisma can't preserve the explicit id
+  // order from the IN clause so we re-sort in JS — but this is only
+  // sorting `pageSize` rows (typically ≤ 24), not the full set.
+  const cards = await listProducts({ productId: { in: pageIds } }, { productId: "asc" }, pageSize, 0);
+  const orderIndex = new Map(pageIds.map((id, i) => [id, i]));
+  cards.sort(
+    (a, b) => (orderIndex.get(a.productId) ?? 0) - (orderIndex.get(b.productId) ?? 0),
+  );
+
+  return {
+    items: cards,
     page,
     pageSize,
     total,
@@ -180,6 +258,16 @@ export async function findFeatured(limit = 8): Promise<ProductListItem[]> {
  * Detail — single product with full include tree (gallery, variants,
  * tags, recent 20 reviews). Returns `null` when not found so the
  * controller can decide between 404 and another behaviour.
+ *
+ * Phase 50 — `avgRating` and `reviewCount` were previously computed
+ * from the take:20 review list, so a product with 100 reviews showed
+ * an average over a non-deterministic window of 20 and a count of
+ * "20" instead of 100. Now we run a separate `_count` + `_avg.rating`
+ * aggregate that sees every review row, while the include continues
+ * to ship the latest 20 for the UI list.
+ *
+ * Also gates `isActive` so a paused product can't be reached via
+ * direct URL — matches the public-catalogue gate used by `findProducts`.
  */
 export async function findProductById(id: number): Promise<ProductDetailResponse | null> {
   const product = await prisma.product.findUnique({
@@ -210,12 +298,21 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
   // findUnique can't filter on the nested store; check post-fetch.
   if (
     product.deletedAt !== null ||
+    !product.isActive ||
     product.store.deletedAt !== null ||
     product.store.suspendedAt !== null
   ) {
     return null;
   }
-  const ratings = product.reviews.map((r) => r.rating);
-  const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined;
-  return { ...product, avgRating, reviewCount: ratings.length };
+  const aggregate = await prisma.productReview.aggregate({
+    where: { productId: id },
+    _count: { _all: true },
+    _avg: { rating: true },
+  });
+  const reviewCount = aggregate._count._all;
+  const avgRating =
+    aggregate._avg.rating !== null && aggregate._avg.rating !== undefined
+      ? Number(aggregate._avg.rating)
+      : undefined;
+  return { ...product, avgRating, reviewCount };
 }

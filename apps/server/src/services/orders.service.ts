@@ -6,6 +6,7 @@ import { isConfigured as stripeConfigured, createPaymentIntent } from "./stripe.
 import { getSettings } from "./settings.service.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout } from "../utils/email-template.js";
+import { capQuantity, loadPurchasableProductItem } from "../utils/purchasable.js";
 import type {
   CheckoutInput,
   CheckoutResponse,
@@ -43,6 +44,26 @@ export async function checkout(
     : [];
   if (selectedItems.length === 0) {
     throw new AppError(400, "EmptyCart", "No items selected for checkout.");
+  }
+
+  // Phase 50 — defence in depth. Cart's addItem/updateItem already
+  // run this gate, but a buyer who held a cart open through a seller
+  // pause / store suspension / soft-delete shouldn't be able to push
+  // through with a stale row. Each line gets re-validated against the
+  // same `loadPurchasableProductItem` rules, and any over-cap quantity
+  // is rejected (we don't silently cap at checkout — the buyer needs
+  // to see what changed in their cart before paying).
+  for (const ci of selectedItems) {
+    const fresh = await loadPurchasableProductItem(ci.productItemId);
+    const cap = capQuantity(ci.quantity, fresh);
+    if (cap < ci.quantity) {
+      throw new AppError(
+        409,
+        "QuantityExceedsCap",
+        `"${fresh.product.name}" only allows ${cap} per order — update your cart and try again.`,
+        { productItemId: ci.productItemId, cap },
+      );
+    }
   }
 
   // Phase 48 — second line of the already-owned guard. cart.service

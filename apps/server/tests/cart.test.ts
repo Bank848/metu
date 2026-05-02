@@ -65,13 +65,28 @@ beforeEach(async () => {
   // Phase 48 — `isStackable: true` so the already-owned guard skips
   // straight through; tests that need the guard active set their own
   // mock with `isStackable: false` + an `order.findFirst` return.
+  // Phase 50 — `loadPurchasableProductItem` now also reads
+  // `product.isActive`, `product.deletedAt`, `product.name`,
+  // `product.storeId`, `store.deletedAt`, `store.suspendedAt`, and
+  // `store.stripeChargesEnabled`; mock the happy-state values so the
+  // availability gate passes for existing tests.
   (prisma.productItem.findUnique as any).mockResolvedValue({
+    productItemId: 200,
     deliveryMethod: "download",
     quantity: 99,
     product: {
       productId: 50,
+      name: "Test product",
       isStackable: true,
-      store: { ownerId: 99 },
+      isActive: true,
+      deletedAt: null,
+      storeId: 9,
+      store: {
+        ownerId: 99,
+        deletedAt: null,
+        suspendedAt: null,
+        stripeChargesEnabled: true,
+      },
     },
   });
 });
@@ -157,5 +172,142 @@ describe("PATCH /cart/items/:id", () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("CartItemNotFound");
+  });
+
+  // Phase 50 — PATCH used to write the raw quantity, bypassing the
+  // digital cap that addItem enforced. Now the same purchasable gate
+  // runs on update, so qty=10 on a download line caps at 1.
+  it("caps digital quantity at 1 even when user submits a higher number", async () => {
+    (prisma.cartItem.findUnique as any).mockResolvedValue({
+      cartItemId: 100,
+      cartId: 11,
+      productItemId: 200,
+      quantity: 1,
+      cart: { userId: 7 },
+    });
+    (prisma.cartItem.update as any).mockResolvedValue({
+      cartItemId: 100,
+      quantity: 1,
+    });
+
+    const res = await request(buildApp())
+      .patch("/cart/items/100")
+      .set("Cookie", await cookieFor(7))
+      .send({ quantity: 10 });
+
+    expect(res.status).toBe(200);
+    // The capped value (1) was written, not the requested 10.
+    expect((prisma.cartItem.update as any).mock.calls[0][0].data.quantity).toBe(1);
+  });
+});
+
+// Phase 50 — availability gate: addItem refuses paused / soft-deleted
+// products, suspended / deleted stores. The four cases below mirror
+// the bullet list in docs/source-code-bug-review-plan.md (P1 cart).
+describe("Phase 50 — POST /cart/items availability gate", () => {
+  beforeEach(() => {
+    (prisma.cart.findFirst as any).mockResolvedValue({ cartId: 11, userId: 7, status: "active" });
+  });
+
+  it("409 ProductUnavailable when the product is paused (isActive=false)", async () => {
+    (prisma.productItem.findUnique as any).mockResolvedValue({
+      productItemId: 200,
+      deliveryMethod: "download",
+      quantity: 99,
+      product: {
+        productId: 50,
+        name: "Paused product",
+        isStackable: true,
+        isActive: false,
+        deletedAt: null,
+        storeId: 9,
+        store: { ownerId: 99, deletedAt: null, suspendedAt: null, stripeChargesEnabled: true },
+      },
+    });
+    const res = await request(buildApp())
+      .post("/cart/items")
+      .set("Cookie", await cookieFor(7))
+      .send({ productItemId: 200, quantity: 1 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("ProductUnavailable");
+  });
+
+  it("409 ProductUnavailable when the product is soft-deleted", async () => {
+    (prisma.productItem.findUnique as any).mockResolvedValue({
+      productItemId: 200,
+      deliveryMethod: "download",
+      quantity: 99,
+      product: {
+        productId: 50,
+        name: "Deleted product",
+        isStackable: true,
+        isActive: true,
+        deletedAt: new Date(),
+        storeId: 9,
+        store: { ownerId: 99, deletedAt: null, suspendedAt: null, stripeChargesEnabled: true },
+      },
+    });
+    const res = await request(buildApp())
+      .post("/cart/items")
+      .set("Cookie", await cookieFor(7))
+      .send({ productItemId: 200, quantity: 1 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("ProductUnavailable");
+  });
+
+  it("409 StoreUnavailable when the store is suspended", async () => {
+    (prisma.productItem.findUnique as any).mockResolvedValue({
+      productItemId: 200,
+      deliveryMethod: "download",
+      quantity: 99,
+      product: {
+        productId: 50,
+        name: "Product on suspended store",
+        isStackable: true,
+        isActive: true,
+        deletedAt: null,
+        storeId: 9,
+        store: {
+          ownerId: 99,
+          deletedAt: null,
+          suspendedAt: new Date(),
+          stripeChargesEnabled: true,
+        },
+      },
+    });
+    const res = await request(buildApp())
+      .post("/cart/items")
+      .set("Cookie", await cookieFor(7))
+      .send({ productItemId: 200, quantity: 1 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("StoreUnavailable");
+  });
+
+  it("409 StoreUnavailable when the store is soft-deleted", async () => {
+    (prisma.productItem.findUnique as any).mockResolvedValue({
+      productItemId: 200,
+      deliveryMethod: "download",
+      quantity: 99,
+      product: {
+        productId: 50,
+        name: "Product on deleted store",
+        isStackable: true,
+        isActive: true,
+        deletedAt: null,
+        storeId: 9,
+        store: {
+          ownerId: 99,
+          deletedAt: new Date(),
+          suspendedAt: null,
+          stripeChargesEnabled: true,
+        },
+      },
+    });
+    const res = await request(buildApp())
+      .post("/cart/items")
+      .set("Cookie", await cookieFor(7))
+      .send({ productItemId: 200, quantity: 1 });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("StoreUnavailable");
   });
 });
