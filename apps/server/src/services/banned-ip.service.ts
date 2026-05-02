@@ -12,6 +12,7 @@
  * from that IP re-reads from the DB. The middleware imports the
  * cache directly so we don't have to plumb it through service args.
  */
+import { isIP } from "node:net";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
@@ -19,7 +20,12 @@ import type { Request } from "express";
 
 type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 
-const CACHE_TTL_MS = 60_000;
+// Phase 48 follow-up audit (CRITICAL #2) — original cache TTL was
+// 60s. With ≥2 Fly machines per app the cache is incoherent across
+// hosts: an addBan invalidates only on the machine that handled the
+// POST. Shorter TTL bounds the staleness window. We keep some
+// caching so the hot path doesn't query Postgres on every request.
+const CACHE_TTL_MS = 10_000;
 
 interface CacheEntry {
   banned: boolean;
@@ -41,10 +47,18 @@ export async function isIpBanned(ip: string): Promise<boolean> {
     where: { ipAddress: ip },
     select: { expiresAt: true },
   });
-  const banned = Boolean(
-    hit && (!hit.expiresAt || hit.expiresAt > new Date()),
-  );
-  cache.set(ip, { banned, until: now + CACHE_TTL_MS });
+  const expiresAtMs = hit?.expiresAt?.getTime() ?? null;
+  const banned = Boolean(hit && (!expiresAtMs || expiresAtMs > now));
+  // Audit follow-up (MEDIUM): if a row is present but expiring soon,
+  // cap the cache TTL so the *next* request sees the row gone instead
+  // of waiting another 10s. Same on the negative side — if the row
+  // *will* be banned again at some known future time we don't model
+  // it (re-ban is rare), but expiry is the common path.
+  let ttl = CACHE_TTL_MS;
+  if (banned && expiresAtMs) {
+    ttl = Math.max(0, Math.min(CACHE_TTL_MS, expiresAtMs - now));
+  }
+  cache.set(ip, { banned, until: now + ttl });
   return banned;
 }
 
@@ -78,11 +92,23 @@ export async function addBan(
 ) {
   const ip = input.ipAddress.trim();
   if (!ip) throw new AppError(400, "MissingIp", "ipAddress is required.");
-  // Loose validation — IPv4 + IPv6 share too many edge cases for a
-  // tight regex. The middleware just compares strings, so any value
-  // the operator types in will be matched literally.
-  if (ip.length > 45) {
-    throw new AppError(400, "InvalidIp", "IP address must be 45 characters or fewer.");
+  // Audit follow-up (MEDIUM #4) — proper IPv4/IPv6 validation via
+  // node:net.isIP. Length-only check let "192.168.1.1; DROP TABLE"
+  // through and polluted the audit feed with un-matchable entries
+  // (it's not SQL-injectable thanks to Prisma parametrisation, but
+  // still confusing).
+  if (isIP(ip) === 0) {
+    throw new AppError(400, "InvalidIp", "Not a valid IPv4 or IPv6 address.");
+  }
+  // Audit follow-up (CRITICAL #1) — refuse to ban the actor's own
+  // current IP. Without this guard a single click can lock every
+  // admin behind the same NAT out of the unban surface itself.
+  if (req?.ip && req.ip.trim() === ip) {
+    throw new AppError(
+      400,
+      "CannotBanSelfIp",
+      "You're currently using this IP. Banning it would lock you out of the unban surface.",
+    );
   }
 
   const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
@@ -152,15 +178,31 @@ export async function banUserSessions(
   actorUserId: number,
   reason: string | null,
   req?: AuditReq,
-): Promise<{ ipAddresses: string[]; bannedCount: number }> {
+): Promise<{ ipAddresses: string[]; bannedCount: number; skippedSelfIp: string[] }> {
   const sessions = await prisma.session.findMany({
     where: { userId: targetUserId, ipAddress: { not: null } },
     select: { ipAddress: true },
     distinct: ["ipAddress"],
   });
+  const actorIp = req?.ip?.trim() ?? "";
+  const skippedSelfIp: string[] = [];
   const ips = sessions
     .map((s) => s.ipAddress?.trim())
-    .filter((ip): ip is string => Boolean(ip && ip.length > 0));
+    .filter((ip): ip is string => Boolean(ip && ip.length > 0))
+    // Audit follow-up (CRITICAL #1) — even the bulk action must skip
+    // the actor's current egress IP so they don't lock themselves
+    // out. The session list often includes shared NAT addresses.
+    .filter((ip) => {
+      if (actorIp && ip === actorIp) {
+        skippedSelfIp.push(ip);
+        return false;
+      }
+      return true;
+    })
+    // Audit follow-up (MEDIUM #4) — drop garbage IPs that somehow
+    // ended up in better-auth's Session table. We don't want to
+    // pollute banned_ip with unmatchable rows.
+    .filter((ip) => isIP(ip) !== 0);
 
   let bannedCount = 0;
   for (const ip of ips) {
@@ -186,9 +228,9 @@ export async function banUserSessions(
     action: "ip.ban_user_sessions",
     targetType: "user",
     targetId: targetUserId,
-    meta: { ipAddresses: ips, bannedCount, reason },
+    meta: { ipAddresses: ips, bannedCount, reason, skippedSelfIp },
     req,
   });
 
-  return { ipAddresses: ips, bannedCount };
+  return { ipAddresses: ips, bannedCount, skippedSelfIp };
 }

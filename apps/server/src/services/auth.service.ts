@@ -1100,6 +1100,23 @@ export async function selfDelete(
     }
   }
 
+  // Audit follow-up (MEDIUM #2) — block self-delete while a Stripe
+  // PaymentIntent is still pending. If we anonymise the buyer
+  // mid-checkout, the webhook flips the order to paid later and
+  // sendOrderReceipt mails `deleted_<id>@deleted.invalid` which
+  // bounces. Cancel/finish the checkout first, then erase.
+  const pendingOrders = await prisma.order.count({
+    where: { userId, status: "pending" },
+  });
+  if (pendingOrders > 0) {
+    throw new AppError(
+      409,
+      "PendingOrderBlocksSelfDelete",
+      "You have an order in flight. Cancel or finish the checkout first, then try again.",
+      { pendingOrders },
+    );
+  }
+
   const [orderCount, reviewCount, txCount] = await Promise.all([
     prisma.order.count({ where: { userId } }),
     prisma.productReview.count({ where: { userId } }),

@@ -30,8 +30,19 @@ export async function ipBanCheck(
     next();
     return;
   }
-  const ip = (req.ip ?? "").trim();
+  // Audit follow-up (HIGH #4) — original code returned next() when
+  // req.ip was empty, which let a forged `X-Forwarded-For: ,` slip
+  // past the ban list. Fall back to the raw socket address; if both
+  // are empty something is very wrong with the proxy chain — log
+  // and continue rather than 400 (we don't want to break health
+  // probers or local-dev requests). The audit feed will show the
+  // empty-ip path so the operator can investigate.
+  let ip = (req.ip ?? "").trim();
   if (!ip) {
+    ip = (req.socket?.remoteAddress ?? "").trim();
+  }
+  if (!ip) {
+    console.warn("[ipBanCheck] request with empty IP — letting through:", req.path);
     next();
     return;
   }
