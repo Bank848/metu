@@ -183,11 +183,14 @@ export function ErDiagramView() {
     // Phase 47 — pan from anywhere except action buttons. Previously
     // entity cards blocked the drag, so the only way to pan was to
     // click in the gaps between cards (which got harder as you
-    // zoomed in). Now any drag pans; native HTML5 drag-image is
-    // suppressed via `draggable={false}` + `user-select: none` on
-    // the cards so dragging text doesn't fire a ghost-drag.
+    // zoomed in). Now any drag pans.
     const target = e.target as HTMLElement;
     if (target.closest("button, a, input, [contenteditable]")) return;
+    // Suppress the browser's text-selection / native-drag default that
+    // would otherwise hijack the pointer when the press lands on text
+    // inside an entity card. Without this the user sees ghost copies
+    // of the card being "dragged" instead of the canvas panning.
+    e.preventDefault();
     dragStateRef.current = {
       active: true,
       startX: e.clientX,
@@ -306,13 +309,22 @@ export function ErDiagramView() {
     <div
       ref={containerRef}
       tabIndex={0}
-      className="relative w-full h-[calc(100vh-12rem)] min-h-[600px] rounded-2xl border border-line bg-white overflow-hidden focus:outline-none focus:ring-2 focus:ring-mint/40"
+      className="relative w-full h-[calc(100vh-12rem)] min-h-[600px] rounded-2xl border border-line bg-white overflow-hidden focus:outline-none focus:ring-2 focus:ring-mint/40 select-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onDoubleClick={onDoubleClick}
-      style={{ cursor: dragStateRef.current.active ? "grabbing" : "grab", touchAction: "none" }}
+      // Catch native HTML5 drag at the root so a press-and-drag on
+      // anything inside the canvas (text in a cell, the connector
+      // SVG, the legend) can never spawn a ghost drag-image.
+      onDragStart={(e) => e.preventDefault()}
+      style={{
+        cursor: dragStateRef.current.active ? "grabbing" : "grab",
+        touchAction: "none",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+      } as React.CSSProperties}
       aria-label="ER diagram canvas. Drag to pan, scroll to zoom, double-click to fit."
     >
       {/* faint dot grid */}
