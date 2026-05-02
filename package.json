@@ -18,6 +18,7 @@
     "db:reset": "npm run -w @metu/db reset",
     "db:studio": "npm run -w @metu/db studio",
     "db:er-schema": "node scripts/generate-er-schema.mjs",
+    "build:commit-timeline": "node scripts/generate-commit-timeline.mjs",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:reset": "docker compose down -v && docker compose up -d"
