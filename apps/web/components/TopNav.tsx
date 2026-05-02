@@ -5,14 +5,16 @@ import {
   Store,
   ShieldCheck,
   LayoutGrid,
-  Tag,
   Box,
   Gamepad2,
-  Wrench,
   GraduationCap,
   Palette,
   Plug,
-  MoreHorizontal,
+  BookOpen,
+  Music,
+  Type,
+  LayoutTemplate,
+  Camera,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { SearchPill } from "./SearchPill";
@@ -27,16 +29,23 @@ import { getServerT } from "@/lib/i18n/server";
 
 type Tab = { label: string; icon: any; href: string };
 
+// Phase 47 — category IDs mirror packages/db/seed.ts (and the live
+// `category` table) exactly. Previous values (11/17/19/20) were
+// invented IDs that didn't exist, so every tab sent buyers to an
+// empty `/browse?category=XX` page. Now each tab lands on real,
+// product-bearing categories that the marketplace actually has.
 const TABS: Tab[] = [
-  { label: "All",            icon: LayoutGrid,     href: "/browse" },
-  { label: "-50% Discount",  icon: Tag,            href: "/browse?sort=price_asc" },
-  { label: "3D Mode",        icon: Box,            href: "/browse?category=11" },
-  { label: "Gaming",         icon: Gamepad2,       href: "/browse?category=17" },
-  { label: "Services",       icon: Wrench,         href: "/browse?category=19" },
-  { label: "Courses",        icon: GraduationCap,  href: "/browse?category=12" },
-  { label: "Artworks",       icon: Palette,        href: "/browse?category=20" },
-  { label: "Plug-in",        icon: Plug,           href: "/browse?category=19" },
-  { label: "Others",         icon: MoreHorizontal, href: "/browse" },
+  { label: "All",           icon: LayoutGrid,     href: "/browse" },
+  { label: "3D Models",     icon: Box,            href: "/browse?category=1" },
+  { label: "Courses",       icon: GraduationCap,  href: "/browse?category=2" },
+  { label: "E-books",       icon: BookOpen,       href: "/browse?category=3" },
+  { label: "Music",         icon: Music,          href: "/browse?category=4" },
+  { label: "Fonts",         icon: Type,           href: "/browse?category=5" },
+  { label: "Templates",     icon: LayoutTemplate, href: "/browse?category=6" },
+  { label: "Game Assets",   icon: Gamepad2,       href: "/browse?category=7" },
+  { label: "Photos",        icon: Camera,         href: "/browse?category=8" },
+  { label: "Plug-ins",      icon: Plug,           href: "/browse?category=9" },
+  { label: "Illustrations", icon: Palette,        href: "/browse?category=10" },
 ];
 
 export async function TopNav({ q }: { q?: string } = {}) {
