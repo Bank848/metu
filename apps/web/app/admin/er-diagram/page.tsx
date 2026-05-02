@@ -37,7 +37,8 @@ export default function ErDiagramPage() {
         <code className="rounded bg-space-900 px-1.5 py-0.5 text-metu-yellow">
           node scripts/generate-er-schema.mjs
         </code>
-        . Pan with drag · zoom with Ctrl+wheel or buttons · export PNG/SVG via the bottom-right buttons.
+        . Drag anywhere to pan · scroll to zoom · double-click to fit · use the
+        Fullscreen button (or Ctrl+Enter) for an unobstructed view.
       </p>
       <ErDiagramView />
     </>

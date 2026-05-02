@@ -4,6 +4,8 @@ import {
   Plus,
   Minus,
   Maximize,
+  Maximize2,
+  Minimize2,
   RotateCcw,
   Download,
   ImageDown,
@@ -123,7 +125,27 @@ export function ErDiagramView() {
     return () => c.removeEventListener("wheel", onWheel);
   }, []);
 
-  // Keyboard: +/= zoom in, - zoom out, 0 reset, f fit.
+  // Phase 47 follow-up — fullscreen toggle. Uses the Fullscreen API
+  // on the canvas container so the diagram fills the whole viewport.
+  // Esc + the F11 key both exit fullscreen via the browser's native
+  // handling, but we also expose a button so users discover it.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    const c = containerRef.current;
+    if (!c) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      c.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  // Keyboard: +/= zoom in, - zoom out, 0 reset, f fit, Ctrl+Enter fullscreen.
   useEffect(() => {
     const c = containerRef.current;
     if (!c) return;
@@ -143,19 +165,29 @@ export function ErDiagramView() {
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         fitToScreen();
+      } else if (e.key === "F11" || (e.key === "Enter" && (e.ctrlKey || e.metaKey))) {
+        // Ctrl/Cmd+Enter toggles fullscreen on the diagram. Easier to
+        // remember than F11 (which the browser may swallow).
+        e.preventDefault();
+        toggleFullscreen();
       }
     };
     c.addEventListener("keydown", onKey);
     return () => c.removeEventListener("keydown", onKey);
-  }, [zoomBy, reset, fitToScreen]);
+  }, [zoomBy, reset, fitToScreen, toggleFullscreen]);
 
   // 4px threshold so accidental clicks don't register as pans.
   const DRAG_THRESHOLD = 4;
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
-    // Don't pan when the click originated on an entity or button.
+    // Phase 47 — pan from anywhere except action buttons. Previously
+    // entity cards blocked the drag, so the only way to pan was to
+    // click in the gaps between cards (which got harder as you
+    // zoomed in). Now any drag pans; native HTML5 drag-image is
+    // suppressed via `draggable={false}` + `user-select: none` on
+    // the cards so dragging text doesn't fire a ghost-drag.
     const target = e.target as HTMLElement;
-    if (target.closest("[data-er-entity]") || target.closest("button")) return;
+    if (target.closest("button, a, input, [contenteditable]")) return;
     dragStateRef.current = {
       active: true,
       startX: e.clientX,
@@ -334,13 +366,20 @@ export function ErDiagramView() {
             <div
               key={node.id}
               data-er-entity={node.id}
-              className="absolute"
+              draggable={false}
+              className="absolute select-none"
               style={{
                 left: node.x,
                 top: node.y,
                 width: node.width,
                 height: node.height,
-              }}
+                userSelect: "none",
+                WebkitUserDrag: "none",
+              } as React.CSSProperties}
+              // Suppress native HTML5 drag (which would otherwise fire
+              // a ghost drag-image and prevent our pan handler from
+              // capturing the pointer).
+              onDragStart={(e) => e.preventDefault()}
             >
               <ErEntityCard entity={entity} />
             </div>
@@ -385,6 +424,18 @@ export function ErDiagramView() {
         >
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}
+          className="h-7 w-7 inline-flex items-center justify-center rounded hover:bg-slate-100"
+        >
+          {isFullscreen ? (
+            <Minimize2 className="h-3.5 w-3.5" />
+          ) : (
+            <Maximize2 className="h-3.5 w-3.5" />
+          )}
+        </button>
       </div>
 
       {/* export (bottom-right) */}
@@ -414,7 +465,7 @@ export function ErDiagramView() {
 
       {/* keyboard shortcut hint (bottom-center, fades on hover) */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-md border border-slate-300 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] text-slate-500 shadow-sm pointer-events-none opacity-70">
-        <kbd className="font-mono">scroll</kbd> zoom · <kbd className="font-mono">drag</kbd> pan · <kbd className="font-mono">double-click</kbd> fit · <kbd className="font-mono">+</kbd> <kbd className="font-mono">-</kbd> <kbd className="font-mono">0</kbd> <kbd className="font-mono">f</kbd>
+        <kbd className="font-mono">scroll</kbd> zoom · <kbd className="font-mono">drag anywhere</kbd> pan · <kbd className="font-mono">double-click</kbd> fit · <kbd className="font-mono">+</kbd> <kbd className="font-mono">-</kbd> <kbd className="font-mono">0</kbd> <kbd className="font-mono">f</kbd> · <kbd className="font-mono">Ctrl+Enter</kbd> fullscreen
       </div>
     </div>
   );

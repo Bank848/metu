@@ -21,7 +21,7 @@ end-to-end on Postgres + Prisma, with a clean **client / server split**:
 Live deployment is **two Fly.io machines** in `sin` region:
 `metu` (web) talks to `metu-api` (server) over the internal network. Postgres lives on **Supabase** (Singapore, `ap-southeast-1`).
 
-![Status](https://img.shields.io/badge/status-demo--ready-FBBF24?style=flat-square) ![Stack](https://img.shields.io/badge/stack-Next.js%20%7C%20Express%20%7C%20Postgres%20%7C%20Prisma-1F2937?style=flat-square) ![Tests](https://img.shields.io/badge/tests-92%20server%20%7C%2037%20web%20%E2%9C%85-22C55E?style=flat-square)
+![Status](https://img.shields.io/badge/status-demo--ready-FBBF24?style=flat-square) ![Stack](https://img.shields.io/badge/stack-Next.js%20%7C%20Express%20%7C%20Postgres%20%7C%20Prisma%20%7C%20Stripe%20Connect-1F2937?style=flat-square) ![Tests](https://img.shields.io/badge/tests-144%20server%20%7C%2037%20web%20%E2%9C%85-22C55E?style=flat-square)
 
 ## Quick start (local dev)
 
@@ -65,10 +65,22 @@ in `apps/web/.env.local` (default fallback).
 | Role   | Email              | Password   | Story                                                     |
 |--------|--------------------|------------|-----------------------------------------------------------|
 | admin  | admin@metu.dev     | Admin#123  | Marketplace-wide reports, user/store moderation, /admin/audit + /admin/changelog |
-| seller | seller@metu.dev    | Seller#123 | Owns Glasswave Studio: 9 products, 8 orders, 1 active coupon |
-| buyer  | buyer@metu.dev     | Buyer#123  | Has 2 past orders; start here for the buyer flow demo     |
+| seller | seller@metu.dev    | Seller#123 | Owns Kluay Studio (seed catalogue) |
+| buyer  | buyer@metu.dev     | Buyer#123  | Has past orders + active cart; start here for the buyer flow demo |
 
 On the `/login` page, **click any demo-account chip** to pre-fill the form.
+
+### Live storefronts on prod (created during defense prep)
+
+| Store | Owner | Products | Stripe |
+|---|---|---|---|
+| **Aurora Creative Lab** (`/store/6`) | [redacted] | 31 across all 10 categories | ✅ Connected |
+| **Pixel Forge Bangkok** (`/store/5`) | [redacted] (Bank) | 30 indie game-dev assets | ✅ Connected |
+
+Both stores are seeded via `tsx scripts/seed-aurora-store.mts` and
+`tsx scripts/seed-pixelforge-store.mts` — idempotent, re-runs skip
+existing names. Distinct catalogues so the two stores feel like
+different studios during demo browsing.
 
 ## Monorepo layout
 
@@ -99,9 +111,13 @@ metu/
 
 ## Tech stack
 
-- **Frontend:** Next.js 14 · TypeScript · Tailwind CSS · lucide-react · Framer Motion
-- **Backend:** Express · TypeScript · JWT (httpOnly cookie) · Zod validation · pino logging
-- **Database:** PostgreSQL 16 (Supabase in prod, docker postgres locally) · Prisma ORM
+- **Frontend:** Next.js 14 · TypeScript · Tailwind CSS · lucide-react · Framer Motion · Sentry
+- **Backend:** Express · TypeScript · Zod validation · pino logging
+- **Auth:** [better-auth](https://www.better-auth.com) (Mode A — owns the cookie) · TOTP 2FA (otplib) · Google OAuth · phone OTP
+- **Payments:** Stripe Connect (TH, direct-charge model) · PaymentElement · application_fee · webhooks (`payment_intent.succeeded`, `account.updated`, `charge.refunded`)
+- **Phone OTP:** in-house OTP (DEMO_REVEAL_TOKENS for defense) · optional Firebase Phone Auth (10 free SMS/day) — wire `NEXT_PUBLIC_FIREBASE_*` + `FIREBASE_SERVICE_ACCOUNT_JSON` to enable
+- **Email:** Resend (sandbox sender by default) · branded HTML templates with plain-text fallback
+- **Database:** PostgreSQL 17 (Supabase `ap-southeast-1` in prod, docker postgres 16 locally) · Prisma ORM
 - **Tests:** Vitest + supertest (server) · Vitest (web pure helpers) · Playwright (4-persona smoke)
 - **Infra:** Docker Compose locally · Fly.io (sin region, 2 machines) in production
 
@@ -158,7 +174,12 @@ messages, seller). Admin module + cleanup pass remain.
 | `npm run build -w @metu/web`         | Production build (Next)                |
 | `npm run build -w @metu/server`      | Compile TypeScript (Express)           |
 | `npm test -w @metu/web`              | Web Vitest (37 tests)                  |
-| `npm test -w @metu/server`           | Server Vitest + supertest (92 tests)   |
+| `npm test -w @metu/server`           | Server Vitest + supertest (144 tests)  |
+| `npm run db:er-schema`               | Regenerate `apps/web/lib/admin/er-schema.ts` from Prisma (run after every schema edit so /admin/er-diagram stays accurate) |
+| `tsx scripts/seed-aurora-store.mts`  | Populate store 6 (Aurora Creative Lab) with 30 demo products |
+| `tsx scripts/seed-pixelforge-store.mts` | Populate store 5 (Pixel Forge Bangkok) with 30 demo products |
+| `tsx scripts/seed-stripe-accounts.mts` | Auto-provision Custom Stripe Connect accounts for every store missing one (sandbox magic values) |
+| `tsx scripts/check-stripe-status.mts` | Read-only check of Stripe Connect rollout status across all stores |
 
 ## How the ER diagram maps to Prisma
 
@@ -222,10 +243,19 @@ the GitHub commit. Summary:
 | **13.7** | Favorites + stock alerts migrated |
 | **13.8** | Messages migrated (Postgres path; MongoDB sidecar deferred) |
 | **13.9.1 / 13.9.2** | Seller dashboard reads + writes migrated (12 routes total) |
-| **13.10** | _next_ — Admin module (users, stores, audit, reports, transactions) |
-| **13.11** | _next_ — Cleanup: delete legacy flat routers + finalise Next as pure UI/BFF |
-| **14** | _planned_ — User accounts v2: Google login + linking + OTP scaffold via **better-auth** (TS-native, in-process; Mode A: better-auth owns the cookie). Schema gains `account` + `session` + `verification` tables via better-auth's Prisma adapter |
-| **15** | _planned_ — Security hardening: rate-limit login, session listing, force-logout, OTP enforcement on sensitive actions |
+| **13.10 / 13.11** | Admin module migrated · legacy flat routers removed (Next is pure UI/BFF) |
+| **14** | better-auth integration — Google OAuth + account linking + verification table |
+| **15.1–15.5** | Security hardening — rate-limit login, sessions UI, force-logout, OTP on sensitive ops, force-password-reset |
+| **16.1 / 16.2 / 16.3** | Store suspend/resume · TOTP 2FA enrolment · Mode A swap (better-auth owns every cookie) |
+| **22 / 23.x** | Helmet headers + signed `metu_pv` pending-verify cookie · session listing + revoke + recent-2FA gate |
+| **24** | In-house ER diagram renderer (Lucidchart-style entities + dagre layout + crow-foot SVG markers + PNG/SVG export). Sources from `er-schema.ts` regen'd from Prisma |
+| **26 / 27** | Trim unused features · **Stripe Connect** — direct-charge model, application_fee, hosted onboarding, webhook-driven status flips |
+| **32 / 33** | Auto-provision Custom Connect accounts for seed stores (sandbox) · order delivery state machine |
+| **38 / 41** | Coupon framework — master + per-store · mandatory verify-at-register (email link + phone OTP, both required before login unlocks) |
+| **42 / 43 / 44** | Pre-defense bug sweeps (Stripe filter, own-store guard, plain-English errors, URL hardening, OAuth account-link survives, admin polish, dropdown flip-up, cache-bust reload) |
+| **45** | **Schema alignment with the submitted CPE241 docx report** — Product owns deliveryMethod + isStackable, ProductItem.name required, Order.userId direct FK, OrderItem.pricePerUnit Decimal(12,2), new ProductDetail table, TransactionType drops 'refund' |
+| **46** | Stripe Connect Element scope fix (passes `stripeAccount` to loadStripe) · **Firebase Phone Auth groundwork** (server admin SDK + client SDK + verify endpoint + reCAPTCHA component, opt-in via env) |
+| **47** | Defense polish — 25 new loading.tsx skeletons (admin/seller/public), ER diagram drag-from-anywhere + fullscreen mode, TopNav category chips fixed (real DB IDs + alphabetical to match sidebar), Stripe-onboarding banner self-fetches so it disappears after webhook lands |
 
 ## Production deploy (Fly.io)
 
@@ -261,6 +291,45 @@ flyctl secrets set -a metu \
   DATABASE_URL='...' \
   DATABASE_URL_UNPOOLED='...' \
   INTERNAL_API_URL='https://metu-api.fly.dev'
+```
+
+### Optional secrets (enable extra surfaces)
+
+```sh
+# Google OAuth (better-auth) — both apps
+flyctl secrets set -a metu-api \
+  GOOGLE_CLIENT_ID='...apps.googleusercontent.com' \
+  GOOGLE_CLIENT_SECRET='...'
+
+# Stripe Connect (TH, test mode) — API + webhook signing on the server
+flyctl secrets set -a metu-api \
+  STRIPE_SECRET_KEY='sk_test_...' \
+  STRIPE_WEBHOOK_SECRET='whsec_...' \
+  STRIPE_CONNECT_RETURN_BASE='https://metu.fly.dev'
+flyctl secrets set -a metu \
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY='pk_test_...'
+
+# IMPORTANT — when configuring the Stripe webhook endpoint, toggle
+# "Listen to events on Connected accounts" ON. Direct-charge
+# PaymentIntents live on the seller's Connect account, so platform-
+# only events miss them and orders stay 'pending' forever.
+
+# Email (Resend)
+flyctl secrets set -a metu-api \
+  RESEND_API_KEY='re_...' \
+  RESEND_FROM='onboarding@resend.dev'
+
+# Firebase Phone Auth (optional — Spark plan = 10 free SMS/day)
+flyctl secrets set -a metu \
+  NEXT_PUBLIC_FIREBASE_API_KEY='AIzaSy...' \
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN='<project>.firebaseapp.com' \
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID='<project-id>'
+flyctl secrets set -a metu-api \
+  FIREBASE_SERVICE_ACCOUNT_JSON='<entire JSON file pasted as one string>'
+
+# Demo mode — surface OTPs + email-verify tokens on screen instead of
+# requiring real SMS/email delivery (useful for live defense walks)
+flyctl secrets set -a metu-api DEMO_REVEAL_TOKENS='true'
 ```
 
 Both apps `auto_stop_machines = "stop"` with `min_machines_running = 0` —
