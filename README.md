@@ -62,25 +62,24 @@ in `apps/web/.env.local` (default fallback).
 
 ## Demo accounts (seeded)
 
-| Role   | Email              | Password   | Story                                                     |
-|--------|--------------------|------------|-----------------------------------------------------------|
-| admin  | admin@metu.dev     | Admin#123  | Marketplace-wide reports, user/store moderation, /admin/audit + /admin/changelog |
-| seller | seller@metu.dev    | Seller#123 | Owns Kluay Studio (seed catalogue) |
-| buyer  | buyer@metu.dev     | Buyer#123  | Has past orders + active cart; start here for the buyer flow demo |
+| Role   | Email              | Password   | Notes                              |
+|--------|--------------------|------------|------------------------------------|
+| admin  | admin@metu.dev     | Admin#123  | Full /admin access                 |
+| seller | seller@metu.dev    | Seller#123 | Owns Kluay Studio after `db:seed` (deleted on prod — use the live stores below) |
+| buyer  | buyer@metu.dev     | Buyer#123  | Has past orders + active cart      |
 
-On the `/login` page, **click any demo-account chip** to pre-fill the form.
+`/login` has demo-account chips that pre-fill the form.
 
-### Live storefronts on prod (created during defense prep)
+### Live stores on prod
 
-| Store | Owner | Products | Stripe |
-|---|---|---|---|
-| **Aurora Creative Lab** (`/store/6`) | [redacted] | 31 across all 10 categories | ✅ Connected |
-| **Pixel Forge Bangkok** (`/store/5`) | [redacted] (Bank) | 30 indie game-dev assets | ✅ Connected |
+| Store | Owner | Products |
+|---|---|---|
+| Aurora Creative Lab (`/store/6`) | [redacted] | 31 |
+| Pixel Forge Bangkok (`/store/5`) | [redacted] | 30 |
 
-Both stores are seeded via `tsx scripts/seed-aurora-store.mts` and
-`tsx scripts/seed-pixelforge-store.mts` — idempotent, re-runs skip
-existing names. Distinct catalogues so the two stores feel like
-different studios during demo browsing.
+Seeded via `tsx scripts/seed-aurora-store.mts` and
+`tsx scripts/seed-pixelforge-store.mts`. Both idempotent — re-running
+skips existing names. Both Stripe-Connect ready in test mode.
 
 ## Monorepo layout
 
@@ -111,15 +110,14 @@ metu/
 
 ## Tech stack
 
-- **Frontend:** Next.js 14 · TypeScript · Tailwind CSS · lucide-react · Framer Motion · Sentry
-- **Backend:** Express · TypeScript · Zod validation · pino logging
-- **Auth:** [better-auth](https://www.better-auth.com) (Mode A — owns the cookie) · TOTP 2FA (otplib) · Google OAuth · phone OTP
-- **Payments:** Stripe Connect (TH, direct-charge model) · PaymentElement · application_fee · webhooks (`payment_intent.succeeded`, `account.updated`, `charge.refunded`)
-- **Phone OTP:** in-house OTP (DEMO_REVEAL_TOKENS for defense) · optional Firebase Phone Auth (10 free SMS/day) — wire `NEXT_PUBLIC_FIREBASE_*` + `FIREBASE_SERVICE_ACCOUNT_JSON` to enable
-- **Email:** Resend (sandbox sender by default) · branded HTML templates with plain-text fallback
-- **Database:** PostgreSQL 17 (Supabase `ap-southeast-1` in prod, docker postgres 16 locally) · Prisma ORM
-- **Tests:** Vitest + supertest (server) · Vitest (web pure helpers) · Playwright (4-persona smoke)
-- **Infra:** Docker Compose locally · Fly.io (sin region, 2 machines) in production
+- **Frontend:** Next.js 14 · TypeScript · Tailwind · lucide-react · Framer Motion · Sentry
+- **Backend:** Express · TypeScript · Zod · pino
+- **Auth:** [better-auth](https://www.better-auth.com) owns the cookie (Mode A); Google OAuth, TOTP via otplib, in-house phone OTP (Firebase optional)
+- **Payments:** Stripe Connect TH, direct-charge model with `application_fee`. Webhooks for `payment_intent.succeeded`, `account.updated`, `charge.refunded`
+- **Email:** Resend with branded HTML + plain-text fallback
+- **Database:** Postgres 17 on Supabase (`ap-southeast-1`) in prod, docker postgres 16 locally · Prisma
+- **Tests:** Vitest + supertest server-side · Vitest for web helpers · Playwright 4-persona smoke
+- **Infra:** docker compose locally · two Fly.io machines (`sin` region) in prod
 
 ## Architecture: why we split (Phase 13)
 
@@ -243,19 +241,19 @@ the GitHub commit. Summary:
 | **13.7** | Favorites + stock alerts migrated |
 | **13.8** | Messages migrated (Postgres path; MongoDB sidecar deferred) |
 | **13.9.1 / 13.9.2** | Seller dashboard reads + writes migrated (12 routes total) |
-| **13.10 / 13.11** | Admin module migrated · legacy flat routers removed (Next is pure UI/BFF) |
-| **14** | better-auth integration — Google OAuth + account linking + verification table |
-| **15.1–15.5** | Security hardening — rate-limit login, sessions UI, force-logout, OTP on sensitive ops, force-password-reset |
-| **16.1 / 16.2 / 16.3** | Store suspend/resume · TOTP 2FA enrolment · Mode A swap (better-auth owns every cookie) |
-| **22 / 23.x** | Helmet headers + signed `metu_pv` pending-verify cookie · session listing + revoke + recent-2FA gate |
-| **24** | In-house ER diagram renderer (Lucidchart-style entities + dagre layout + crow-foot SVG markers + PNG/SVG export). Sources from `er-schema.ts` regen'd from Prisma |
-| **26 / 27** | Trim unused features · **Stripe Connect** — direct-charge model, application_fee, hosted onboarding, webhook-driven status flips |
-| **32 / 33** | Auto-provision Custom Connect accounts for seed stores (sandbox) · order delivery state machine |
-| **38 / 41** | Coupon framework — master + per-store · mandatory verify-at-register (email link + phone OTP, both required before login unlocks) |
-| **42 / 43 / 44** | Pre-defense bug sweeps (Stripe filter, own-store guard, plain-English errors, URL hardening, OAuth account-link survives, admin polish, dropdown flip-up, cache-bust reload) |
-| **45** | **Schema alignment with the submitted CPE241 docx report** — Product owns deliveryMethod + isStackable, ProductItem.name required, Order.userId direct FK, OrderItem.pricePerUnit Decimal(12,2), new ProductDetail table, TransactionType drops 'refund' |
-| **46** | Stripe Connect Element scope fix (passes `stripeAccount` to loadStripe) · **Firebase Phone Auth groundwork** (server admin SDK + client SDK + verify endpoint + reCAPTCHA component, opt-in via env) |
-| **47** | Defense polish — 25 new loading.tsx skeletons (admin/seller/public), ER diagram drag-from-anywhere + fullscreen mode, TopNav category chips fixed (real DB IDs + alphabetical to match sidebar), Stripe-onboarding banner self-fetches so it disappears after webhook lands |
+| **13.10 / 13.11** | Admin module migrated; legacy flat routers gone (Next is pure UI/BFF) |
+| **14** | better-auth integrated — Google OAuth + account linking + verification table |
+| **15.x** | Rate-limit login, sessions UI, force-logout, OTP on sensitive ops, force-password-reset |
+| **16.x** | Store suspend/resume, TOTP 2FA enrolment, Mode A swap (better-auth owns every cookie) |
+| **22, 23.x** | Helmet headers + signed `metu_pv` cookie; session list + revoke + recent-2FA gate |
+| **24** | In-house ER diagram renderer (dagre layout, crow-foot SVG, PNG/SVG export). Source: `er-schema.ts` regen'd from Prisma |
+| **26, 27** | Feature trim · Stripe Connect direct-charge with `application_fee` + hosted onboarding |
+| **32, 33** | Auto-provision Custom Connect accounts for seed stores · order delivery state machine |
+| **38, 41** | Master + per-store coupons · mandatory verify-at-register (email + phone) |
+| **42–44** | Pre-defense bug sweeps — own-store guard, Stripe filter on /browse, plain-English errors, URL hardening, OAuth user-create fix, admin dropdown flip-up |
+| **45** | Schema aligned with the submitted docx report — Product gains `deliveryMethod` + `isStackable`, ProductItem requires `name`, Order gets a direct `userId` FK, `OrderItem.pricePerUnit` Decimal(12,2), new `ProductDetail` table, `TransactionType` drops `refund` |
+| **46** | Stripe checkout fix (pass `stripeAccount` to `loadStripe`) · Firebase Phone Auth wired but opt-in (env-gated) |
+| **47** | 25 missing `loading.tsx` skeletons added across admin/seller/public · ER diagram drag-from-anywhere + fullscreen mode · TopNav category chips point at real IDs · Stripe banner self-fetches so it disappears post-onboarding |
 
 ## Production deploy (Fly.io)
 
@@ -293,15 +291,15 @@ flyctl secrets set -a metu \
   INTERNAL_API_URL='https://metu-api.fly.dev'
 ```
 
-### Optional secrets (enable extra surfaces)
+### Optional secrets
 
 ```sh
-# Google OAuth (better-auth) — both apps
+# Google OAuth (used by better-auth)
 flyctl secrets set -a metu-api \
   GOOGLE_CLIENT_ID='...apps.googleusercontent.com' \
   GOOGLE_CLIENT_SECRET='...'
 
-# Stripe Connect (TH, test mode) — API + webhook signing on the server
+# Stripe Connect (test mode)
 flyctl secrets set -a metu-api \
   STRIPE_SECRET_KEY='sk_test_...' \
   STRIPE_WEBHOOK_SECRET='whsec_...' \
@@ -309,28 +307,28 @@ flyctl secrets set -a metu-api \
 flyctl secrets set -a metu \
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY='pk_test_...'
 
-# IMPORTANT — when configuring the Stripe webhook endpoint, toggle
-# "Listen to events on Connected accounts" ON. Direct-charge
-# PaymentIntents live on the seller's Connect account, so platform-
-# only events miss them and orders stay 'pending' forever.
-
-# Email (Resend)
+# Resend (email)
 flyctl secrets set -a metu-api \
   RESEND_API_KEY='re_...' \
   RESEND_FROM='onboarding@resend.dev'
 
-# Firebase Phone Auth (optional — Spark plan = 10 free SMS/day)
+# Firebase Phone Auth — optional, Spark plan gives 10 free SMS/day
 flyctl secrets set -a metu \
   NEXT_PUBLIC_FIREBASE_API_KEY='AIzaSy...' \
   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN='<project>.firebaseapp.com' \
   NEXT_PUBLIC_FIREBASE_PROJECT_ID='<project-id>'
 flyctl secrets set -a metu-api \
-  FIREBASE_SERVICE_ACCOUNT_JSON='<entire JSON file pasted as one string>'
+  FIREBASE_SERVICE_ACCOUNT_JSON='<paste the entire JSON file content>'
 
-# Demo mode — surface OTPs + email-verify tokens on screen instead of
-# requiring real SMS/email delivery (useful for live defense walks)
+# Demo mode — surfaces OTPs and email-verify tokens on screen instead
+# of requiring real SMS / email delivery
 flyctl secrets set -a metu-api DEMO_REVEAL_TOKENS='true'
 ```
+
+When you set up the Stripe webhook endpoint in the dashboard, toggle
+**"Listen to events on Connected accounts"** ON. Direct-charge
+PaymentIntents live on the seller's Connect account, so a platform-
+only endpoint never sees them and orders stay `pending` forever.
 
 Both apps `auto_stop_machines = "stop"` with `min_machines_running = 0` —
 machines hibernate after idle and auto-start on the next request. First
