@@ -7,6 +7,13 @@ export const loginSchema = z.object({
   // when the user has totpEnabled=true; UI sends it after the
   // first 401 NeedsTotp response.
   totpCode: z.string().regex(/^\d{6}$/).optional(),
+  // Phase 49 — optional admin-OTP code + ownership confirmation.
+  // Sent on the SECOND login round-trip after the server replies
+  // with `NeedsAdminOtp` on the first call. The server requires
+  // both `adminOtp` AND `confirmOwner=true` to complete the gate.
+  adminOtp: z.string().regex(/^\d{6}$/).optional(),
+  confirmOwner: z.boolean().optional(),
+  trustDevice: z.boolean().optional(),
 });
 
 export const registerSchema = z.object({

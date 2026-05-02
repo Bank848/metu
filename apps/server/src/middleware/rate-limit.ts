@@ -11,6 +11,14 @@ interface LimiterOptions {
   windowMs: number;
   /** Optional key override; defaults to req.ip. */
   keyFn?: (req: Request) => string;
+  /**
+   * Phase 49 — when true, the limiter still throttles even under
+   * `NODE_ENV=test`. Used by `rate-limit.test.ts` to assert the
+   * boundary behaviour. The shared production limiters
+   * (loginLimiter, registerLimiter, etc.) leave this false so the
+   * rest of the test suite can hammer /auth/login without tripping.
+   */
+  enforceInTests?: boolean;
 }
 
 // One Map per limiter identity so login + register don't share state.
@@ -37,6 +45,15 @@ export function rateLimit(options: LimiterOptions) {
   const buckets = bucketsFor(options);
 
   return (req: Request, res: Response, next: NextFunction) => {
+    // Tests share a singleton bucket per limiter and would otherwise
+    // trip the 5/min ceiling halfway through the suite. Bypass the
+    // limiter under NODE_ENV=test (vitest sets this automatically),
+    // unless the caller explicitly opts back in via `enforceInTests`
+    // (the rate-limit unit tests do this).
+    if (process.env.NODE_ENV === "test" && !options.enforceInTests) {
+      next();
+      return;
+    }
     const key = keyFn(req);
     const now = Date.now();
     const cutoff = now - windowMs;

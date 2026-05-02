@@ -17,7 +17,10 @@ import { cookieFor } from "./_authMock.js";
 function makeApp(max: number, windowMs: number) {
   const app = express();
   app.set("trust proxy", true);
-  app.get("/limited", rateLimit({ max, windowMs }), (_req, res) => {
+  // Phase 49 — `enforceInTests: true` re-enables the limiter under
+  // NODE_ENV=test (the production limiters bypass in tests so the
+  // shared bucket doesn't poison login tests across the suite).
+  app.get("/limited", rateLimit({ max, windowMs, enforceInTests: true }), (_req, res) => {
     res.json({ ok: true });
   });
   app.use(errorHandler);
@@ -48,8 +51,8 @@ describe("rateLimit middleware", () => {
     // Two SEPARATE limiter instances (different options objects) ⇒
     // separate WeakMap buckets. Hitting /a 2 times shouldn't count
     // against /b's quota.
-    app.get("/a", rateLimit({ max: 2, windowMs: 60_000 }), (_req, res) => res.json({ where: "a" }));
-    app.get("/b", rateLimit({ max: 2, windowMs: 60_000 }), (_req, res) => res.json({ where: "b" }));
+    app.get("/a", rateLimit({ max: 2, windowMs: 60_000, enforceInTests: true }), (_req, res) => res.json({ where: "a" }));
+    app.get("/b", rateLimit({ max: 2, windowMs: 60_000, enforceInTests: true }), (_req, res) => res.json({ where: "b" }));
     app.use(errorHandler);
 
     await request(app).get("/a");

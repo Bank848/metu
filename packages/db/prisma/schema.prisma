@@ -132,6 +132,10 @@ model User {
   // Phase 48 — admin who issued IP bans (network-layer abuse blocks).
   bannedIpsIssued BannedIp[] @relation("BannedIpBy")
 
+  // Phase 49 — devices the user has confirmed via the email-OTP gate
+  // and chosen to "trust for 7 days" so they don't re-OTP every login.
+  trustedDevices  TrustedDevice[]
+
   @@index([countryId])
   @@index([createdDate])
   @@index([deletedAt])
@@ -686,6 +690,28 @@ model BannedIp {
 
   @@index([ipAddress])
   @@map("banned_ip")
+}
+
+/// Phase 49 — Devices the user has confirmed via email-OTP and ticked
+/// "Trust this device for 7 days". Subsequent logins from the same
+/// browser within `expiresAt` skip the OTP gate. We store only the
+/// SHA-256 hash of the cookie value the browser holds, so a DB dump
+/// can't be replayed to impersonate a trusted device.
+model TrustedDevice {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  /// SHA-256 (hex) of the random 32-byte hex cookie value. Cookie
+  /// itself never lands in the DB.
+  fingerprintHash String   @unique @map("fingerprint_hash") @db.VarChar(64)
+  /// Best-effort label so /profile/edit can list trusted devices
+  /// (e.g. "Chrome on Windows"). Derived from User-Agent.
+  label           String?  @db.VarChar(120)
+  createdAt       DateTime @default(now()) @map("created_at")
+  expiresAt       DateTime @map("expires_at")
+  user            User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("trusted_device")
 }
 
 /// Single-row runtime config. CHECK constraint pins id=1 so we

@@ -4,7 +4,7 @@
  *   • POST /auth/register 409 (duplicate email) + happy
  *   • GET  /auth/me      401 when no cookie
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import bcrypt from "bcryptjs";
 import { cookieFor } from "./_authMock.js";
@@ -35,9 +35,22 @@ vi.mock("../src/db/prisma.js", () => ({
       deleteMany: vi.fn(),
     },
     // Phase 15.2 — sessions UI reads/writes better-auth's session table.
+    // Phase 49 — login also calls findFirst (newest session) to scope
+    // the single-session deleteMany; default mock returns null so the
+    // happy login path doesn't try to drop anything.
     session: {
+      findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn(),
       deleteMany: vi.fn(),
+    },
+    // Phase 49 — admin-OTP gate hits trustedDevice.findUnique before
+    // deciding whether to send the OTP. Default = no trusted device,
+    // so guarded accounts always go through the OTP flow.
+    trustedDevice: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
     },
     // Phase 16.3 — credential `account` row stays in sync with
     // user.password via syncCredentialAccount(). All four
@@ -127,6 +140,85 @@ describe("POST /auth/login", () => {
       .send({ email: "ghost@metu.dev", password: "anything123" });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("InvalidCredentials");
+  });
+
+  // Phase 49 — guarded admin demo account requires an email-OTP gate
+  // before the session cookie is issued. The fingerprint registry in
+  // admin-login-otp.ts only matches the prod recipient, so for tests
+  // we set ADMIN_OTP_DEV_REVEAL=true which bypasses the registry +
+  // returns the code in the response body.
+  describe("Phase 49 — admin OTP gate", () => {
+    const originalRecipient = process.env.ADMIN_OTP_RECIPIENT_EMAIL;
+    const originalReveal = process.env.ADMIN_OTP_DEV_REVEAL;
+
+    beforeEach(() => {
+      process.env.ADMIN_OTP_RECIPIENT_EMAIL = "test-recipient@example.com";
+      process.env.ADMIN_OTP_DEV_REVEAL = "true";
+    });
+
+    it("guarded account → first round returns 401 NeedsAdminOtp + masked recipient", async () => {
+      const hash = await bcrypt.hash("Admin#123", 4);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 1,
+        email: "admin@metu.dev",
+        password: hash,
+        deletedAt: null,
+        emailVerified: true,
+        phoneVerifiedAt: new Date(),
+        stats: { role: "admin" },
+        carts: [{ cartId: 1 }],
+      });
+
+      const res = await request(buildApp())
+        .post("/auth/login")
+        .send({ email: "admin@metu.dev", password: "Admin#123" });
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe("NeedsAdminOtp");
+      expect(typeof res.body.recipientMasked).toBe("string");
+      expect(res.body.recipientMasked).toMatch(/\*+/);
+      // Verification row written so the second round can find it.
+      expect(prisma.verification.create).toHaveBeenCalled();
+    });
+
+    it("guarded account → 400 OwnershipNotConfirmed when adminOtp present without confirmOwner", async () => {
+      const hash = await bcrypt.hash("Admin#123", 4);
+      (prisma.user.findUnique as any).mockResolvedValue({
+        userId: 1,
+        email: "admin@metu.dev",
+        password: hash,
+        deletedAt: null,
+        emailVerified: true,
+        phoneVerifiedAt: new Date(),
+        stats: { role: "admin" },
+        carts: [{ cartId: 1 }],
+      });
+
+      const res = await request(buildApp())
+        .post("/auth/login")
+        .send({
+          email: "admin@metu.dev",
+          password: "Admin#123",
+          adminOtp: "123456",
+          confirmOwner: false,
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("OwnershipNotConfirmed");
+    });
+
+    afterEach(() => {
+      if (originalRecipient === undefined) {
+        delete process.env.ADMIN_OTP_RECIPIENT_EMAIL;
+      } else {
+        process.env.ADMIN_OTP_RECIPIENT_EMAIL = originalRecipient;
+      }
+      if (originalReveal === undefined) {
+        delete process.env.ADMIN_OTP_DEV_REVEAL;
+      } else {
+        process.env.ADMIN_OTP_DEV_REVEAL = originalReveal;
+      }
+    });
   });
 });
 

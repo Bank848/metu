@@ -44,14 +44,99 @@ async function issueBetterAuthCookie(req: import("express").Request, res: import
   forwardSetCookieHeaders(res, webResponse);
 }
 
+/**
+ * Phase 49 — single-session enforcement. After every successful
+ * sign-in we drop every OTHER session row for the same user, so a
+ * concurrent login from another browser kicks the previous tab out
+ * (its next API request gets 401 and the BFF bounces it to /login).
+ *
+ * The "newest session row wins" heuristic is good enough — we just
+ * minted one through better-auth, so the most recent createdAt for
+ * this userId is ours. A second simultaneous sign-in race would only
+ * keep one anyway, which is exactly the desired behavior.
+ */
+async function enforceSingleSession(userId: number): Promise<void> {
+  const { prisma } = await import("../db/prisma.js");
+  const latest = await prisma.session.findFirst({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!latest) return;
+  await prisma.session.deleteMany({
+    where: { userId, NOT: { id: latest.id } },
+  });
+}
+
 export const login: RequestHandler = async (req, res, next) => {
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       throw parsed.error;
     }
+
+    // Step 1 — password + TOTP + verify gates. Throws on failure.
     const { user } = await service.login(parsed.data);
+
+    // Step 2 — Phase 49 admin-OTP gate. Only fires for guarded
+    // accounts (defaults to admin@metu.dev — the public seed account
+    // anyone with the URL can attempt to sign in to). Trusted devices
+    // (the user ticked "trust for 7 days" on a previous successful
+    // OTP) skip the gate entirely.
+    const { isGuardedAccount, issueAdminOtp, verifyAdminOtp } = await import(
+      "../utils/admin-login-otp.js"
+    );
+    const { isTrustedDevice, trustThisDevice } = await import(
+      "../utils/trusted-device.js"
+    );
+
+    if (isGuardedAccount(parsed.data.email)) {
+      const trusted = await isTrustedDevice(req, user.userId);
+      if (!trusted) {
+        // Sub-step A — OTP code provided + ownership confirmed.
+        if (parsed.data.adminOtp && parsed.data.confirmOwner) {
+          await verifyAdminOtp(user.userId, parsed.data.adminOtp);
+          // Pass — fall through to issue the better-auth cookie.
+        } else if (parsed.data.adminOtp && !parsed.data.confirmOwner) {
+          throw new AppError(
+            400,
+            "OwnershipNotConfirmed",
+            "Tick the confirmation checkbox before submitting the code.",
+          );
+        } else {
+          // Sub-step B — first round, send code + return NeedsAdminOtp.
+          const sent = await issueAdminOtp(user.userId, parsed.data.email);
+          throw new AppError(
+            401,
+            "NeedsAdminOtp",
+            `A 6-digit code was sent to ${sent.recipientMasked}. Enter it to finish signing in.`,
+            {
+              recipientMasked: sent.recipientMasked,
+              ...(sent.devCode ? { devCode: sent.devCode } : {}),
+            },
+          );
+        }
+      }
+    }
+
+    // Step 3 — issue the better-auth session cookie.
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
+
+    // Step 4 — single-session kick-out. Any concurrent session for
+    // this user gets dropped; the previously-logged-in browser will
+    // 401 on its next API call.
+    await enforceSingleSession(user.userId);
+
+    // Step 5 — if the user ticked "trust this device for 7 days"
+    // alongside a successful OTP gate, mint the trust cookie now.
+    if (
+      parsed.data.trustDevice &&
+      parsed.data.confirmOwner &&
+      isGuardedAccount(parsed.data.email)
+    ) {
+      await trustThisDevice(req, res, user.userId);
+    }
+
     res.json({ user });
   } catch (err) {
     next(err);
@@ -82,6 +167,11 @@ export const register: RequestHandler = async (req, res, next) => {
     }
     const { user, role, demo } = await service.register(parsed.data);
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
+    // Phase 49 — register also enforces single-session for symmetry
+    // with login (a malicious party can't keep a stale session alive
+    // by re-registering with the same address; the fresh session is
+    // the only one that survives).
+    await enforceSingleSession(user.userId);
     res.json({ user, role, ...(demo ? { demo } : {}) });
   } catch (err) {
     next(err);

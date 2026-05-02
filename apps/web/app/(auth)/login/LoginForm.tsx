@@ -1,11 +1,13 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowRight, KeyRound, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 // Login form. Posts to /api/auth/login -> BFF -> Express ->
-// better-auth.signInEmail. Two-step UI when TOTP is required.
+// better-auth.signInEmail. Multi-step UI: credentials → TOTP →
+// admin email-OTP (Phase 49, only for guarded accounts like the
+// public admin demo).
 
 // Map URL ?error= codes from the Google OAuth flow.
 function errorMessage(code: string | null): string | null {
@@ -25,7 +27,7 @@ function errorMessage(code: string | null): string | null {
   }
 }
 
-type Step = "credentials" | "totp";
+type Step = "credentials" | "totp" | "admin-otp";
 
 export function LoginForm({
   next,
@@ -46,8 +48,16 @@ export function LoginForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Phase 49 — admin OTP step state.
+  const [adminOtp, setAdminOtp] = useState("");
+  const [confirmOwner, setConfirmOwner] = useState(false);
+  const [trustDevice, setTrustDevice] = useState(false);
+  const [recipientMasked, setRecipientMasked] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState<string | null>(null);
+
   const formRef = useRef<HTMLFormElement>(null);
   const totpInputRef = useRef<HTMLInputElement>(null);
+  const adminOtpInputRef = useRef<HTMLInputElement>(null);
 
   // Demo chip → form prefill via a window event. The page mounts
   // <DemoChip> buttons that dispatch `metu:prefill-login` with
@@ -67,9 +77,11 @@ export function LoginForm({
     return () => window.removeEventListener("metu:prefill-login", onPrefill);
   }, []);
 
-  // When we transition into the TOTP step, autofocus its input.
+  // When we transition into the TOTP / admin-OTP step, autofocus the
+  // matching input.
   useEffect(() => {
     if (step === "totp") totpInputRef.current?.focus();
+    if (step === "admin-otp") adminOtpInputRef.current?.focus();
   }, [step]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -89,14 +101,36 @@ export function LoginForm({
       setError("Enter the 6-digit code from your authenticator app");
       return;
     }
+    if (step === "admin-otp") {
+      if (!/^\d{6}$/.test(adminOtp)) {
+        setError("Enter the 6-digit code from the admin email");
+        return;
+      }
+      if (!confirmOwner) {
+        setError("Tick the confirmation box to prove you own this account");
+        return;
+      }
+    }
 
     setBusy(true);
     try {
-      const body: { email: string; password: string; totpCode?: string } = {
+      const body: {
+        email: string;
+        password: string;
+        totpCode?: string;
+        adminOtp?: string;
+        confirmOwner?: boolean;
+        trustDevice?: boolean;
+      } = {
         email: submittedEmail,
         password: submittedPassword,
       };
       if (step === "totp") body.totpCode = totpCode;
+      if (step === "admin-otp") {
+        body.adminOtp = adminOtp;
+        body.confirmOwner = confirmOwner;
+        body.trustDevice = trustDevice;
+      }
 
       const res = await fetch(`/api/auth/login`, {
         method: "POST",
@@ -116,6 +150,43 @@ export function LoginForm({
         }
         if (data?.error === "InvalidTotp") {
           setError("Code didn't match. Try a fresh one from your app.");
+          setBusy(false);
+          return;
+        }
+        // Phase 49 — admin OTP gate. The server has already mailed
+        // the code to the configured private recipient; flip the UI
+        // to the OTP step and surface the masked recipient so the
+        // user knows where to look.
+        if (data?.error === "NeedsAdminOtp") {
+          setRecipientMasked(
+            typeof data?.recipientMasked === "string" ? data.recipientMasked : null,
+          );
+          // Local-dev escape hatch — server returns the plaintext
+          // code in the response body when ADMIN_OTP_DEV_REVEAL=true,
+          // so reviewers without inbox access can still log in.
+          setDevCode(typeof data?.devCode === "string" ? data.devCode : null);
+          setStep("admin-otp");
+          setError(null);
+          setBusy(false);
+          return;
+        }
+        if (data?.error === "InvalidAdminOtp") {
+          setError("Code didn't match. Double-check the email and try again.");
+          setBusy(false);
+          return;
+        }
+        if (data?.error === "AdminOtpExpired") {
+          setError("That code expired. Click \"Resend\" below to get a fresh one.");
+          setBusy(false);
+          return;
+        }
+        if (data?.error === "AdminOtpAttemptsExceeded") {
+          setError("Too many wrong attempts. Click \"Resend\" for a new code.");
+          setBusy(false);
+          return;
+        }
+        if (data?.error === "OwnershipNotConfirmed") {
+          setError("Tick the confirmation box before submitting the code.");
           setBusy(false);
           return;
         }
@@ -223,6 +294,19 @@ export function LoginForm({
           </div>
         </div>
       )}
+      {step === "admin-otp" && (
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-mint/30 bg-mint/5 px-4 py-3 text-sm">
+          <Mail className="h-4 w-4 text-mint shrink-0" />
+          <div>
+            <div className="font-semibold text-white">Confirm it&rsquo;s really you</div>
+            <div className="text-ink-dim text-xs mt-0.5">
+              {recipientMasked
+                ? `A 6-digit code was sent to ${recipientMasked}. Open the inbox and enter the code below.`
+                : "A 6-digit code was sent to the admin email. Enter it below to finish signing in."}
+            </div>
+          </div>
+        </div>
+      )}
 
       {googleEnabled && step === "credentials" && (
         <>
@@ -253,9 +337,9 @@ export function LoginForm({
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        readOnly={step === "totp"}
+        readOnly={step !== "credentials"}
         className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-4 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none transition ${
-          step === "totp" ? "opacity-60 cursor-not-allowed" : ""
+          step !== "credentials" ? "opacity-60 cursor-not-allowed" : ""
         }`}
         required
         autoComplete="email"
@@ -269,9 +353,9 @@ export function LoginForm({
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        readOnly={step === "totp"}
+        readOnly={step !== "credentials"}
         className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-2 text-white focus:border-metu-yellow outline-none transition ${
-          step === "totp" ? "opacity-60 cursor-not-allowed" : ""
+          step !== "credentials" ? "opacity-60 cursor-not-allowed" : ""
         }`}
         required
         autoComplete="current-password"
@@ -308,6 +392,80 @@ export function LoginForm({
               setError(null);
             }}
             className="mt-2 text-xs text-ink-dim hover:text-metu-yellow"
+          >
+            ← Use a different account
+          </button>
+        </div>
+      )}
+
+      {step === "admin-otp" && (
+        <div className="mt-4 mb-2 rounded-xl border border-mint/30 bg-mint/5 p-4 space-y-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Mail className="h-4 w-4 text-mint" />
+              <label className="block text-sm font-semibold text-white" htmlFor="login-admin-otp">
+                Email verification code
+              </label>
+            </div>
+            <input
+              id="login-admin-otp"
+              ref={adminOtpInputRef}
+              name="adminOtp"
+              type="text"
+              inputMode="numeric"
+              pattern="\d{6}"
+              maxLength={6}
+              value={adminOtp}
+              onChange={(e) => setAdminOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-white text-center tracking-[0.4em] font-mono text-xl focus:border-mint outline-none"
+              autoComplete="one-time-code"
+              required
+            />
+            {devCode && (
+              <p className="mt-2 text-[11px] text-amber-300">
+                Dev mode: code is <span className="font-mono">{devCode}</span>
+              </p>
+            )}
+          </div>
+
+          <label className="flex items-start gap-2 cursor-pointer text-sm text-white">
+            <input
+              type="checkbox"
+              checked={confirmOwner}
+              onChange={(e) => setConfirmOwner(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-white/20 bg-surface-3 accent-mint"
+              required
+            />
+            <span>
+              I confirm I&rsquo;m the rightful owner of this account.
+            </span>
+          </label>
+
+          <label className="flex items-start gap-2 cursor-pointer text-sm text-ink-secondary">
+            <input
+              type="checkbox"
+              checked={trustDevice}
+              onChange={(e) => setTrustDevice(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-white/20 bg-surface-3 accent-mint"
+            />
+            <span>
+              Trust this device for 7 days. Skips this email check next time.
+            </span>
+          </label>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep("credentials");
+              setAdminOtp("");
+              setConfirmOwner(false);
+              setTrustDevice(false);
+              setRecipientMasked(null);
+              setDevCode(null);
+              setError(null);
+            }}
+            className="text-xs text-ink-dim hover:text-mint"
           >
             ← Use a different account
           </button>
