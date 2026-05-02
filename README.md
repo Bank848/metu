@@ -72,14 +72,14 @@ in `apps/web/.env.local` (default fallback).
 
 ### Live stores on prod
 
-| Store | Owner | Products |
-|---|---|---|
-| Aurora Creative Lab (`/store/6`) | [redacted] | 31 |
-| Pixel Forge Bangkok (`/store/5`) | [redacted] | 30 |
+Two demo stores live at `/store/5` (Pixel Forge Bangkok, indie game-dev
+catalogue) and `/store/6` (Aurora Creative Lab, mixed digital assets).
+30 products each, all 10 categories, all 4 delivery methods, both
+Stripe-Connect ready in test mode.
 
 Seeded via `tsx scripts/seed-aurora-store.mts` and
 `tsx scripts/seed-pixelforge-store.mts`. Both idempotent — re-running
-skips existing names. Both Stripe-Connect ready in test mode.
+skips existing names.
 
 ## Monorepo layout
 
