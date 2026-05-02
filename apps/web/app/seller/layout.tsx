@@ -4,6 +4,13 @@ import { SellerSidebar } from "@/components/SellerSidebar";
 import { StripeOnboardingBanner } from "@/components/seller/StripeOnboardingBanner";
 import { getMe, requireResetGuard } from "@/lib/session";
 
+// Phase 47 — force the layout to re-render every navigation so the
+// Stripe-onboarding banner picks up the latest stripeChargesEnabled
+// flag the moment the account.updated webhook flips it. Without
+// this, the layout stayed mounted with stale needsStripe=true even
+// after the seller finished Stripe-Connect onboarding.
+export const dynamic = "force-dynamic";
+
 export default async function SellerLayout({ children }: { children: React.ReactNode }) {
   const me = await getMe();
   if (!me) redirect("/login?next=/seller");
@@ -18,17 +25,12 @@ export default async function SellerLayout({ children }: { children: React.React
   const suspendedAt = (me.user?.store as any)?.suspendedAt as Date | string | null | undefined;
   const isSuspended = Boolean(suspendedAt);
 
-  // Phase 27 — Stripe Connect onboarding nudge. Until the store has a
-  // Stripe account ID + charges enabled, buyers' "Buy now" hits a 503
-  // because the API can't open a PaymentIntent on a missing account.
-  // The banner is dismissible-by-fixing — it disappears the moment
-  // account.updated webhook flips chargesEnabled on the Store row.
-  const store = me.user?.store as
-    | { stripeAccountId?: string | null; stripeChargesEnabled?: boolean | null }
-    | undefined;
-  const needsStripe = Boolean(me.user?.store) && (
-    !store?.stripeAccountId || !store?.stripeChargesEnabled
-  );
+  // Phase 47 — Stripe-onboarding banner now self-fetches its
+  // visibility on mount + on every pathname change, so we don't
+  // pre-compute `needsStripe` here. The previous server-side calc
+  // got captured in App Router's layout cache and a seller who
+  // finished onboarding still saw the banner until they hard-
+  // refreshed. See StripeOnboardingBanner.
 
   return (
     <div className="flex min-h-screen bg-space-black">
@@ -50,7 +52,7 @@ export default async function SellerLayout({ children }: { children: React.React
             </div>
           </div>
         )}
-        {needsStripe && <StripeOnboardingBanner />}
+        <StripeOnboardingBanner />
         {children}
       </main>
     </div>

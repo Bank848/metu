@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { CreditCard } from "lucide-react";
 
 /**
@@ -10,13 +11,44 @@ import { CreditCard } from "lucide-react";
  * while already on the destination did nothing, so users tapped it
  * repeatedly with no feedback.
  *
- * This client wrapper hides the banner on /seller/onboarding and any
- * of its sub-routes — the page already shows the same status + a
- * dedicated "Continue onboarding" button.
+ * Phase 47 — the banner used to read its visibility from a server-
+ * side `needsStripe` prop. App Router caches layouts across sibling
+ * navigation, so `needsStripe` stayed at the value captured on the
+ * first render and a seller who finished Stripe-Connect onboarding
+ * still saw "Set up Stripe →" on the dashboard until they hard-
+ * refreshed. The banner now self-fetches `/api/seller/stripe/status`
+ * on mount and on every pathname change, so it disappears the moment
+ * the account.updated webhook flips chargesEnabled in the DB.
  */
 export function StripeOnboardingBanner() {
   const pathname = usePathname() ?? "";
+  const [needsStripe, setNeedsStripe] = useState<boolean>(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/seller/stripe/status", { cache: "no-store", credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive || !d) return;
+        // The endpoint returns `{ configured, stripeAccountId, chargesEnabled, ... }`
+        // when Stripe is set up. We only need the latter two to decide.
+        const need = !d.stripeAccountId || !d.chargesEnabled;
+        setNeedsStripe(need);
+      })
+      .catch(() => {
+        // Silent fail — keeps the banner hidden if the status endpoint
+        // is down. The seller can still reach /seller/onboarding via
+        // the sidebar even without the banner CTA.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [pathname]);
+
+  // Hide on the destination page so re-clicking the CTA isn't a no-op.
   if (pathname.startsWith("/seller/onboarding")) return null;
+  if (!needsStripe) return null;
+
   return (
     <div className="mb-6 rounded-xl border border-mint/30 bg-mint/5 p-4 flex items-start gap-3">
       <CreditCard className="h-5 w-5 text-mint mt-0.5 shrink-0" />
