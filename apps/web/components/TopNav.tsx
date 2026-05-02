@@ -34,18 +34,23 @@ type Tab = { label: string; icon: any; href: string };
 // invented IDs that didn't exist, so every tab sent buyers to an
 // empty `/browse?category=XX` page. Now each tab lands on real,
 // product-bearing categories that the marketplace actually has.
+//
+// Order + labels mirror the /browse left sidebar (categories sorted
+// alphabetically by categoryName via the API's findCategories()
+// orderBy). Keep the two surfaces in sync so a buyer scanning chips
+// in the top nav vs the sidebar sees the same sequence.
 const TABS: Tab[] = [
-  { label: "All",           icon: LayoutGrid,     href: "/browse" },
-  { label: "3D Models",     icon: Box,            href: "/browse?category=1" },
-  { label: "Courses",       icon: GraduationCap,  href: "/browse?category=2" },
-  { label: "E-books",       icon: BookOpen,       href: "/browse?category=3" },
-  { label: "Music",         icon: Music,          href: "/browse?category=4" },
-  { label: "Fonts",         icon: Type,           href: "/browse?category=5" },
-  { label: "Templates",     icon: LayoutTemplate, href: "/browse?category=6" },
-  { label: "Game Assets",   icon: Gamepad2,       href: "/browse?category=7" },
-  { label: "Photos",        icon: Camera,         href: "/browse?category=8" },
-  { label: "Plug-ins",      icon: Plug,           href: "/browse?category=9" },
-  { label: "Illustrations", icon: Palette,        href: "/browse?category=10" },
+  { label: "All",            icon: LayoutGrid,     href: "/browse" },
+  { label: "3D Models",      icon: Box,            href: "/browse?category=1" },
+  { label: "E-books",        icon: BookOpen,       href: "/browse?category=3" },
+  { label: "Fonts",          icon: Type,           href: "/browse?category=5" },
+  { label: "Game Assets",    icon: Gamepad2,       href: "/browse?category=7" },
+  { label: "Illustrations",  icon: Palette,        href: "/browse?category=10" },
+  { label: "Online Courses", icon: GraduationCap,  href: "/browse?category=2" },
+  { label: "Photography",    icon: Camera,         href: "/browse?category=8" },
+  { label: "Plug-ins",       icon: Plug,           href: "/browse?category=9" },
+  { label: "Stock Music",    icon: Music,          href: "/browse?category=4" },
+  { label: "Templates",      icon: LayoutTemplate, href: "/browse?category=6" },
 ];
 
 export async function TopNav({ q }: { q?: string } = {}) {
