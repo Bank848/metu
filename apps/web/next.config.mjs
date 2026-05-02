@@ -28,6 +28,13 @@ const nextConfig = {
       { protocol: "https", hostname: "i.pravatar.cc" },
       { protocol: "https", hostname: "picsum.photos" },
       { protocol: "https", hostname: "api.dicebear.com" },
+      // Google profile photos returned by OAuth — without this entry
+      // next/image rejects the URL and the avatar falls back to its
+      // initials placeholder.
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "lh4.googleusercontent.com" },
+      { protocol: "https", hostname: "lh5.googleusercontent.com" },
+      { protocol: "https", hostname: "lh6.googleusercontent.com" },
     ],
   },
   // Phase 22 — security headers on the BFF (what the browser actually
