@@ -10,34 +10,37 @@ import {
   Settings,
   GitCommit,
   Zap,
+  ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import { COMMIT_TIMELINE, type CommitNode } from "@/lib/admin/commit-timeline";
 
 /**
- * Fishbone-style commit timeline. A single horizontal spine runs left
- * (oldest) → right (newest). Each commit ribs off the spine, alternating
- * above and below, colour-coded by Conventional Commits type.
+ * Vertical commit timeline. A single thin spine runs down the left
+ * margin; every commit hangs off it as a row, in reverse-chronological
+ * order. Day dividers break the spine into sections so a long history
+ * stays scannable.
  *
- * Click a commit to copy its SHA + open the GitHub diff in a new tab.
+ * Reads left → top down: latest commit at the top, oldest at the bottom.
+ * Each row links to the GitHub diff.
  */
 
 const REPO_URL = "https://github.com/Bank848/metu";
 
 const TYPE_STYLE: Record<
   string,
-  { bg: string; ring: string; text: string; icon: LucideIcon; label: string }
+  { dot: string; chip: string; icon: LucideIcon; label: string }
 > = {
-  feat: { bg: "bg-mint/15", ring: "ring-mint/40", text: "text-mint", icon: Sparkles, label: "feature" },
-  fix: { bg: "bg-coral/15", ring: "ring-coral/40", text: "text-coral", icon: Bug, label: "fix" },
-  docs: { bg: "bg-sky-400/15", ring: "ring-sky-400/40", text: "text-sky-300", icon: FileText, label: "docs" },
-  refactor: { bg: "bg-purple-400/15", ring: "ring-purple-400/40", text: "text-purple-300", icon: Wrench, label: "refactor" },
-  test: { bg: "bg-amber-400/15", ring: "ring-amber-400/40", text: "text-amber-300", icon: TestTube, label: "test" },
-  chore: { bg: "bg-slate-400/15", ring: "ring-slate-400/40", text: "text-slate-300", icon: Settings, label: "chore" },
-  data: { bg: "bg-indigo-400/15", ring: "ring-indigo-400/40", text: "text-indigo-300", icon: Database, label: "data" },
-  perf: { bg: "bg-yellow-400/15", ring: "ring-yellow-400/40", text: "text-yellow-300", icon: Zap, label: "perf" },
-  tools: { bg: "bg-slate-400/15", ring: "ring-slate-400/40", text: "text-slate-300", icon: Settings, label: "tools" },
-  other: { bg: "bg-white/8", ring: "ring-white/20", text: "text-ink-secondary", icon: GitCommit, label: "other" },
+  feat: { dot: "bg-mint", chip: "bg-mint/15 text-mint border-mint/40", icon: Sparkles, label: "feature" },
+  fix: { dot: "bg-coral", chip: "bg-coral/15 text-coral border-coral/40", icon: Bug, label: "fix" },
+  docs: { dot: "bg-sky-400", chip: "bg-sky-400/15 text-sky-300 border-sky-400/40", icon: FileText, label: "docs" },
+  refactor: { dot: "bg-purple-400", chip: "bg-purple-400/15 text-purple-300 border-purple-400/40", icon: Wrench, label: "refactor" },
+  test: { dot: "bg-amber-400", chip: "bg-amber-400/15 text-amber-300 border-amber-400/40", icon: TestTube, label: "test" },
+  chore: { dot: "bg-slate-400", chip: "bg-slate-400/15 text-slate-300 border-slate-400/40", icon: Settings, label: "chore" },
+  data: { dot: "bg-indigo-400", chip: "bg-indigo-400/15 text-indigo-300 border-indigo-400/40", icon: Database, label: "data" },
+  perf: { dot: "bg-yellow-400", chip: "bg-yellow-400/15 text-yellow-300 border-yellow-400/40", icon: Zap, label: "perf" },
+  tools: { dot: "bg-slate-400", chip: "bg-slate-400/15 text-slate-300 border-slate-400/40", icon: Settings, label: "tools" },
+  other: { dot: "bg-white/40", chip: "bg-white/8 text-ink-secondary border-white/20", icon: GitCommit, label: "other" },
 };
 
 function styleFor(type: string) {
@@ -48,13 +51,9 @@ export function CommitTimelineView() {
   const [filter, setFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  // Newest first → oldest last so the user reads left-to-right as
-  // most-recent-first when scanning the fishbone visually.
+  // Newest first.
   const ordered = useMemo(() => {
-    const list = [...COMMIT_TIMELINE].sort((a, b) =>
-      a.dateIso < b.dateIso ? -1 : 1,
-    );
-    return list;
+    return [...COMMIT_TIMELINE].sort((a, b) => (a.dateIso < b.dateIso ? 1 : -1));
   }, []);
 
   const visible = useMemo(() => {
@@ -62,21 +61,26 @@ export function CommitTimelineView() {
       if (filter && c.type !== filter) return false;
       if (search) {
         const q = search.toLowerCase();
-        if (!c.subject.toLowerCase().includes(q) && !c.shortSha.includes(q)) return false;
+        if (
+          !c.subject.toLowerCase().includes(q) &&
+          !c.shortSha.includes(q) &&
+          !c.author.toLowerCase().includes(q)
+        )
+          return false;
       }
       return true;
     });
   }, [ordered, filter, search]);
 
-  // Group by month so the spine has chapter labels.
-  const months = useMemo(() => {
+  // Group by day so the spine has clear chapter breaks.
+  const days = useMemo(() => {
     const m = new Map<string, CommitNode[]>();
     for (const c of visible) {
-      const key = c.dateIso.slice(0, 7); // YYYY-MM
+      const key = c.dateIso.slice(0, 10); // YYYY-MM-DD
       if (!m.has(key)) m.set(key, []);
       m.get(key)!.push(c);
     }
-    return Array.from(m.entries()); // [['2026-04', […]], …]
+    return Array.from(m.entries());
   }, [visible]);
 
   const types = useMemo(() => {
@@ -85,8 +89,6 @@ export function CommitTimelineView() {
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
   }, [ordered]);
 
-  const totalCommits = ordered.length;
-
   return (
     <div className="space-y-6">
       {/* Toolbar */}
@@ -94,17 +96,19 @@ export function CommitTimelineView() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search commit message or SHA…"
+          placeholder="Search subject, SHA, or author…"
           className="flex-1 min-w-64 rounded-full border border-line bg-space-800 px-4 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
         />
         <button
           type="button"
           onClick={() => setFilter(null)}
           className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-            !filter ? "bg-metu-yellow text-space-black" : "bg-white/5 text-ink-dim hover:text-white"
+            !filter
+              ? "bg-metu-yellow text-space-black"
+              : "bg-white/5 text-ink-dim hover:text-white"
           }`}
         >
-          All ({totalCommits})
+          All ({ordered.length})
         </button>
         {types.map(([t, n]) => {
           const s = styleFor(t);
@@ -114,8 +118,8 @@ export function CommitTimelineView() {
               key={t}
               type="button"
               onClick={() => setFilter(active ? null : t)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition inline-flex items-center gap-1.5 ${
-                active ? `${s.bg} ${s.text} ring-1 ${s.ring}` : "bg-white/5 text-ink-dim hover:text-white"
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                active ? s.chip : "border-white/10 bg-white/5 text-ink-dim hover:text-white"
               }`}
             >
               <s.icon className="h-3 w-3" />
@@ -125,95 +129,114 @@ export function CommitTimelineView() {
         })}
       </div>
 
-      {/* Fishbone — horizontal spine with commits ribbing off above + below */}
-      <div className="relative overflow-x-auto pb-4">
-        {months.length === 0 && (
-          <p className="text-center text-sm text-ink-dim py-12">No commits match this filter.</p>
-        )}
-        <div className="flex flex-col">
-          {months.map(([month, commits]) => (
-            <MonthRow key={month} month={month} commits={commits} />
+      <p className="text-xs text-ink-dim">
+        Showing <span className="text-white font-semibold">{visible.length}</span> of {ordered.length} commits.
+        Newest first. Click a row to open the diff on GitHub.
+      </p>
+
+      {/* Vertical timeline */}
+      {days.length === 0 ? (
+        <p className="text-center text-sm text-ink-dim py-12">No commits match this filter.</p>
+      ) : (
+        <div className="relative pl-8">
+          {/* Continuous spine — single vertical line down the entire list */}
+          <div
+            aria-hidden
+            className="absolute left-3 top-2 bottom-2 w-px bg-gradient-to-b from-metu-yellow/0 via-metu-yellow/40 to-metu-yellow/0"
+          />
+
+          {days.map(([day, commits], dayIdx) => (
+            <DaySection key={day} day={day} commits={commits} isFirst={dayIdx === 0} />
           ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-function MonthRow({ month, commits }: { month: string; commits: CommitNode[] }) {
-  const [year, mo] = month.split("-");
-  const monthLabel = new Date(`${year}-${mo}-01T00:00:00Z`).toLocaleDateString("en-US", {
+function DaySection({
+  day,
+  commits,
+  isFirst,
+}: {
+  day: string;
+  commits: CommitNode[];
+  isFirst: boolean;
+}) {
+  const dateLabel = new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "long",
     month: "long",
+    day: "numeric",
     year: "numeric",
   });
   return (
-    <section className="relative">
-      {/* Month header */}
-      <div className="sticky left-0 z-10 mb-2 inline-flex items-center gap-3">
+    <section className={isFirst ? "" : "pt-6"}>
+      {/* Day header — anchors to the spine with a ring */}
+      <div className="relative mb-3 flex items-center gap-3">
+        <span
+          aria-hidden
+          className="absolute -left-[18px] top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-metu-yellow ring-4 ring-space-black"
+        />
         <span className="rounded-full bg-metu-yellow/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-metu-yellow">
-          {monthLabel}
+          {dateLabel}
         </span>
-        <span className="text-xs text-ink-dim">{commits.length} commit{commits.length === 1 ? "" : "s"}</span>
+        <span className="text-xs text-ink-dim">
+          {commits.length} commit{commits.length === 1 ? "" : "s"}
+        </span>
       </div>
 
-      {/* Fishbone spine */}
-      <div className="relative pl-4 pr-4 py-8">
-        {/* Horizontal spine line */}
-        <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px bg-gradient-to-r from-metu-yellow/0 via-metu-yellow/40 to-metu-yellow/0" />
-
-        <ol className="relative flex flex-wrap gap-x-2 gap-y-3 items-center">
-          {commits.map((c, idx) => (
-            <CommitBone key={c.sha} commit={c} flipDown={idx % 2 === 1} />
-          ))}
-        </ol>
-      </div>
+      <ol className="space-y-2">
+        {commits.map((c) => (
+          <CommitRow key={c.sha} commit={c} />
+        ))}
+      </ol>
     </section>
   );
 }
 
-function CommitBone({ commit, flipDown }: { commit: CommitNode; flipDown: boolean }) {
+function CommitRow({ commit }: { commit: CommitNode }) {
   const s = styleFor(commit.type);
-  const date = new Date(commit.dateIso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
   const time = new Date(commit.dateIso).toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
   const url = `${REPO_URL}/commit/${commit.sha}`;
+  // Strip the conventional-commits prefix from the displayed subject so
+  // the chip on the left carries the type and the title is just the
+  // human-readable change.
+  const cleanSubject = commit.subject.replace(/^[a-z]+(?:\([^)]+\))?(?:!)?:\s*/i, "");
+
   return (
-    <li
-      className={`relative flex flex-col items-center ${flipDown ? "mt-16" : "-mt-16"}`}
-      style={{ minWidth: 220 }}
-    >
-      {/* Diagonal connector to spine */}
+    <li className="relative">
+      {/* Tiny dot on the spine */}
       <span
         aria-hidden
-        className={`absolute left-1/2 ${flipDown ? "-top-8" : "-bottom-8"} h-8 w-px bg-white/15`}
+        className={`absolute -left-[14px] top-3.5 h-1.5 w-1.5 rounded-full ${s.dot}`}
       />
-
       <a
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`group block w-full rounded-xl border border-white/10 ${s.bg} px-3 py-2 transition hover:scale-[1.02] hover:border-white/30`}
-        title={`${commit.subject}\n\n${commit.author} · ${date} ${time}\nSHA: ${commit.sha}\nClick to open on GitHub`}
+        className="group flex items-start gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 transition hover:border-white/20 hover:bg-white/[0.04]"
       >
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider">
-          <s.icon className={`h-3 w-3 ${s.text}`} />
-          <span className={`font-semibold ${s.text}`}>{s.label}</span>
-          <span className="ml-auto font-mono text-ink-dim">{commit.shortSha}</span>
+        <span className={`shrink-0 inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${s.chip}`}>
+          <s.icon className="h-3 w-3" />
+          {s.label}
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-white leading-snug">{cleanSubject}</div>
+          <div className="mt-1 text-[11px] text-ink-dim flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-mono">{commit.shortSha}</span>
+            <span>·</span>
+            <span>{time}</span>
+            <span>·</span>
+            <span>{commit.author}</span>
+          </div>
         </div>
-        <div className="mt-1 text-xs text-white line-clamp-2 leading-snug">
-          {commit.subject.replace(/^[a-z]+(?:\([^)]+\))?(?:!)?:\s*/i, "")}
-        </div>
-        <div className="mt-1 text-[10px] text-ink-dim flex items-center gap-2">
-          <span>{date}</span>
-          <span>·</span>
-          <span>{commit.author}</span>
-        </div>
+
+        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-ink-dim opacity-0 group-hover:opacity-100 transition" />
       </a>
     </li>
   );
