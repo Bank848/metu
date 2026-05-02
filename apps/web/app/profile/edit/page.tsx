@@ -8,6 +8,7 @@ import { getMe } from "@/lib/session";
 import { getCountries } from "@/lib/server/queries";
 import { EditProfileForm } from "./EditProfileForm";
 import { ConnectedAccounts } from "./ConnectedAccounts";
+import { DeleteAccountSection } from "./DeleteAccountSection";
 
 export const dynamic = "force-dynamic";
 
@@ -202,6 +203,12 @@ export default async function EditProfilePage({
             Download your data (JSON)
           </a>
         </section>
+
+        {/* Phase 48 — GDPR right-to-erasure. Self-delete blocks until
+            the user types their username for confirmation; the API
+            then routes through the hybrid path (fresh = hard delete,
+            history = anonymise). */}
+        <DeleteAccountSection username={me.user.username} />
       </main>
       <Footer />
     </>

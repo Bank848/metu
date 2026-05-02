@@ -443,6 +443,30 @@ export async function getProduct(id: number) {
   return { ...product, avgRating, reviewCount: ratings.length };
 }
 
+/**
+ * Phase 48 — return the orderId of the user's most recent paid /
+ * fulfilled / pending order containing this product, or `null`.
+ * Used by the product page to swap the buy buttons for an
+ * "✓ Already in your library" banner when the product is
+ * non-stackable. Refunded + cancelled orders are excluded so a
+ * buyer can re-purchase after a refund.
+ */
+export async function getOwnedOrderId(
+  userId: number,
+  productId: number,
+): Promise<number | null> {
+  const owned = await prisma.order.findFirst({
+    where: {
+      userId,
+      status: { in: ["paid", "fulfilled", "pending"] },
+      items: { some: { productItem: { productId } } },
+    },
+    select: { orderId: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return owned?.orderId ?? null;
+}
+
 // More like this: same category and shared tags, excludes self.
 export async function getRelatedProducts(productId: number, take = 4) {
   const source = await prisma.product.findUnique({

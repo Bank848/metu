@@ -30,7 +30,13 @@ function isZodError(err: unknown): err is ZodError {
  */
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof AppError) {
-    res.status(err.status).json({ error: err.code, message: err.message });
+    // Phase 48 — spread the optional `details` payload so
+    // structured error data (e.g. AlreadyOwned's orderId) reaches
+    // the frontend without a follow-up request. Falsy details are
+    // skipped so the response shape stays clean for ordinary errors.
+    const body: Record<string, unknown> = { error: err.code, message: err.message };
+    if (err.details) Object.assign(body, err.details);
+    res.status(err.status).json(body);
     return;
   }
   if (isZodError(err)) {

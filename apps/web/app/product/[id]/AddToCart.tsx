@@ -1,7 +1,8 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, FileDown } from "lucide-react";
+import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, FileDown, BadgeCheck, ArrowRight } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { coins, thbToCoins } from "@/lib/format";
 import { play } from "@/lib/sound";
@@ -26,7 +27,19 @@ const deliveryIcon: Record<string, React.ElementType> = {
 
 const DIGITAL = new Set(["download", "email", "license_key", "streaming"]);
 
-export function AddToCart({ items }: { items: Item[] }) {
+export function AddToCart({
+  items,
+  ownedOrderId,
+}: {
+  items: Item[];
+  /**
+   * Phase 48 — when set, the buyer already owns this product (paid /
+   * fulfilled / pending order). Page passes `null` for stackable
+   * products (license_key, seller-overridden) so this banner only
+   * appears for true single-copy assets.
+   */
+  ownedOrderId?: number | null;
+}) {
   const router = useRouter();
   const [selected, setSelected] = useState<number>(items[0]?.productItemId);
   const [quantity, setQuantity] = useState(1);
@@ -61,9 +74,16 @@ export function AddToCart({ items }: { items: Item[] }) {
         return;
       }
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({} as { message?: string; error?: string; orderId?: number }));
         setMessage(data?.message ?? "Failed to add to cart");
         play("error");
+        // Phase 48 — AlreadyOwned: refresh so the parent re-fetches
+        // `getOwnedOrderId` and swaps the buy box for the
+        // "✓ Already in your library" banner pointing at the
+        // existing order.
+        if (data?.error === "AlreadyOwned") {
+          router.refresh();
+        }
         return;
       }
       setMessage("Added to cart ✓");
@@ -92,6 +112,49 @@ export function AddToCart({ items }: { items: Item[] }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Phase 48 — when the buyer already owns this single-copy product,
+  // swap the buy box for a mint banner pointing back at the existing
+  // order. We still render the variant + sample link so the buyer can
+  // click into the variant they bought (handy for multi-variant pages
+  // where the link is the only way back to the file).
+  if (ownedOrderId) {
+    return (
+      <div className="rounded-2xl surface-accent p-6 shadow-flat space-y-4">
+        <div className="rounded-xl border border-mint/40 bg-mint/10 p-4 flex items-start gap-3">
+          <BadgeCheck className="h-5 w-5 text-mint shrink-0 mt-0.5" />
+          <div className="text-sm flex-1">
+            <div className="font-semibold text-mint mb-0.5">
+              ✓ Already in your library
+            </div>
+            <div className="text-ink-secondary">
+              You bought this product in a previous order. Single-copy
+              digital goods can&apos;t be re-purchased — open the order
+              to download / view again.
+            </div>
+          </div>
+        </div>
+        <Link
+          href={`/orders/${ownedOrderId}`}
+          className="inline-flex items-center gap-2 rounded-pill bg-mint text-space-950 px-5 py-2.5 text-sm font-semibold hover:bg-mint/90 transition"
+        >
+          View order #{ownedOrderId}
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+        {active?.sampleUrl && (
+          <a
+            href={active.sampleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-metu-yellow hover:underline ml-3"
+          >
+            <FileDown className="h-3 w-3" />
+            Free sample
+          </a>
+        )}
+      </div>
+    );
   }
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Layers, RotateCcw, GitBranch } from "lucide-react";
+import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Layers, RotateCcw, GitBranch, Shield } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ const items = [
   { href: "/admin/reports",      label: "Reports",    icon: FileBarChart },
   { href: "/admin/audit",        label: "Audit log",  icon: History },
   { href: "/admin/refunds",      label: "Refunds",    icon: RotateCcw },
+  { href: "/admin/security",     label: "Security",   icon: Shield },
   { href: "/admin/settings",     label: "Settings",   icon: Settings },
   { href: "/admin/er-diagram",   label: "ER Diagram", icon: Network },
   { href: "/admin/tech-stack",   label: "Tech Stack", icon: Layers },

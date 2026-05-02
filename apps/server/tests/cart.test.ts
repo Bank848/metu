@@ -62,8 +62,17 @@ beforeEach(async () => {
   });
   // Default: the product belongs to a different seller (ownerId: 99)
   // so the own-store guard never fires for these happy-path tests.
+  // Phase 48 — `isStackable: true` so the already-owned guard skips
+  // straight through; tests that need the guard active set their own
+  // mock with `isStackable: false` + an `order.findFirst` return.
   (prisma.productItem.findUnique as any).mockResolvedValue({
-    product: { store: { ownerId: 99 } },
+    deliveryMethod: "download",
+    quantity: 99,
+    product: {
+      productId: 50,
+      isStackable: true,
+      store: { ownerId: 99 },
+    },
   });
 });
 

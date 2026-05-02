@@ -36,6 +36,11 @@ router.post("/verify-phone-firebase", requireAuth(), ctrl.verifyPhoneFirebase);
 // Authed.
 router.get("/me",                 requireAuth(), ctrl.me);
 router.patch("/me",               requireAuth(), ctrl.updateMe);
+// Phase 48 — GDPR self-delete. Body: { confirmation: string } must
+// match the user's username. Routes through admin.deleteUser's
+// hybrid logic so fresh accounts hard-delete and accounts with
+// history anonymise (no need to duplicate the branch).
+router.delete("/me",              requireAuth(), ctrl.deleteMe);
 // Sensitive ops require a fresh TOTP step-up.
 router.post("/change-password",   requireAuth(), requireRecent2FA(15), ctrl.changePassword);
 router.post("/set-password",      requireAuth(), ctrl.setPassword);

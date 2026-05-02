@@ -300,6 +300,73 @@ function escapeCsv(value: unknown): string {
 }
 
 /**
+ * Phase 48 — admin-driven version of becomeSeller. Used when an
+ * operator promotes a buyer to seller from /admin/users.
+ *
+ * Behaviour differs from the user-facing `becomeSeller`:
+ *   - Picks defaults for `name`, `description`, `businessTypeId` so
+ *     the admin doesn't have to fill the form upfront.
+ *   - **Restores** a soft-deleted store instead of refusing — the
+ *     "Make seller" action is idempotent so re-promoting after a
+ *     "Make buyer" demotion doesn't create an orphan store row.
+ *   - Doesn't audit on its own; the caller (admin.service.updateUserRole)
+ *     writes its own `store.create` / `store.restore` audit row so
+ *     the meta carries the originating admin's id.
+ */
+export async function adminCreateStore(userId: number, username: string) {
+  const existing = await prisma.store.findUnique({
+    where: { ownerId: userId },
+    select: { storeId: true, deletedAt: true },
+  });
+
+  if (existing && !existing.deletedAt) {
+    return { storeId: existing.storeId, action: "noop" as const };
+  }
+
+  if (existing && existing.deletedAt) {
+    // Restore the soft-deleted store — same row, same id, same products.
+    await prisma.store.update({
+      where: { storeId: existing.storeId },
+      data: { deletedAt: null },
+    });
+    return { storeId: existing.storeId, action: "restored" as const };
+  }
+
+  // Brand new store — pick defaults.
+  const firstBusinessType = await prisma.businessType.findFirst({
+    orderBy: { typeId: "asc" },
+    select: { typeId: true },
+  });
+  if (!firstBusinessType) {
+    throw new AppError(500, "NoBusinessTypes",
+      "Can't auto-create a store: no BusinessType rows exist.");
+  }
+
+  const store = await prisma.$transaction(async (tx) => {
+    const created = await tx.store.create({
+      data: {
+        ownerId: userId,
+        businessTypeId: firstBusinessType.typeId,
+        name: `@${username}'s store`.slice(0, 60),
+        description:
+          "Newly created store. Update name, description, and images on the storefront edit page.",
+        stats: { create: {} },
+      },
+      select: { storeId: true },
+    });
+    const existingStats = await tx.userStats.findUnique({ where: { userId } });
+    const nextRole = existingStats?.role === "admin" ? "admin" : "seller";
+    await tx.userStats.upsert({
+      where: { userId },
+      update: { role: nextRole },
+      create: { userId, role: nextRole },
+    });
+    return created;
+  });
+  return { storeId: store.storeId, action: "created" as const };
+}
+
+/**
  * Create the user's first store + promote buyer to seller in one tx.
  * Admin owners stay admin. 409 StoreExists if they already own one.
  */
@@ -365,6 +432,11 @@ export async function createProduct(storeId: number, input: ProductInput) {
   // the two stay in sync. The variant-level column is kept for now
   // until every consumer migrates to read from Product.
   const productDeliveryMethod = input.items[0]!.deliveryMethod;
+  // Phase 48 — isStackable defaults from delivery method when the
+  // seller doesn't pass an explicit override:
+  //   license_key → true (resellable, can buy multiple keys)
+  //   everything else (download/streaming/email) → false (single copy)
+  const isStackable = input.isStackable ?? (productDeliveryMethod === "license_key");
   return prisma.product.create({
     data: {
       storeId,
@@ -372,6 +444,7 @@ export async function createProduct(storeId: number, input: ProductInput) {
       name: input.name,
       description: input.description,
       deliveryMethod: productDeliveryMethod,
+      isStackable,
       items: {
         create: input.items.map((it, idx) => ({
           // Phase 45 — ProductItem.name is required (the report models
@@ -444,6 +517,11 @@ export async function updateProduct(
 
   const input = body as ProductInput;
   await prisma.$transaction(async (tx) => {
+    const productDeliveryMethod = input.items[0]!.deliveryMethod;
+    // Phase 48 — same default rule as createProduct so an edit form
+    // that doesn't expose the checkbox still picks the right value.
+    const isStackable =
+      input.isStackable ?? (productDeliveryMethod === "license_key");
     await tx.product.update({
       where: { productId },
       data: {
@@ -452,7 +530,8 @@ export async function updateProduct(
         categoryId: input.categoryId,
         // Phase 45 — keep Product.deliveryMethod in sync with the
         // first variant's method (see createProduct rationale).
-        deliveryMethod: input.items[0]!.deliveryMethod,
+        deliveryMethod: productDeliveryMethod,
+        isStackable,
       },
     });
     await tx.productImage.deleteMany({ where: { productId } });

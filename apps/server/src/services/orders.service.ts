@@ -45,6 +45,47 @@ export async function checkout(
     throw new AppError(400, "EmptyCart", "No items selected for checkout.");
   }
 
+  // Phase 48 — second line of the already-owned guard. cart.service
+  // already blocks the add, but a buyer who pre-loaded their cart
+  // before we shipped the guard could still slip through. Reject
+  // checkout if any selected line is a non-stackable product the
+  // buyer already owns.
+  const nonStackableProductIds = selectedItems
+    .filter((ci) => !ci.productItem.product.isStackable)
+    .map((ci) => ci.productItem.product.productId);
+  if (nonStackableProductIds.length > 0) {
+    const ownedAlready = await prisma.order.findFirst({
+      where: {
+        userId,
+        status: { in: ["paid", "fulfilled", "pending"] },
+        items: {
+          some: {
+            productItem: { productId: { in: nonStackableProductIds } },
+          },
+        },
+      },
+      select: {
+        orderId: true,
+        items: {
+          where: {
+            productItem: { productId: { in: nonStackableProductIds } },
+          },
+          select: { productItem: { select: { productId: true } } },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (ownedAlready) {
+      const ownedProductId = ownedAlready.items[0]?.productItem.productId;
+      throw new AppError(
+        409,
+        "AlreadyOwned",
+        `Your cart contains a product you already own — view order #${ownedAlready.orderId}.`,
+        { orderId: ownedAlready.orderId, productId: ownedProductId },
+      );
+    }
+  }
+
   // Active row inside the date window.
   let resolvedCoupon: Awaited<ReturnType<typeof prisma.coupon.findFirst>> | null = null;
   if (input.couponCode) {

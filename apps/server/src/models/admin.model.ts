@@ -7,6 +7,9 @@ export type AdminRole = (typeof ALLOWED_ROLES)[number];
 export const userListQuerySchema = z.object({
   q: z.string().optional(),
   role: z.enum(ALLOWED_ROLES).optional(),
+  // Phase 48 — `?status=banned` filters to bannedAt != null so the
+  // operator's "Banned" chip on /admin/users only shows banned rows.
+  status: z.enum(["banned"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(60).default(20),
 });

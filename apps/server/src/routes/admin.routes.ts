@@ -11,6 +11,7 @@ router.use(requireAuth(["admin"]));
 router.get("/users",                  ctrl.listUsers);
 router.patch("/users/:id",            ctrl.updateUserRole);
 router.delete("/users/:id",           ctrl.deleteUser);
+router.post("/users/:id/unban",       ctrl.unbanUser);    // Phase 48
 router.post("/users/:id/require-password-reset", ctrl.setRequirePasswordReset);
 
 // Stores
@@ -28,5 +29,11 @@ router.post("/transactions/:id/refund", ctrl.refundTransaction);
 
 // Reports
 router.get("/reports/:name",          ctrl.runReport);
+
+// Phase 48 — IP bans (network-layer abuse blocks).
+router.get("/banned-ips",             ctrl.listBannedIps);
+router.post("/banned-ips",            ctrl.addBannedIp);
+router.delete("/banned-ips/:id",      ctrl.removeBannedIp);
+router.post("/users/:id/ban-ips",     ctrl.banUserIps);
 
 export default router;

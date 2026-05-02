@@ -6,7 +6,7 @@ import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
 import { Reviews } from "@/components/Reviews";
-import { getProduct, getFavoriteSet, getRecentPurchaseCount, getRelatedProducts } from "@/lib/server/queries";
+import { getProduct, getFavoriteSet, getRecentPurchaseCount, getRelatedProducts, getOwnedOrderId } from "@/lib/server/queries";
 import { ProductCard } from "@/components/ProductCard";
 import { getMe } from "@/lib/session";
 import { getServerT } from "@/lib/i18n/server";
@@ -22,6 +22,8 @@ type Product = {
   productId: number;
   name: string;
   description: string;
+  /** Phase 48 — when false, buyer can't re-purchase after first paid order. */
+  isStackable: boolean;
   avgRating?: number;
   reviewCount?: number;
   store: { storeId: number; ownerId: number; name: string; description: string; profileImage?: string | null; businessType?: { name: string } | null; stats?: { rating: number; responseTime: number } | null };
@@ -43,11 +45,15 @@ export default async function ProductPage({ params }: { params: { id: string } }
   // Phase 26 — productQuestion + stockAlert reads dropped along with
   // the buyer↔seller messaging surface.
   const me = await getMe();
-  const [product, favSet, recentBuyers, related] = await Promise.all([
+  const [product, favSet, recentBuyers, related, ownedOrderId] = await Promise.all([
     getProduct(id) as Promise<Product | null>,
     getFavoriteSet(me?.user.userId),
     getRecentPurchaseCount(id, 7),
     getRelatedProducts(id, 4),
+    // Phase 48 — fetch the user's existing paid order on this product
+    // so AddToCart can render an "✓ Already in your library" banner
+    // instead of the buy buttons (when product.isStackable === false).
+    me?.user.userId ? getOwnedOrderId(me.user.userId, id) : Promise.resolve(null),
   ]);
   if (!product) return notFound();
   const t = getServerT();
@@ -161,7 +167,10 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 )}
               </div>
             ) : (
-              <AddToCart items={items} />
+              <AddToCart
+                items={items}
+                ownedOrderId={!product.isStackable ? ownedOrderId : null}
+              />
             )}
           </div>
         </div>

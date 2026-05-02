@@ -55,6 +55,11 @@ export const productInputSchema = z.object({
   images: z.array(z.string().url()).min(1).max(5),
   tagIds: z.array(z.number().int().positive()).max(10).default([]),
   items: z.array(productItemInputSchema).min(1).max(5),
+  // Phase 48 — when false, buyers can't re-purchase the same product.
+  // Sellers leave undefined → seller.service.createProduct picks a
+  // default based on the first variant's delivery method
+  // (license_key → true, others → false).
+  isStackable: z.boolean().optional(),
 });
 
 export const reviewInputSchema = z.object({

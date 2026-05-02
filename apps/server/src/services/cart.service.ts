@@ -108,7 +108,13 @@ export async function addItem(
     select: {
       deliveryMethod: true,
       quantity: true, // stock
-      product: { select: { store: { select: { ownerId: true } } } },
+      product: {
+        select: {
+          productId: true,
+          isStackable: true,
+          store: { select: { ownerId: true } },
+        },
+      },
     },
   });
   if (!productItem) {
@@ -116,6 +122,31 @@ export async function addItem(
   }
   if (productItem.product.store.ownerId === userId) {
     throw new AppError(400, "CannotBuyOwnProduct", "You can't buy from your own store.");
+  }
+
+  // Phase 48 — already-owned guard. Single-copy products
+  // (download / streaming / email — anything with isStackable=false)
+  // can't be bought twice by the same buyer. license_key + seller-
+  // override products bypass this rule. Refunded orders are excluded
+  // from the lookup so a buyer can re-purchase after a refund.
+  if (!productItem.product.isStackable) {
+    const owned = await prisma.order.findFirst({
+      where: {
+        userId,
+        status: { in: ["paid", "fulfilled", "pending"] },
+        items: {
+          some: { productItem: { productId: productItem.product.productId } },
+        },
+      },
+      select: { orderId: true, status: true },
+      orderBy: { createdAt: "desc" },
+    });
+    if (owned) {
+      const detail = owned.status === "pending"
+        ? `You already have an order in flight for this — view order #${owned.orderId}.`
+        : `You already own this — view your order #${owned.orderId}.`;
+      throw new AppError(409, "AlreadyOwned", detail, { orderId: owned.orderId });
+    }
   }
 
   const isDigital = DIGITAL_DELIVERY.has(productItem.deliveryMethod);

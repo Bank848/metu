@@ -1066,3 +1066,80 @@ export async function unlinkGoogle(userId: number): Promise<void> {
     targetId: userId,
   });
 }
+
+/**
+ * Phase 48 — GDPR self-delete. The user removes their own account
+ * via DELETE /auth/me. Mirrors admin.deleteUser's hybrid logic
+ * (fresh = hard delete, history = anonymise) but skips the
+ * SelfDeleteForbidden guard because here actor === target by
+ * design.
+ *
+ * Audit row uses `user.self_delete` so the operator audit feed
+ * tells self-initiated removals apart from admin-initiated ones.
+ */
+export async function selfDelete(
+  userId: number,
+  req?: Pick<import("express").Request, "ip" | "headers"> | null,
+): Promise<void> {
+  // Last-admin guard still applies — a sole admin removing themselves
+  // would lock the marketplace out of the admin surface.
+  const stats = await prisma.userStats.findUnique({
+    where: { userId },
+    select: { role: true },
+  });
+  if (stats?.role === "admin") {
+    const liveAdmins = await prisma.userStats.count({
+      where: { role: "admin", user: { deletedAt: null } },
+    });
+    if (liveAdmins <= 1) {
+      throw new AppError(
+        400,
+        "LastAdminCannotBeRemoved",
+        "You're the only admin. Promote another admin before removing your account.",
+      );
+    }
+  }
+
+  const [orderCount, reviewCount, txCount] = await Promise.all([
+    prisma.order.count({ where: { userId } }),
+    prisma.productReview.count({ where: { userId } }),
+    prisma.transaction.count({ where: { userId } }),
+  ]);
+  const historyCount = orderCount + reviewCount + txCount;
+
+  await audit({
+    actorId: userId,
+    action: "user.self_delete",
+    targetType: "user",
+    targetId: userId,
+    meta: { historyCount },
+    req: req ?? undefined,
+  });
+
+  if (historyCount === 0) {
+    await prisma.user.delete({ where: { userId } });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { userId },
+      data: {
+        email: `deleted_${userId}@deleted.invalid`,
+        username: `deleted_user_${userId}`,
+        firstName: "Deleted",
+        lastName: "User",
+        phone: null,
+        profileImage: null,
+        dateOfBirth: null,
+        password: null,
+        totpSecret: null,
+        totpEnabled: false,
+        deletedAt: new Date(),
+        requirePasswordReset: false,
+      },
+    });
+    await tx.session.deleteMany({ where: { userId } });
+    await tx.account.deleteMany({ where: { userId } });
+  });
+}

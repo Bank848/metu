@@ -24,6 +24,7 @@ type Initial = {
   images: string[];
   tagIds: number[];
   items: Variant[];
+  isStackable: boolean;
 };
 
 const DEFAULT_VARIANT: Variant = {
@@ -71,6 +72,11 @@ export function EditProductForm({
   const [images, setImages] = useState<string[]>(initial.images.length ? initial.images : [""]);
   const [tagIds, setTagIds] = useState<number[]>(initial.tagIds);
   const [variants, setVariants] = useState<Variant[]>(initial.items.length ? initial.items : [{ ...DEFAULT_VARIANT }]);
+  // Phase 48 — when false, buyers can't re-purchase this product.
+  // Default seeded from props; the checkbox lets the seller override
+  // the delivery-method-based default (license_key = stackable, the
+  // rest = single-copy).
+  const [isStackable, setIsStackable] = useState<boolean>(initial.isStackable);
   // Variants that existed at page-load time are protected from in-form
   // deletion because the API can't drop a ProductItem with FKs.
   const existingVariantCount = initial.items.length;
@@ -127,6 +133,7 @@ export function EditProductForm({
           categoryId,
           images: cleanImages,
           tagIds,
+          isStackable,
           items: variants.map((v) => ({
             ...v,
             discountAmount: (v.price * v.discountPercent) / 100,
@@ -242,6 +249,35 @@ export function EditProductForm({
               );
             })}
           </div>
+        </FormSection>
+
+        {/* Phase 48 — purchase rule: stackable products (license keys
+            are the canonical example) can be re-bought; everything else
+            is single-copy and the storefront blocks repeat orders. */}
+        <FormSection
+          title="Purchase rule"
+          description="Whether the same buyer can buy this product more than once."
+        >
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isStackable}
+              onChange={(e) => setIsStackable(e.target.checked)}
+              className="mt-1 h-4 w-4 accent-metu-yellow shrink-0"
+            />
+            <span className="text-sm text-ink-secondary">
+              <span className="font-semibold text-white">
+                Allow customers to buy this product more than once
+              </span>
+              <br />
+              Default behaviour is based on delivery method —{" "}
+              <code className="text-metu-yellow">license_key</code> products
+              are stackable, the rest (download / streaming / email) are
+              single-copy. Override here if you sell multi-pack license
+              keys, custom briefs, or anything else where a repeat purchase
+              from the same buyer is meaningful.
+            </span>
+          </label>
         </FormSection>
 
         {/* Variants — coral banner explains the protected (live) variants

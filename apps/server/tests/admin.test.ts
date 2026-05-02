@@ -22,9 +22,18 @@ vi.mock("../src/db/prisma.js", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),    // Phase 48 — hybrid hard-delete path
     },
-    userStats: { findUnique: vi.fn(), upsert: vi.fn() },
-    store: { findMany: vi.fn(), count: vi.fn(), update: vi.fn() },
+    // Phase 48 — userStats.count for the last-admin guard.
+    userStats: { findUnique: vi.fn(), upsert: vi.fn(), count: vi.fn() },
+    store: {
+      findUnique: vi.fn(),  // Phase 48 — adminCreateStore lookup
+      findMany: vi.fn(),
+      count: vi.fn(),
+      update: vi.fn(),
+    },
+    // Phase 48 — adminCreateStore picks the first BusinessType row.
+    businessType: { findFirst: vi.fn() },
     product: { count: vi.fn() },
     productReview: { count: vi.fn() },
     order: { count: vi.fn(), updateMany: vi.fn() },
@@ -33,6 +42,7 @@ vi.mock("../src/db/prisma.js", () => ({
       findMany: vi.fn(),
       delete: vi.fn(),
       create: vi.fn(),
+      count: vi.fn(),    // Phase 48 — hybrid delete history check
     },
     auditLog: { create: vi.fn() },
     $queryRaw: vi.fn(),
@@ -62,12 +72,14 @@ const { buildApp } = await import("../src/app.js");
 
 const adminUser = {
   userId: 1,
+  username: "admin1",
   deletedAt: null,
   stats: { role: "admin" },
   store: null,
 };
 const buyerUser = {
   userId: 9,
+  username: "buyer9",
   deletedAt: null,
   stats: { role: "buyer" },
   store: null,
@@ -146,6 +158,22 @@ describe("PATCH /admin/users/:id (role change)", () => {
     (prisma.userStats.findUnique as any).mockResolvedValue({ role: "buyer" });
     (prisma.userStats.upsert as any).mockResolvedValue({});
     (prisma.auditLog.create as any).mockResolvedValue({});
+    // Phase 48 — Make seller now provisions a placeholder store via
+    // adminCreateStore. Mock a fresh user (no existing store row) so
+    // the create-new branch fires + the helper can pick a default
+    // BusinessType.
+    (prisma.store.findUnique as any).mockResolvedValue(null);
+    (prisma.businessType.findFirst as any).mockResolvedValue({ typeId: 1 });
+    (prisma.$transaction as any).mockImplementation(async (cb: any) => {
+      const tx = {
+        store: { create: vi.fn().mockResolvedValue({ storeId: 42 }) },
+        userStats: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+      };
+      return cb(tx);
+    });
     const res = await request(buildApp())
       .patch("/admin/users/9")
       .set("Cookie", await cookieFor(1, "admin"))
@@ -156,12 +184,13 @@ describe("PATCH /admin/users/:id (role change)", () => {
       update: { role: "seller" },
       create: { userId: 9, role: "seller" },
     });
+    // Phase 48 — meta now carries side-effect ids alongside from/to.
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: "user.role_change",
         targetType: "user",
         targetId: 9,
-        meta: { from: "buyer", to: "seller" },
+        meta: expect.objectContaining({ from: "buyer", to: "seller" }),
       }),
     });
   });
@@ -177,24 +206,33 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
     expect(res.body.error).toBe("SelfDeleteForbidden");
   });
 
-  it("no reason → 'user.delete' audit, deletedAt only", async () => {
-    (prisma.user.update as any).mockResolvedValue({});
+  it("no reason + fresh user → 'user.delete' audit, hard delete", async () => {
+    // Phase 48 — fresh accounts (no orders/reviews/transactions) get
+    // the hard-delete branch. Mock the count queries to return 0 so
+    // the service routes through prisma.user.delete().
+    (prisma.userStats.findUnique as any).mockResolvedValue({ role: "buyer" });
+    (prisma.userStats.count as any).mockResolvedValue(0);
+    (prisma.order.count as any).mockResolvedValue(0);
+    (prisma.productReview.count as any).mockResolvedValue(0);
+    (prisma.transaction.count as any).mockResolvedValue(0);
+    (prisma.user.delete as any).mockResolvedValue({});
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .delete("/admin/users/9")
       .set("Cookie", await cookieFor(1, "admin"))
       .send({});
     expect(res.status).toBe(200);
-    const update = (prisma.user.update as any).mock.calls[0][0];
-    expect(update.data.deletedAt).toBeInstanceOf(Date);
-    expect(update.data.bannedAt).toBeUndefined();
-    expect(update.data.bannedReason).toBeUndefined();
+    expect(prisma.user.delete).toHaveBeenCalledWith({ where: { userId: 9 } });
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: "user.delete" }),
     });
   });
 
   it("with reason → 'user.ban' audit, deletedAt + bannedAt + bannedReason", async () => {
+    // Phase 48 — last-admin guard runs first; mock target as buyer
+    // and admin-count > 1 so the guard passes.
+    (prisma.userStats.findUnique as any).mockResolvedValue({ role: "buyer" });
+    (prisma.userStats.count as any).mockResolvedValue(2);
     (prisma.user.update as any).mockResolvedValue({});
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
@@ -397,7 +435,12 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
   });
 
   it("happy: SET (value=true) updates User + writes audit row", async () => {
-    (prisma.user.update as any).mockResolvedValue({});
+    // Phase 48 — service now reads back email + firstName for the
+    // notification email + tries to send via sendEmail (best-effort).
+    (prisma.user.update as any).mockResolvedValue({
+      email: "buyer@example.test",
+      firstName: "Buyer",
+    });
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .post("/admin/users/2/require-password-reset")
@@ -407,6 +450,7 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { userId: 2 },
       data: { requirePasswordReset: true },
+      select: { email: true, firstName: true },
     });
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({

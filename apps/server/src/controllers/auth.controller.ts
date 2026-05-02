@@ -137,6 +137,46 @@ export const updateMe: RequestHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * Phase 48 — GDPR self-delete. Authed user removes their own account.
+ *
+ * Body must contain `{ confirmation: string }` matching their
+ * username so a misclick on the button doesn't blow the account
+ * away. Internally calls `admin.service.deleteUser(uid, uid, ...)`
+ * with no reason, which routes through the hybrid path:
+ *   - fresh accounts (no orders/reviews/transactions) → hard delete
+ *   - accounts with history → anonymise (PII removed, ledger kept)
+ *
+ * Bypasses the SelfDeleteForbidden guard inside admin.service by
+ * checking it here first, then delegating with `actor === target`
+ * disabled via a tiny direct flow (we can't reuse admin.service
+ * verbatim because of that guard).
+ */
+export const deleteMe: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    const user = currentUser(req);
+    if (!auth || !user) throw new AppError(401, "Unauthorized");
+    const confirmation = String((req.body ?? {}).confirmation ?? "").trim();
+    if (confirmation !== user.username) {
+      throw new AppError(
+        400,
+        "ConfirmationMismatch",
+        "Type your username exactly to confirm account deletion.",
+      );
+    }
+    await service.selfDelete(auth.uid, req);
+    // Best-effort cookie clear so the browser doesn't keep a session
+    // for an account that no longer exists. better-auth's session row
+    // is gone (cascade or anonymise drops it) but the cookie copy
+    // lingers until the browser hits an authed endpoint.
+    res.clearCookie("better-auth.session_token", { path: "/" });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const changePassword: RequestHandler = async (req, res, next) => {
   try {
     const parsed = changePasswordSchema.safeParse(req.body);

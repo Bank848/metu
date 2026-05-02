@@ -33,6 +33,7 @@ import helmet from "helmet";
 import { corsMiddleware } from "./middleware/cors.js";
 import { loggerMiddleware } from "./middleware/logger.js";
 import { errorHandler } from "./middleware/error.js";
+import { ipBanCheck } from "./middleware/ip-ban.js";
 
 export function buildApp() {
   const app = express();
@@ -63,6 +64,11 @@ export function buildApp() {
 
   // Logger first so failed requests still show up.
   app.use(loggerMiddleware);
+  // Phase 48 — network-layer ban check runs immediately after the
+  // logger so blocked IPs never reach auth, parsing, or business
+  // logic. The middleware skips /health + /api/webhooks/stripe so
+  // Fly probes + Stripe callbacks always get through.
+  app.use(ipBanCheck);
   // CORS before json so OPTIONS preflight gets the right headers.
   app.use(corsMiddleware);
 

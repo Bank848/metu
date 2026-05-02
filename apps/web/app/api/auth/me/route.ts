@@ -16,3 +16,9 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   return forwardToApi(req, "/auth/me");
 }
+
+// Phase 48 — GDPR self-delete. Body must carry `confirmation` matching
+// the user's username; API verifies + applies the hybrid delete.
+export async function DELETE(req: NextRequest) {
+  return forwardToApi(req, "/auth/me");
+}

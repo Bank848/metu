@@ -18,6 +18,20 @@ type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 // actions write an AuditLog row through utils/audit.ts.
 
 export async function listUsers(q: UserListQuery) {
+  // Phase 48 — `?status=banned` filter for the new "Banned" chip on the
+  // /admin/users page. Default view hides anonymised rows (their email
+  // starts with `deleted_` per `deleteUser`'s anonymise path) so the
+  // operator's table stays clean.
+  const statusWhere =
+    q.status === "banned"
+      ? { bannedAt: { not: null } }
+      : {
+          // Hide anonymised rows from the default view. Banned (with
+          // reason) accounts still show because their email isn't
+          // deleted_*.
+          email: { not: { startsWith: "deleted_" } },
+        };
+
   const where = {
     ...(q.q
       ? {
@@ -30,6 +44,7 @@ export async function listUsers(q: UserListQuery) {
         }
       : {}),
     ...(q.role ? { stats: { role: q.role } } : {}),
+    ...statusWhere,
   };
 
   const [items, total] = await Promise.all([
@@ -74,6 +89,16 @@ export async function listUsers(q: UserListQuery) {
  * Change a user's role. Self-demote forbidden — an admin removing
  * their own admin role would lock themselves out of the very page
  * they're using.
+ *
+ * Phase 48 — also handles store side effects so the role flip
+ * actually means something in the rest of the app:
+ *   - to "seller" + user has no active store → auto-create one
+ *     (or restore a soft-deleted one) via
+ *     `seller.service.adminCreateStore`.
+ *   - to "buyer" + user owns an active store → soft-delete the
+ *     store via `deleteStore` so the new role isn't contradicted
+ *     by a still-live storefront.
+ *   - to "admin" → role flip only; existing stores stay as-is.
  */
 export async function updateUserRole(
   targetUserId: number,
@@ -89,12 +114,56 @@ export async function updateUserRole(
     );
   }
 
-  // Capture previous role for the audit trail (so we can answer
-  // "what changed?" not just "what is it now?")
-  const prev = await prisma.userStats.findUnique({
+  // Capture previous role + username for the audit trail + the
+  // auto-store-create default name.
+  const target = await prisma.user.findUnique({
     where: { userId: targetUserId },
-    select: { role: true },
+    select: {
+      username: true,
+      stats: { select: { role: true } },
+      store: { select: { storeId: true, deletedAt: true } },
+    },
   });
+  if (!target) throw new AppError(404, "UserNotFound");
+  const prevRole = target.stats?.role ?? null;
+
+  // Side effects BEFORE the role flip so the audit chain reads in
+  // execution order: store.create / store.delete first, then the
+  // role-change row.
+  const sideEffectMeta: Record<string, unknown> = {};
+
+  if (input.role === "seller") {
+    const { adminCreateStore } = await import("./seller.service.js");
+    const result = await adminCreateStore(targetUserId, target.username);
+    sideEffectMeta.storeId = result.storeId;
+    if (result.action === "created") {
+      sideEffectMeta.autoCreatedStoreId = result.storeId;
+      await audit({
+        actorId: actorUserId,
+        action: "store.create",
+        targetType: "store",
+        targetId: result.storeId,
+        meta: { ownerId: targetUserId, byAdmin: actorUserId, defaulted: true },
+        req,
+      });
+    } else if (result.action === "restored") {
+      sideEffectMeta.restoredStoreId = result.storeId;
+      await audit({
+        actorId: actorUserId,
+        action: "store.restore",
+        targetType: "store",
+        targetId: result.storeId,
+        meta: { ownerId: targetUserId, byAdmin: actorUserId },
+        req,
+      });
+    }
+  }
+
+  if (input.role === "buyer" && target.store && !target.store.deletedAt) {
+    sideEffectMeta.deletedStoreId = target.store.storeId;
+    // Re-uses the existing soft-delete + audit row.
+    await deleteStore(target.store.storeId, actorUserId, req);
+  }
 
   await prisma.userStats.upsert({
     where: { userId: targetUserId },
@@ -107,14 +176,26 @@ export async function updateUserRole(
     action: "user.role_change",
     targetType: "user",
     targetId: targetUserId,
-    meta: { from: prev?.role ?? null, to: input.role },
+    meta: { from: prevRole, to: input.role, ...sideEffectMeta },
     req,
   });
 }
 
 /**
- * Soft-delete a user. With `reason`, treats it as a ban (sets
- * bannedAt + bannedReason, audits "user.ban"). Self-delete forbidden.
+ * Phase 48 — three-path remove flow:
+ *   - reason supplied → ban (existing soft-delete + bannedAt + bannedReason,
+ *     "Banned" badge stays for moderation accountability).
+ *   - no reason + fresh account (no orders/reviews/transactions) →
+ *     hard-delete via prisma.user.delete(); cascades take care of cart,
+ *     session, account, favourite. Row truly disappears from /admin/users.
+ *   - no reason + has business history → anonymise: blank PII, clear
+ *     password/totp, set deletedAt, drop sessions + accounts. Order /
+ *     review / transaction history stays intact so seller analytics
+ *     don't break. listUsers filters anonymised rows out so the
+ *     "Deleted" badge no longer lingers on the operator's screen.
+ *
+ * Also blocks removing the only remaining admin so an operator can't
+ * lock the marketplace out of admin entirely.
  */
 export async function deleteUser(
   targetUserId: number,
@@ -132,22 +213,121 @@ export async function deleteUser(
 
   const rawReason = input.reason?.trim() ?? "";
   const reason = rawReason.length > 0 ? rawReason.slice(0, 120) : null;
-  const now = new Date();
 
-  await prisma.user.update({
+  // Last-admin guard — only enforced when target is an admin.
+  const targetStats = await prisma.userStats.findUnique({
     where: { userId: targetUserId },
-    data: {
-      deletedAt: now,
-      ...(reason ? { bannedAt: now, bannedReason: reason } : {}),
-    },
+    select: { role: true },
   });
+  if (targetStats?.role === "admin") {
+    const liveAdmins = await prisma.userStats.count({
+      where: { role: "admin", user: { deletedAt: null } },
+    });
+    if (liveAdmins <= 1) {
+      throw new AppError(
+        400,
+        "LastAdminCannotBeRemoved",
+        "Can't remove the only remaining admin. Promote another admin first.",
+      );
+    }
+  }
 
+  // BAN PATH — keep the existing behaviour.
+  if (reason) {
+    const now = new Date();
+    await prisma.user.update({
+      where: { userId: targetUserId },
+      data: { deletedAt: now, bannedAt: now, bannedReason: reason },
+    });
+    await audit({
+      actorId: actorUserId,
+      action: "user.ban",
+      targetType: "user",
+      targetId: targetUserId,
+      meta: { reason },
+      req,
+    });
+    return;
+  }
+
+  // REMOVE PATH — branch on history.
+  const [orderCount, reviewCount, txCount] = await Promise.all([
+    prisma.order.count({ where: { userId: targetUserId } }),
+    prisma.productReview.count({ where: { userId: targetUserId } }),
+    prisma.transaction.count({ where: { userId: targetUserId } }),
+  ]);
+  const historyCount = orderCount + reviewCount + txCount;
+
+  // Audit BEFORE the destructive op so the trail still references the row.
   await audit({
     actorId: actorUserId,
-    action: reason ? "user.ban" : "user.delete",
+    action: historyCount > 0 ? "user.anonymize" : "user.delete",
     targetType: "user",
     targetId: targetUserId,
-    meta: reason ? { reason } : undefined,
+    meta: { historyCount, byAdmin: actorUserId },
+    req,
+  });
+
+  if (historyCount === 0) {
+    // Fresh account — hard delete + cascade.
+    await prisma.user.delete({ where: { userId: targetUserId } });
+    return;
+  }
+
+  // Anonymise: blank PII, clear auth state, soft-delete the row,
+  // drop sessions + better-auth accounts so the user can't log back in.
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { userId: targetUserId },
+      data: {
+        email: `deleted_${targetUserId}@deleted.invalid`,
+        username: `deleted_user_${targetUserId}`,
+        firstName: "Deleted",
+        lastName: "User",
+        phone: null,
+        profileImage: null,
+        dateOfBirth: null,
+        password: null,
+        totpSecret: null,
+        totpEnabled: false,
+        deletedAt: new Date(),
+        requirePasswordReset: false,
+      },
+    });
+    await tx.session.deleteMany({ where: { userId: targetUserId } });
+    await tx.account.deleteMany({ where: { userId: targetUserId } });
+  });
+}
+
+/**
+ * Phase 48 — clears `bannedAt` + `bannedReason` + `deletedAt` so the
+ * user can sign in again. Doesn't touch role / store / order history.
+ * Used by the new "Unban" row action when admin filters
+ * /admin/users by `status=banned`.
+ */
+export async function unbanUser(
+  targetUserId: number,
+  actorUserId: number,
+  req?: AuditReq,
+): Promise<void> {
+  const target = await prisma.user.findUnique({
+    where: { userId: targetUserId },
+    select: { bannedAt: true, bannedReason: true },
+  });
+  if (!target) throw new AppError(404, "UserNotFound");
+  if (!target.bannedAt) {
+    throw new AppError(400, "NotBanned", "This user isn't banned.");
+  }
+  await prisma.user.update({
+    where: { userId: targetUserId },
+    data: { bannedAt: null, bannedReason: null, deletedAt: null },
+  });
+  await audit({
+    actorId: actorUserId,
+    action: "user.unban",
+    targetType: "user",
+    targetId: targetUserId,
+    meta: { previousReason: target.bannedReason ?? null },
     req,
   });
 }
@@ -400,10 +580,52 @@ export async function setRequirePasswordReset(
       "You cannot force-reset your own password from here.",
     );
   }
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { userId: targetUserId },
     data: { requirePasswordReset: value },
+    select: { email: true, firstName: true },
   });
+
+  // Phase 48 — out-of-band notification when an admin flags the
+  // account so the user isn't surprised by the redirect on next
+  // login. Email failure is non-blocking — the flag still flips
+  // because the operator's intent is what matters.
+  let emailSent = false;
+  if (value) {
+    try {
+      const { sendEmail } = await import("../utils/email.js");
+      const greeting = updated.firstName ? `Hi ${updated.firstName},` : "Hi,";
+      const baseUrl =
+        process.env.NEXT_PUBLIC_SITE_URL ?? "https://metu.fly.dev";
+      const html = `
+        <p>${greeting}</p>
+        <p>An administrator has flagged your METU account for a
+        password reset. The next time you sign in you'll be redirected
+        to <strong>Profile → Edit</strong> until a new password is set.</p>
+        <p style="margin-top:24px">
+          <a href="${baseUrl}/profile/edit?must-reset=1"
+             style="background:#FBBF24;color:#0b1220;padding:12px 24px;
+                    border-radius:9999px;text-decoration:none;
+                    font-weight:600;">
+            Reset your password →
+          </a>
+        </p>
+        <p style="font-size:12px;color:#64748b;margin-top:32px">
+          If you didn't expect this, contact METU support so we can
+          investigate the request.
+        </p>`;
+      const result = await sendEmail({
+        to: updated.email,
+        subject: "Action required: reset your METU password",
+        html,
+      });
+      emailSent = result.ok;
+    } catch (err) {
+      // Don't bail — the flag flip is what counts. Log + audit `false`.
+      console.error("[setRequirePasswordReset] email send failed:", err);
+    }
+  }
+
   await audit({
     actorId: actorUserId,
     action: value
@@ -411,6 +633,7 @@ export async function setRequirePasswordReset(
       : "user.require_password_reset.clear",
     targetType: "user",
     targetId: targetUserId,
+    meta: value ? { emailSent } : undefined,
     req,
   });
 }

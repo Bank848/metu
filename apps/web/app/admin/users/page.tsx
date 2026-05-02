@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
@@ -54,11 +55,12 @@ const columns: DataTableColumn<UserRow>[] = [
 export default async function AdminUsers({
   searchParams,
 }: {
-  searchParams: { q?: string; role?: string; page?: string };
+  searchParams: { q?: string; role?: string; status?: string; page?: string };
 }) {
   const qs = new URLSearchParams();
   if (searchParams.q) qs.set("q", searchParams.q);
   if (searchParams.role) qs.set("role", searchParams.role);
+  if (searchParams.status) qs.set("status", searchParams.status);
   if (searchParams.page) qs.set("page", searchParams.page);
   const [data, me] = await Promise.all([
     apiAuth<UsersResp>(`/admin/users?${qs.toString()}`).then(
@@ -67,6 +69,9 @@ export default async function AdminUsers({
     getMe(),
   ]);
   const myUserId = me?.user?.userId as number | undefined;
+  // Phase 48 — `?status=banned` filter shows only banned rows so the
+  // operator can scan recent bans + tap "Unban" without sifting.
+  const showingBanned = searchParams.status === "banned";
 
   // Server-friendly pagination — mirrors the buildHref pattern used on
   // /admin/audit so navigation works without JS.
@@ -74,6 +79,7 @@ export default async function AdminUsers({
     const p = new URLSearchParams();
     if (searchParams.q) p.set("q", searchParams.q);
     if (searchParams.role) p.set("role", searchParams.role);
+    if (searchParams.status) p.set("status", searchParams.status);
     p.set("page", String(next));
     return `/admin/users?${p.toString()}`;
   };
@@ -103,6 +109,43 @@ export default async function AdminUsers({
           Filter
         </button>
       </form>
+
+      {/* Phase 48 — status chips. Toggle "Banned" to surface only the
+          banned rows + their Unban action; clear it to return to the
+          default listing (which already excludes anonymised users). */}
+      <div className="mb-4 flex gap-2 text-xs">
+        <Link
+          href={(() => {
+            const p = new URLSearchParams();
+            if (searchParams.q) p.set("q", searchParams.q);
+            if (searchParams.role) p.set("role", searchParams.role);
+            return `/admin/users${p.toString() ? "?" + p.toString() : ""}`;
+          })()}
+          className={`rounded-full px-3 py-1.5 font-semibold transition ${
+            !showingBanned
+              ? "bg-metu-yellow text-space-black"
+              : "bg-white/5 text-ink-dim hover:text-white"
+          }`}
+        >
+          Active
+        </Link>
+        <Link
+          href={(() => {
+            const p = new URLSearchParams();
+            if (searchParams.q) p.set("q", searchParams.q);
+            if (searchParams.role) p.set("role", searchParams.role);
+            p.set("status", "banned");
+            return `/admin/users?${p.toString()}`;
+          })()}
+          className={`rounded-full px-3 py-1.5 font-semibold transition inline-flex items-center gap-1.5 ${
+            showingBanned
+              ? "bg-coral/20 text-coral ring-1 ring-coral/40"
+              : "bg-white/5 text-ink-dim hover:text-white"
+          }`}
+        >
+          Banned only
+        </Link>
+      </div>
 
       <DataTable<UserRow>
         ariaLabel="Users"
@@ -194,6 +237,7 @@ export default async function AdminUsers({
             username={u.username}
             isSelf={u.userId === myUserId}
             requirePasswordReset={Boolean((u as any).requirePasswordReset)}
+            isBanned={Boolean(u.bannedAt)}
           />
         )}
       />

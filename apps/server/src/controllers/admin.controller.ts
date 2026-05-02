@@ -61,6 +61,70 @@ export const deleteUser: RequestHandler<{ id: string }> = async (req, res, next)
   }
 };
 
+// Phase 48 — clears bannedAt + bannedReason so the user can sign in again.
+export const unbanUser: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const targetUserId = Number(req.params.id);
+    if (!Number.isFinite(targetUserId)) throw new AppError(400, "BadId");
+    await service.unbanUser(targetUserId, auth.uid, req);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Phase 48 — IP ban admin surface. Lazy-imported so the heavier
+// banned-ip.service module (with its in-memory cache) only loads
+// when an admin actually opens the page.
+export const listBannedIps: RequestHandler = async (_req, res, next) => {
+  try {
+    const { listBans } = await import("../services/banned-ip.service.js");
+    const rows = await listBans();
+    res.json({ items: rows });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const addBannedIp: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const { addBan } = await import("../services/banned-ip.service.js");
+    const row = await addBan(req.body ?? {}, auth.uid, req);
+    res.json({ ok: true, row });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const removeBannedIp: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) throw new AppError(400, "BadId");
+    const { removeBan } = await import("../services/banned-ip.service.js");
+    await removeBan(id, auth.uid, req);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const banUserIps: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const targetUserId = Number(req.params.id);
+    if (!Number.isFinite(targetUserId)) throw new AppError(400, "BadId");
+    const reason = String((req.body ?? {}).reason ?? "").trim() || null;
+    const { banUserSessions } = await import("../services/banned-ip.service.js");
+    const result = await banUserSessions(targetUserId, auth.uid, reason, req);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Stores ──────────────────────────────────────────────────────────
 
 export const listStores: RequestHandler = async (_req, res, next) => {
