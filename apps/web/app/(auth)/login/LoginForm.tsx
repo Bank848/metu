@@ -489,7 +489,7 @@ export function LoginForm({
 
       {step === "credentials" && TURNSTILE_SITE_KEY && (
         <div className="mt-3">
-          <Turnstile siteKey={TURNSTILE_SITE_KEY} onVerify={setCaptchaToken} />
+          <Turnstile sitekey={TURNSTILE_SITE_KEY} onVerify={setCaptchaToken} />
         </div>
       )}
 

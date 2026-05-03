@@ -50,7 +50,7 @@ export function ForgotPasswordForm() {
         />
       </label>
       {TURNSTILE_SITE_KEY && (
-        <Turnstile siteKey={TURNSTILE_SITE_KEY} onVerify={setCaptchaToken} />
+        <Turnstile sitekey={TURNSTILE_SITE_KEY} onVerify={setCaptchaToken} />
       )}
       {done && (
         <p className="text-sm text-green-400 inline-flex items-center gap-1.5">
