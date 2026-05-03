@@ -13,7 +13,9 @@ vi.mock("../src/db/prisma.js", () => ({
     $queryRaw: vi.fn(),
     user: { findUnique: vi.fn() },
     product: { findFirst: vi.fn() },
+    order: { findFirst: vi.fn() },
     productReview: {
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -76,6 +78,9 @@ describe("POST /products/:productId/reviews", () => {
 
   it("creates a review on a valid product", async () => {
     (prisma.product.findFirst as any).mockResolvedValue({ productId: 100 });
+    // Phase 51: requires a paid order on this product + no existing review.
+    (prisma.order.findFirst as any).mockResolvedValue({ orderId: 200 });
+    (prisma.productReview.findFirst as any).mockResolvedValue(null);
     (prisma.productReview.create as any).mockResolvedValue({
       reviewId: 555,
       productId: 100,

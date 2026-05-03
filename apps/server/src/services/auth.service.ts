@@ -267,39 +267,39 @@ export async function resendEmailVerify(
  */
 export async function verifyPhoneRegister(email: string, code: string): Promise<void> {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || user.deletedAt) throw new AppError(404, "UserNotFound");
+  // Phase 51 — collapse all failure modes to one InvalidCode error.
+  // Distinct errors (UserNotFound vs NoPendingOtp vs OtpExpired) leak
+  // whether an email is registered + whether they recently signed up.
+  const GENERIC = new AppError(401, "InvalidCode", "OTP didn't match. Request a new one if needed.");
+  if (!user || user.deletedAt) throw GENERIC;
   if (user.phoneVerifiedAt) return; // already verified
-  if (!user.phoneOtpHash || !user.phoneOtpExpiresAt) {
-    throw new AppError(400, "NoPendingOtp", "No OTP is pending. Request a new one.");
-  }
+  if (!user.phoneOtpHash || !user.phoneOtpExpiresAt) throw GENERIC;
   if (user.phoneOtpExpiresAt < new Date()) {
     // Clear the expired OTP so it can't be retried.
     await prisma.user.update({
       where: { userId: user.userId },
       data: { phoneOtpHash: null, phoneOtpExpiresAt: null },
     });
-    throw new AppError(400, "OtpExpired", "OTP expired. Request a new one.");
+    throw GENERIC;
   }
   const hash = crypto.createHash("sha256").update(code).digest("hex");
   if (hash !== user.phoneOtpHash) {
-    // Phase 51 — brute-force guard: track attempts via shortened
-    // expiry. After 5 wrong guesses (TTL shrinks by 2 min each
-    // attempt) the OTP auto-expires, forcing a fresh request.
+    // Brute-force guard: shorten TTL on each wrong guess; after ~5
+    // attempts the OTP auto-expires and the user must re-request.
     const remaining = user.phoneOtpExpiresAt.getTime() - Date.now();
-    const penalty = 2 * 60_000; // shorten TTL by 2 min per wrong guess
+    const penalty = 2 * 60_000;
     if (remaining <= penalty) {
-      // Too many wrong guesses — invalidate OTP entirely.
       await prisma.user.update({
         where: { userId: user.userId },
         data: { phoneOtpHash: null, phoneOtpExpiresAt: null },
       });
-      throw new AppError(429, "TooManyAttempts", "Too many wrong codes. Request a new OTP.");
+    } else {
+      await prisma.user.update({
+        where: { userId: user.userId },
+        data: { phoneOtpExpiresAt: new Date(Date.now() + remaining - penalty) },
+      });
     }
-    await prisma.user.update({
-      where: { userId: user.userId },
-      data: { phoneOtpExpiresAt: new Date(Date.now() + remaining - penalty) },
-    });
-    throw new AppError(401, "InvalidCode", "OTP didn't match. Try again.");
+    throw GENERIC;
   }
   await prisma.user.update({
     where: { userId: user.userId },

@@ -292,14 +292,14 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
 }
 
 // Phase 51 — mask buyer email so sellers can't harvest addresses.
-// "john.doe@gmail.com" → "j*******@g***l.com"
+// "john.doe@gmail.com" → "j***@gmail.com"
+// Domain stays visible (avoids guessing) — only local part is masked.
 function maskEmail(email: string): string {
+  if (!email || !email.includes("@")) return "***@***";
   const [local, domain] = email.split("@");
-  if (!local || !domain) return "***@***.***";
-  const maskedLocal = local[0] + "*".repeat(Math.max(local.length - 1, 3));
-  const [domName, ...rest] = domain.split(".");
-  const maskedDom = (domName?.[0] ?? "*") + "***" + (domName && domName.length > 1 ? domName[domName.length - 1] : "");
-  return `${maskedLocal}@${maskedDom}.${rest.join(".")}`;
+  if (!local || !domain) return "***@***";
+  const masked = local.length <= 2 ? "*".repeat(local.length) : local[0] + "***";
+  return `${masked}@${domain}`;
 }
 
 function escapeCsv(value: unknown): string {

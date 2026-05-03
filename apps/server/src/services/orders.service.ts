@@ -22,6 +22,14 @@ export async function checkout(
   userId: number,
   input: CheckoutInput,
 ): Promise<CheckoutResponse> {
+  // Phase 51 — opportunistic stale-pending sweep. Orders that have
+  // sat `pending` for >30 min are abandoned: cancel them and restore
+  // any stock they held. Prevents inventory-DoS via abandoned carts.
+  await sweepStalePendingOrders(userId).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.warn("[orders.checkout] stale-sweep failed (non-fatal):", err);
+  });
+
   const cart = await prisma.cart.findFirst({
     where: { userId, status: "active" },
     include: {
@@ -107,7 +115,11 @@ export async function checkout(
     }
   }
 
-  // Active row inside the date window.
+  // Active row inside the date window. Note: usage limit + per-user
+  // checks happen INSIDE the order transaction below to avoid TOCTOU
+  // (parallel checkouts both passing the gate). The unique index
+  // on (couponId, userId) provides the per-user enforcement, the
+  // count() inside tx provides the global limit enforcement.
   let resolvedCoupon: Awaited<ReturnType<typeof prisma.coupon.findFirst>> | null = null;
   if (input.couponCode) {
     const now = new Date();
@@ -119,26 +131,6 @@ export async function checkout(
         endDate: { gte: now },
       },
     });
-    // Phase 51 — enforce global usage limit + per-user one-time use
-    // at checkout. Previously only the /validate endpoint checked
-    // these, so a direct POST /orders with a couponCode bypassed
-    // the limit entirely.
-    if (resolvedCoupon) {
-      const globalUsed = await prisma.couponUsage.count({
-        where: { couponId: resolvedCoupon.couponId },
-      });
-      if (globalUsed >= resolvedCoupon.usageLimit) {
-        resolvedCoupon = null; // silently drop — limit reached
-      }
-    }
-    if (resolvedCoupon) {
-      const userUsed = await prisma.couponUsage.findFirst({
-        where: { couponId: resolvedCoupon.couponId, userId },
-      });
-      if (userUsed) {
-        resolvedCoupon = null; // already redeemed by this buyer
-      }
-    }
   }
 
   // Decimal math: float arithmetic on percent discounts loses cents.
@@ -324,9 +316,26 @@ export async function checkout(
       });
     }
     if (resolvedCoupon) {
-      await tx.couponUsage.create({
-        data: { couponId: resolvedCoupon.couponId, userId },
+      // Phase 51 — TOCTOU-safe limit check: count INSIDE the tx so
+      // a concurrent checkout can't sneak past. The unique
+      // (couponId, userId) index prevents the same buyer from
+      // double-using; we map the P2002 to a clean 400.
+      const usedSoFar = await tx.couponUsage.count({
+        where: { couponId: resolvedCoupon.couponId },
       });
+      if (usedSoFar >= resolvedCoupon.usageLimit) {
+        throw new AppError(400, "CouponLimitReached", "This coupon has reached its usage limit.");
+      }
+      try {
+        await tx.couponUsage.create({
+          data: { couponId: resolvedCoupon.couponId, userId },
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+          throw new AppError(400, "CouponAlreadyUsed", "You have already used this coupon.");
+        }
+        throw err;
+      }
     }
     return { order, txn };
   });
@@ -608,4 +617,47 @@ export async function findByIdForUser(
       transaction: true,
     },
   });
+}
+
+/**
+ * Phase 51 — cancel orders that have sat `pending` for >30 min and
+ * restore their stock. Called opportunistically at the start of every
+ * checkout so abandoned carts don't lock inventory indefinitely.
+ */
+async function sweepStalePendingOrders(userId: number): Promise<void> {
+  const cutoff = new Date(Date.now() - 30 * 60_000);
+  const stale = await prisma.order.findMany({
+    where: {
+      userId,
+      status: "pending",
+      createdAt: { lt: cutoff },
+    },
+    select: { orderId: true },
+  });
+  if (stale.length === 0) return;
+  const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
+  for (const order of stale) {
+    await prisma.$transaction(async (tx) => {
+      const fresh = await tx.order.findUnique({
+        where: { orderId: order.orderId },
+        select: { status: true, items: { select: { productItemId: true, quantity: true } } },
+      });
+      if (!fresh || fresh.status !== "pending") return;
+      for (const item of fresh.items) {
+        const pi = await tx.productItem.findUnique({
+          where: { productItemId: item.productItemId },
+          select: { deliveryMethod: true },
+        });
+        if (!pi || DIGITAL_METHODS.has(pi.deliveryMethod)) continue;
+        await tx.productItem.update({
+          where: { productItemId: item.productItemId },
+          data: { quantity: { increment: item.quantity } },
+        });
+      }
+      await tx.order.update({
+        where: { orderId: order.orderId },
+        data: { status: "cancelled" },
+      });
+    });
+  }
 }

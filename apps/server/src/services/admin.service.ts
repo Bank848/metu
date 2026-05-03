@@ -541,9 +541,16 @@ export async function refundTransaction(
     );
   }
 
+  // Phase 51 — idempotency: refuse if every linked order is already
+  // refunded. Previously calling this twice created two negative
+  // payout rows, double-debiting the ledger.
+  if (tx.orders.length > 0 && tx.orders.every((o) => o.status === "refunded")) {
+    throw new AppError(409, "AlreadyRefunded", "This transaction has already been refunded.");
+  }
+
   await prisma.$transaction([
     prisma.order.updateMany({
-      where: { transactionId },
+      where: { transactionId, status: { not: "refunded" } },
       data: { status: "refunded" },
     }),
     // Phase 45 — TransactionType enum is now { purchase, payout } per
