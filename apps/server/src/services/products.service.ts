@@ -273,7 +273,19 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
   const product = await prisma.product.findUnique({
     where: { productId: id },
     include: {
-      store: { include: { stats: true, businessType: true } },
+      store: {
+        select: {
+          storeId: true,
+          name: true,
+          profileImage: true,
+          coverImage: true,
+          description: true,
+          deletedAt: true,
+          suspendedAt: true,
+          stats: true,
+          businessType: true,
+        },
+      },
       category: true,
       items: { orderBy: { price: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },

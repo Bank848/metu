@@ -273,10 +273,32 @@ export async function verifyPhoneRegister(email: string, code: string): Promise<
     throw new AppError(400, "NoPendingOtp", "No OTP is pending. Request a new one.");
   }
   if (user.phoneOtpExpiresAt < new Date()) {
+    // Clear the expired OTP so it can't be retried.
+    await prisma.user.update({
+      where: { userId: user.userId },
+      data: { phoneOtpHash: null, phoneOtpExpiresAt: null },
+    });
     throw new AppError(400, "OtpExpired", "OTP expired. Request a new one.");
   }
   const hash = crypto.createHash("sha256").update(code).digest("hex");
   if (hash !== user.phoneOtpHash) {
+    // Phase 51 — brute-force guard: track attempts via shortened
+    // expiry. After 5 wrong guesses (TTL shrinks by 2 min each
+    // attempt) the OTP auto-expires, forcing a fresh request.
+    const remaining = user.phoneOtpExpiresAt.getTime() - Date.now();
+    const penalty = 2 * 60_000; // shorten TTL by 2 min per wrong guess
+    if (remaining <= penalty) {
+      // Too many wrong guesses — invalidate OTP entirely.
+      await prisma.user.update({
+        where: { userId: user.userId },
+        data: { phoneOtpHash: null, phoneOtpExpiresAt: null },
+      });
+      throw new AppError(429, "TooManyAttempts", "Too many wrong codes. Request a new OTP.");
+    }
+    await prisma.user.update({
+      where: { userId: user.userId },
+      data: { phoneOtpExpiresAt: new Date(Date.now() + remaining - penalty) },
+    });
     throw new AppError(401, "InvalidCode", "OTP didn't match. Try again.");
   }
   await prisma.user.update({
@@ -370,6 +392,16 @@ export async function resendPhoneOtp(
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || user.deletedAt || user.phoneVerifiedAt) return {};
   if (!user.phone) return {};
+  // Phase 51 — cooldown: if the existing OTP still has >8 min left
+  // (issued <2 min ago), don't re-issue. Prevents SMS/email spam.
+  if (user.phoneOtpExpiresAt) {
+    const remaining = user.phoneOtpExpiresAt.getTime() - Date.now();
+    const COOLDOWN_MS = 2 * 60_000; // 2-minute cooldown
+    const FULL_TTL_MS = PHONE_OTP_TTL_MIN * 60_000;
+    if (remaining > FULL_TTL_MS - COOLDOWN_MS) {
+      return {}; // silently refuse — too soon
+    }
+  }
   const otp = await issuePhoneOtp(user.userId);
   logPhoneOtp(user.phone, otp);
   return process.env.DEMO_REVEAL_TOKENS === "true" ? { demo: { otp } } : {};

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
-import { isConfigured as stripeConfigured, createPaymentIntent } from "./stripe.service.js";
+import { isConfigured as stripeConfigured, createPaymentIntent, getClient } from "./stripe.service.js";
 import { getSettings } from "./settings.service.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout } from "../utils/email-template.js";
@@ -119,6 +119,26 @@ export async function checkout(
         endDate: { gte: now },
       },
     });
+    // Phase 51 — enforce global usage limit + per-user one-time use
+    // at checkout. Previously only the /validate endpoint checked
+    // these, so a direct POST /orders with a couponCode bypassed
+    // the limit entirely.
+    if (resolvedCoupon) {
+      const globalUsed = await prisma.couponUsage.count({
+        where: { couponId: resolvedCoupon.couponId },
+      });
+      if (globalUsed >= resolvedCoupon.usageLimit) {
+        resolvedCoupon = null; // silently drop — limit reached
+      }
+    }
+    if (resolvedCoupon) {
+      const userUsed = await prisma.couponUsage.findFirst({
+        where: { couponId: resolvedCoupon.couponId, userId },
+      });
+      if (userUsed) {
+        resolvedCoupon = null; // already redeemed by this buyer
+      }
+    }
   }
 
   // Decimal math: float arithmetic on percent discounts loses cents.
@@ -160,8 +180,15 @@ export async function checkout(
   }
   const total = subtotal.sub(couponDiscount);
 
-  // Single-store + Stripe-configured carts get a real PaymentIntent;
-  // multi-store carts fall back to demo mode (no Stripe charge).
+  // Phase 51 — reject zero-total orders (large fixed-coupon abuse).
+  if (total.lte(0)) {
+    throw new AppError(400, "InvalidTotal", "Order total must be greater than zero.");
+  }
+
+  // Single-store + Stripe-configured carts get a real PaymentIntent.
+  // Phase 51 — multi-store carts are blocked when any store has
+  // Stripe connected. Previously the code silently fell back to demo
+  // mode, giving the buyer free products from all stores.
   const storeIds = new Set(selectedItems.map((ci) => ci.productItem.product.storeId));
   const singleStoreId = storeIds.size === 1 ? selectedItems[0]!.productItem.product.storeId : null;
   let useStripe = false;
@@ -176,8 +203,56 @@ export async function checkout(
       sellerStripeAccountId = store.stripeAccountId;
     }
   }
+  // Block multi-store checkout when Stripe is live.
+  if (storeIds.size > 1 && stripeConfigured()) {
+    const anyStoreHasStripe = await prisma.store.count({
+      where: {
+        storeId: { in: [...storeIds] },
+        stripeAccountId: { not: null },
+        stripeChargesEnabled: true,
+      },
+    });
+    if (anyStoreHasStripe > 0) {
+      throw new AppError(
+        400,
+        "MultiStoreCheckoutUnsupported",
+        "Your cart contains items from multiple stores. Please check out one store at a time.",
+      );
+    }
+  }
 
   const settings = await getSettings();
+
+  // Phase 51 — create PaymentIntent BEFORE the DB transaction so
+  // stock is never decremented if Stripe is unavailable. The buyer
+  // simply gets a 502 and can retry; no orphaned pending orders.
+  let stripeClientSecret: string | null = null;
+  let stripePaymentIntentId: string | null = null;
+  if (useStripe && sellerStripeAccountId) {
+    const buyer = await prisma.user.findUnique({
+      where: { userId },
+      select: { email: true },
+    });
+    try {
+      const intent = await createPaymentIntent({
+        orderId: 0, // placeholder — updated after order row exists
+        amountBaht: Number(total),
+        sellerStripeAccountId,
+        applicationFeePercent: Number(settings.platformFeePercent),
+        buyerEmail: buyer?.email,
+      });
+      stripeClientSecret = intent.clientSecret;
+      stripePaymentIntentId = intent.paymentIntentId;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[orders.checkout] Stripe createPaymentIntent failed:", err);
+      throw new AppError(
+        502,
+        "PaymentServiceUnavailable",
+        "Payment service is temporarily unavailable. Please try again.",
+      );
+    }
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const txn = await tx.transaction.create({
@@ -190,14 +265,12 @@ export async function checkout(
     const order = await tx.order.create({
       data: {
         cartId: cart.cartId,
-        // Phase 45 — Order.userId is now a direct FK (denormalised from
-        // Cart.userId per the submitted report). Set it from the cart
-        // owner so reports/analytics can join Order → User without the
-        // cart hop.
         userId,
         totalPrice: total,
-        // Stripe path starts `pending` (webhook flips to `paid`); demo path is paid.
-        status: useStripe ? "pending" : "paid",
+        // All orders start `pending`. Stripe webhook flips to `paid`;
+        // demo orders require admin approval.
+        status: "pending",
+        stripePaymentIntentId,
         transactionId: txn.transactionId,
         giftRecipientEmail: input.giftRecipientEmail || null,
         giftMessage: input.giftMessage || null,
@@ -206,7 +279,6 @@ export async function checkout(
             productItemId: ci.productItemId,
             quantity: ci.quantity,
             pricePerUnit: unitPrice(ci),
-            // Master coupon stamps every line; per-store stamps only its own lines.
             couponId:
               resolvedCoupon &&
               (couponIsMaster ||
@@ -219,7 +291,6 @@ export async function checkout(
     });
 
     // Atomic stock decrement; digital delivery methods skip it.
-    // Conditional UPDATE returns 0 rows on a concurrent depletion - we throw to roll back.
     const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
     for (const ci of selectedItems) {
       if (DIGITAL_METHODS.has(ci.productItem.deliveryMethod)) continue;
@@ -260,39 +331,20 @@ export async function checkout(
     return { order, txn };
   });
 
-  // Stripe call after the DB tx so an outage can't roll back the order.
-  let stripeClientSecret: string | null = null;
-  if (useStripe && sellerStripeAccountId) {
+  // Update Stripe PI metadata with actual orderId (was placeholder 0).
+  if (stripePaymentIntentId && useStripe) {
     try {
-      const buyer = await prisma.user.findUnique({
-        where: { userId },
-        select: { email: true },
-      });
-      const intent = await createPaymentIntent({
-        orderId: result.order.orderId,
-        amountBaht: Number(total),
-        sellerStripeAccountId,
-        applicationFeePercent: Number(settings.platformFeePercent),
-        buyerEmail: buyer?.email,
-      });
-      stripeClientSecret = intent.clientSecret;
-      await prisma.order.update({
-        where: { orderId: result.order.orderId },
-        data: { stripePaymentIntentId: intent.paymentIntentId },
-      });
-    } catch (err) {
-      // Order stays `pending`; admin can investigate via dashboard.
+      const stripe = getClient();
+      await stripe.paymentIntents.update(
+        stripePaymentIntentId,
+        { metadata: { orderId: String(result.order.orderId) } },
+        { stripeAccount: sellerStripeAccountId! },
+      );
+    } catch {
+      // Non-fatal — webhook uses PI metadata but also has order lookup
       // eslint-disable-next-line no-console
-      console.error("[orders.checkout] Stripe createPaymentIntent failed:", err);
+      console.warn("[orders.checkout] failed to update PI metadata with orderId");
     }
-  }
-
-  // Demo orders skip Stripe and finalise immediately so keys are visible.
-  if (!useStripe) {
-    await finalizeOrder(result.order.orderId).catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error("[orders.checkout] demo finalize failed:", err);
-    });
   }
 
   return {

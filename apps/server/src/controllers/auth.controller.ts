@@ -199,7 +199,7 @@ export const me: RequestHandler = (req, res) => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const { password, ...safe } = user;
+  const { password, totpSecret, phoneOtpHash, phoneOtpExpiresAt, ...safe } = user as any;
   // hasPassword + requirePasswordReset + totpEnabled drive UI flows.
   res.json({
     user: safe,

@@ -42,8 +42,8 @@ export async function ipBanCheck(
     ip = (req.socket?.remoteAddress ?? "").trim();
   }
   if (!ip) {
-    console.warn("[ipBanCheck] request with empty IP — letting through:", req.path);
-    next();
+    console.warn("[ipBanCheck] request with empty IP — blocking:", req.path);
+    res.status(400).json({ error: "BadRequest", message: "Unable to determine client IP." });
     return;
   }
   try {

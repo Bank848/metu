@@ -277,7 +277,7 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
         Number(o.totalPrice).toFixed(2),
         o.cart.user.username,
         `${o.cart.user.firstName} ${o.cart.user.lastName}`.trim(),
-        o.cart.user.email,
+        maskEmail(o.cart.user.email),
         li.productItem.product.name,
         li.productItem.deliveryMethod,
         li.quantity,
@@ -289,6 +289,17 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
   }
 
   return rows.join("\n");
+}
+
+// Phase 51 — mask buyer email so sellers can't harvest addresses.
+// "john.doe@gmail.com" → "j*******@g***l.com"
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***@***.***";
+  const maskedLocal = local[0] + "*".repeat(Math.max(local.length - 1, 3));
+  const [domName, ...rest] = domain.split(".");
+  const maskedDom = (domName?.[0] ?? "*") + "***" + (domName && domName.length > 1 ? domName[domName.length - 1] : "");
+  return `${maskedLocal}@${maskedDom}.${rest.join(".")}`;
 }
 
 function escapeCsv(value: unknown): string {
