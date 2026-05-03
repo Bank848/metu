@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
+import { refundOrder as stripeRefund } from "./stripe.service.js";
 import {
   type UserListQuery,
   type UpdateUserRoleInput,
@@ -546,6 +547,34 @@ export async function refundTransaction(
   // payout rows, double-debiting the ledger.
   if (tx.orders.length > 0 && tx.orders.every((o) => o.status === "refunded")) {
     throw new AppError(409, "AlreadyRefunded", "This transaction has already been refunded.");
+  }
+
+  // Phase 51 — actually call Stripe for any orders that have a PI.
+  // Each order can be on a different connected account, so we iterate.
+  // If any single Stripe call fails, we bail out before touching the
+  // DB so the operator can retry without partial state.
+  const stripeRefundIds: Record<number, string> = {};
+  for (const o of tx.orders) {
+    if (o.status === "refunded") continue;
+    if (!o.stripePaymentIntentId) continue;
+    const lineWithStore = await prisma.orderItem.findFirst({
+      where: { orderId: o.orderId },
+      select: { productItem: { select: { product: { select: { store: { select: { stripeAccountId: true } } } } } } },
+    });
+    const acct = lineWithStore?.productItem.product.store.stripeAccountId;
+    if (!acct) continue;
+    try {
+      const refund = await stripeRefund(o.stripePaymentIntentId, acct);
+      stripeRefundIds[o.orderId] = refund.id;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[admin.refund] Stripe refund failed for order", o.orderId, err);
+      throw new AppError(
+        502,
+        "StripeRefundFailed",
+        "Stripe declined one of the order refunds. Nothing has been changed in the DB; try again or refund the order individually.",
+      );
+    }
   }
 
   await prisma.$transaction([

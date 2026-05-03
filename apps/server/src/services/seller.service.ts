@@ -3,6 +3,7 @@ import type { z } from "zod";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
+import { refundOrder as stripeRefund } from "./stripe.service.js";
 import {
   type SellerStatsResponse,
   type PatchVariantInput,
@@ -847,14 +848,45 @@ export async function refundOrder(
     );
   }
 
+  // Phase 51 — actually call Stripe so the buyer's card is refunded.
+  // Without this the seller-facing UI says "refunded" but the money
+  // never leaves the seller's connected account → silent fraud.
+  let stripeRefundId: string | null = null;
+  if (order.stripePaymentIntentId) {
+    const store = await prisma.store.findUnique({
+      where: { storeId },
+      select: { stripeAccountId: true },
+    });
+    if (store?.stripeAccountId) {
+      try {
+        const refund = await stripeRefund(
+          order.stripePaymentIntentId,
+          store.stripeAccountId,
+        );
+        stripeRefundId = refund.id;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("[seller.refundOrder] Stripe refund failed:", err);
+        throw new AppError(
+          502,
+          "StripeRefundFailed",
+          "Stripe declined the refund. The order has not been changed — try again later or contact support.",
+        );
+      }
+    }
+  }
+
   await prisma.$transaction([
-    prisma.order.update({ where: { orderId }, data: { status: "refunded" } }),
+    prisma.order.update({
+      where: { orderId },
+      data: {
+        status: "refunded",
+        ...(stripeRefundId ? { stripeRefundId } : {}),
+      },
+    }),
     prisma.transaction.create({
       data: {
         userId: order.cart.userId,
-        // Phase 45 — TransactionType is now { purchase, payout } per
-        // the docx report. A refund logs as a "payout" with a negative
-        // amount (the platform paying the buyer back).
         transactionType: "payout",
         totalAmount: new Prisma.Decimal(order.totalPrice).neg(),
       },
@@ -870,6 +902,7 @@ export async function refundOrder(
       amount: Number(order.totalPrice),
       storeId,
       from: order.status,
+      stripeRefundId,
     },
   });
 }

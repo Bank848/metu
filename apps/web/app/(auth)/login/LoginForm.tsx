@@ -3,6 +3,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, KeyRound, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Turnstile } from "@/components/Turnstile";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 // Login form. Posts to /api/auth/login -> BFF -> Express ->
 // better-auth.signInEmail. Multi-step UI: credentials → TOTP →
@@ -54,6 +57,8 @@ export function LoginForm({
   const [trustDevice, setTrustDevice] = useState(false);
   const [recipientMasked, setRecipientMasked] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
+  // Phase 51 — Turnstile token (only required on the credentials step).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const formRef = useRef<HTMLFormElement>(null);
   const totpInputRef = useRef<HTMLInputElement>(null);
@@ -121,10 +126,14 @@ export function LoginForm({
         adminOtp?: string;
         confirmOwner?: boolean;
         trustDevice?: boolean;
+        captchaToken?: string;
       } = {
         email: submittedEmail,
         password: submittedPassword,
       };
+      if (step === "credentials" && captchaToken) {
+        body.captchaToken = captchaToken;
+      }
       if (step === "totp") body.totpCode = totpCode;
       if (step === "admin-otp") {
         body.adminOtp = adminOtp;
@@ -478,7 +487,22 @@ export function LoginForm({
         </p>
       )}
 
-      <Button type="submit" variant="primary" size="lg" className="w-full mt-3" disabled={busy}>
+      {step === "credentials" && TURNSTILE_SITE_KEY && (
+        <div className="mt-3">
+          <Turnstile siteKey={TURNSTILE_SITE_KEY} onVerify={setCaptchaToken} />
+        </div>
+      )}
+
+      <Button
+        type="submit"
+        variant="primary"
+        size="lg"
+        className="w-full mt-3"
+        disabled={
+          busy ||
+          (step === "credentials" && !!TURNSTILE_SITE_KEY && !captchaToken)
+        }
+      >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         {submitLabel}
         {!busy && <ArrowRight className="h-4 w-4" />}

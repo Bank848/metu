@@ -75,6 +75,23 @@ export const login: RequestHandler = async (req, res, next) => {
       throw parsed.error;
     }
 
+    // Phase 51 — CAPTCHA on login too. Without this a botnet can
+    // distribute credential-stuffing across IPs and dodge the per-IP
+    // rate limit. The Step-2 admin-OTP round-trip skips CAPTCHA so
+    // submitting the OTP code doesn't require a fresh widget render.
+    if (!parsed.data.adminOtp) {
+      const captchaToken =
+        typeof req.body?.captchaToken === "string" ? req.body.captchaToken : undefined;
+      const ip =
+        (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+        (req.headers["x-real-ip"] as string | undefined) ??
+        undefined;
+      const captcha = await verifyTurnstile(captchaToken, ip);
+      if (!captcha.ok) {
+        throw new AppError(400, "CaptchaFailed", "Please complete the CAPTCHA and try again.");
+      }
+    }
+
     // Step 1 — password + TOTP + verify gates. Throws on failure.
     const { user } = await service.login(parsed.data);
 
@@ -416,6 +433,26 @@ export const revokeAllOtherSessions: RequestHandler = async (req, res, next) => 
  */
 export const forgotPassword: RequestHandler = async (req, res, next) => {
   try {
+    // Phase 51 — CAPTCHA gate so a botnet can't email-bomb arbitrary
+    // users via the password-reset endpoint (each request burns
+    // Resend quota and clutters the victim's inbox).
+    const captchaToken =
+      typeof req.body?.captchaToken === "string" ? req.body.captchaToken : undefined;
+    const ip =
+      (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+      (req.headers["x-real-ip"] as string | undefined) ??
+      undefined;
+    const captcha = await verifyTurnstile(captchaToken, ip);
+    if (!captcha.ok) {
+      // Same generic OK response — don't leak whether CAPTCHA was
+      // the failure reason vs. the email being unknown.
+      res.json({
+        ok: true,
+        message: "If that email is registered, a reset link is on the way.",
+      });
+      return;
+    }
+
     const parsed = forgotPasswordSchema.safeParse(req.body);
     if (parsed.success) {
       await service.forgotPassword(parsed.data);

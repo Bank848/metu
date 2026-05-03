@@ -2,11 +2,15 @@
 import { useState } from "react";
 import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Turnstile } from "@/components/Turnstile";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -16,7 +20,10 @@ export function ForgotPasswordForm() {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          ...(captchaToken ? { captchaToken } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       // Always treat as success — the API responds the same whether the
@@ -42,13 +49,22 @@ export function ForgotPasswordForm() {
           className="w-full rounded-xl border border-line bg-space-900 px-4 py-2.5 text-white placeholder:text-ink-dim focus:border-brand-yellow outline-none"
         />
       </label>
+      {TURNSTILE_SITE_KEY && (
+        <Turnstile siteKey={TURNSTILE_SITE_KEY} onVerify={setCaptchaToken} />
+      )}
       {done && (
         <p className="text-sm text-green-400 inline-flex items-center gap-1.5">
           <Mail className="h-4 w-4" />
           {done}
         </p>
       )}
-      <Button type="submit" variant="primary" size="lg" className="w-full" disabled={busy}>
+      <Button
+        type="submit"
+        variant="primary"
+        size="lg"
+        className="w-full"
+        disabled={busy || (!!TURNSTILE_SITE_KEY && !captchaToken)}
+      >
         {busy ? "Sending…" : "Send reset link →"}
       </Button>
     </form>

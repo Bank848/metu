@@ -14,6 +14,9 @@ export const loginSchema = z.object({
   adminOtp: z.string().regex(/^\d{6}$/).optional(),
   confirmOwner: z.boolean().optional(),
   trustDevice: z.boolean().optional(),
+  // Phase 51 — Cloudflare Turnstile token. Required on the FIRST
+  // round-trip (not when adminOtp is set). Verified server-side.
+  captchaToken: z.string().optional(),
 });
 
 export const registerSchema = z.object({
@@ -80,6 +83,9 @@ export const changePasswordSchema = z
 
 export const forgotPasswordSchema = z.object({
   email: z.string().email(),
+  // Phase 51 — Cloudflare Turnstile token. Verified server-side
+  // before the email lookup so bots can't burn Resend quota.
+  captchaToken: z.string().optional(),
 });
 
 export const resetPasswordSchema = z.object({
