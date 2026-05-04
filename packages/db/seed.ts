@@ -701,40 +701,10 @@ async function seedProducts(
         }
       }
 
-      // Build a URL-safe slug from the product name so the sample +
-      // delivery links look hand-crafted per product on the live site.
-      const slug = def.name
-        .toLowerCase()
-        .replace(/\([^)]*\)/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 60);
-      // Pick a sample-file extension that matches the product category
-      // so /product/<id> shows a believable "Free sample" link.
-      const samplePreviewExt = (() => {
-        switch (def.category) {
-          case "Stock Music":
-          case "Sound Effects":
-            return "mp3";
-          case "Stock Photos":
-          case "Illustrations":
-          case "Icons":
-          case "UI Kits":
-          case "Fonts":
-            return "jpg";
-          case "Video Templates":
-          case "Motion Graphics":
-            return "mp4";
-          case "3D Models":
-            return "glb";
-          default:
-            return "pdf";
-        }
-      })();
+      const sampleUrl = pickImage(def.category, def.imageSeeds[0], 0, 480, 320);
+      const slug = def.name.toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 
       for (const it of def.items) {
-        // sampleUrl is the public preview shown to anyone before buying.
-        const sampleUrl = `https://samples.metu.dev/${slug}-preview.${samplePreviewExt}`;
         // deliveryUrl + licenseKeyTemplate are post-purchase secrets,
         // only filled in for the methods that need them.
         let deliveryUrl: string | null = null;
