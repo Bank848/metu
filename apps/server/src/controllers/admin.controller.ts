@@ -193,7 +193,7 @@ export const setStoreSuspended: RequestHandler<{ id: string }> = async (req, res
     if (!Number.isFinite(storeId)) throw new AppError(400, "BadId");
     const value = req.body?.value;
     if (typeof value !== "boolean") {
-      throw new AppError(400, "ValidationError", "Body must be { value: boolean }");
+      throw new AppError(400, "ValidationError", "Send `value` as true or false.");
     }
     await service.setStoreSuspended(storeId, auth.uid, value, req);
     res.json({ ok: true });
@@ -210,7 +210,7 @@ export const setRequirePasswordReset: RequestHandler<{ id: string }> = async (re
     if (!Number.isFinite(targetUserId)) throw new AppError(400, "BadId");
     const value = req.body?.value;
     if (typeof value !== "boolean") {
-      throw new AppError(400, "ValidationError", "Body must be { value: boolean }");
+      throw new AppError(400, "ValidationError", "Send `value` as true or false.");
     }
     await service.setRequirePasswordReset(targetUserId, auth.uid, value, req);
     res.json({ ok: true });

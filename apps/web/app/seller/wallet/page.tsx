@@ -10,12 +10,21 @@ export const dynamic = "force-dynamic";
 interface BalanceEntry { amount: number; currency: string; }
 interface Payout { id: string; amount: number; currency: string; status: string; arrivalDate: number; created: number; }
 interface Charge { id: string; amount: number; currency: string; status: string; created: number; }
+interface Requirements {
+  disabledReason: string | null;
+  currentlyDue: string[];
+  eventuallyDue: string[];
+  pastDue: string[];
+  cardPaymentsActive: boolean;
+  transfersActive: boolean;
+}
 interface Wallet {
   configured: boolean;
   onboarded?: boolean;
   message?: string;
   payoutsEnabled?: boolean;
   chargesEnabled?: boolean;
+  requirements?: Requirements | null;
   balance?: { available: BalanceEntry[]; pending: BalanceEntry[] };
   payouts?: Payout[];
   charges?: Charge[];
@@ -100,6 +109,57 @@ function NotOnboarded() {
   );
 }
 
+function RestrictionsBanner({ requirements }: { requirements: Requirements }) {
+  const headline =
+    requirements.disabledReason === "requirements.past_due"
+      ? "Stripe needs more info before you can accept payments."
+      : requirements.disabledReason === "requirements.pending_verification"
+      ? "Stripe is still verifying your account — payments are paused."
+      : !requirements.cardPaymentsActive
+      ? "Card payments aren't active on your Stripe account yet."
+      : "Your Stripe account currently can't accept charges.";
+
+  const fields = [...new Set([...requirements.pastDue, ...requirements.currentlyDue])];
+
+  return (
+    <section className="rounded-2xl border border-coral/30 bg-coral/5 p-5">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="h-5 w-5 text-coral mt-0.5 shrink-0" />
+        <div className="flex-1 space-y-2">
+          <h3 className="font-semibold text-coral">{headline}</h3>
+          {fields.length > 0 && (
+            <div>
+              <p className="text-sm text-ink-secondary">
+                Stripe needs the following before card payments turn back on:
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-ink-secondary">
+                {fields.slice(0, 8).map((f) => (
+                  <li key={f} className="font-mono text-xs">• {f}</li>
+                ))}
+                {fields.length > 8 && (
+                  <li className="text-xs text-ink-dim">…and {fields.length - 8} more</li>
+                )}
+              </ul>
+            </div>
+          )}
+          <p className="text-sm text-ink-secondary">
+            Open the Stripe dashboard to finish onboarding. Once done, this banner will go away
+            within a minute (we listen for the <code>account.updated</code> webhook).
+          </p>
+          <div>
+            <Link href="/seller/onboarding">
+              <Button variant="primary" size="sm">
+                <ExternalLink className="h-3.5 w-3.5" />
+                Continue Stripe onboarding
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ConnectedView({ wallet }: { wallet: Wallet }) {
   const totalAvailable = (wallet.balance?.available ?? []).reduce((s, b) => s + b.amount, 0);
   const totalPending = (wallet.balance?.pending ?? []).reduce((s, b) => s + b.amount, 0);
@@ -110,6 +170,11 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
 
   return (
     <div className="mt-6 grid gap-6">
+      {/* Stripe restrictions banner — explicit list of what Stripe wants. */}
+      {wallet.chargesEnabled === false && wallet.requirements && (
+        <RestrictionsBanner requirements={wallet.requirements} />
+      )}
+
       {/* Balance cards */}
       <div className="grid grid-cols-2 gap-4">
         <div className="rounded-2xl border border-mint/30 bg-mint/5 p-6">

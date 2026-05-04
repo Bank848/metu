@@ -345,6 +345,62 @@ export async function verifyPhoneRegister(email: string, code: string): Promise<
 }
 
 /**
+ * Same Firebase phone verify but lookups by email so the post-register
+ * page can call it before a session exists. Anti-abuse: Firebase token
+ * proves SMS delivery, the email lookup proves which account.
+ */
+export async function verifyPhoneFirebaseByEmail(
+  email: string,
+  idToken: string,
+): Promise<{ phone: string; phoneVerifiedAt: Date }> {
+  const { verifyFirebaseIdToken } = await import("../lib/firebase-admin.js");
+  const decoded = await verifyFirebaseIdToken(idToken);
+  const firebasePhone = decoded.phone_number;
+  if (!firebasePhone) {
+    throw new AppError(
+      400,
+      "FirebaseTokenMissingPhone",
+      "Firebase token did not include a phone number. Try resending the SMS.",
+    );
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { userId: true, phone: true, phoneVerifiedAt: true },
+  });
+  // Quiet 200 if the email doesn't exist — avoids confirming whether
+  // an account is registered to whoever holds the Firebase token.
+  if (!user) {
+    return { phone: firebasePhone, phoneVerifiedAt: new Date() };
+  }
+  if (user.phoneVerifiedAt && user.phone === firebasePhone) {
+    return { phone: user.phone, phoneVerifiedAt: user.phoneVerifiedAt };
+  }
+
+  const updated = await prisma.user.update({
+    where: { userId: user.userId },
+    data: {
+      phone: firebasePhone,
+      phoneVerifiedAt: new Date(),
+      phoneOtpHash: null,
+      phoneOtpExpiresAt: null,
+    },
+    select: { phone: true, phoneVerifiedAt: true },
+  });
+  await audit({
+    actorId: user.userId,
+    action: "user.phone_verified",
+    targetType: "user",
+    targetId: user.userId,
+    meta: { method: "firebase-by-email" },
+  });
+  return {
+    phone: updated.phone!,
+    phoneVerifiedAt: updated.phoneVerifiedAt!,
+  };
+}
+
+/**
  * verify a Firebase Phone Auth ID token + stamp the user's
  * `phoneVerifiedAt`. Used as an alternative to our home-grown OTP
  * flow when the user opts to verify with SMS via Firebase (10 free

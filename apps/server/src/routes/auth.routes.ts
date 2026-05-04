@@ -32,6 +32,13 @@ router.post("/resend-phone-otp",      forgotPasswordLimiter, ctrl.resendPhoneOtp
 // token, and we mark phoneVerifiedAt. Authed because we mutate the
 // caller's row.
 router.post("/verify-phone-firebase", requireAuth(), ctrl.verifyPhoneFirebase);
+// Email-keyed variant for the post-register /verify-phone page where
+// no session cookie exists yet.
+router.post(
+  "/verify-phone-firebase-register",
+  forgotPasswordLimiter,
+  ctrl.verifyPhoneFirebaseByEmail,
+);
 
 // Authed.
 router.get("/me",                 requireAuth(), ctrl.me);

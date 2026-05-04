@@ -19,7 +19,7 @@ export const list: RequestHandler = async (req, res, next) => {
 export const getOne: RequestHandler = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) throw new AppError(400, "BadId", "id must be numeric");
+    if (!Number.isFinite(id)) throw new AppError(400, "BadId");
     const store = await service.findStoreById(id);
     if (!store) throw new AppError(404, "StoreNotFound");
     res.json(store);

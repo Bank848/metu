@@ -86,12 +86,23 @@ export async function createOnboardingLink(storeId: number): Promise<string> {
   return link.url;
 }
 
-/** Pull the latest capability flags from Stripe + persist locally. */
+/**
+ * Pull the latest capability flags + requirements from Stripe and
+ * persist the boolean flags locally. Stripe also tells us *why* an
+ * account can't make charges (currentlyDue + disabledReason) — we
+ * surface those so the seller wallet UI can show actionable next
+ * steps instead of a vague "cannot make charges" toast.
+ */
 export async function refreshAccountStatus(storeId: number) {
   const stripe = getClient();
   const store = await prisma.store.findUnique({ where: { storeId } });
   if (!store?.stripeAccountId) {
-    return { stripeAccountId: null, payoutsEnabled: false, chargesEnabled: false };
+    return {
+      stripeAccountId: null,
+      payoutsEnabled: false,
+      chargesEnabled: false,
+      requirements: null,
+    };
   }
   const acct = await stripe.accounts.retrieve(store.stripeAccountId);
   const payoutsEnabled = Boolean(acct.payouts_enabled);
@@ -101,7 +112,27 @@ export async function refreshAccountStatus(storeId: number) {
     where: { storeId },
     data: { stripePayoutsEnabled: payoutsEnabled, stripeChargesEnabled: chargesEnabled },
   });
-  return { stripeAccountId: store.stripeAccountId, payoutsEnabled, chargesEnabled };
+
+  // Pull the actionable bits from the requirements object so the UI
+  // can tell the seller exactly which fields Stripe still wants.
+  const req = acct.requirements ?? {};
+  const requirements = {
+    disabledReason: (req as { disabled_reason?: string | null }).disabled_reason ?? null,
+    currentlyDue: (req as { currently_due?: string[] }).currently_due ?? [],
+    eventuallyDue: (req as { eventually_due?: string[] }).eventually_due ?? [],
+    pastDue: (req as { past_due?: string[] }).past_due ?? [],
+    cardPaymentsActive:
+      (acct.capabilities as { card_payments?: string } | undefined)?.card_payments === "active",
+    transfersActive:
+      (acct.capabilities as { transfers?: string } | undefined)?.transfers === "active",
+  };
+
+  return {
+    stripeAccountId: store.stripeAccountId,
+    payoutsEnabled,
+    chargesEnabled,
+    requirements,
+  };
 }
 
 /**

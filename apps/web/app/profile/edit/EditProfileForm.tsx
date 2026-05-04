@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { User, Lock, Save, Phone, ShieldCheck, Monitor, Trash2, Smartphone, Copy } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
+import { FirebasePhoneVerify } from "@/components/auth/FirebasePhoneVerify";
+import { firebaseConfigured } from "@/lib/firebase";
 
 // Active session entry from GET /auth/sessions.
 type SessionRow = {
@@ -567,36 +569,48 @@ export function EditProfileForm({
           </GlassButton>
         </form>
 
-        {/* Request + verify only enabled when a phone is on file. */}
+        {/* Verify only enabled when a phone is on file.
+            Firebase wired = real SMS. Otherwise the legacy in-house
+            flow logs the code to the API process (dev mode). */}
         {initial.phone && !initial.phoneVerified && (
           <div className="border-t border-white/10 pt-4 space-y-3">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={requestOtp}
-                disabled={busy !== null}
-                className="rounded-xl border border-white/15 bg-surface-2 px-4 py-2 text-sm font-semibold text-white hover:border-metu-yellow disabled:opacity-50"
-              >
-                {busy === "otp-request" ? "Sending…" : otpRequested ? "Resend code" : "Send code"}
-              </button>
-              {otpRequested && (
-                <form onSubmit={verifyOtp} className="flex flex-1 gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="\d{6}"
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="123456"
-                    className={`w-32 text-center font-mono tracking-widest ${inputCls}`}
-                  />
-                  <GlassButton tone="glass" size="md" type="submit" disabled={busy !== null || otpCode.length !== 6}>
-                    {busy === "otp-verify" ? "Verifying…" : "Verify"}
-                  </GlassButton>
-                </form>
-              )}
-            </div>
+            {firebaseConfigured ? (
+              <FirebasePhoneVerify
+                defaultPhone={initial.phone}
+                onVerified={() => {
+                  setPhoneMsg({ ok: true, text: "Phone verified." });
+                  router.refresh();
+                }}
+              />
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={requestOtp}
+                  disabled={busy !== null}
+                  className="rounded-xl border border-white/15 bg-surface-2 px-4 py-2 text-sm font-semibold text-white hover:border-metu-yellow disabled:opacity-50"
+                >
+                  {busy === "otp-request" ? "Sending…" : otpRequested ? "Resend code" : "Send code"}
+                </button>
+                {otpRequested && (
+                  <form onSubmit={verifyOtp} className="flex flex-1 gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="\d{6}"
+                      maxLength={6}
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123456"
+                      className={`w-32 text-center font-mono tracking-widest ${inputCls}`}
+                    />
+                    <GlassButton tone="glass" size="md" type="submit" disabled={busy !== null || otpCode.length !== 6}>
+                      {busy === "otp-verify" ? "Verifying…" : "Verify"}
+                    </GlassButton>
+                  </form>
+                )}
+              </div>
+            )}
           </div>
         )}
 

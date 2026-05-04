@@ -563,6 +563,23 @@ export const verifyPhoneFirebase: RequestHandler = async (req, res, next) => {
   }
 };
 
+// Same as verifyPhoneFirebase but keyed on the email body field instead
+// of a session — used by the post-register /verify-phone page when no
+// cookie exists yet.
+export const verifyPhoneFirebaseByEmail: RequestHandler = async (req, res, next) => {
+  try {
+    const email = String((req.body ?? {}).email ?? "").trim();
+    const idToken = String((req.body ?? {}).idToken ?? "");
+    if (!email || !idToken) {
+      throw new AppError(400, "MissingFields", "email and idToken are required.");
+    }
+    const out = await service.verifyPhoneFirebaseByEmail(email, idToken);
+    res.json({ ok: true, ...out });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // resend a fresh OTP after register. Always 200.
 export const resendPhoneOtp: RequestHandler = async (req, res, next) => {
   try {

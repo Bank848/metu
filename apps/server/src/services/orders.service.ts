@@ -194,6 +194,15 @@ export async function checkout(
     if (store?.stripeAccountId && store.stripeChargesEnabled) {
       useStripe = true;
       sellerStripeAccountId = store.stripeAccountId;
+    } else if (store?.stripeAccountId && !store.stripeChargesEnabled) {
+      // Connected but Stripe is restricting the account — silently
+      // falling back to demo mode would hand the buyer a free product.
+      // Block checkout with a clear message instead.
+      throw new AppError(
+        400,
+        "SellerNotReadyForPayments",
+        "This seller hasn't finished setting up payments yet — try another store, or come back later.",
+      );
     }
   }
   // Block multi-store checkout when Stripe is live.

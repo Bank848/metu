@@ -41,7 +41,7 @@ export const featured: RequestHandler = async (_req, res, next) => {
 export const getOne: RequestHandler = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    if (!Number.isFinite(id)) throw new AppError(400, "BadId", "id must be numeric");
+    if (!Number.isFinite(id)) throw new AppError(400, "BadId");
     const product = await service.findProductById(id);
     if (!product) throw new AppError(404, "ProductNotFound");
     res.json(product);

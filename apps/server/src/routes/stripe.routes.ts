@@ -75,17 +75,21 @@ sellerRouter.get("/wallet", requireAuth(), requireStore(), async (req, res, next
         message: "Connect a Stripe account to start accepting payments.",
       });
     }
-    const [balance, payouts, charges] = await Promise.all([
+    const [balance, payouts, charges, status] = await Promise.all([
       getStoreBalance(store.stripeAccountId),
       listStorePayouts(store.stripeAccountId, 10),
       listStoreCharges(store.stripeAccountId, 10),
+      // Refresh capabilities + requirements so the page can tell the
+      // seller exactly which fields Stripe still wants if charges are
+      // restricted. Updates our local boolean cache as a side effect.
+      refreshAccountStatus(currentStore(req).storeId),
     ]);
-    // Trim Stripe responses down to what the UI needs.
     res.json({
       configured: true,
       onboarded: true,
-      payoutsEnabled: store.stripePayoutsEnabled,
-      chargesEnabled: store.stripeChargesEnabled,
+      payoutsEnabled: status.payoutsEnabled,
+      chargesEnabled: status.chargesEnabled,
+      requirements: status.requirements,
       balance: {
         available: balance.available.map((b) => ({ amount: b.amount, currency: b.currency })),
         pending:   balance.pending.map((b)   => ({ amount: b.amount, currency: b.currency })),

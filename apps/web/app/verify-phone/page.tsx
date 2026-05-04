@@ -82,7 +82,10 @@ export default async function VerifyPhonePage() {
               </div>
             </div>
           )}
-          <VerifyPhoneForm email={email} />
+          <VerifyPhoneForm
+            email={email}
+            defaultPhone={typeof me?.user?.phone === "string" ? me.user.phone : undefined}
+          />
 
           {loggedIn ? (
             <div className="mt-6 pt-5 border-t border-white/10">
