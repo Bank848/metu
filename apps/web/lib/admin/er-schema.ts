@@ -1,8 +1,11 @@
 /**
  * auto-generated ER schema constant.
+ *
  * DO NOT EDIT BY HAND. Regenerate via:
  *   node scripts/generate-er-schema.mjs
+ *
  * Source-of-truth: packages/db/prisma/schema.prisma
+ *
  * Consumed by:
  *   - apps/web/components/admin/ErDiagramView.tsx (renders entity cards)
  *   - apps/web/lib/admin/er-layout.ts (dagre auto-layout input)
@@ -2196,6 +2199,130 @@ export const ER_ENTITIES: ErEntity[] = [
     ]
   },
   {
+    "table": "banned_ip",
+    "fields": [
+      {
+        "name": "banned_ip_id",
+        "type": "INT",
+        "pk": true,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 1
+      },
+      {
+        "name": "ip_address",
+        "type": "VARCHAR(45)",
+        "pk": false,
+        "fk": null,
+        "unique": true,
+        "nullable": false,
+        "ordinal": 2
+      },
+      {
+        "name": "reason",
+        "type": "VARCHAR(255)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 3
+      },
+      {
+        "name": "banned_by_id",
+        "type": "INT",
+        "pk": false,
+        "fk": {
+          "table": "users",
+          "column": "user_id"
+        },
+        "unique": false,
+        "nullable": false,
+        "ordinal": 4
+      },
+      {
+        "name": "banned_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 5
+      },
+      {
+        "name": "expires_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 6
+      }
+    ]
+  },
+  {
+    "table": "trusted_device",
+    "fields": [
+      {
+        "name": "id",
+        "type": "INT",
+        "pk": true,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 1
+      },
+      {
+        "name": "user_id",
+        "type": "INT",
+        "pk": false,
+        "fk": {
+          "table": "users",
+          "column": "user_id"
+        },
+        "unique": false,
+        "nullable": false,
+        "ordinal": 2
+      },
+      {
+        "name": "fingerprint_hash",
+        "type": "VARCHAR(64)",
+        "pk": false,
+        "fk": null,
+        "unique": true,
+        "nullable": false,
+        "ordinal": 3
+      },
+      {
+        "name": "label",
+        "type": "VARCHAR(120)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 4
+      },
+      {
+        "name": "created_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 5
+      },
+      {
+        "name": "expires_at",
+        "type": "DATETIME",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 6
+      }
+    ]
+  },
+  {
     "table": "system_setting",
     "fields": [
       {
@@ -2505,6 +2632,22 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
   },
   {
     "from": "session",
+    "fromColumn": "user_id",
+    "to": "users",
+    "toColumn": "user_id",
+    "cardinality": "one-to-many",
+    "fromOptional": false
+  },
+  {
+    "from": "banned_ip",
+    "fromColumn": "banned_by_id",
+    "to": "users",
+    "toColumn": "user_id",
+    "cardinality": "one-to-many",
+    "fromOptional": false
+  },
+  {
+    "from": "trusted_device",
     "fromColumn": "user_id",
     "to": "users",
     "toColumn": "user_id",

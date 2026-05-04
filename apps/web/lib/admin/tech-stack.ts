@@ -59,6 +59,8 @@ export const TECH_STACK: TechItem[] = [
   { name: "@better-auth/prisma-adapter", layer: "Auth",  purpose: "Prisma store for better-auth",                      url: "https://better-auth.com" },
   { name: "bcryptjs",                 layer: "Auth",     purpose: "Password hashing",                                  url: "https://github.com/dcodeIO/bcrypt.js" },
   { name: "otplib",                   layer: "Auth",     purpose: "TOTP 2FA code verification",                        url: "https://github.com/yeojz/otplib" },
+  { name: "firebase-admin",           layer: "Auth",     purpose: "Verifies Firebase Phone Auth ID tokens server-side", url: "https://firebase.google.com/docs/admin/setup",            displayName: "Firebase Admin", iconSlug: "firebase",        iconColor: "FFCA28" },
+  { name: "firebase",                 layer: "Auth",     purpose: "Browser SDK for SMS OTP via Firebase Phone Auth",   url: "https://firebase.google.com/docs/auth/web/phone-auth",     displayName: "Firebase Web",  iconSlug: "firebase",        iconColor: "FFCA28" },
 
   // ── Database ─────────────────────────────────────────────────────
   { name: "@prisma/client",           layer: "Database", purpose: "Type-safe ORM client",                              url: "https://www.prisma.io",                                    displayName: "Prisma Client", iconSlug: "prisma",          iconColor: "2D3748" },
@@ -72,6 +74,7 @@ export const TECH_STACK: TechItem[] = [
 
   // ── Security ─────────────────────────────────────────────────────
   { name: "helmet",                   layer: "Security", purpose: "HTTP security headers (CSP / HSTS / X-Frame-Options)", url: "https://helmetjs.github.io",                              displayName: "Helmet" },
+  { name: "@marsidev/react-turnstile", layer: "Security", purpose: "Cloudflare Turnstile widget on register / login / forgot-password", url: "https://www.cloudflare.com/products/turnstile/", displayName: "Turnstile",     iconSlug: "cloudflare",      iconColor: "F38020" },
 
   // ── Tests ────────────────────────────────────────────────────────
   { name: "vitest",                   layer: "Tests",    purpose: "Unit test runner",                                  url: "https://vitest.dev",                                       displayName: "Vitest",        iconSlug: "vitest",          iconColor: "6E9F18" },
@@ -126,12 +129,12 @@ export const FLOWCHART_LAYERS: FlowchartLayer[] = [
   },
   {
     id: "bff",
-    title: "BFF · metu.fly.dev",
-    blurb: "Server components render pages, route handlers proxy /api calls to the API.",
+    title: "BFF · metu.online",
+    blurb: "Server components render pages, a single /api/[...path] catch-all proxies cookies + body to the Express API.",
     accent: "purple",
     nodes: [
       { iconSlug: "nextdotjs",  iconColor: "ffffff", label: "Next.js Server", caption: "Server Components" },
-      { iconSlug: "vercel",     iconColor: "ffffff", label: "Middleware",     caption: "Auth + redirects" },
+      { iconSlug: "vercel",     iconColor: "ffffff", label: "Middleware",     caption: "Host redirect + rate-limit" },
       { iconSlug: "sentry",     iconColor: "362D59", label: "Sentry",         caption: "Error tracking" },
     ],
   },
@@ -161,23 +164,27 @@ export const FLOWCHART_LAYERS: FlowchartLayer[] = [
   {
     id: "external",
     title: "External services",
-    blurb: "Money + email + sign-in. We never store card details or send SMTP ourselves.",
+    blurb: "Money + email + sign-in + bot defence. We never store card details or send SMTP ourselves.",
     accent: "pink",
     nodes: [
       { iconSlug: "stripe",        iconColor: "635BFF", label: "Stripe Connect", caption: "Payments + payout" },
-      { iconSlug: "resend",        iconColor: "ffffff", label: "Resend",         caption: "Transactional email" },
+      { iconSlug: "resend",        iconColor: "ffffff", label: "Resend",         caption: "noreply@metu.online" },
       { iconSlug: "google",        iconColor: "4285F4", label: "Google OAuth",   caption: "Sign-in" },
+      { iconSlug: "firebase",      iconColor: "FFCA28", label: "Firebase",       caption: "Phone OTP via SMS" },
+      { iconSlug: "cloudflare",    iconColor: "F38020", label: "Turnstile",      caption: "Bot CAPTCHA" },
     ],
   },
   {
     id: "infra",
     title: "Hosting & CI",
-    blurb: "Two Fly.io machines (web + api), GitHub for source, Docker base images.",
+    blurb: "Two Fly.io machines (web + api) in Singapore, custom domain via Porkbun + Cloudflare DNS.",
     accent: "slate",
     nodes: [
-      { iconSlug: "flydotio", iconColor: "8B5CF6", label: "Fly.io",  caption: "sin region" },
-      { iconSlug: "docker",   iconColor: "2496ED", label: "Docker",  caption: "node:20-alpine" },
-      { iconSlug: "github",   iconColor: "ffffff", label: "GitHub",  caption: "main → deploy" },
+      { iconSlug: "flydotio",    iconColor: "8B5CF6", label: "Fly.io",     caption: "sin region" },
+      { iconSlug: "cloudflare",  iconColor: "F38020", label: "Cloudflare", caption: "DNS + Let's Encrypt" },
+      { iconSlug: "porkbun",     iconColor: "EF6BA8", label: "Porkbun",    caption: "metu.online registrar" },
+      { iconSlug: "docker",      iconColor: "2496ED", label: "Docker",     caption: "node:20-alpine" },
+      { iconSlug: "github",      iconColor: "ffffff", label: "GitHub",     caption: "main → deploy" },
     ],
   },
 ];

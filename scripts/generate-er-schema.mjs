@@ -181,7 +181,7 @@ for (const model of models) {
 // 3. Emit TypeScript file
 // ──────────────────────────────────────────────────────────────────
 const header = `/**
- * Phase 24 — auto-generated ER schema constant.
+ * auto-generated ER schema constant.
  *
  * DO NOT EDIT BY HAND. Regenerate via:
  *   node scripts/generate-er-schema.mjs
