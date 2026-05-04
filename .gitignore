@@ -17,10 +17,14 @@ yarn-error.log*
 pnpm-debug.log*
 *.log
 
-# editor
+# editor / dev tooling
 .vscode/*
 !.vscode/extensions.json
 .idea
+.cursor/
+.aider*
+.continue/
+.claude/
 
 # OS
 .DS_Store
@@ -40,13 +44,22 @@ apps/web/coverage
 # tsc incremental build cache
 *.tsbuildinfo
 
-# Phase 11 QA workflow artefacts (reports/ + shots/) — per-run output
-# from the user-tester / CEO / specialists. Kept on disk for audit
-# but not committed (the prompt-kit playbook itself is committed).
-# Anchor with leading slash so we don't accidentally ignore the
-# /admin/reports API route (whose folder happens to be named "reports").
+# QA workflow artefacts (reports/ + shots/) — per-run output kept on
+# disk for audit but not committed. Anchor with leading slash so we
+# don't accidentally ignore the /admin/reports API route (whose
+# folder happens to be named "reports").
 /reports/
 shots/
+
+# local workspace + scratch (per-developer notes, agent configs, scratchpads)
+.scratch/
+.notes/
+.workspace/
+AGENTS.md
+GEMINI.md
+CLAUDE.md
+.cursorrules
+graphify-out/
 .supabase-credentials.local
 .google-oauth-credentials.local
 .stripe-credentials.local
