@@ -30,6 +30,10 @@ router.post("/transactions/:id/refund", ctrl.refundTransaction);
 // Reports
 router.get("/reports/:name",          ctrl.runReport);
 
+// Database inspector — read-only Postgres state for the /admin/database page.
+router.get("/db/snapshot",            ctrl.dbSnapshot);
+router.post("/db/run",                ctrl.dbRunSql);
+
 // IP bans (network-layer abuse blocks).
 router.get("/banned-ips",             ctrl.listBannedIps);
 router.post("/banned-ips",            ctrl.addBannedIp);

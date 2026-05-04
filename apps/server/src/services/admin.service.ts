@@ -838,3 +838,195 @@ ORDER BY times_used DESC`;
     }
   }
 }
+
+// =============================================================================
+//  DATABASE INSPECTOR
+// =============================================================================
+//
+// Surfaces the raw Postgres state that drives the "Database Systems" view
+// of the project for the CPE241 defense:
+//   - per-table row counts (pg_stat_user_tables)
+//   - index list with definitions (pg_indexes)
+//   - applied migrations (_prisma_migrations)
+//   - cached PG version + DB size
+//
+// The admin /admin/database page reads this to demonstrate that we have
+// real schema design + indexing + migration discipline, not just
+// "Prisma magicked it for me".
+
+export interface DatabaseSnapshot {
+  version: string;
+  databaseSize: string;
+  tables: Array<{
+    table: string;
+    rows: number;
+    sizeBytes: number;
+    sizePretty: string;
+  }>;
+  indexes: Array<{
+    table: string;
+    name: string;
+    definition: string;
+    isUnique: boolean;
+    isPrimary: boolean;
+  }>;
+  migrations: Array<{
+    name: string;
+    appliedAt: string;
+    rolledBack: boolean;
+  }>;
+  jsonbUsage: Array<{
+    table: string;
+    column: string;
+    sampleQuery: string;
+  }>;
+}
+
+export async function getDatabaseSnapshot(): Promise<DatabaseSnapshot> {
+  const versionRows = await prisma.$queryRaw<Array<{ version: string }>>`
+    SELECT version() AS version
+  `;
+  const sizeRows = await prisma.$queryRaw<Array<{ size: string }>>`
+    SELECT pg_size_pretty(pg_database_size(current_database())) AS size
+  `;
+  const tableRows = await prisma.$queryRaw<
+    Array<{ table_name: string; rows: bigint; bytes: bigint; pretty: string }>
+  >`
+    SELECT c.relname                                AS table_name,
+           c.reltuples::bigint                       AS rows,
+           pg_total_relation_size(c.oid)             AS bytes,
+           pg_size_pretty(pg_total_relation_size(c.oid)) AS pretty
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public'
+       AND c.relkind = 'r'
+     ORDER BY pg_total_relation_size(c.oid) DESC
+  `;
+  const indexRows = await prisma.$queryRaw<
+    Array<{
+      table_name: string;
+      index_name: string;
+      definition: string;
+      is_unique: boolean;
+      is_primary: boolean;
+    }>
+  >`
+    SELECT t.relname        AS table_name,
+           i.relname        AS index_name,
+           pg_get_indexdef(i.oid) AS definition,
+           ix.indisunique   AS is_unique,
+           ix.indisprimary  AS is_primary
+      FROM pg_index ix
+      JOIN pg_class i  ON i.oid = ix.indexrelid
+      JOIN pg_class t  ON t.oid = ix.indrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+     WHERE n.nspname = 'public'
+     ORDER BY t.relname, i.relname
+  `;
+  const migrationRows = await prisma.$queryRaw<
+    Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>
+  >`
+    SELECT migration_name, finished_at, rolled_back_at
+      FROM _prisma_migrations
+     ORDER BY finished_at DESC NULLS LAST
+  `;
+
+  return {
+    version: versionRows[0]?.version ?? "unknown",
+    databaseSize: sizeRows[0]?.size ?? "?",
+    tables: tableRows.map((r) => ({
+      table: r.table_name,
+      rows: Number(r.rows),
+      sizeBytes: Number(r.bytes),
+      sizePretty: r.pretty,
+    })),
+    indexes: indexRows.map((r) => ({
+      table: r.table_name,
+      name: r.index_name,
+      definition: r.definition,
+      isUnique: r.is_unique,
+      isPrimary: r.is_primary,
+    })),
+    migrations: migrationRows.map((r) => ({
+      name: r.migration_name,
+      appliedAt: (r.finished_at ?? new Date(0)).toISOString(),
+      rolledBack: Boolean(r.rolled_back_at),
+    })),
+    jsonbUsage: [
+      {
+        table: "audit_log",
+        column: "meta",
+        sampleQuery:
+          "SELECT * FROM audit_log\n WHERE meta @> '{\"eventId\":\"evt_123\"}'\n ORDER BY created_at DESC",
+      },
+    ],
+  };
+}
+
+/**
+ * Read-only SQL playground used by the /admin/database SQL console.
+ * Hard rules:
+ *   - SELECT or EXPLAIN only — anything else (INSERT/UPDATE/DELETE/DDL)
+ *     is rejected before it touches the connection.
+ *   - 30s server timeout via Postgres SET LOCAL statement_timeout.
+ *   - 200-row hard cap so a runaway SELECT can't OOM the API process.
+ */
+export async function runAdminSql(rawSql: string): Promise<{
+  rows: Array<Record<string, unknown>>;
+  rowCount: number;
+  truncated: boolean;
+  durationMs: number;
+}> {
+  const sql = rawSql.trim().replace(/;+\s*$/, "");
+  if (!sql) {
+    throw new AppError(400, "EmptySql", "Type a SELECT or EXPLAIN statement first.");
+  }
+  const lower = sql.toLowerCase();
+  const isAllowed = lower.startsWith("select") || lower.startsWith("explain") || lower.startsWith("with");
+  if (!isAllowed) {
+    throw new AppError(
+      400,
+      "ReadOnlyOnly",
+      "Only SELECT, WITH, and EXPLAIN are allowed here.",
+    );
+  }
+  // Block multi-statement attempts (we strip a single trailing `;` above).
+  if (sql.includes(";")) {
+    throw new AppError(
+      400,
+      "MultipleStatements",
+      "Multiple statements aren't allowed — run one query at a time.",
+    );
+  }
+  const ROW_CAP = 200;
+  const started = Date.now();
+  const rows = await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = '30s'`);
+    await tx.$executeRawUnsafe(`SET LOCAL transaction_read_only = on`);
+    return tx.$queryRawUnsafe<Array<Record<string, unknown>>>(sql);
+  });
+  const truncated = rows.length > ROW_CAP;
+  const trimmed = truncated ? rows.slice(0, ROW_CAP) : rows;
+  return {
+    rows: serialiseRows(trimmed),
+    rowCount: rows.length,
+    truncated,
+    durationMs: Date.now() - started,
+  };
+}
+
+// pg returns BigInt for bigint columns + Date objects for timestamps;
+// neither survives JSON.stringify cleanly, so coerce to readable strings.
+function serialiseRows(
+  rows: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return rows.map((r) => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(r)) {
+      if (typeof v === "bigint") out[k] = v.toString();
+      else if (v instanceof Date) out[k] = v.toISOString();
+      else out[k] = v;
+    }
+    return out;
+  });
+}

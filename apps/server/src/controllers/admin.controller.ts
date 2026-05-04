@@ -233,3 +233,24 @@ export const runReport: RequestHandler<{ name: string }> = async (req, res, next
     next(err);
   }
 };
+
+// ── Database inspector ──────────────────────────────────────────────
+
+export const dbSnapshot: RequestHandler = async (_req, res, next) => {
+  try {
+    const snapshot = await service.getDatabaseSnapshot();
+    res.json(snapshot);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const dbRunSql: RequestHandler = async (req, res, next) => {
+  try {
+    const sql = String(req.body?.sql ?? "");
+    const result = await service.runAdminSql(sql);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
