@@ -6,6 +6,7 @@ import { UserRowActions } from "@/components/admin/UserRowActions";
 import { DataTable, type DataTableColumn } from "@/components/admin/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { apiAuth, getMe } from "@/lib/session";
+import { fmtDate } from "@/lib/format";
 
 type UserRow = {
   userId: number;
@@ -223,7 +224,7 @@ export default async function AdminUsers({
             case "joined":
               return (
                 <span className="text-xs text-ink-dim">
-                  {new Date(u.createdDate).toLocaleDateString()}
+                  {fmtDate(u.createdDate)}
                 </span>
               );
             default:

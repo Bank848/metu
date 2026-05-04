@@ -58,3 +58,50 @@ export function thbToCoins(thb: number | string | null | undefined): number {
   if (!Number.isFinite(num)) return 0;
   return num;
 }
+
+const TZ = "Asia/Bangkok";
+const LOCALE = "en-GB";
+
+function toDate(v: string | number | Date | null | undefined): Date | null {
+  if (v == null) return null;
+  const d = v instanceof Date ? v : new Date(typeof v === "number" && v < 1e12 ? v * 1000 : v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** "4 May 2025" */
+export function fmtDate(v: string | number | Date | null | undefined): string {
+  const d = toDate(v);
+  if (!d) return "—";
+  return d.toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric", timeZone: TZ });
+}
+
+/** "4 May 2025, 14:30" */
+export function fmtDateTime(v: string | number | Date | null | undefined): string {
+  const d = toDate(v);
+  if (!d) return "—";
+  return d.toLocaleString(LOCALE, {
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ,
+  });
+}
+
+/** "14:30" */
+export function fmtTime(v: string | number | Date | null | undefined): string {
+  const d = toDate(v);
+  if (!d) return "—";
+  return d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ });
+}
+
+/** "4/5/2025" short date */
+export function fmtDateShort(v: string | number | Date | null | undefined): string {
+  const d = toDate(v);
+  if (!d) return "—";
+  return d.toLocaleDateString(LOCALE, { day: "numeric", month: "numeric", year: "numeric", timeZone: TZ });
+}
+
+/** "May 2025" */
+export function fmtMonthYear(v: string | number | Date | null | undefined): string {
+  const d = toDate(v);
+  if (!d) return "—";
+  return d.toLocaleDateString(LOCALE, { month: "short", year: "numeric", timeZone: TZ });
+}

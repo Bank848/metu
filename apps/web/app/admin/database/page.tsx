@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Database, KeyRound, GitMerge, FileText, Sparkles, Terminal } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { apiFetch } from "@/lib/server/api";
+import { fmtDateTime } from "@/lib/format";
 import { SqlConsole } from "./SqlConsole";
 
 export const metadata: Metadata = { title: "Database · Admin · METU" };
@@ -148,7 +149,7 @@ export default async function AdminDatabasePage() {
             <li key={m.name} className="flex items-center justify-between gap-3 border-b border-line/50 py-1.5">
               <code className="text-xs text-white">{m.name}</code>
               <span className={`text-xs tabular-nums ${m.rolledBack ? "text-coral" : "text-ink-dim"}`}>
-                {m.rolledBack ? "rolled back" : new Date(m.appliedAt).toLocaleString()}
+                {m.rolledBack ? "rolled back" : fmtDateTime(m.appliedAt)}
               </span>
             </li>
           ))}

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
-import { coins, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { cn, isDataUrl } from "@/lib/utils";
 
 type OrderStatus = "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
@@ -151,7 +151,7 @@ export default async function OrdersPage({
                             ORDER #{o.orderId}
                           </div>
                           <div className="text-sm text-ink-secondary mt-0.5">
-                            {new Date(o.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                            {fmtDate(o.createdAt)}
                           </div>
                         </div>
                         <div className="text-right">

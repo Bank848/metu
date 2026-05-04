@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { OrderStatusActions } from "@/components/seller/OrderStatusActions";
 import { apiAuth } from "@/lib/session";
-import { coins, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
 type Order = {
@@ -57,7 +57,7 @@ export default async function SellerOrders() {
                     {o.cart.user.firstName} {o.cart.user.lastName}
                   </div>
                   <div className="text-xs font-mono text-ink-dim">
-                    ORDER #{o.orderId} · {new Date(o.createdAt).toLocaleDateString()}
+                    ORDER #{o.orderId} · {fmtDate(o.createdAt)}
                   </div>
                 </div>
               </div>

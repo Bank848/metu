@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Loader2, Monitor, Smartphone, AlertCircle, Trash2, Power } from "lucide-react";
 import { TotpStepUpModal } from "@/components/TotpStepUpModal";
+import { fmtDateTime } from "@/lib/format";
 
 interface SessionRow {
   id: number;
@@ -179,7 +180,7 @@ export function SessionsList({
                     </div>
                     <div className="text-xs text-ink-dim mt-0.5">
                       {s.ipAddress ?? "unknown IP"} · started{" "}
-                      {new Date(s.createdAt).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}
+                      {fmtDateTime(s.createdAt)}
                     </div>
                   </div>
                 </div>

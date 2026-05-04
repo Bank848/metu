@@ -6,6 +6,7 @@ import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
 import { FirebasePhoneVerify } from "@/components/auth/FirebasePhoneVerify";
 import { firebaseConfigured } from "@/lib/firebase";
+import { fmtDate } from "@/lib/format";
 
 // Active session entry from GET /auth/sessions.
 type SessionRow = {
@@ -893,7 +894,7 @@ export function EditProfileForm({
                       )}
                     </div>
                     <div className="text-xs text-ink-dim font-mono mt-0.5">
-                      {where} · created {new Date(s.createdAt).toLocaleDateString()}
+                      {where} · created {fmtDate(s.createdAt)}
                     </div>
                   </div>
                   <button

@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { DataTable, type DataTableColumn } from "@/components/admin/DataTable";
 import { prisma } from "@/lib/server/prisma";
 import { isDataUrl } from "@/lib/utils";
+import { fmtDateTime } from "@/lib/format";
 import { getServerT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -238,7 +239,7 @@ export default async function AuditLogPage({
             case "when":
               return (
                 <span className="text-xs text-ink-dim whitespace-nowrap">
-                  {new Date(e.createdAt).toLocaleString()}
+                  {fmtDateTime(e.createdAt)}
                 </span>
               );
             case "meta":

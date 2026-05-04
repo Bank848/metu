@@ -3,6 +3,7 @@ import { Wallet, ExternalLink, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { apiFetch, ApiError } from "@/lib/server/api";
+import { fmtDate } from "@/lib/format";
 import { RequestPayoutButton } from "./RequestPayoutButton";
 
 export const dynamic = "force-dynamic";
@@ -207,7 +208,7 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
             <tbody>
               {wallet.payouts!.map((p) => (
                 <tr key={p.id} className="border-t border-white/5">
-                  <td className="py-1.5">{new Date(p.created * 1000).toLocaleDateString()}</td>
+                  <td className="py-1.5">{fmtDate(p.created)}</td>
                   <td className="py-1.5 font-mono">{formatSatang(p.amount, p.currency)}</td>
                   <td className="py-1.5 capitalize">{p.status}</td>
                 </tr>
@@ -230,7 +231,7 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
             <tbody>
               {wallet.charges!.map((c) => (
                 <tr key={c.id} className="border-t border-white/5">
-                  <td className="py-1.5">{new Date(c.created * 1000).toLocaleDateString()}</td>
+                  <td className="py-1.5">{fmtDate(c.created)}</td>
                   <td className="py-1.5 font-mono">{formatSatang(c.amount, c.currency)}</td>
                   <td className="py-1.5 capitalize">{c.status}</td>
                 </tr>

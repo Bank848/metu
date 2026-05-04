@@ -7,6 +7,7 @@ import { EmptyState } from "./EmptyState";
 import { WriteReviewDialog } from "./WriteReviewDialog";
 import { ConfirmDialog } from "./forms/ConfirmDialog";
 import { cn, isDataUrl } from "@/lib/utils";
+import { fmtDate } from "@/lib/format";
 
 type Review = {
   reviewId: number;
@@ -248,11 +249,7 @@ export function Reviews({
                         ))}
                       </div>
                       <span className="text-[10px] text-ink-dim ml-1">
-                        {new Date(r.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
+{fmtDate(r.createdAt)}
                       </span>
                     </div>
                   </div>

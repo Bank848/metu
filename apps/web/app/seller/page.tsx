@@ -6,7 +6,7 @@ import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { apiAuth, getMe } from "@/lib/session";
 import { EmptyState } from "@/components/EmptyState";
-import { coins, thbToCoins, coinsCompact } from "@/lib/format";
+import { coins, thbToCoins, coinsCompact, fmtDate } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { prisma } from "@/lib/server/prisma";
@@ -179,7 +179,7 @@ export default async function SellerOverview() {
                     <p className="text-sm text-ink-secondary">{r.comment}</p>
                   </div>
                   <Badge variant="mist" className="text-[10px]">
-                    {new Date(r.createdAt).toLocaleDateString()}
+                    {fmtDate(r.createdAt)}
                   </Badge>
                 </li>
               ))}

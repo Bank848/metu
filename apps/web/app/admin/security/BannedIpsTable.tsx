@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { fmtDateTime } from "@/lib/format";
 
 type BannedIp = {
   bannedIpId: number;
@@ -169,14 +170,14 @@ export function BannedIpsTable({ initial }: { initial: BannedIp[] }) {
                     </td>
                     <td className="px-4 py-3 text-ink-secondary">@{b.bannedBy.username}</td>
                     <td className="px-4 py-3 text-xs text-ink-dim">
-                      {new Date(b.bannedAt).toLocaleString()}
+                      {fmtDateTime(b.bannedAt)}
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {b.expiresAt ? (
                         expired ? (
                           <Badge variant="mist">expired</Badge>
                         ) : (
-                          <span className="text-ink-secondary">{new Date(b.expiresAt).toLocaleString()}</span>
+                          <span className="text-ink-secondary">{fmtDateTime(b.expiresAt)}</span>
                         )
                       ) : (
                         <Badge variant="coral">forever</Badge>

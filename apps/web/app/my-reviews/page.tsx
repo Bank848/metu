@@ -11,6 +11,7 @@ import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { getReviewsByUser, getReviewsForStore, getPendingReviewProducts } from "@/lib/server/queries";
 import { cn, isDataUrl } from "@/lib/utils";
+import { fmtDate, fmtDateTime } from "@/lib/format";
 import { PendingReviewCard } from "./PendingReviewCard";
 
 export const dynamic = "force-dynamic";
@@ -178,7 +179,7 @@ function BuyerReviewsList({ reviews }: { reviews: Awaited<ReturnType<typeof getR
               <Stars rating={r.rating} className="mt-1.5" />
               <p className="mt-2 text-sm text-ink-secondary">{r.comment}</p>
               <div className="mt-2 text-[10px] text-ink-dim font-mono">
-                {new Date(r.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                {fmtDateTime(r.createdAt)}
               </div>
             </div>
           </div>
@@ -238,7 +239,7 @@ async function SellerReviews({ storeId, storeName }: { storeId: number; storeNam
                 <div className="text-xs text-ink-dim flex items-center gap-2 mt-0.5">
                   <Stars rating={r.rating} small />
                   <span className="font-mono">
-                    {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    {fmtDate(r.createdAt)}
                   </span>
                 </div>
                 <Link

@@ -162,11 +162,12 @@ function DaySection({
   commits: CommitNode[];
   isFirst: boolean;
 }) {
-  const dateLabel = new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
+  const dateLabel = new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", {
     weekday: "long",
-    month: "long",
     day: "numeric",
+    month: "long",
     year: "numeric",
+    timeZone: "Asia/Bangkok",
   });
   return (
     <section className={isFirst ? "" : "pt-6"}>
@@ -195,10 +196,11 @@ function DaySection({
 
 function CommitRow({ commit }: { commit: CommitNode }) {
   const s = styleFor(commit.type);
-  const time = new Date(commit.dateIso).toLocaleTimeString("en-US", {
+  const time = new Date(commit.dateIso).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "Asia/Bangkok",
   });
   const url = `${REPO_URL}/commit/${commit.sha}`;
   // Strip the conventional-commits prefix from the displayed subject so

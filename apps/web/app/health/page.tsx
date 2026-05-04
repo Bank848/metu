@@ -157,8 +157,8 @@ export default async function HealthPage() {
           <Tile
             icon={<Box className="h-5 w-5" />}
             label="Last checked"
-            value={new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-            sub={new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+            value={new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Bangkok" })}
+            sub={new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Bangkok" })}
             ok
             mono
           />

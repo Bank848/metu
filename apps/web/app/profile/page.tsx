@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { RoleBadges } from "@/components/AuthMenu";
 import { apiAuth, getMe } from "@/lib/session";
-import { coins, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { LogoutButton } from "./LogoutButton";
 
 type Order = { orderId: number; status: string; totalPrice: string | number; createdAt: string };
@@ -69,7 +69,7 @@ export default async function ProfilePage() {
               </div>
               <div className="flex items-center gap-2 text-ink-secondary">
                 <Calendar className="h-4 w-4" />
-                <span>Joined {new Date(me.user.createdDate).toLocaleDateString()}</span>
+                <span>Joined {fmtDate(me.user.createdDate)}</span>
               </div>
               <div className="flex items-center gap-2 text-ink-secondary">
                 <Award className="h-4 w-4" />
@@ -96,7 +96,7 @@ export default async function ProfilePage() {
                       <div>
                         <div className="text-xs font-mono text-ink-dim">ORDER #{o.orderId}</div>
                         <div className="text-xs text-ink-secondary">
-                          {new Date(o.createdAt).toLocaleDateString()}
+                          {fmtDate(o.createdAt)}
                         </div>
                       </div>
                       <Badge variant={o.status === "paid" ? "success" : o.status === "fulfilled" ? "info" : o.status === "pending" ? "warning" : "danger"} className="uppercase text-[10px]">

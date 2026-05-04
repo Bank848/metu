@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { RevenueChart } from "@/components/admin/RevenueChart";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiAuth } from "@/lib/session";
-import { coins, thbToCoins, coinsCompact } from "@/lib/format";
+import { coins, thbToCoins, coinsCompact, fmtDateTime } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
 type Stats = {
@@ -81,7 +81,7 @@ export default async function AdminOverview() {
                   <span className="text-ink-dim font-normal"> · @{tx.user.username}</span>
                 </div>
                 <div className="text-xs font-mono text-ink-dim">
-                  TX #{tx.transactionId} · {new Date(tx.date).toLocaleString()}
+                  TX #{tx.transactionId} · {fmtDateTime(tx.date)}
                 </div>
               </div>
               <Badge variant={tx.transactionType === "refund" ? "purple" : tx.transactionType === "payout" ? "info" : "success"}>

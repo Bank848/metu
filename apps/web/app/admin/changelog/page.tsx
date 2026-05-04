@@ -1068,9 +1068,10 @@ const REPO_URL = "https://github.com/Bank848/metu";
 export default function ChangelogPage() {
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long",
-    year: "numeric",
-    month: "long",
     day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Bangkok",
   });
 
   // Headline counts only reflect what shipped TODAY — older batches stay

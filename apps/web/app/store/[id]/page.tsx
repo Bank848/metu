@@ -14,6 +14,7 @@ import { getStore, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { getServerT } from "@/lib/i18n/server";
 import { isDataUrl } from "@/lib/utils";
+import { fmtMonthYear } from "@/lib/format";
 import { ShareButton } from "@/components/ShareButton";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +93,7 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="h-3 w-3" /> Member since{" "}
-                  {new Date(store.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short" })}
+                  {fmtMonthYear(store.createdAt)}
                 </span>
                 {store.stats && (
                   <span className="inline-flex items-center gap-1">

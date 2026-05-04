@@ -82,6 +82,9 @@ export function ReportCard({
 function formatCell(v: any): string {
   if (v === null || v === undefined) return "—";
   if (typeof v === "number") return v.toLocaleString();
-  if (typeof v === "string" && v.match(/^\d{4}-\d{2}-\d{2}T/)) return new Date(v).toLocaleDateString();
+  if (typeof v === "string" && v.match(/^\d{4}-\d{2}-\d{2}T/)) {
+    const d = new Date(v);
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Bangkok" });
+  }
   return String(v);
 }

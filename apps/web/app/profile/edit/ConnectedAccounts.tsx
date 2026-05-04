@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 import { Link2, Link2Off, AlertCircle } from "lucide-react";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { fmtDate } from "@/lib/format";
 
 type ConnectedAccount = {
   provider: string;
@@ -113,7 +114,7 @@ export function ConnectedAccounts({ hasPassword }: Props) {
             <div className="min-w-0">
               <div className="text-sm font-semibold text-white">Google</div>
               <div className="text-xs text-ink-dim truncate">
-                Linked {new Date(google.linkedAt).toLocaleDateString()}
+                Linked {fmtDate(google.linkedAt)}
               </div>
             </div>
           </div>

@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { getMe } from "@/lib/session";
 import { prisma } from "@/lib/server/prisma";
-import { coins, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins, fmtDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -103,7 +103,7 @@ export default async function CouponReportPage({ params }: { params: { id: strin
             </Badge>
           </span>
         }
-        subtitle={`${coupon.discountType === "percent" ? coupon.discountValue + "%" : "฿" + coupon.discountValue} off · valid ${new Date(coupon.startDate).toLocaleDateString()} – ${new Date(coupon.endDate).toLocaleDateString()}`}
+        subtitle={`${coupon.discountType === "percent" ? coupon.discountValue + "%" : "฿" + coupon.discountValue} off · valid ${fmtDate(coupon.startDate)} – ${fmtDate(coupon.endDate)}`}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -155,7 +155,7 @@ export default async function CouponReportPage({ params }: { params: { id: strin
                     −{coins(thbToCoins(r.discount))}
                   </td>
                   <td className="px-5 py-3 text-xs text-ink-dim">
-                    {new Date(r.createdAt).toLocaleDateString()}
+                    {fmtDate(r.createdAt)}
                   </td>
                 </tr>
               ))}
