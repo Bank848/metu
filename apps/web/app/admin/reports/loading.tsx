@@ -1,16 +1,9 @@
-import { Skeleton } from "@/components/Skeleton";
+import { Skeleton, PageHeaderSkeleton } from "@/components/Skeleton";
 
-/**
- * skeleton for /admin/reports. Five chart cards stacked +
- * a date-range picker placeholder up top.
- */
 export default function AdminReportsLoading() {
   return (
     <div>
-      <div className="mb-6 space-y-2">
-        <Skeleton className="h-9 w-32" />
-        <Skeleton className="h-4 w-72" />
-      </div>
+      <PageHeaderSkeleton />
       <div className="mb-4 flex gap-2">
         <Skeleton className="h-10 w-40 rounded-full" />
         <Skeleton className="h-10 w-40 rounded-full" />
