@@ -125,7 +125,7 @@ export function renderEmailLayout(opts: LayoutOptions): string {
                 ${footer}
               </p>
               <p style="margin: 0; font-size: 11px; color: #94a3b8;">
-                <a href="https://metu.fly.dev" style="color: #94a3b8; text-decoration: none;">metu.fly.dev</a>
+                <a href="https://metu.online" style="color: #94a3b8; text-decoration: none;">metu.online</a>
               </p>
             </td>
           </tr>

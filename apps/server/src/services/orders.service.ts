@@ -377,7 +377,9 @@ function generateLicenseKey(template: string | null): string {
   return template.replace(/X{4}/g, () => {
     let block = "";
     for (let i = 0; i < 4; i++) {
-      block += alphabet[Math.floor(Math.random() * alphabet.length)];
+      // crypto.randomInt — predictable license keys would let a single
+      // legitimate purchase leak future keys to a piracy ring.
+      block += alphabet[crypto.randomInt(0, alphabet.length)];
     }
     return block;
   });
@@ -501,8 +503,9 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
     if (contact.length) textLines.push(`  Contact ${store.name}: ${contact.join(" · ")}`);
     textLines.push("");
   }
+  const siteBase = process.env.SITE_URL ?? "https://metu.online";
   textLines.push(
-    `View on the site: https://metu.fly.dev/orders/${orderId}`,
+    `View on the site: ${siteBase}/orders/${orderId}`,
     "",
     "— METU Marketplace",
   );
@@ -551,7 +554,7 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
   const html = renderEmailLayout({
     heading: `Hi ${escape(buyer.firstName)} - your goods are ready`,
     intro: `Payment cleared. License keys + download links for order <strong>#${orderId}</strong> are below; everything stays available on your account too.`,
-    cta: { label: "View order", url: `https://metu.fly.dev/orders/${orderId}` },
+    cta: { label: "View order", url: `${siteBase}/orders/${orderId}` },
     bodyHtml: storeCards.join(""),
   });
 

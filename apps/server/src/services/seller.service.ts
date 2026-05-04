@@ -304,7 +304,14 @@ function maskEmail(email: string): string {
 }
 
 function escapeCsv(value: unknown): string {
-  const s = value === null || value === undefined ? "" : String(value);
+  let s = value === null || value === undefined ? "" : String(value);
+  // Phase 51 — neutralise spreadsheet formula injection. A buyer with
+  // a username like `=cmd|'/c calc'!A0` would execute when the seller
+  // opens this CSV in Excel/Sheets. Prefix with single quote so the
+  // cell renders as text instead of evaluating.
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = "'" + s;
+  }
   if (/[",\n\r]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }

@@ -642,7 +642,7 @@ export async function setRequirePasswordReset(
       const { sendEmail } = await import("../utils/email.js");
       const greeting = updated.firstName ? `Hi ${updated.firstName},` : "Hi,";
       const baseUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ?? "https://metu.fly.dev";
+        process.env.NEXT_PUBLIC_SITE_URL ?? "https://metu.online";
       const html = `
         <p>${greeting}</p>
         <p>An administrator has flagged your METU account for a

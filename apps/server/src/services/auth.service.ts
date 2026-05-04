@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
-import type { UserRole } from "@prisma/client";
+import { Prisma, type UserRole } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { findFirstProfaneField } from "../utils/profanity.js";
@@ -155,25 +155,51 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
   }
 
   const hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-  const user = await prisma.user.create({
-    data: {
-      username: input.username,
-      email: input.email,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      countryId: input.countryId,
-      gender: input.gender,
-      phone: input.phone,
-      // Pin DOB to UTC midnight so it doesn't drift across timezones.
-      dateOfBirth: input.dateOfBirth
-        ? new Date(`${input.dateOfBirth}T00:00:00.000Z`)
-        : undefined,
-      password: hash,
-      stats: { create: { role: "buyer" } },
-      carts: { create: { status: "active" } },
-    },
-    include: { stats: true },
-  });
+  // Phase 51 — wrap create in try/catch for the race where two
+  // concurrent registers slip past the dup pre-check above. The DB
+  // unique constraint catches it, we map P2002 to a clean 409 instead
+  // of bubbling up as a 500.
+  let user: Prisma.UserGetPayload<{ include: { stats: true } }>;
+  try {
+    user = await prisma.user.create({
+      data: {
+        username: input.username,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        countryId: input.countryId,
+        gender: input.gender,
+        phone: input.phone,
+        // Pin DOB to UTC midnight so it doesn't drift across timezones.
+        dateOfBirth: input.dateOfBirth
+          ? new Date(`${input.dateOfBirth}T00:00:00.000Z`)
+          : undefined,
+        password: hash,
+        stats: { create: { role: "buyer" } },
+        carts: { create: { status: "active" } },
+      },
+      include: { stats: true },
+    });
+  } catch (err) {
+    // Prisma surfaces the offending fields in `meta.target`.
+    const isP2002 =
+      err && typeof err === "object" && (err as { code?: string }).code === "P2002";
+    if (isP2002) {
+      const target = (err as { meta?: { target?: string[] } }).meta?.target ?? [];
+      if (target.includes("username")) {
+        throw new AppError(409, "UsernameTaken", "That username is already taken. Pick another.");
+      }
+      if (target.includes("email")) {
+        throw new AppError(
+          409,
+          "EmailTaken",
+          'An account with that email already exists. Sign in with your password or use "Forgot password".',
+        );
+      }
+      throw new AppError(409, "Conflict", "Account already exists.");
+    }
+    throw err;
+  }
 
   await syncCredentialAccount(user.userId, user.email, hash);
 
@@ -741,8 +767,11 @@ async function issueEmailVerifyToken(userId: number): Promise<string> {
 
 // Phase 41 - generate 6-digit OTP, hash + store on User, return raw OTP
 // to console-log. Real SMS would replace this with a Twilio send.
+// Phase 51 - crypto.randomInt instead of Math.random — OTP space is
+// only 1M so anything predictable enough to leak the seed leaks every
+// in-flight OTP. crypto.randomInt is CSPRNG-backed, not Mersenne Twister.
 async function issuePhoneOtp(userId: number): Promise<string> {
-  const code = String(Math.floor(Math.random() * 10 ** PHONE_OTP_LENGTH))
+  const code = String(crypto.randomInt(0, 10 ** PHONE_OTP_LENGTH))
     .padStart(PHONE_OTP_LENGTH, "0");
   const hash = crypto.createHash("sha256").update(code).digest("hex");
   const expiresAt = new Date(Date.now() + PHONE_OTP_TTL_MIN * 60_000);
@@ -758,7 +787,7 @@ async function sendEmailVerifyMessage(
   firstName: string,
   rawToken: string,
 ): Promise<void> {
-  const base = process.env.SITE_URL ?? "https://metu.fly.dev";
+  const base = process.env.SITE_URL ?? "https://metu.online";
   const link = `${base}/verify-email?token=${rawToken}`;
   const html = renderEmailLayout({
     heading: `Hi ${escapeHtml(firstName)} - confirm your email`,
@@ -815,7 +844,7 @@ export async function forgotPassword(input: ForgotPasswordInput): Promise<void> 
   });
 
   // Link points at the BFF where /reset-password lives.
-  const base = process.env.SITE_URL ?? "https://metu.fly.dev";
+  const base = process.env.SITE_URL ?? "https://metu.online";
   const link = `${base}/reset-password?token=${raw}`;
 
   const firstName = user.firstName ?? "there";

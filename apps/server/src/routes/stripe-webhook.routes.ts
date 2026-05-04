@@ -95,6 +95,41 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
   const orderId = Number(pi.metadata?.orderId ?? 0);
   if (!orderId) return;
 
+  // Phase 51 — defence-in-depth: confirm the amount Stripe collected
+  // matches the order total we recorded at checkout. If they diverge,
+  // something tampered with the PI between create and confirm — flag
+  // for manual review instead of auto-finalising.
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    select: { totalPrice: true, status: true },
+  });
+  if (!order) return;
+  // Idempotency for retried success events.
+  if (order.status === "paid" || order.status === "fulfilled") {
+    await finalizeOrder(orderId);
+    return;
+  }
+  const expectedSatang = Math.round(Number(order.totalPrice) * 100);
+  if (pi.amount_received !== expectedSatang) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[stripe-webhook] amount mismatch order=${orderId} expected=${expectedSatang} got=${pi.amount_received} pi=${pi.id}`,
+    );
+    await prisma.auditLog.create({
+      data: {
+        action: "stripe.amount_mismatch",
+        targetType: "order",
+        targetId: orderId,
+        meta: {
+          paymentIntentId: pi.id,
+          expected: expectedSatang,
+          received: pi.amount_received,
+        } as never,
+      },
+    });
+    return; // do not flip to paid
+  }
+
   const chargeId = typeof pi.latest_charge === "string" ? pi.latest_charge : null;
 
   await prisma.order.update({
