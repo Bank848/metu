@@ -41,7 +41,22 @@ function clientIp(req: NextRequest): string {
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
+// Canonical host: traffic that lands on the Fly-issued *.fly.dev hostname
+// gets a 301 to the marketplace's branded domain so the bare Fly URL
+// doesn't get bookmarked / indexed.
+const CANONICAL_HOST = "metu.online";
+const FLY_HOST = "metu.fly.dev";
+
 export function middleware(req: NextRequest) {
+  const host = req.headers.get("host") ?? "";
+  if (host === FLY_HOST || host === `www.${FLY_HOST}`) {
+    const url = req.nextUrl.clone();
+    url.host = CANONICAL_HOST;
+    url.protocol = "https:";
+    url.port = "";
+    return NextResponse.redirect(url, 301);
+  }
+
   const limit = LIMITS[req.nextUrl.pathname];
   if (!limit) return NextResponse.next();
 
@@ -74,8 +89,9 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-// Only run middleware for the limited routes — saves overhead on every
-// other request.
+// Run on every page + API request so the canonical-host redirect kicks
+// in regardless of path. Skip Next.js internals + static assets so the
+// build doesn't bloat redirects on bundled JS/CSS.
 export const config = {
-  matcher: ["/api/auth/login", "/api/auth/register", "/api/auth/forgot-password"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
