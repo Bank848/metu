@@ -18,7 +18,7 @@ type UserRow = {
   country?: { name: string } | null;
   stats?: { role: "buyer" | "seller" | "admin" } | null;
   store?: { name: string } | null;
-  // Phase 12.2 — moderation metadata. Both NULL for active users.
+  // moderation metadata. Both NULL for active users.
   // bannedAt populated only for admin-driven removals; deletedAt
   // alone (no bannedAt) indicates a self-delete or pre-12.2 removal.
   deletedAt?: string | null;
@@ -36,7 +36,7 @@ type UsersResp = {
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 10 / Step 3b — role tones use the admin-vocab mapping called out
+ * / Step 3b — role tones use the admin-vocab mapping called out
  * in the playbook: admin = yellow (privileged), seller = mint
  * (positive / "live" relationship), buyer = mist (neutral). All three
  * variants are pre-existing on `<Badge>` — no new tokens introduced.
@@ -69,7 +69,7 @@ export default async function AdminUsers({
     getMe(),
   ]);
   const myUserId = me?.user?.userId as number | undefined;
-  // Phase 48 — `?status=banned` filter shows only banned rows so the
+  // `?status=banned` filter shows only banned rows so the
   // operator can scan recent bans + tap "Unban" without sifting.
   const showingBanned = searchParams.status === "banned";
 

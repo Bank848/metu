@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const res = await forwardToApi(req, "/auth/resend-phone-otp");
-  // Phase 43 — when the API echoes a demo OTP (DEMO_REVEAL_TOKENS),
+  // when the API echoes a demo OTP (DEMO_REVEAL_TOKENS),
   // refresh the metu_pv cookie so /verify-phone shows the new code on
   // the next reload.
   if (res.status === 200) {

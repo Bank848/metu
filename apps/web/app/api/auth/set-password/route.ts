@@ -1,6 +1,5 @@
 /**
- * Phase 14.3 — forwarder to Express `POST /auth/set-password`.
- *
+ * forwarder to Express `POST /auth/set-password`.
  * First-time password set for OAuth-only users (User.password is
  * NULL because they signed up via Google). Server-side handler
  * refuses with 400 PasswordAlreadySet when there's already a

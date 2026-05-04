@@ -9,7 +9,7 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 export const metadata = { title: "Verify email — METU" };
 
-// Phase 41 - landing for the email-verify magic link. POSTs token to
+// landing for the email-verify magic link. POSTs token to
 // the API on the server side so JS isn't required to confirm.
 
 interface SearchParams {

@@ -17,17 +17,17 @@ router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
 router.post("/forgot-password",  forgotPasswordLimiter,  ctrl.forgotPassword);
 router.post("/reset-password",                           ctrl.resetPassword);
-// Phase 42 — POST keeps the token in the body so it never lands in
+// POST keeps the token in the body so it never lands in
 // access logs. GET stays for backward compatibility.
 router.post("/reset-password/check",                     ctrl.checkResetToken);
 router.get("/reset-password/check",                      ctrl.checkResetToken);
 
-// Phase 41 - mandatory verify flow at register. All public, rate-limited.
+// mandatory verify flow at register. All public, rate-limited.
 router.post("/verify-email",         forgotPasswordLimiter, ctrl.verifyEmail);
 router.post("/resend-email-verify",  forgotPasswordLimiter, ctrl.resendEmailVerify);
 router.post("/verify-phone-register", forgotPasswordLimiter, ctrl.verifyPhoneRegister);
 router.post("/resend-phone-otp",      forgotPasswordLimiter, ctrl.resendPhoneOtp);
-// Phase 46 — alternative phone-verify path: client uses Firebase Phone
+// alternative phone-verify path: client uses Firebase Phone
 // Auth (10 free SMS/day on the Spark plan), hands us back the ID
 // token, and we mark phoneVerifiedAt. Authed because we mutate the
 // caller's row.
@@ -36,7 +36,7 @@ router.post("/verify-phone-firebase", requireAuth(), ctrl.verifyPhoneFirebase);
 // Authed.
 router.get("/me",                 requireAuth(), ctrl.me);
 router.patch("/me",               requireAuth(), ctrl.updateMe);
-// Phase 48 — GDPR self-delete. Body: { confirmation: string } must
+// GDPR self-delete. Body: { confirmation: string } must
 // match the user's username. Routes through admin.deleteUser's
 // hybrid logic so fresh accounts hard-delete and accounts with
 // history anonymise (no need to duplicate the branch).

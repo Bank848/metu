@@ -6,7 +6,6 @@ import { LOCALES, MESSAGES, format, type Locale, type Messages } from "./message
  * Client-side i18n context. Picks an initial locale from the cookie
  * (set by <LocaleSwitcher />) or falls back to "en", then exposes a
  * `t()` lookup for every consuming client component.
- *
  * Server components don't use this context — they read `getServerLocale()`
  * directly from cookies. Keeping the two paths symmetric means an English
  * server-rendered page hydrates into an English client tree without a

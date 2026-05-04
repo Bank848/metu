@@ -1,5 +1,5 @@
 /**
- * Phase 23.3 — forwarder to Express `POST /auth/totp/step-up`.
+ * forwarder to Express `POST /auth/totp/step-up`.
  * Body: `{code: string}` — 6-digit authenticator code.
  * Server stamps Session.lastTotpAt so the next requireRecent2FA()
  * gate lets the action through.

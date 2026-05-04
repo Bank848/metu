@@ -1,6 +1,5 @@
 // Forwards POST /auth/register to Express. Turnstile + profanity gate server-side.
-//
-// Phase 42 → 43: on a successful register, stamp a short-lived signed
+// → 43: on a successful register, stamp a short-lived signed
 // `metu_pv` cookie carrying the email so the verify pages can read it
 // without it sitting in `?email=` query strings. When the API echoes
 // back demo OTP / email-verify token (DEMO_REVEAL_TOKENS=true on the

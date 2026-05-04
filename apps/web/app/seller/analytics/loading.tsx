@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for /seller/analytics. KPI strip + chart cards. */
+/** skeleton for /seller/analytics. KPI strip + chart cards. */
 export default function SellerAnalyticsLoading() {
   return (
     <div>

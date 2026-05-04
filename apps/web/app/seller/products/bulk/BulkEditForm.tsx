@@ -29,7 +29,7 @@ export function BulkEditForm({ items }: { items: Item[] }) {
   const [percent, setPercent] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<null | { ok: number; fail: number }>(null);
-  // Phase 11 / F19 — open the in-page confirm modal before fanning out
+  // / F19 — open the in-page confirm modal before fanning out
   // the price patch. Keeps the seller from blowing past native dialogs
   // (which Chrome MCP locks on, per QA F19).
   const [confirmApply, setConfirmApply] = useState(false);

@@ -4,7 +4,6 @@ import { prisma } from "./prisma";
  * Append an entry to AuditLog. Fire-and-forget — we never want a logging
  * hiccup to break the destructive action it's recording, so failures are
  * caught + logged to stdout and the caller is never told.
- *
  * Conventions for `action`: dot-separated `<entity>.<verb>` —
  *   - "user.delete"        — admin soft-deleted a user
  *   - "user.role_change"   — admin changed a user's role

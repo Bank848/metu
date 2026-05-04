@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /seller/products list. Toolbar + 8 product
+ * skeleton for /seller/products list. Toolbar + 8 product
  * rows with thumbnail, name, price, stock badge, and the row actions
  * dropdown column.
  */

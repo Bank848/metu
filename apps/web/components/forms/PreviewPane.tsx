@@ -8,11 +8,9 @@ import { useI18n } from "@/lib/i18n/client";
 import type { Locale } from "@/lib/i18n/messages";
 
 /**
- * Phase 10 / Step 2 — live render of how the marketplace will show the
+ * / Step 2 — live render of how the marketplace will show the
  * thing being edited.
- *
  * Three variants today:
- *
  *   - product → renders the real `<ProductCard variant="default">`
  *     against the form state, so a seller sees the actual card update
  *     as they type. Pulling in the real component (rather than a
@@ -23,7 +21,6 @@ import type { Locale } from "@/lib/i18n/messages";
  *   - coupon  → coral pill summarising code + discount + minimum spend
  *     + expiry. Coral because coupons are the "hot promo" signal in the
  *     palette (see globals.css §coral).
- *
  * The pane is sticky-friendly: callers in a two-column grid can wrap
  * with `<div className="sticky top-32">` (or pass the class via
  * `className`) so the preview stays in view while the form scrolls.

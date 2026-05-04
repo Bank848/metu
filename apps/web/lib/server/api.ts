@@ -1,9 +1,10 @@
 import { headers } from "next/headers";
+import { INTERNAL_API_URL } from "../config";
 
 // BFF -> API server fetch wrapper. Forwards the request's cookie header
 // so authed endpoints work. Throws ApiError on non-2xx.
 
-const API_BASE = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
+const API_BASE = INTERNAL_API_URL;
 
 export class ApiError extends Error {
   constructor(

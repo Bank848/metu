@@ -7,7 +7,7 @@ import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 type Role = "buyer" | "seller" | "admin";
 
 /**
- * Phase 45 follow-up — `window.location.reload()` was sometimes
+ * `window.location.reload()` was sometimes
  * returning a cached page (the user reported "Remove user" on
  * /admin/users wrote an audit log row but the deleted user kept
  * showing in the table even after the reload). Bumping a `_t`
@@ -22,17 +22,14 @@ function hardRefresh() {
 }
 
 /**
- * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
- *
+ * / Step 3b — repackaged as an `<ActionRow>` dropdown.
  * The bespoke role-select + trash-button cluster is replaced with a
  * three-dots menu that exposes:
  *   - "Make admin" / "Make seller" / "Make buyer"  (current role disabled)
  *   - "Delete user"                                (destructive / coral)
- *
  * The role-change and delete API calls are IDENTICAL to the previous
  * implementation — only the trigger UI changed. Self-row protection is
  * still respected (every action is `disabled` when `isSelf`).
- *
  * Errors used to render inline next to the buttons; now they surface as
  * a small badge above the dropdown so the dropdown trigger stays the
  * same width across rows.
@@ -42,10 +39,10 @@ export function UserRowActions({
   currentRole,
   username,
   isSelf,
-  // Phase 15.5 — drives the Force-reset action label (set vs clear)
+  // drives the Force-reset action label (set vs clear)
   // and disables the menu item when toggling against the same value.
   requirePasswordReset = false,
-  // Phase 48 — when true, the row swaps "Remove user" for "Unban".
+  // when true, the row swaps "Remove user" for "Unban".
   // Banned users are already soft-deleted, so the destructive
   // re-removal action is meaningless; "Unban" is the actual reversal.
   isBanned = false,
@@ -59,7 +56,7 @@ export function UserRowActions({
 }) {
   const [busy, setBusy] = useState<"role" | "delete" | "force-reset" | "unban" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Phase 12.2 — separate dialog state from the dropdown's built-in
+  // separate dialog state from the dropdown's built-in
   // confirm. We need a reason textarea inside the dialog body which
   // ActionRow's stock confirm cannot host (it's a string, not JSX).
   const [removing, setRemoving] = useState(false);
@@ -103,7 +100,7 @@ export function UserRowActions({
         setBusy(null);
         return;
       }
-      // Phase 45 follow-up — used to call BOTH router.refresh() AND
+      // used to call BOTH router.refresh() AND
       // window.location.reload(); they raced and on a slow network
       // the reload sometimes fired before the server component had
       // re-rendered, leaving the badge stale on the post-reload paint.
@@ -213,7 +210,7 @@ export function UserRowActions({
       tone: "safe",
       onClick: () => changeRole("seller"),
       disabled: disabled || currentRole === "seller",
-      // Phase 48 — confirm copy spells out the side effect: an empty
+      // confirm copy spells out the side effect: an empty
       // store is provisioned (or restored from soft-delete) so the
       // role flip actually unlocks /seller/* for the user.
       confirm:
@@ -224,7 +221,7 @@ export function UserRowActions({
       icon: User,
       onClick: () => changeRole("buyer"),
       disabled: disabled || currentRole === "buyer",
-      // Phase 48 — soft-deletes the user's store at the same time as
+      // soft-deletes the user's store at the same time as
       // demoting role, so the storefront stops showing on /browse and
       // their products can no longer be purchased. Re-promotion via
       // "Make seller" restores the same row.
@@ -232,7 +229,7 @@ export function UserRowActions({
         `Demote @${username} to buyer? Their store (if any) will be soft-deleted — hidden from /browse, products no longer purchasable. Reversible: promoting them back to seller restores the same store.`,
     },
     {
-      // Phase 15.5 — admin force-password-reset toggle. Forces the
+      // admin force-password-reset toggle. Forces the
       // user to change their password before any other authed action
       // surfaces. Cleared on next successful change/set. Self-toggle
       // is server-side rejected; we just disable the row anyway.
@@ -243,7 +240,7 @@ export function UserRowActions({
       disabled,
     },
     {
-      // Phase 48 — quick action: ban every IP this user has logged
+      // quick action: ban every IP this user has logged
       // in from. Useful when a single account spams from multiple
       // addresses. Banned IPs are listed on /admin/security and can
       // be lifted there.
@@ -254,7 +251,7 @@ export function UserRowActions({
       disabled,
       confirm: `Pull every distinct IP from @${username}'s session history and add them to the IP ban list. This may also block other users on shared networks (school / office / VPN). Reason will be set to "Sessions of @${username}".`,
     },
-    // Phase 48 — Banned users get an "Unban" item INSTEAD of
+    // Banned users get an "Unban" item INSTEAD of
     // "Remove user". Re-removing a banned (already soft-deleted)
     // account is a no-op, so the actual reversal action is what
     // the operator wants.
@@ -268,13 +265,12 @@ export function UserRowActions({
           confirm: `Lift the ban on @${username}? They can sign in again immediately. The original ban reason is cleared.`,
         }
       : {
-          // Phase 12.2 — relabelled "Delete user" → "Remove user" to match
+          // relabelled "Delete user" → "Remove user" to match
           // the new dialog flow that asks for an optional ban reason.
           // Without a reason it's a soft-delete (deletedAt only); with a
           // reason it becomes a ban (deletedAt + bannedAt + bannedReason
           // populated, audit action = "user.ban").
-          //
-          // Phase 48 — without a reason this now hard-deletes fresh
+          // without a reason this now hard-deletes fresh
           // accounts and anonymises accounts with order/review history.
           label: "Remove user",
           icon: Trash2,

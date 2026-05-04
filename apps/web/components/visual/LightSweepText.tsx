@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 /**
  * Yellow text with an animated diagonal "light sweep" highlight that
  * loops every ~3 seconds. Use for hero headlines on the brand word.
- *
  * Implementation: linear-gradient that includes a brief lighter band,
  * stretched 200%, scrolling left-to-right via tailwind `animate-shimmer`.
  */

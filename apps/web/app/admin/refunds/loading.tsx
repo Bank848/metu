@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /admin/refunds list table. Same shape as
+ * skeleton for /admin/refunds list table. Same shape as
  * audit/users — toolbar + ~8 row strips.
  */
 export default function AdminRefundsLoading() {

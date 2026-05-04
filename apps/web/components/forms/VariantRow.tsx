@@ -7,21 +7,18 @@ import { NumberInput } from "./NumberInput";
 import { TextInput } from "./TextInput";
 
 /**
- * Phase 10 / Step 2 — semantic variant editor for product forms.
- *
+ * / Step 2 — semantic variant editor for product forms.
  * Replaces the cramped `grid-cols-4` layout in EditProductForm /
  * NewProductForm with a more legible "delivery method on top, qty +
  * price + discount in a horizontal flex row underneath" structure. The
  * 4-up grid wraps badly on narrow viewports and forces seller to scan
  * left-to-right across labels they can't predict.
- *
  * The "Buyer sees" pill on the right of the row mirrors PriceInput's
  * preview chip so the seller has one consistent place to look for
  * post-discount pricing. We render the pill inside the row (not inside
  * the price input) because it summarises the whole variant — quantity
  * × discount × price — and so wants more horizontal breathing room than
  * a per-input chip can give.
- *
  * Design note: `onChange` returns a `Partial<VariantRowValue>` rather
  * than a full value. The forms that consume this primitive already keep
  * variants in an array and merge with `prev.map((v, idx) => idx === i

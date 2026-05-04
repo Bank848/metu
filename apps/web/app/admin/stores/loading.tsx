@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 11 / F8 — Adds a Suspense boundary on /admin/stores so the
+ * / F8 — Adds a Suspense boundary on /admin/stores so the
  * sidebar transition no longer leaves the previous segment (often
  * /admin/users) mounted while the Stores RSC payload streams in. The
  * skeleton shape mirrors the live page: PageHeader, three KPI tiles,

@@ -2,13 +2,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
- * Phase 40 - scroll-triggered fade-in wrapper.
- *
+ * scroll-triggered fade-in wrapper.
  * Uses IntersectionObserver to flip a CSS class once the element
  * scrolls into view, so each feature section can animate in
  * progressively as the presenter scrolls. No framer-motion / extra
  * deps - pure Tailwind classes + 30 LOC of vanilla browser API.
- *
  * Props:
  *   delay  - tailwind delay class ("delay-100" / "delay-200" / ...)
  *   from   - "up" (default) | "left" | "right" | "scale"

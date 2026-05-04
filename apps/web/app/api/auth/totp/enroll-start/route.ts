@@ -1,5 +1,5 @@
 /**
- * Phase 16.2 — forwarder to Express `POST /auth/totp/enroll-start`.
+ * forwarder to Express `POST /auth/totp/enroll-start`.
  * Returns { secret, otpauthUri } for QR rendering.
  */
 import { type NextRequest } from "next/server";

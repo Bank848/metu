@@ -3,11 +3,9 @@ import Script from "next/script";
 /**
  * Plausible analytics — privacy-first, cookie-free, GDPR-compliant by
  * default so we don't owe anyone a consent banner.
- *
  * Opt-in via env: when `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` is set we mount
  * the tracking script. Without it we render nothing — local dev and
  * preview deploys stay analytics-free.
- *
  * Usage of `next/script` with afterInteractive defers the request
  * until the page is interactive so it doesn't compete with hydration.
  */

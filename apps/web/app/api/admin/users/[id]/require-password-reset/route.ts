@@ -1,5 +1,5 @@
 /**
- * Phase 15.5 — forwarder to Express
+ * forwarder to Express
  * `POST /admin/users/:id/require-password-reset`.
  * Body: { value: boolean }. Forces or clears the User's
  * requirePasswordReset flag.

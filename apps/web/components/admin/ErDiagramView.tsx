@@ -125,7 +125,7 @@ export function ErDiagramView() {
     return () => c.removeEventListener("wheel", onWheel);
   }, []);
 
-  // Phase 47 follow-up — fullscreen toggle. Uses the Fullscreen API
+  // fullscreen toggle. Uses the Fullscreen API
   // on the canvas container so the diagram fills the whole viewport.
   // Esc + the F11 key both exit fullscreen via the browser's native
   // handling, but we also expose a button so users discover it.
@@ -180,7 +180,7 @@ export function ErDiagramView() {
   const DRAG_THRESHOLD = 4;
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
-    // Phase 47 — pan from anywhere except action buttons. Previously
+    // pan from anywhere except action buttons. Previously
     // entity cards blocked the drag, so the only way to pan was to
     // click in the gaps between cards (which got harder as you
     // zoomed in). Now any drag pans.

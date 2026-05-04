@@ -1,5 +1,5 @@
 /**
- * Phase 13.10 — forwarder to Express `DELETE /admin/transactions/:id`.
+ * forwarder to Express `DELETE /admin/transactions/:id`.
  * Hard-delete with snapshot audit.
  */
 import { type NextRequest } from "next/server";

@@ -4,13 +4,11 @@ import { useRouter } from "next/navigation";
 import { Trash2, AlertTriangle } from "lucide-react";
 
 /**
- * Phase 48 — GDPR self-delete card on /profile/edit.
- *
+ * GDPR self-delete card on /profile/edit.
  * Two-step flow: the user clicks "Delete my account" to expand the
  * confirmation form, then types their username to enable the
  * destructive button. Submits DELETE /api/auth/me; the server
  * handles the hybrid hard-delete vs anonymise branch internally.
- *
  * On success: redirect to /login (the cookie is cleared API-side).
  */
 export function DeleteAccountSection({ username }: { username: string }) {

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Phase 16.3 — server-component login page can't dispatch DOM events
+ * server-component login page can't dispatch DOM events
  * directly, so the demo-chip is a tiny client component that fires
  * a `metu:prefill-login` CustomEvent. LoginForm listens for it and
  * fills both inputs without scraping `data-*` attributes off the DOM

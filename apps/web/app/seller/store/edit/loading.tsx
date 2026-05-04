@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for /seller/store/edit storefront editor. */
+/** skeleton for /seller/store/edit storefront editor. */
 export default function SellerStoreEditLoading() {
   return (
     <div className="max-w-2xl">

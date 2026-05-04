@@ -1,9 +1,3 @@
-/**
- * Auth resource — covers the high-leverage paths:
- *   • POST /auth/login   happy + 401 (wrong password) + 401 (missing user)
- *   • POST /auth/register 409 (duplicate email) + happy
- *   • GET  /auth/me      401 when no cookie
- */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import bcrypt from "bcryptjs";

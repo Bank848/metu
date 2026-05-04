@@ -3,13 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, ShieldCheck, X, AlertCircle } from "lucide-react";
 
 /**
- * Phase 23.3 — TOTP step-up modal.
- *
+ * TOTP step-up modal.
  * Use pattern (in any client form that calls a sensitive endpoint):
- *
  *   const [stepUpOpen, setStepUpOpen] = useState(false);
  *   const [retry, setRetry] = useState<(() => Promise<void>) | null>(null);
- *
  *   async function submit() {
  *     const res = await fetch(...);
  *     if (res.status === 403) {
@@ -22,13 +19,11 @@ import { Loader2, ShieldCheck, X, AlertCircle } from "lucide-react";
  *     }
  *     // ... handle other cases
  *   }
- *
  *   <TotpStepUpModal
  *     open={stepUpOpen}
  *     onClose={() => setStepUpOpen(false)}
  *     onSuccess={() => { setStepUpOpen(false); retry?.(); }}
  *   />
- *
  * The modal calls /api/auth/totp/step-up with the code. On success
  * it invokes onSuccess; the caller's `retry` fires the original
  * fetch which now passes the requireRecent2FA gate.

@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /admin/settings. Stack of toggle/form cards
+ * skeleton for /admin/settings. Stack of toggle/form cards
  * matching the live page's section layout (favourites, chat, fees,
  * etc.).
  */

@@ -1,5 +1,5 @@
 /**
- * Phase 13.11 — forwarder to Express `GET /products/:id`.
+ * forwarder to Express `GET /products/:id`.
  * Public product detail — Express handles the soft-deleted /
  * orphan-store 404 + avgRating + reviewCount derivation.
  */

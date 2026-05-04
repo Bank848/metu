@@ -24,7 +24,7 @@ export function ProductRowActions({
   const router = useRouter();
   const [busy, setBusy] = useState<null | "pause" | "duplicate" | "delete">(null);
   const [error, setError] = useState<string | null>(null);
-  // Phase 11 / F19 — open the in-page confirm modal before delete.
+  // / F19 — open the in-page confirm modal before delete.
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function togglePause() {

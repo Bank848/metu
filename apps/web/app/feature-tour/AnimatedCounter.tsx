@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Phase 40 - count-up animation that fires when the element enters
+ * count-up animation that fires when the element enters
  * the viewport. ~600ms ease-out tween from 0 to `target`. Pure
  * requestAnimationFrame, no deps.
  */

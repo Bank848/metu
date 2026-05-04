@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /admin/reports. Five chart cards stacked +
+ * skeleton for /admin/reports. Five chart cards stacked +
  * a date-range picker placeholder up top.
  */
 export default function AdminReportsLoading() {

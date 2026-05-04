@@ -4,14 +4,12 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/EmptyState";
 
 /**
- * Phase 10 / Step 2 — minimal table abstraction for admin & seller lists.
- *
+ * / Step 2 — minimal table abstraction for admin & seller lists.
  * The admin pages (users, stores, transactions, etc.) all reach for the
  * same recipe: a sticky header on a `surface-flat` table, hover-tinted
  * rows, an actions cell on the right, optional pagination beneath. This
  * primitive owns that shape so each page only writes a `columns` array
  * and a `renderCell` function.
- *
  * Generic over the row type. We do NOT virtualise — the demo has at
  * most a few hundred rows per page, and a virtualised table here would
  * cost more in bundle size than it saves in render time.
@@ -143,7 +141,6 @@ export function DataTable<T>({
  * Pagination footer mirroring the inline `Pagination` from
  * apps/web/app/browse/page.tsx (lines 286–318) so the visual rhythm of
  * paged surfaces stays consistent across browse + admin lists.
- *
  * Two modes:
  *  - `buildHref` for server-component pages (no JS roundtrip)
  *  - `onChange`  for client-driven tables

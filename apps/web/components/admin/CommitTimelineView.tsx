@@ -20,7 +20,6 @@ import { COMMIT_TIMELINE, type CommitNode } from "@/lib/admin/commit-timeline";
  * margin; every commit hangs off it as a row, in reverse-chronological
  * order. Day dividers break the spine into sections so a long history
  * stays scannable.
- *
  * Reads left → top down: latest commit at the top, oldest at the bottom.
  * Each row links to the GitHub diff.
  */

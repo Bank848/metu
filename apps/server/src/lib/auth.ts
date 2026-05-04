@@ -55,7 +55,7 @@ const userProxy = new Proxy(realPrisma.user, {
   get(target, prop, receiver) {
     const value = Reflect.get(target, prop, receiver);
     if (typeof value === "function" && typeof prop === "string") {
-      // Phase 43 — must mirror userId → id on create + update results
+      // must mirror userId → id on create + update results
       // too. The OAuth flow does `createdUser.id` immediately after
       // user.create to set the new account's userId; without the
       // mirror that read returns undefined and the account create
@@ -160,7 +160,7 @@ export const auth = betterAuth({
       createdAt: "createdDate",
       updatedAt: "updatedAt",
     },
-    // Phase 43 — declare every extra User column so better-auth's
+    // declare every extra User column so better-auth's
     // hook layer doesn't strip them from the create payload. Without
     // this list, the user.create.before hook returns
     // `{ ...user, firstName, lastName, username }` but better-auth
@@ -216,7 +216,7 @@ export const auth = betterAuth({
     },
   },
 
-  // Phase 42 — automatically merge a new Google sign-in into an
+  // automatically merge a new Google sign-in into an
   // existing local account when the email matches. Without this the
   // user hits "An account already exists with that email" instead of
   // a smooth link.

@@ -1,16 +1,14 @@
 /**
- * Phase 50 — Centralised "is this product item buyable right now?"
+ * Centralised "is this product item buyable right now?"
  * gate. Used by `cart.service.addItem` + `cart.service.updateItem` +
  * `orders.service.checkout` so every write path enforces the same
  * availability rules. Without this, a buyer who knows a productItemId
  * could:
- *
  *   - PATCH a cart line for a paused / soft-deleted product
  *   - PATCH a digital cart line to qty > 1 (the addItem cap was
  *     bypassable through update)
  *   - Carry a stale cart through checkout after the seller paused or
  *     suspended the store
- *
  * Throws a single `AppError(409, "ProductUnavailable", …)` for any
  * gate failure so the BFF surfaces a consistent error shape.
  */
@@ -50,7 +48,6 @@ export interface PurchasableProductItem {
  * Throws when the product or store is in any state that should block
  * purchase. Returns the loaded shape so callers can keep the value
  * around without re-querying.
- *
  * Deliberately does NOT enforce the actor's "isn't the store owner"
  * rule — that's caller-specific (only `cart.service.addItem` cares;
  * checkout has already accepted the line).

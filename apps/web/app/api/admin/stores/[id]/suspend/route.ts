@@ -1,5 +1,5 @@
 /**
- * Phase 16.1 — forwarder to Express
+ * forwarder to Express
  * `POST /admin/stores/:id/suspend`. Body: { value: boolean }.
  * Toggles store.suspendedAt (set to NOW or cleared to NULL).
  */

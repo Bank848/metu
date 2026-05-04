@@ -4,7 +4,6 @@ import type { MetadataRoute } from "next";
  * PWA manifest — makes METU installable as a standalone app on iOS,
  * Android, and desktop Chromium. Next 14 reads this file at the
  * /manifest.webmanifest URL automatically.
- *
  * Icons are vector (SVG) so we get crisp output at every size without
  * shipping a dozen PNG variants. The `purpose: "any maskable"` flag
  * tells Android it's safe to apply the system-wide icon mask.

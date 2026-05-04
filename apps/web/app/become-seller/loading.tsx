@@ -1,7 +1,7 @@
 import { TopNav } from "@/components/TopNav";
 import { Skeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for /become-seller onboarding form. */
+/** skeleton for /become-seller onboarding form. */
 export default function BecomeSellerLoading() {
   return (
     <>

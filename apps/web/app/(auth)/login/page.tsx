@@ -9,7 +9,7 @@ export const metadata = { title: "Log in — METU" };
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
-  // Phase 17.x — only render the "Continue with Google" button when
+  // .x — only render the "Continue with Google" button when
   // the API actually has Google credentials configured. Otherwise
   // clicking the button takes the user to a hard 404 (better-auth
   // throws PROVIDER_NOT_FOUND) with zero UX indication of what's wrong.

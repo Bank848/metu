@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 11 / F8 — Mirrors the new /admin/stores boundary so a sidebar
+ * / F8 — Mirrors the new /admin/stores boundary so a sidebar
  * navigation in the OTHER direction (Stores → Users) doesn't repeat
  * the same stale-segment flash. The Suspense wrapper kicks in on each
  * navigation, freeing Next from showing the prior page's contents

@@ -5,7 +5,6 @@ import { NoResults } from "./illustrations/NoResults";
 
 /**
  * Generic empty-state card.
- *
  * Wave-2 rebrand:
  *  - New `variant` prop swaps the centered lucide-icon-in-a-circle for
  *    one of the hand-rolled SVG illustrations under
@@ -18,7 +17,6 @@ import { NoResults } from "./illustrations/NoResults";
  *  - Card surface switched from `vibrant-mesh` (heavy gold radials) to
  *    `surface-editorial` (Wave-1 flat panel). The illustration carries
  *    the colour now; the surface stays out of its way.
- *
  * Variants:
  *   - `cart`       → <EmptyCart />, mint tint
  *   - `noResults`  → <NoResults />, coral tint

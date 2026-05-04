@@ -22,7 +22,7 @@ type Product = {
   productId: number;
   name: string;
   description: string;
-  /** Phase 48 — when false, buyer can't re-purchase after first paid order. */
+  /** when false, buyer can't re-purchase after first paid order. */
   isStackable: boolean;
   avgRating?: number;
   reviewCount?: number;
@@ -42,7 +42,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
   // Resolve the session first (cheap cookie decode) so the remaining DB
   // reads can fan out in the same Promise.all — eliminates the serial
   // getFavoriteSet await that was adding one extra Neon roundtrip.
-  // Phase 26 — productQuestion + stockAlert reads dropped along with
+  // productQuestion + stockAlert reads dropped along with
   // the buyer↔seller messaging surface.
   const me = await getMe();
   const [product, favSet, recentBuyers, related, ownedOrderId] = await Promise.all([
@@ -50,7 +50,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
     getFavoriteSet(me?.user.userId),
     getRecentPurchaseCount(id, 7),
     getRelatedProducts(id, 4),
-    // Phase 48 — fetch the user's existing paid order on this product
+    // fetch the user's existing paid order on this product
     // so AddToCart can render an "✓ Already in your library" banner
     // instead of the buy buttons (when product.isStackable === false).
     me?.user.userId ? getOwnedOrderId(me.user.userId, id) : Promise.resolve(null),

@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 /**
  * Tiny pill button that lets the buyer review a product they bought.
  * Lives inside the order receipt's line items.
- *
  * When the user already reviewed the product (`alreadyReviewed`), the button
  * collapses to a green tick + "Reviewed" disabled state — keeps the receipt
  * clean and prevents duplicate reviews.

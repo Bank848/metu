@@ -1,9 +1,7 @@
 /**
  * Phase 22 / 26 — security hardening tests.
- *
  *   • Helmet ships standard hardening headers on every response,
  *     even on 401 / 404 paths (no auth needed).
- *
  * Phase 26 — dropped the message-route profanity + rate-limit suites
  * after the messaging surface was removed. The profanity util itself
  * stays in the codebase (used by reviews, product questions had been

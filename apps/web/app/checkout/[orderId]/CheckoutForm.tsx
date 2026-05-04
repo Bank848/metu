@@ -6,10 +6,9 @@ import { Button } from "@/components/ui/Button";
 import { Loader2 } from "lucide-react";
 
 /**
- * Phase 27 — Stripe Payment Element host. Renders inside the buyer's
+ * Stripe Payment Element host. Renders inside the buyer's
  * checkout page, confirms via stripe.js, then redirects back to
  * /orders/[orderId] which polls the webhook-driven status flip.
- *
  * Test cards (test mode only):
  *   4242 4242 4242 4242   — succeeds
  *   4000 0000 0000 0002   — generic decline
@@ -25,7 +24,7 @@ export function CheckoutForm({
   clientSecret: string;
   publishableKey: string;
   /**
-   * Phase 46 follow-up — for direct-charge Connect orders the
+   * for direct-charge Connect orders the
    * PaymentIntent lives on the seller's Connect account, so Stripe.js
    * must be scoped with `stripeAccount`. Without this, PaymentElement
    * fails to mount with `Unhandled payment Element loaderror`.

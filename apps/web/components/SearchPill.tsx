@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 
 /**
  * Search input for the TopNav.
- *
  * Wave-2 rebrand decisions:
  *  - Switched off the all-pills monoculture (every nav element used
  *    `rounded-pill`). The search now uses `rounded-xl` so it visually

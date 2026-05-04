@@ -1,5 +1,5 @@
 /**
- * Phase 13.7 — forwarder to Express `GET /favorites`.
+ * forwarder to Express `GET /favorites`.
  * Auth-only on the Express side.
  */
 import { type NextRequest } from "next/server";

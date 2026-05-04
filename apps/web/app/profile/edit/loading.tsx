@@ -7,7 +7,6 @@ import { Skeleton } from "@/components/Skeleton";
  * an avatar + cards layout that doesn't match this page (max-w-3xl, two
  * stacked forms + a data-export card), which made the transition feel
  * like a "skeleton flash" before the form populated (F28).
- *
  * Mirroring the real shape here means the first paint already matches the
  * final paint — the user sees structure, not a jarring layout swap.
  */

@@ -5,8 +5,7 @@ import { RotateCcw, Trash2 } from "lucide-react";
 import { ActionRow, type ActionRowItem } from "./ActionRow";
 
 /**
- * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
- *
+ * / Step 3b — repackaged as an `<ActionRow>` dropdown.
  * Both API calls (POST /refund and DELETE) are identical to the prior
  * implementation — only the trigger surface changed. The `type` prop
  * still gates Refund: it only appears for purchases.

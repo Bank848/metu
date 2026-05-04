@@ -1,7 +1,7 @@
 import { TopNav } from "@/components/TopNav";
 import { Skeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for /compare side-by-side product comparison. */
+/** skeleton for /compare side-by-side product comparison. */
 export default function CompareLoading() {
   return (
     <>

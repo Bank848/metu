@@ -1,5 +1,5 @@
 /**
- * Phase 13.9.2 — forwarder to Express `POST /seller/become-seller`.
+ * forwarder to Express `POST /seller/become-seller`.
  * Auth-only (no requireStore — that's the point).
  */
 import { type NextRequest } from "next/server";

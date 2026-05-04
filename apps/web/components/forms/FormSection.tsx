@@ -2,20 +2,17 @@ import type { ReactNode, ElementType } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Phase 10 / Step 2 — section wrapper for authoring forms.
- *
+ * / Step 2 — section wrapper for authoring forms.
  * Replaces the ad-hoc `rounded-2xl glass-morphism p-6 space-y-4` recipe
  * scattered across NewProductForm, EditProductForm, EditStoreForm, and
  * the upcoming coupon / admin forms. By centralising the surface,
  * radius, padding, and the title-bar accent here we get:
- *
  *   - one place to swap `glass-morphism` → `surface-flat` (per
  *     docs/design-system.md §5)
  *   - a consistent title bar with a coloured accent stripe — defaults to
  *     `metu-yellow`, opt into `mint` / `coral` for non-default sections
  *     (e.g. mint = "preview / live" sections, coral = "danger zone")
  *   - one source of truth for the `space-y-4` rhythm between fields
- *
  * The component does NOT own form state — it's a pure layout primitive.
  * Compose it with the input primitives (TextInput, etc.) inside the
  * `children` slot.

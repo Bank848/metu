@@ -1,5 +1,5 @@
 /**
- * Phase 15.2 — forwarder to Express `GET /auth/sessions`.
+ * forwarder to Express `GET /auth/sessions`.
  * Lists active better-auth sessions for the current user + the id
  * of the "current" session (so the UI can disable its Revoke button).
  */

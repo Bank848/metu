@@ -1,9 +1,8 @@
 /**
- * Phase 13.11 — forwarder to Express `GET /products` (browse).
+ * forwarder to Express `GET /products` (browse).
  * Preserves the inbound query string so every filter (category,
  * tags, minPrice, maxPrice, delivery, q, sort, page, pageSize)
  * survives the BFF hop.
- *
  * The full browse logic + DTO shaping lives in
  * apps/server/src/services/products.service.ts (Phase 13.1) so this
  * file is a pure proxy.

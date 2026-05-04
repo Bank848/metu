@@ -168,7 +168,6 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
  * Orders the seller should care about — every order containing at
  * least one line from their store. Optional ?status filter passes
  * through to Prisma's enum check.
- *
  * Scoped sub-includes: nested `items` only resolve to lines for THIS
  * store so we don't leak details about competitors' products if the
  * order is multi-store.
@@ -292,7 +291,7 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
   return rows.join("\n");
 }
 
-// Phase 51 — mask buyer email so sellers can't harvest addresses.
+// mask buyer email so sellers can't harvest addresses.
 // "john.doe@gmail.com" → "j***@gmail.com"
 // Domain stays visible (avoids guessing) — only local part is masked.
 function maskEmail(email: string): string {
@@ -305,7 +304,7 @@ function maskEmail(email: string): string {
 
 function escapeCsv(value: unknown): string {
   let s = value === null || value === undefined ? "" : String(value);
-  // Phase 51 — neutralise spreadsheet formula injection. A buyer with
+  // neutralise spreadsheet formula injection. A buyer with
   // a username like `=cmd|'/c calc'!A0` would execute when the seller
   // opens this CSV in Excel/Sheets. Prefix with single quote so the
   // cell renders as text instead of evaluating.
@@ -319,9 +318,8 @@ function escapeCsv(value: unknown): string {
 }
 
 /**
- * Phase 48 — admin-driven version of becomeSeller. Used when an
+ * admin-driven version of becomeSeller. Used when an
  * operator promotes a buyer to seller from /admin/users.
- *
  * Behaviour differs from the user-facing `becomeSeller`:
  *   - Picks defaults for `name`, `description`, `businessTypeId` so
  *     the admin doesn't have to fill the form upfront.
@@ -445,13 +443,13 @@ export async function updateStore(storeId: number, input: UpdateStoreInput) {
 
 /** POST /seller/products — create a product (with variants, images, tags). */
 export async function createProduct(storeId: number, input: ProductInput) {
-  // Phase 45 — Product now carries its own deliveryMethod (per the
+  // Product now carries its own deliveryMethod (per the
   // docx report). We mirror the first variant's method onto Product;
   // the seller form lists all variants with the same method today, so
   // the two stay in sync. The variant-level column is kept for now
   // until every consumer migrates to read from Product.
   const productDeliveryMethod = input.items[0]!.deliveryMethod;
-  // Phase 48 — isStackable defaults from delivery method when the
+  // isStackable defaults from delivery method when the
   // seller doesn't pass an explicit override:
   //   license_key → true (resellable, can buy multiple keys)
   //   everything else (download/streaming/email) → false (single copy)
@@ -466,7 +464,7 @@ export async function createProduct(storeId: number, input: ProductInput) {
       isStackable,
       items: {
         create: input.items.map((it, idx) => ({
-          // Phase 45 — ProductItem.name is required (the report models
+          // ProductItem.name is required (the report models
           // each variant as a sellable line with its own name). Until
           // the seller form exposes per-variant naming, default to
           // "<product> — Variant N" so the column always has a value.
@@ -511,7 +509,6 @@ export async function createProduct(storeId: number, input: ProductInput) {
  * PATCH /seller/products/:id — fast-path for the pause toggle
  * ({ isActive: boolean } only) AND the full edit replacing
  * name/description/category + images + variants + tags.
- *
  * Variants are tricky — OrderItem + CartItem FK into ProductItem,
  * so we don't blindly delete. Existing variants get UPDATEd in
  * order; extra incoming variants get CREATEd. Removing variants
@@ -537,7 +534,7 @@ export async function updateProduct(
   const input = body as ProductInput;
   await prisma.$transaction(async (tx) => {
     const productDeliveryMethod = input.items[0]!.deliveryMethod;
-    // Phase 48 — same default rule as createProduct so an edit form
+    // same default rule as createProduct so an edit form
     // that doesn't expose the checkbox still picks the right value.
     const isStackable =
       input.isStackable ?? (productDeliveryMethod === "license_key");
@@ -547,7 +544,7 @@ export async function updateProduct(
         name: input.name,
         description: input.description,
         categoryId: input.categoryId,
-        // Phase 45 — keep Product.deliveryMethod in sync with the
+        // keep Product.deliveryMethod in sync with the
         // first variant's method (see createProduct rationale).
         deliveryMethod: productDeliveryMethod,
         isStackable,
@@ -598,7 +595,7 @@ export async function updateProduct(
         await tx.productItem.create({
           data: {
             productId,
-            // Phase 45 — ProductItem.name is required. Mirror the
+            // ProductItem.name is required. Mirror the
             // create flow's naming convention.
             name:
               input.items.length > 1
@@ -675,13 +672,13 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
       name: newName,
       description: source.description,
       isActive: false,
-      // Phase 45 — copy the source product's deliveryMethod onto the
+      // copy the source product's deliveryMethod onto the
       // clone (Product now owns this field; see createProduct).
       deliveryMethod: source.deliveryMethod,
       isStackable: source.isStackable,
       items: {
         create: source.items.map((it) => ({
-          // Phase 45 — ProductItem.name is required; carry the source
+          // ProductItem.name is required; carry the source
           // variant's name forward (it might be the per-variant label
           // we set on create, or the bare product name).
           name: it.name,
@@ -763,7 +760,6 @@ export async function createCoupon(storeId: number, input: CouponInput) {
 
 /**
  * PATCH /seller/orders/:id — flip an order to fulfilled OR cancelled.
- *
  * Guardrails (mirror the legacy BFF route):
  *   • Order must contain at least one line from the seller's store
  *   • Refunded orders can never be re-flipped (409 AlreadyRefunded)
@@ -819,7 +815,6 @@ export async function updateOrderStatus(
 /**
  * POST /seller/orders/:id/refund — mark refunded + create a `refund`
  * Transaction in one atomic write.
- *
  * Sellers can only refund (a) orders containing one of their lines
  * AND (b) currently paid or fulfilled. Pending orders have no money
  * yet; cancelled / already-refunded shouldn't double-refund.
@@ -855,7 +850,7 @@ export async function refundOrder(
     );
   }
 
-  // Phase 51 — actually call Stripe so the buyer's card is refunded.
+  // actually call Stripe so the buyer's card is refunded.
   // Without this the seller-facing UI says "refunded" but the money
   // never leaves the seller's connected account → silent fraud.
   let stripeRefundId: string | null = null;

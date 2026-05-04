@@ -1,5 +1,5 @@
 /**
- * Phase 13.5 — forwarder to Express `POST /products/:productId/reviews`.
+ * forwarder to Express `POST /products/:productId/reviews`.
  * Soft-delete / orphan check + creation now live server-side.
  */
 import { type NextRequest } from "next/server";

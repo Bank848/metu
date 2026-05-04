@@ -3,7 +3,6 @@ import { useEffect } from "react";
 
 /**
  * Confine keyboard focus inside `containerRef` while `active` is true.
- *
  * Behaviour:
  *   - On open: moves focus to the first focusable element inside the
  *     container (or the container itself if it has tabindex=-1).
@@ -11,11 +10,9 @@ import { useEffect } from "react";
  *     first wraps to the last.
  *   - On close (or unmount): restores focus to whatever element was
  *     focused before the trap opened.
- *
  * This is the WCAG 2.1.2 / 2.4.3 compliance trick — without it, a
  * keyboard user can `Tab` straight out of an open dialog into the
  * hidden page underneath, which is disorienting and unsafe.
- *
  * Usage:
  *   const ref = useRef<HTMLDivElement>(null);
  *   useFocusTrap(ref, isOpen);

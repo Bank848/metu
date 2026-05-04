@@ -2,7 +2,7 @@ import { forwardRef } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-// Phase 9 / Wave 2 — added `mint` + `coral` so non-gold CTAs aren't
+// / Wave 2 — added `mint` + `coral` so non-gold CTAs aren't
 // forced through `outline` or `glass`. Both pair with the Wave-1
 // `surface-accent` palette (see globals.css:179).
 type Tone = "gold" | "glass" | "outline" | "mint" | "coral";

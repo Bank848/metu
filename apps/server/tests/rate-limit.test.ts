@@ -1,6 +1,5 @@
 /**
  * Phase 15.1 — rate-limit middleware tests.
- *
  * Mounts a tiny throwaway Express app with a fresh limiter so we
  * can verify the boundary behaviour without contaminating the real
  * loginLimiter / registerLimiter singletons (which other tests share

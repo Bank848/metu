@@ -11,7 +11,7 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 export const metadata = { title: "Verify your phone — METU" };
 
-// Phase 41 → 42 — phone-only verify step. Email comes from the active
+// → 42 — phone-only verify step. Email comes from the active
 // session (when signed in) or a short-lived signed `metu_pv` cookie
 // (between register and full sign-in). It never sits in the URL.
 
@@ -46,7 +46,7 @@ export default async function VerifyPhonePage() {
   if (phoneVerified) {
     redirect(emailVerified ? "/" : "/verify-pending");
   }
-  // Phase 44 — Google new-user has no phone yet; bounce them back to
+  // Google new-user has no phone yet; bounce them back to
   // /profile/edit with a clear note instead of pretending we sent an
   // OTP to "your phone".
   if (loggedIn && !hasPhone) {

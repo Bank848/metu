@@ -1,6 +1,5 @@
 /**
  * Inline SVG flag icons for the language picker.
- *
  * Windows browsers don't bundle the flag emoji glyphs (🇬🇧 / 🇹🇭),
  * so the UI was falling back to the underlying country-code text
  * pair "GB" / "TH" -- ugly + cryptic to users. These SVGs render

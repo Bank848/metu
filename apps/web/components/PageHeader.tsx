@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 
 /**
  * Page chrome — title row used at the top of nearly every app page.
- *
  * Wave-2 rebrand:
  *  - Optional `eyebrow` editorial label sits above the title (mono-
  *    uppercase, mint dot prefix). Most pages will omit it; the few

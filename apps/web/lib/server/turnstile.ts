@@ -1,15 +1,12 @@
 /**
  * Cloudflare Turnstile server-side verification.
- *
  * The widget on the client posts a one-time `cf-turnstile-response` token
  * along with the form. We POST it back to Cloudflare's siteverify endpoint
  * with our secret to confirm the user actually solved the challenge.
- *
  * In local dev / when `TURNSTILE_SECRET` isn't set, this is a no-op that
  * always returns ok. The widget on the client similarly only renders when
  * `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set, so the whole feature is opt-in
  * via env.
- *
  * Docs: https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
  */
 

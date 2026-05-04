@@ -1,5 +1,5 @@
 /**
- * Phase 17.1 — admin settings forwarder.
+ * admin settings forwarder.
  *   PATCH /admin/settings — body { walletEnabled?, chatEnabled?, promptpayId? }
  * Auth + admin role enforced server-side.
  */

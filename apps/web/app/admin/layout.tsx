@@ -6,7 +6,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const me = await getMe();
   if (!me) redirect("/login?next=/admin");
   if (me.role !== "admin") redirect("/");
-  // Phase 15.5 — admins aren't immune to force-reset (they can be
+  // admins aren't immune to force-reset (they can be
   // flagged by another admin). Bounce to /profile/edit before
   // letting them act on the dashboard.
   requireResetGuard(me, "/admin");

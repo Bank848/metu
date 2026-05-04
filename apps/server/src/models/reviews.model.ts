@@ -1,6 +1,5 @@
 /**
  * Reviews data contracts.
- *
  * Two zod schemas: `reviewInputSchema` for create (full row required)
  * and `reviewEditSchema` for partial PATCH. Both come from
  * @metu/shared so the BFF form components AND the API parse with

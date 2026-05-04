@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /seller/wallet. Big balance card + payout
+ * skeleton for /seller/wallet. Big balance card + payout
  * history table. Stripe payout fetches typically take 200-600ms cold,
  * so a real skeleton helps.
  */

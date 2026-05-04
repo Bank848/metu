@@ -1,11 +1,9 @@
 /**
- * Phase 49 — Email-OTP gate for the admin demo account.
- *
+ * Email-OTP gate for the admin demo account.
  * The seed `admin@metu.dev` account is intentionally public (it's
  * announced in seed.ts so reviewers can log in to grade the project),
  * which means anyone hitting the URL knows the credentials. We add a
  * second factor here:
- *
  *   1. Password + (optional) TOTP pass as usual.
  *   2. We generate a 6-digit code, store its SHA-256 in the
  *      `verification` table, and email the code to a private recipient
@@ -14,14 +12,12 @@
  *   4. If "trust this device for 7 days" was ticked, we drop a hashed
  *      cookie (see `trusted-device.ts`) so the OTP step is skipped on
  *      the same browser for 7 days.
- *
  * The recipient email NEVER lives in the repo — only in `process.env`
  * (Fly secret in prod, `.env.local` in dev). The fingerprint registry
  * below is a SHA-256 of the expected recipient committed in code: at
  * boot we hash the live env value and refuse to send if it doesn't
  * match a known good fingerprint, so a leaked secret swap won't
  * silently start mailing the OTP to an attacker-controlled address.
- *
  * Which accounts trigger this gate is a separate env list
  * (`ADMIN_OTP_GUARD_EMAILS`, comma-separated) defaulted to
  * `admin@metu.dev` because that account is already public in seed.ts.
@@ -69,7 +65,6 @@ export function isGuardedAccount(email: string): boolean {
  * Resolves the recipient address from env. Throws when unset OR when
  * the env value's fingerprint isn't in the registry above — so a Fly
  * secret swap to an attacker-controlled inbox fails closed.
- *
  * Local dev path: when `ADMIN_OTP_DEV_REVEAL=true` we accept any
  * recipient (even unregistered) and ALSO log the code to stdout, so
  * test runs and offline demos work without setting a real address.

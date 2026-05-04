@@ -11,7 +11,6 @@ const MAX_BYTES = 1_000_000; // 1 MB safeguard — DB stores as TEXT (data URL)
  * On upload, the file is read as a base64 data URL and emitted via onChange
  * so the parent can store it in the DB's TEXT column. No external bucket
  * is required, which keeps the demo deployable on Vercel free tier.
- *
  * Recommended dimensions are surfaced inline so sellers know what to upload.
  */
 export function FileImageInput({

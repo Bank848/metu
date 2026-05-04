@@ -3,7 +3,7 @@ import type { ErEntity } from "@/lib/admin/er-schema";
 import { CATEGORY_STYLE, categoryFor } from "@/lib/admin/er-categories";
 
 /**
- * Phase 24 — single entity card matching the Lucidchart visual:
+ * single entity card matching the Lucidchart visual:
  * white body + colored header + per-row PK/FK marker + type column.
  */
 export function ErEntityCard({

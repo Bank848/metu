@@ -3,20 +3,17 @@ import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 
 /**
- * Phase 11 / F13 — clickable seller attribution under a product card.
- *
+ * / F13 — clickable seller attribution under a product card.
  * The audit flagged that "Nok Press" / "Kloy Studio" labels under each
  * product card looked clickable (icon + label) but were rendered as
  * plain `<span>` text. This pill is a real `<Link href="/store/[id]">`
  * so a buyer can jump to the seller without first opening the product.
- *
  * The card it lives in is itself a `<Link>` (see `ProductCard.tsx`).
  * Browsers handle nested anchors but they're invalid HTML and can
  * confuse screen readers. We sidestep the issue by stopping the click
  * before it bubbles into the parent card-link, so the inner navigation
  * wins. The same `e.stopPropagation()` trick is used by `FavoriteButton`
  * and `CompareToggle` — see `FavoriteButton.tsx:31-36`.
- *
  * The visible text + icon stay identical to the previous span so the
  * card layout doesn't shift. Only the cursor + hover colour changes
  * to communicate the new affordance.

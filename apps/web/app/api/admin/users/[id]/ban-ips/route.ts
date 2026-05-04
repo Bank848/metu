@@ -1,5 +1,5 @@
 /**
- * Phase 48 — POST forwarder for the "Ban this user's IPs" quick
+ * POST forwarder for the "Ban this user's IPs" quick
  * action. Pulls every distinct IP from the user's Session rows and
  * inserts a banned_ip row for each.
  */

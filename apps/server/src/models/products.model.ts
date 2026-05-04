@@ -1,7 +1,6 @@
 /**
  * Products data contracts — what crosses the network for the
  * `/products`, `/products/featured`, `/products/:id` endpoints.
- *
  * Request validation reuses the `browseQuerySchema` already defined
  * in `@metu/shared` (single source of truth: client form + server
  * validation read the same zod schema). Response shapes are TS

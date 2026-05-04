@@ -1,5 +1,5 @@
 /**
- * Phase 16.2 — forwarder to Express `POST /auth/totp/disable`.
+ * forwarder to Express `POST /auth/totp/disable`.
  * Wipes secret + flips totpEnabled=false. Requires the user's
  * current password in the body (defence in depth).
  */

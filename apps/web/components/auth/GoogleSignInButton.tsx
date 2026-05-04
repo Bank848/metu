@@ -3,9 +3,8 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 /**
- * Phase 42 — single Google button used by /login, /register, and the
+ * single Google button used by /login, /register, and the
  * profile "Connected accounts" card.
- *
  * better-auth exposes social sign-in via `POST /sign-in/social` with a
  * JSON body — the legacy `<a href="/api/auth/better/sign-in/google?callbackURL=...">`
  * style on /register and the profile card hit a 405, which is what

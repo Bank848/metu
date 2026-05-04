@@ -1,5 +1,5 @@
 /**
- * Phase 13.9.2 — forwarder to Express `POST /seller/products/:id/duplicate`.
+ * forwarder to Express `POST /seller/products/:id/duplicate`.
  * Clones the product (variants + images + tags), creates the copy
  * paused (isActive=false), skips reviews + sales history.
  */

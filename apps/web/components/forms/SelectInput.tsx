@@ -4,13 +4,11 @@ import { cn } from "@/lib/utils";
 export type SelectOption = { value: string; label: string };
 
 /**
- * Phase 10 / Step 2 — select primitive.
- *
+ * / Step 2 — select primitive.
  * Same focus-ring + error styling as the other input primitives so a
  * row of mixed inputs aligns visually. Options come in via a flat array
  * rather than `<option>` children — keeps callers from fighting React
  * key warnings and makes the API one-line per option.
- *
  * We ship a default `text-white` colour on the select but rely on the
  * native menu for the dropdown itself (reskinning a real `<select>`'s
  * popup requires a full custom listbox; out of scope for primitives).

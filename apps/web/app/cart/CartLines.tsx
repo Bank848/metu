@@ -144,7 +144,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         l.cartItemId === cartItemId ? { ...l, quantity, lineTotal: l.unitPrice * quantity } : l,
       ),
     });
-    // Phase 11 run #2 / F8 — keep the TopNav cart badge in sync with
+    // run #2 / F8 — keep the TopNav cart badge in sync with
     // the local count. The +/- controls don't navigate so the badge
     // would otherwise stay stale until the next 60s poll.
     if (typeof window !== "undefined") {
@@ -161,7 +161,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         credentials: "include",
       });
     } catch {
-      // Phase 45 follow-up — used to silently swallow network errors,
+      // used to silently swallow network errors,
       // so the trash icon looked broken when the BFF was unreachable.
       // Surface a per-line message instead of pretending it worked.
       setLineError((p) => ({ ...p, [cartItemId]: "Network error — please try again" }));
@@ -177,7 +177,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
     }
     const remaining = cart.items.filter((l) => l.cartItemId !== cartItemId);
     setCart({ ...cart, items: remaining });
-    // Phase 11 run #2 / F8 — keep the TopNav badge in sync after a
+    // run #2 / F8 — keep the TopNav badge in sync after a
     // line removal (otherwise a buyer empties the cart but the icon
     // still shows the old count for ~60s).
     if (typeof window !== "undefined") {
@@ -266,7 +266,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       }
       const data = await res.json();
       play("success");
-      // Phase 11 run #2 / F8 — checkout empties the active cart server
+      // run #2 / F8 — checkout empties the active cart server
       // side; tell the TopNav badge before we navigate away so the
       // icon doesn't briefly flash the pre-checkout count on the
       // /orders/[id] page.
@@ -274,7 +274,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         window.dispatchEvent(new CustomEvent("cart:update"));
       }
       navigated = true;
-      // Phase 27 — when Stripe is configured AND the seller is
+      // when Stripe is configured AND the seller is
       // onboarded, the API returns a clientSecret and the order is in
       // `pending` status. Route to /checkout/[orderId] so the buyer
       // can confirm payment with Stripe Elements. Otherwise fall back
@@ -377,7 +377,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                         className="relative h-20 w-20 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8 hover:border-metu-yellow/40 transition"
                       >
                         {l.image && (
-                          // Phase 11 / F10 (originally `priority` on every
+                          // / F10 (originally `priority` on every
                           // cart line) → QA r3/F1 reverted to lazy → Phase 44
                           // QA caught lazy-loading the 80×80 images leaves
                           // them as empty boxes when Next's IntersectionObserver

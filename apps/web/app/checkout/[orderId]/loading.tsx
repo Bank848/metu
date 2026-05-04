@@ -2,7 +2,7 @@ import { TopNav } from "@/components/TopNav";
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /checkout/[orderId]. Header + a card-shaped
+ * skeleton for /checkout/[orderId]. Header + a card-shaped
  * placeholder so the buyer doesn't see a blank page while Stripe
  * Elements mounts.
  */

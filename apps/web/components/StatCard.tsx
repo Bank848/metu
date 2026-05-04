@@ -2,17 +2,15 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Phase 9 / Wave 2 — broke the "4 identical glass tiles" rhythm called
+ * / Wave 2 — broke the "4 identical glass tiles" rhythm called
  * out at design-system.md §1 row 8 + §10 row 6. The default variant
  * keeps backward-compat for every existing call site (admin/page,
  * seller/page, home page); two new variants let consumers introduce
  * asymmetry inside a row of cards:
- *
  *   - `highlight` — icon moves from the corner to the LEFT, sat next
  *     to the value. Use ONCE per row to call out the "lead" stat.
  *   - `zero`      — greyer / muted, signals "no data yet" so empty
  *     states stop reading as broken.
- *
  * Shadows pulled off the gold-coupled `shadow-pop` and onto the Wave-1
  * neutral elevation scale (`shadow-flat` / `shadow-raised`).
  */
@@ -60,13 +58,13 @@ export function StatCard({
     return "surface-flat";
   })();
 
-  // Phase 11.1 hotfix — large baht values (e.g. ฿1,234,567 at
+  // hotfix — large baht values (e.g. ฿1,234,567 at
   // font-display extrabold) were blowing past the highlight card's
   // ¼-viewport slot at md (text-5xl ≈ 48px × 10 chars ≈ 480px). Drop
   // the ramp to text-4xl on md and only restore text-5xl at xl where
   // the card has the room. tabular-nums keeps digits aligned so
   // multiple highlight cards don't dance.
-  // Phase 11.2 — drop the HIGHLIGHT ramp one notch (was
+  // drop the HIGHLIGHT ramp one notch (was
   // text-2xl/sm:text-3xl/md:text-4xl/xl:text-5xl) per user feedback
   // "ให้มันตัวเล็กลง". Even with moneyCompact(), the headline number
   // sits in a ¼-viewport slot at md and looked oversized at text-4xl.

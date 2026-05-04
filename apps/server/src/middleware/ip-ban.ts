@@ -1,11 +1,9 @@
 /**
- * Phase 48 — Network-layer ban check.
- *
+ * Network-layer ban check.
  * Mounted FIRST in the middleware chain (in app.ts) so blocked IPs
  * never reach auth, body parsing, or any business logic. Uses the
  * cache exposed by `banned-ip.service.ts`; DB only sees one lookup
  * per banned IP per minute under sustained traffic.
- *
  * Skipped for:
  *   - the Stripe webhook endpoint (Stripe's outbound IPs have no
  *     reason to be banned and we don't want a manual ban to break
@@ -30,7 +28,7 @@ export async function ipBanCheck(
     next();
     return;
   }
-  // Audit follow-up (HIGH #4) — original code returned next() when
+  // original code returned next() when
   // req.ip was empty, which let a forged `X-Forwarded-For: ,` slip
   // past the ban list. Fall back to the raw socket address; if both
   // are empty something is very wrong with the proxy chain — log

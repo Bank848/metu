@@ -27,7 +27,7 @@ type Order = {
     quantity: number;
     pricePerUnit: string | number;
     coupon?: { code: string; discountType: string; discountValue: number } | null;
-    /** Phase 33 — delivery snapshot. null until finalizeOrder() runs. */
+    /** delivery snapshot. null until finalizeOrder() runs. */
     deliveredKey?: string | null;
     deliveredUrl?: string | null;
     deliveredAt?: string | null;

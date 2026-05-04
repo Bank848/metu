@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/Button";
 import { TotpStepUpModal } from "@/components/TotpStepUpModal";
 
 /**
- * Phase 27 — admin refund trigger. Hits /api/admin/orders/:id/refund
+ * admin refund trigger. Hits /api/admin/orders/:id/refund
  * which calls Stripe + writes an audit row. The server enforces a
  * 15-minute TOTP step-up window via requireRecent2FA(15).
- *
- * Phase 35 — when the API returns 403 TotpStepUpRequired we pop the
+ * when the API returns 403 TotpStepUpRequired we pop the
  * step-up modal, capture the fresh code, then auto-retry the refund
  * so the admin doesn't have to confirm the irreversible action twice.
  */

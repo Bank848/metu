@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 
 /**
  * Best-effort guess of the user's country code (ISO 3166-1 alpha-2).
- *
  * Order:
  *  1. Cloudflare's `cf-ipcountry` header (when behind CF — not us today)
  *  2. Fly's `fly-region` (data-centre, not the user) — only as a last
@@ -10,7 +9,6 @@ import { headers } from "next/headers";
  *     in `sin`
  *  3. The first language in `accept-language` (matches "th-TH", "en-US" …)
  *  4. "TH" as a default — METU is a Thai marketplace
- *
  * The result is only used to pre-select the country dropdown; the
  * user can change it before submitting.
  */

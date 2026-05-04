@@ -4,7 +4,7 @@ import { Trash2, PauseCircle, PlayCircle } from "lucide-react";
 import { ActionRow, type ActionRowItem } from "./ActionRow";
 
 /**
- * Phase 45 follow-up — same cache-busting reload helper as
+ * same cache-busting reload helper as
  * UserRowActions (kept inline to avoid a one-function shared
  * util module). Mirrors comment there.
  */
@@ -15,8 +15,8 @@ function hardRefresh() {
 }
 
 /**
- * Phase 10 / Step 3b — repackaged as an `<ActionRow>` dropdown.
- * Phase 16.1 — adds a Suspend/Unsuspend toggle ABOVE the destructive
+ * / Step 3b — repackaged as an `<ActionRow>` dropdown.
+ * adds a Suspend/Unsuspend toggle ABOVE the destructive
  * Delete. Suspended stores are HIDDEN from public surfaces (browse,
  * /store/[id], featured, sitemap) but the row + products + history
  * stay intact. Reversible — vs Delete which is permanent.
@@ -24,7 +24,7 @@ function hardRefresh() {
 export function StoreActions({
   storeId,
   name,
-  // Phase 16.1 — drives the suspend/unsuspend label + tone. When the
+  // drives the suspend/unsuspend label + tone. When the
   // store is currently suspended (suspendedAt != null) the action
   // becomes "Resume" + safe-tone; otherwise it's "Suspend" + warning.
   suspended = false,

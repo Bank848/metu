@@ -1,18 +1,14 @@
 /**
  * Shared test helpers for the Phase 16.3 Mode A swap.
- *
  * Tests mock `../src/lib/auth.js` so `auth.api.getSession()` returns
  * whatever the test wants. Per-test, they call `signedInAs(uid)` to
  * fake an authenticated request (req.user resolves to that uid via
  * middleware/auth.ts) or `signedOut()` to flip back to anonymous.
- *
  * The cookie value passed to supertest's `.set("Cookie", ...)` is
  * irrelevant — better-auth's getSession is fully mocked so it never
  * reads the actual cookie. We still pass a placeholder so requests
  * look "real" (some middleware paths do branch on cookie presence).
- *
  * Wiring (top of every test file that needs auth):
- *
  *   vi.mock("../src/lib/auth.js", () => {
  *     const getSession  = vi.fn(async () => null);
  *     const signInEmail = vi.fn(async () => new Response("", { status: 200, headers: { "set-cookie": "better-auth.session_token=fake; Path=/; HttpOnly" } }));
@@ -20,7 +16,6 @@
  *     const handler     = vi.fn(async () => new Response("", { status: 404 }));
  *     return { auth: { api: { getSession, signInEmail, signOut }, handler } };
  *   });
- *
  * Then call `signedInAs(7)` or `signedOut()` from inside an it().
  */
 import { vi } from "vitest";

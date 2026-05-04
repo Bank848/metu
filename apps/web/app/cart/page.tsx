@@ -46,7 +46,6 @@ export default async function CartPage() {
   // already favourited (marked with a filled heart) so there's always
   // something to click. Cheap extra Promise.all only when the cart is
   // empty — full carts skip these queries entirely.
-  //
   // Note: an earlier audit flagged these as "redundant under
   // force-dynamic" — that was a false alarm. Neither getFeaturedProducts
   // nor getFavoriteSet is wrapped in unstable_cache (verify in

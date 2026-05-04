@@ -1,6 +1,5 @@
 /**
  * Auth data contracts.
- *
  * Request schemas come from `@metu/shared` so the BFF form components
  * AND the API parse with the same zod definition. Response shapes are
  * TS interfaces — controllers shape Prisma rows into these.

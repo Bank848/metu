@@ -1,5 +1,5 @@
 /**
- * Phase 15.2 — forwarder to Express `DELETE /auth/sessions/:id`.
+ * forwarder to Express `DELETE /auth/sessions/:id`.
  * Revokes one better-auth session row (ownership-checked server-
  * side via the userId predicate).
  */

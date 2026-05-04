@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for /seller/onboarding Stripe-Connect status page. */
+/** skeleton for /seller/onboarding Stripe-Connect status page. */
 export default function SellerOnboardingLoading() {
   return (
     <div className="max-w-2xl">

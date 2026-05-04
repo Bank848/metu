@@ -1,5 +1,5 @@
 /**
- * Phase 13.10 — forwarder to Express `GET /admin/stores`.
+ * forwarder to Express `GET /admin/stores`.
  */
 import { type NextRequest } from "next/server";
 import { forwardToApi } from "@/lib/server/proxy";

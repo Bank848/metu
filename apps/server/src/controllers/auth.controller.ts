@@ -45,11 +45,10 @@ async function issueBetterAuthCookie(req: import("express").Request, res: import
 }
 
 /**
- * Phase 49 — single-session enforcement. After every successful
+ * single-session enforcement. After every successful
  * sign-in we drop every OTHER session row for the same user, so a
  * concurrent login from another browser kicks the previous tab out
  * (its next API request gets 401 and the BFF bounces it to /login).
- *
  * The "newest session row wins" heuristic is good enough — we just
  * minted one through better-auth, so the most recent createdAt for
  * this userId is ours. A second simultaneous sign-in race would only
@@ -75,7 +74,7 @@ export const login: RequestHandler = async (req, res, next) => {
       throw parsed.error;
     }
 
-    // Phase 51 — CAPTCHA on login too. Without this a botnet can
+    // CAPTCHA on login too. Without this a botnet can
     // distribute credential-stuffing across IPs and dodge the per-IP
     // rate limit. The Step-2 admin-OTP round-trip skips CAPTCHA so
     // submitting the OTP code doesn't require a fresh widget render.
@@ -184,7 +183,7 @@ export const register: RequestHandler = async (req, res, next) => {
     }
     const { user, role, demo } = await service.register(parsed.data);
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
-    // Phase 49 — register also enforces single-session for symmetry
+    // register also enforces single-session for symmetry
     // with login (a malicious party can't keep a stale session alive
     // by re-registering with the same address; the fresh session is
     // the only one that survives).
@@ -245,15 +244,13 @@ export const updateMe: RequestHandler = async (req, res, next) => {
 };
 
 /**
- * Phase 48 — GDPR self-delete. Authed user removes their own account.
- *
+ * GDPR self-delete. Authed user removes their own account.
  * Body must contain `{ confirmation: string }` matching their
  * username so a misclick on the button doesn't blow the account
  * away. Internally calls `admin.service.deleteUser(uid, uid, ...)`
  * with no reason, which routes through the hybrid path:
  *   - fresh accounts (no orders/reviews/transactions) → hard delete
  *   - accounts with history → anonymise (PII removed, ledger kept)
- *
  * Bypasses the SelfDeleteForbidden guard inside admin.service by
  * checking it here first, then delegating with `actor === target`
  * disabled via a tiny direct flow (we can't reuse admin.service
@@ -433,7 +430,7 @@ export const revokeAllOtherSessions: RequestHandler = async (req, res, next) => 
  */
 export const forgotPassword: RequestHandler = async (req, res, next) => {
   try {
-    // Phase 51 — CAPTCHA gate so a botnet can't email-bomb arbitrary
+    // CAPTCHA gate so a botnet can't email-bomb arbitrary
     // users via the password-reset endpoint (each request burns
     // Resend quota and clutters the victim's inbox).
     const captchaToken =
@@ -470,7 +467,6 @@ export const forgotPassword: RequestHandler = async (req, res, next) => {
  * Validity probe without consuming the token.
  *   POST /auth/reset-password/check  body: { token }
  *   GET  /auth/reset-password/check?token=xxx (legacy)
- *
  * The POST shape keeps the token off URLs and access logs (Phase 42
  * URL hardening); the GET shape is preserved for backward compat.
  */
@@ -502,7 +498,7 @@ export const resetPassword: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Phase 41 - confirm email-verify token from the magic link.
+// confirm email-verify token from the magic link.
 export const verifyEmail: RequestHandler = async (req, res, next) => {
   try {
     const parsed = verifyEmailSchema.safeParse(req.body);
@@ -516,7 +512,7 @@ export const verifyEmail: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Phase 41 - resend a fresh email-verify link. Always returns 200.
+// resend a fresh email-verify link. Always returns 200.
 export const resendEmailVerify: RequestHandler = async (req, res, next) => {
   try {
     const parsed = resendEmailVerifySchema.safeParse(req.body);
@@ -535,7 +531,7 @@ export const resendEmailVerify: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Phase 41 - confirm 6-digit OTP after register.
+// confirm 6-digit OTP after register.
 export const verifyPhoneRegister: RequestHandler = async (req, res, next) => {
   try {
     const parsed = verifyPhoneRegisterSchema.safeParse(req.body);
@@ -549,7 +545,7 @@ export const verifyPhoneRegister: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Phase 46 — verify a Firebase Phone Auth ID token + stamp our
+// verify a Firebase Phone Auth ID token + stamp our
 // `phoneVerifiedAt`. Authed route — caller must be the user we'll
 // stamp. Body: { idToken: string }.
 export const verifyPhoneFirebase: RequestHandler = async (req, res, next) => {
@@ -567,7 +563,7 @@ export const verifyPhoneFirebase: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Phase 41 - resend a fresh OTP after register. Always 200.
+// resend a fresh OTP after register. Always 200.
 export const resendPhoneOtp: RequestHandler = async (req, res, next) => {
   try {
     const parsed = resendPhoneOtpSchema.safeParse(req.body);

@@ -8,11 +8,10 @@ type Report = { sql: string; rows: any[] };
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 10 / Step 3b — reports are grouped into three categories so the
+ * / Step 3b — reports are grouped into three categories so the
  * page reads as "Revenue / Operations / Growth" instead of a flat 5-tile
  * grid. `<FormSection>` provides the accent stripe + title bar; the
  * cards inside are surface-flat so they sit calmly beneath the stripe.
- *
  * Section accents follow the playbook:
  *   - Revenue    → default (yellow)
  *   - Operations → mint (positive ops health register)

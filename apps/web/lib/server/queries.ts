@@ -407,8 +407,7 @@ export async function browseProducts(params: {
 }
 
 // Product detail. BFF-direct until Reviews moves server-side.
-//
-// Phase 50 — also gate `isActive` and `store.suspendedAt` so paused
+// also gate `isActive` and `store.suspendedAt` so paused
 // products + suspended stores can't be reached by direct URL. The
 // rating/count aggregate now uses `_count` + `_avg.rating` instead of
 // counting the `take: 5` review preview list (which capped reviewCount
@@ -464,7 +463,7 @@ export async function getProduct(id: number) {
 }
 
 /**
- * Phase 48 — return the orderId of the user's most recent paid /
+ * return the orderId of the user's most recent paid /
  * fulfilled / pending order containing this product, or `null`.
  * Used by the product page to swap the buy buttons for an
  * "✓ Already in your library" banner when the product is
@@ -503,7 +502,7 @@ export async function getRelatedProducts(productId: number, take = 4) {
     where: {
       isActive: true,
       deletedAt: null,
-      // Phase 50 — `suspendedAt` was missing from the related-products
+      // `suspendedAt` was missing from the related-products
       // gate, so a product on a suspended store could surface as a
       // recommendation while the same store was hidden from /browse.
       store: { deletedAt: null, suspendedAt: null },

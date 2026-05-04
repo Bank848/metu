@@ -1,16 +1,3 @@
-/**
- * Orders resource tests — covers the high-leverage paths.
- * Checkout itself involves ~6 Prisma calls in a transaction; we
- * mock the prisma surface and verify the controller-level contracts:
- *
- *   • POST /orders 401 without cookie
- *   • POST /orders 400 EmptyCart when active cart has no items
- *   • GET  /orders happy with cookie
- *   • GET  /orders/:id 404 when the order belongs to someone else
- *
- * Full checkout maths are exercised end-to-end against the live
- * Neon Postgres post-deploy (manual smoke).
- */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { cookieFor } from "./_authMock.js";

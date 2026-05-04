@@ -10,10 +10,8 @@ import { cn } from "@/lib/utils";
  * TopNav) we render a square, borderless icon button that nests inside
  * the cluster's shared rounded shell. When false (legacy callers, or
  * standalone usage) we keep the original pill silhouette.
- *
  * Clicking flips `metu-sound-muted` in localStorage and plays a tiny
  * click so the user hears it came back on.
- *
  * Bug fix: the SSR default used to be `muted=true`. The real lib
  * default (lib/sound.ts:isMuted) is unmuted, so the icon and the
  * actual behaviour disagreed for the first paint — users saw the
@@ -21,7 +19,6 @@ import { cn } from "@/lib/utils";
  * actually MUTED them. We now mirror the lib default. The
  * `suppressHydrationWarning` covers the edge case where the user
  * has a stored preference that differs.
- *
  * Also: pre-warms the AudioContext on the first user gesture so
  * async play() calls (after a fetch resolves — cart add, review
  * post) actually produce sound. Without the prime, Chrome's autoplay

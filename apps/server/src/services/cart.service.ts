@@ -25,7 +25,6 @@ async function getOrCreateActiveCart(userId: number) {
 /**
  * Read the current cart with its lines + the joins needed to render
  * a row (product name + store + thumbnail + computed unit price).
- *
  * Same shape as the legacy BFF `GET /api/cart` route — included
  * `stock` so the cart UI can cap quantity input.
  */
@@ -79,8 +78,7 @@ export async function getCart(userId: number): Promise<CartResponse> {
  * `(cartId, productItemId)` constraint means duplicate adds collapse
  * into a quantity bump — UX expectation is "click + again, see qty 2",
  * not "see two rows".
- *
- * Phase 45 follow-up — enforce the cap promised in
+ * enforce the cap promised in
  * `addToCartSchema`'s "server enforces the real cap" comment:
  *   - Digital deliveryMethods (download / email / license_key /
  *     streaming) are single-use, so the merged quantity caps at 1.
@@ -94,7 +92,7 @@ export async function addItem(
   userId: number,
   input: AddToCartInput,
 ): Promise<{ cartItem: unknown; merged: boolean }> {
-  // Phase 50 — single source of truth for "is this productItem buyable
+  // single source of truth for "is this productItem buyable
   // right now?". Throws 404 ProductItemNotFound, 409 ProductUnavailable,
   // or 409 StoreUnavailable for any availability gate failure.
   const item = await loadPurchasableProductItem(input.productItemId);
@@ -106,7 +104,7 @@ export async function addItem(
     throw new AppError(400, "CannotBuyOwnProduct", "You can't buy from your own store.");
   }
 
-  // Phase 48 — already-owned guard. Single-copy products
+  // already-owned guard. Single-copy products
   // (download / streaming / email — anything with isStackable=false)
   // can't be bought twice by the same buyer. license_key + seller-
   // override products bypass this rule. Refunded orders are excluded
@@ -170,8 +168,7 @@ export async function addItem(
  * can't edit another user's cart line — the controller throws 404
  * on either "no such row" or "row belongs to someone else" (don't
  * leak whether the id exists).
- *
- * Phase 50 — also re-validates availability + caps quantity through
+ * also re-validates availability + caps quantity through
  * the same `loadPurchasableProductItem` path that addItem uses, so
  * a PATCH to qty=10 on a digital line caps to 1 instead of writing
  * the raw value (the previous code path didn't cap at all, which

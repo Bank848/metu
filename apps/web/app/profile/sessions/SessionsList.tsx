@@ -12,15 +12,13 @@ interface SessionRow {
 }
 
 /**
- * Phase 23.1 — Sessions list with revoke actions.
- *
+ * Sessions list with revoke actions.
  * Two write paths:
  *   • Per-row Revoke button (disabled on the current session — the
  *     user shouldn't sign themselves out by accident from this UI).
  *   • Top-level "Sign out everywhere else" button — fires
  *     DELETE /api/auth/sessions/all-others which preserves the
  *     current session.
- *
  * Optimistic update: on success we slice the row out of state so the
  * UI doesn't blink-and-refresh. Errors restore + show a toast.
  */

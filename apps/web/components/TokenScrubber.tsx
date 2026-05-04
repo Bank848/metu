@@ -2,14 +2,12 @@
 import { useEffect } from "react";
 
 /**
- * Phase 42 — strips a query-string parameter from the address bar
+ * strips a query-string parameter from the address bar
  * (and browser history) once the page has consumed it.
- *
  * Used on /verify-email and /reset-password where the token is only
  * needed once during initial render. After that there's no reason for
  * it to sit in `window.location` where it can leak via screen-share,
  * browser history sync, or referrer headers from any in-page link.
- *
  * The replaceState call is harmless if the param is already absent.
  */
 export function TokenScrubber({ param = "token" }: { param?: string }) {

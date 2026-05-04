@@ -1,5 +1,4 @@
 // HTML email layout helper.
-//
 // Most email clients (Outlook, Gmail mobile, ProtonMail, etc.) render
 // inline styles only - no <style> blocks, no external CSS, limited
 // support for flexbox/grid. We use 600px-wide tables, hex colors only,

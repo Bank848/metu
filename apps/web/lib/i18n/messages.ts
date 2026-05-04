@@ -3,7 +3,6 @@
  * empty states, and a couple of high-traffic CTAs. Everything else stays
  * English (the brand voice is English-first; Thai is a Phase 1 add for
  * Bangkok visitors browsing on mobile).
- *
  * The dictionary is a flat record keyed by dot-paths so every consumer
  * does the same `t("nav.cart")` lookup — no nesting, no per-page JSON.
  */

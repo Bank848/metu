@@ -1,5 +1,5 @@
 /**
- * Phase 13.10 — forwarder to Express `GET /admin/users`.
+ * forwarder to Express `GET /admin/users`.
  * Preserves the inbound query string (q, role, page, pageSize).
  */
 import { type NextRequest } from "next/server";

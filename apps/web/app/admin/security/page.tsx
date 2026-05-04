@@ -22,7 +22,7 @@ type BannedIp = {
 type ListResp = { items: BannedIp[] };
 
 /**
- * Phase 48 — Network-layer ban admin surface. Lists every row in
+ * Network-layer ban admin surface. Lists every row in
  * `banned_ip` + lets the operator add or lift bans. The middleware
  * (apps/server/src/middleware/ip-ban.ts) reads this table on every
  * request and 403s blocked IPs before they reach auth.

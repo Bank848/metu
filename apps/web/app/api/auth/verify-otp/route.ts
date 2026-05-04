@@ -1,5 +1,5 @@
 /**
- * Phase 14.4 — forwarder to Express `POST /auth/verify-otp`.
+ * forwarder to Express `POST /auth/verify-otp`.
  * Consumes the pending 6-digit code, sets phoneVerifiedAt.
  */
 import { type NextRequest } from "next/server";

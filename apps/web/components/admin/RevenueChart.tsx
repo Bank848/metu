@@ -6,8 +6,7 @@ type Point = { day: string; revenue: number; orderCount: number };
  * Pure-SVG bar chart for the last 14 days of paid revenue. No dep — keeps
  * the admin overview page light. Bars scale to the highest value in the
  * series so the chart always fills the box.
- *
- * Phase 9 / Wave 2 — bars retinted from gold to mint (mint reads better
+ * / Wave 2 — bars retinted from gold to mint (mint reads better
  * for data-viz than the brand accent and stops the page from shouting
  * "everything is gold"), and a faint horizontal gridline pattern was
  * added so the bars sit on something instead of floating in space.

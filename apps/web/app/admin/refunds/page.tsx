@@ -5,13 +5,11 @@ import { RefundButton } from "./RefundButton";
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 27 — admin refund queue.
- *
+ * admin refund queue.
  * Lists every Stripe-charged order that hasn't been fully refunded.
  * The actual refund call goes via /api/admin/orders/:id/refund (which
  * gates on requireRecent2FA so admins re-enter their TOTP code if it's
  * been more than 15 minutes since the last step-up).
- *
  * Demo-mode orders (no stripe_payment_intent_id) don't show up here —
  * those are refunded via the existing legacy admin refund flow.
  */

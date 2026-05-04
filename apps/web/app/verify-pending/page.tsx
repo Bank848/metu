@@ -11,7 +11,7 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 export const metadata = { title: "Check your inbox — METU" };
 
-// Phase 41 → 42 — bounce target when the user still has an unverified
+// → 42 — bounce target when the user still has an unverified
 // email. Reads the address from (a) an active session if the user is
 // signed in, otherwise (b) a short-lived signed `metu_pv` cookie set
 // by the BFF on register / verify-blocked login. The address never

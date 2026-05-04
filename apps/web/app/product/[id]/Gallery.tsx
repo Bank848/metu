@@ -5,7 +5,7 @@ import { Package } from "lucide-react";
 import { cn, isDataUrl } from "@/lib/utils";
 
 /**
- * Phase 11 run #2 / F5 — when an image URL 404s (or returns a non-image
+ * run #2 / F5 — when an image URL 404s (or returns a non-image
  * payload), Next.js silently leaves the slot blank, which produced the
  * "empty rounded rectangle" QA flagged on /product/100's second
  * thumbnail. We track which indexes failed in state and substitute the

@@ -14,8 +14,7 @@ function isoLocal(d: Date) {
 }
 
 /**
- * Phase 10 / Step 3a — coupon form rebuilt against Step 2 primitives.
- *
+ * / Step 3a — coupon form rebuilt against Step 2 primitives.
  * Two `<FormSection>` blocks (Coupon details / Schedule + limits) plus a
  * sticky `<PreviewPane variant="coupon">` on the right that renders the
  * coral promo pill exactly as buyers will see it. The preview reacts to

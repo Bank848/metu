@@ -10,7 +10,7 @@ const badgeVariants = cva(
         gold:    "bg-gradient-to-b from-metu-yellow to-metu-gold text-surface-1 border-none shadow-gold",
         dark:    "bg-white/10 text-white border border-white/10",
         mist:    "bg-white/5 text-ink-secondary border border-white/8",
-        // Phase 9 / Wave 2 — `success` + `info` consolidated onto mint so the
+        // / Wave 2 — `success` + `info` consolidated onto mint so the
         // palette holds a single cool-accent register. Old `green-500` /
         // `blue-500` ad-hoc tints are retired (see docs/design-system.md §2.2).
         success: "bg-mint/15 text-mint border border-mint/30",

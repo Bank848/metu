@@ -1,11 +1,8 @@
 /**
- * Phase 24 — auto-generated ER schema constant.
- *
+ * auto-generated ER schema constant.
  * DO NOT EDIT BY HAND. Regenerate via:
  *   node scripts/generate-er-schema.mjs
- *
  * Source-of-truth: packages/db/prisma/schema.prisma
- *
  * Consumed by:
  *   - apps/web/components/admin/ErDiagramView.tsx (renders entity cards)
  *   - apps/web/lib/admin/er-layout.ts (dagre auto-layout input)

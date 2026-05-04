@@ -1,5 +1,5 @@
 /**
- * Phase 13.9 — full forwarders to Express:
+ * full forwarders to Express:
  *   GET   /seller/store   (read, Phase 13.9.1)
  *   PATCH /seller/store   (write, Phase 13.9.2)
  */

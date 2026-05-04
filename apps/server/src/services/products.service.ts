@@ -116,7 +116,7 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
     };
   }
 
-  // Phase 50 — price sort needs to be DB-side so pagination is
+  // price sort needs to be DB-side so pagination is
   // correct across the whole result set. Previously we ordered by
   // `productId` then sorted by `minPrice` in JS *after* paginating,
   // which meant cheap products on later pages stayed there — the
@@ -151,7 +151,7 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
 }
 
 /**
- * Phase 50 — DB-level price sort. Strategy:
+ * DB-level price sort. Strategy:
  *   1. List every product matching the filter, but only its
  *      productId + a synthetic `effectiveMinPrice` aggregated from
  *      product_item (price * (1 - discount/100)). Done in raw SQL
@@ -258,14 +258,12 @@ export async function findFeatured(limit = 8): Promise<ProductListItem[]> {
  * Detail — single product with full include tree (gallery, variants,
  * tags, recent 20 reviews). Returns `null` when not found so the
  * controller can decide between 404 and another behaviour.
- *
- * Phase 50 — `avgRating` and `reviewCount` were previously computed
+ * `avgRating` and `reviewCount` were previously computed
  * from the take:20 review list, so a product with 100 reviews showed
  * an average over a non-deterministic window of 20 and a count of
  * "20" instead of 100. Now we run a separate `_count` + `_avg.rating`
  * aggregate that sees every review row, while the include continues
  * to ship the latest 20 for the UI list.
- *
  * Also gates `isActive` so a paused product can't be reached via
  * direct URL — matches the public-catalogue gate used by `findProducts`.
  */

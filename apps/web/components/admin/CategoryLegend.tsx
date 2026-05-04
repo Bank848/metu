@@ -4,7 +4,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { CATEGORY_STYLE, type ErCategory } from "@/lib/admin/er-categories";
 
 /**
- * Phase 24 — small color-key overlay matching the Lucidchart palette.
+ * small color-key overlay matching the Lucidchart palette.
  * Collapsible so it doesn't crowd the canvas during normal use.
  */
 export function CategoryLegend() {

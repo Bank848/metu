@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /seller/orders. Toolbar + 8 order rows
+ * skeleton for /seller/orders. Toolbar + 8 order rows
  * (ID, buyer, items, total, status badge, action menu).
  */
 export default function SellerOrdersLoading() {

@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /admin/changelog. Vertical timeline of
+ * skeleton for /admin/changelog. Vertical timeline of
  * release entries. Live page renders ~30 phases so we approximate
  * the first 6 here to occupy the visible viewport.
  */

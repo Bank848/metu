@@ -1,5 +1,5 @@
 /**
- * Phase 13.2.1 — forwarder to Express `POST /auth/forgot-password`.
+ * forwarder to Express `POST /auth/forgot-password`.
  * Token generation + email send live server-side; the proxy is just
  * a passthrough.
  */

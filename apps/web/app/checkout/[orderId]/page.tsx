@@ -7,13 +7,11 @@ import { CheckoutForm } from "./CheckoutForm";
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 27 — Stripe Elements checkout confirmation page.
- *
+ * Stripe Elements checkout confirmation page.
  * The cart's `POST /orders` endpoint returns a clientSecret + redirects
  * here. We re-validate the order (must belong to the buyer and still be
  * in `pending` Stripe state) and hand the clientSecret off to the
  * client component that mounts <PaymentElement />.
- *
  * `?cs=` carries the clientSecret in the URL so a direct refresh keeps
  * working. The secret only lets the bearer confirm THIS payment intent
  * for THIS order amount, so URL exposure is acceptable (matches Stripe's
@@ -36,7 +34,7 @@ export default async function CheckoutPage({
     where: { orderId },
     include: {
       cart: { select: { userId: true } },
-      // Phase 46 follow-up — direct-charge PaymentIntents live on the
+      // direct-charge PaymentIntents live on the
       // seller's Connect account, so the front-end's Stripe.js needs
       // to be scoped with stripeAccount: <sellerAcct>. We derive it
       // from the first item's product's store. (All items in a Stripe

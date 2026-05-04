@@ -1,5 +1,5 @@
 /**
- * Phase 13.10 — forwarders to Express:
+ * forwarders to Express:
  *   PATCH  /admin/users/:id   role change (self-demote 400)
  *   DELETE /admin/users/:id   soft-delete (with optional reason → ban)
  */

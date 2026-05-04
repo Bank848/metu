@@ -1,5 +1,5 @@
 /**
- * Phase 13.3 — forwarder to Express `GET /cart`. Cart logic now
+ * forwarder to Express `GET /cart`. Cart logic now
  * lives in apps/server/src/services/cart.service.ts. The proxy
  * carries the session cookie through; Express verifies via
  * requireAuth().

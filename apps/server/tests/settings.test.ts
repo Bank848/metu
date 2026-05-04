@@ -1,9 +1,7 @@
 /**
  * Phase 17.1 / 26 — settings tests (slimmed down).
- *
  *   GET   /settings           public read, returns flags
  *   PATCH /admin/settings     admin-only, updates flags + writes audit
- *
  * Phase 26 — dropped /wallet, /admin/users/:id/grant-coins suites
  * after the wallet/coin layer was removed in favour of Stripe Connect
  * (Phase 27).

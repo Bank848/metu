@@ -1,5 +1,5 @@
 /**
- * Phase 13.5 — forwarder to Express `PATCH /reviews/:id` and
+ * forwarder to Express `PATCH /reviews/:id` and
  * `DELETE /reviews/:id`. Admin-OR-author gate + audit-log write
  * (when admin reaches into someone else's review) now live in
  * apps/server/src/services/reviews.service.ts.

@@ -7,12 +7,10 @@ import { cn } from "@/lib/utils";
  * Theme toggle — flips html.dark ↔ html.light and persists to
  * localStorage. The site is dark-first, so the default (no preference
  * stored) keeps the dark class server-rendered in `app/layout.tsx`.
- *
  * To prevent a flash of the wrong theme on hard reload, a tiny inline
  * script in the layout reads localStorage before React hydrates and
  * applies the saved class. This component just keeps the React state +
  * localStorage in sync after that.
- *
  * Like `<SoundToggle>`, this accepts `inCluster` so the TopNav can
  * render it as one of three nested buttons inside the shared control
  * cluster shell. Standalone usage falls back to the original pill.

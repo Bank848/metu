@@ -1,5 +1,5 @@
 /**
- * Phase 13.2 — forwarder to Express `GET /auth/me` and
+ * forwarder to Express `GET /auth/me` and
  * `PATCH /auth/me`. Profanity + email-uniqueness guards now run
  * server-side.
  */
@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest) {
   return forwardToApi(req, "/auth/me");
 }
 
-// Phase 48 — GDPR self-delete. Body must carry `confirmation` matching
+// GDPR self-delete. Body must carry `confirmation` matching
 // the user's username; API verifies + applies the hybrid delete.
 export async function DELETE(req: NextRequest) {
   return forwardToApi(req, "/auth/me");

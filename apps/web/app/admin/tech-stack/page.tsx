@@ -34,8 +34,7 @@ export const metadata: Metadata = { title: "Tech Stack · Admin · METU" };
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 36 — `/admin/tech-stack` infographic redesign.
- *
+ * `/admin/tech-stack` infographic redesign.
  * Was a 5-table dump ; now an icon-driven category grid that scans
  * like the README architecture chart but with live versions baked in.
  * Each layer gets a coloured card with a Lucide icon, a count chip,

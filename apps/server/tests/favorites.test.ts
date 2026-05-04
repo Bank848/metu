@@ -1,9 +1,3 @@
-/**
- * Favorites resource tests — covers the high-leverage paths:
- *   • GET    /favorites                  401 without cookie / happy list
- *   • POST   /favorites/:productId       401 / 404 (orphan/soft-deleted) / happy add
- *   • DELETE /favorites/:productId       401 / silent no-op when absent
- */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { cookieFor } from "./_authMock.js";

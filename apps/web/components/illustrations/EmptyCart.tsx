@@ -2,14 +2,12 @@ import { cn } from "@/lib/utils";
 
 /**
  * Hand-rolled empty-cart mark for `<EmptyState>`.
- *
  * Design intent (per docs/design-system.md §7): replace the generic
  * lucide bag in the cart empty-state with something that doesn't read
  * as "AI startup default 2021." We keep it tiny — pure SVG, no
  * dependencies, ~120 lines of geometry — and let `currentColor` carry
  * the tint so consumers can switch between `text-mint`, `text-coral`,
  * or `text-metu-yellow` without editing this file.
- *
  * The composition: a tilted shopping basket (geometric, mid-century
  * crate vibe rather than the slick mall-cart silhouette) with a
  * floating sparkle to the upper-right. The basket is intentionally

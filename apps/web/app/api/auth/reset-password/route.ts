@@ -1,5 +1,5 @@
 /**
- * Phase 13.2.1 — forwarder to Express `POST /auth/reset-password`.
+ * forwarder to Express `POST /auth/reset-password`.
  * Token verification + bcrypt + audit log live server-side.
  */
 import { type NextRequest } from "next/server";

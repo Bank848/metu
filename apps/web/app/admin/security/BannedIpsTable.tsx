@@ -19,7 +19,7 @@ type BannedIp = {
 };
 
 /**
- * Phase 48 — banned-IPs admin table. Inline form at the top to add a
+ * banned-IPs admin table. Inline form at the top to add a
  * new ban; row-level Trash button to lift one. After every mutation
  * we hard-refresh so the server-rendered list re-fetches and the
  * middleware's in-memory cache picks up the change on the next

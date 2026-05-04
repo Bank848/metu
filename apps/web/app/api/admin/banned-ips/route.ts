@@ -1,5 +1,5 @@
 /**
- * Phase 48 — GET / POST forwarder for /admin/banned-ips. Admin role
+ * GET / POST forwarder for /admin/banned-ips. Admin role
  * gate is enforced API-side.
  */
 import { type NextRequest } from "next/server";

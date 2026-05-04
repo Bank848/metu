@@ -25,20 +25,20 @@ export default async function EditProfilePage({
   const [me, countries] = await Promise.all([getMe(), getCountries()]);
   if (!me) redirect("/login?next=/profile/edit");
 
-  // Phase 15.5 — show the must-reset banner whenever the user is
+  // show the must-reset banner whenever the user is
   // here because an admin forced a reset, OR they got bounced here
   // by requireResetGuard from another page (?must-reset=1). Both
   // cases hit me.requirePasswordReset=true; the URL param just
   // affirms the reason if the link came from the redirect.
   const showResetBanner = me.requirePasswordReset || mustReset;
-  // Phase 42 — surface the unverified state at the very top of the
+  // surface the unverified state at the very top of the
   // profile so the user can't keep using the site without finishing
   // verify. The login gate already blocks sensitive actions, but a
   // logged-in OAuth user (Google) skips the password gate, so we need
   // a visible nudge.
   const emailUnverified = !me.user.emailVerified;
   const phoneUnverified = !me.user.phoneVerifiedAt;
-  // Phase 45 follow-up — Google sign-up creates an account with no
+  // Google sign-up creates an account with no
   // local password (only the OAuth account row). We expose the
   // "Set a password" form further down the page, but users who
   // signed up with Google routinely missed it. A prominent banner
@@ -152,10 +152,10 @@ export default async function EditProfilePage({
               ? new Date(me.user.dateOfBirth).toISOString().slice(0, 10)
               : "",
             hasPassword: me.hasPassword,
-            // Phase 14.4 — phone + verification status drive the OTP UI.
+            // phone + verification status drive the OTP UI.
             phone: me.user.phone ?? null,
             phoneVerified: Boolean(me.user.phoneVerifiedAt),
-            // Phase 16.2 — drives the TOTP section (Disable vs Enrol).
+            // drives the TOTP section (Disable vs Enrol).
             totpEnabled: me.totpEnabled,
           }}
         />

@@ -3,13 +3,11 @@ import { cn } from "@/lib/utils";
 import { coins, thbToCoins } from "@/lib/format";
 
 /**
- * Phase 10 / Step 2 — currency-aware variant of NumberInput.
- *
+ * / Step 2 — currency-aware variant of NumberInput.
  * Renders the standard input chrome plus a "Buyer sees: ฿XXX" preview
  * pill that floats inside the right edge of the field. The pill updates
  * live as the seller types so they don't have to do mental arithmetic
  * when entering a discount.
- *
  * The currency prop exists for forward-compat — every product on the
  * marketplace today is THB but the API model carries currency, so the
  * primitive should accept it. Today only "THB" is wired to a symbol;

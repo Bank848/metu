@@ -12,7 +12,7 @@ type Country = { countryId: number; name: string };
 // don't render the widget at all and the server-side verify is a no-op.
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
-// Phase 17.x — Google sign-up button visibility now reads the live
+// .x — Google sign-up button visibility now reads the live
 // `googleEnabled` flag (computed server-side from GOOGLE_CLIENT_ID
 // presence). Earlier hard-coded `true` produced a hard 404 /
 // PROVIDER_NOT_FOUND on deployments without OAuth credentials.
@@ -30,9 +30,9 @@ export function RegisterForm({
   defaultPhoneCountry = "TH",
 }: {
   countries: Country[];
-  /** Phase 17.x — gates the "Continue with Google" button. */
+  /** .x — gates the "Continue with Google" button. */
   googleEnabled?: boolean;
-  /** Phase 42 — guess of the user's country, used to pre-select the
+  /** guess of the user's country, used to pre-select the
    *  dial code on the phone field. The user can change it. */
   defaultPhoneCountry?: string;
 }) {
@@ -102,7 +102,7 @@ export function RegisterForm({
         return;
       }
       setBusy(false);
-      // Phase 41 → 42 — register no longer auto-logs in. The BFF
+      // → 42 — register no longer auto-logs in. The BFF
       // forwarder set a signed `metu_pv` cookie so the verify pages
       // know which account this is without putting the email in the
       // URL.

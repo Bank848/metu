@@ -12,7 +12,6 @@ export const revalidate = 0;
  * Public health-check page — surfaces the same info as `/api/health`
  * but with a human-friendly UI for stakeholders + on-call + the demo
  * presenter who wants to prove the site is live.
- *
  * Deliberately public (no auth) so an alert recipient can hit it from
  * any device. No sensitive info is exposed — just counts + ping time
  * + the git SHA we deployed.
@@ -35,7 +34,7 @@ async function getCounts() {
   // Wrapped so a Neon hiccup downgrades the page to "degraded" rather
   // than crashing — health pages must never 500.
   try {
-    // Phase 11 run #2 / F14 — products count now also gates on live
+    // run #2 / F14 — products count now also gates on live
     // store so /health matches /admin overview + /admin/stores.
     const [users, stores, products, orders] = await Promise.all([
       prisma.user.count({ where: { deletedAt: null } }),

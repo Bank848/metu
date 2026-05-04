@@ -2,10 +2,9 @@
 import type { LayoutedEdge } from "@/lib/admin/er-layout";
 
 /**
- * Phase 24 — single FK relationship rendered as an SVG path with
+ * single FK relationship rendered as an SVG path with
  * crow-foot markers at both ends. Styling stays minimal so the
  * focus is on the entity cards (Lucidchart aesthetic).
- *
  * Marker convention (matching standard crow's-foot ER notation):
  *   - parent (one) end:  vertical bar  ║  if NOT NULL FK,
  *                        bar+circle    o║ if nullable

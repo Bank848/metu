@@ -15,7 +15,6 @@ function isZodError(err: unknown): err is ZodError {
 
 /**
  * Express error handler — the LAST middleware mounted in `app.ts`.
- *
  * Contract:
  *   - `AppError` instances → `res.status(err.status).json({ error: err.code, message: err.message })`
  *   - `ZodError` instances → 400 + a single human sentence picked from
@@ -23,14 +22,13 @@ function isZodError(err: unknown): err is ZodError {
  *   - Anything else → 500 + the message logged to stderr (Pino in
  *     prod). Prevents accidentally leaking stack traces / internal
  *     SQL errors to the client.
- *
  * Controllers + services should `throw new AppError(404, "ProductNotFound")`
  * rather than `res.status(404).json(...)` so the layer above stays
  * pure (no Express knowledge in services).
  */
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof AppError) {
-    // Phase 48 — spread the optional `details` payload so
+    // spread the optional `details` payload so
     // structured error data (e.g. AlreadyOwned's orderId) reaches
     // the frontend without a follow-up request. Falsy details are
     // skipped so the response shape stays clean for ordinary errors.

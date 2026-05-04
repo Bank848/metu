@@ -2,13 +2,11 @@ import { cn } from "@/lib/utils";
 
 /**
  * Tiny "M" brand glyph that pairs with the METU wordmark.
- *
  * Two strokes form a slightly squashed M with a coral spark crossing
  * the gap — the spark is the only mint/coral hit in the chrome and
  * earns the user's eye on the first paint. Sized small (24px square
  * by default) so it sits at-baseline next to the wordmark; consumers
  * may grow it via `className`.
- *
  * Pure currentColor + a single hard-coded coral hex for the spark so
  * the wordmark's `text-white` doesn't bleach the accent away. Keep it
  * to one accent — adding mint here would break the hierarchy.

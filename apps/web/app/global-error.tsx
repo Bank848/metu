@@ -9,7 +9,6 @@ import { useEffect } from "react";
  * route's own boundary mounts). Sentry recommends this dedicated file
  * so React rendering errors get reported even when the rest of the
  * app is unable to render.
- *
  * Sentry's `captureException` is a no-op if the SDK never initialised
  * (no DSN), so this file is safe in every environment.
  */

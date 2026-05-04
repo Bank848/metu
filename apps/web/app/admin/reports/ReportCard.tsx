@@ -5,7 +5,7 @@ import { Code2 } from "lucide-react";
 type Report = { sql: string; rows: any[] };
 
 /**
- * Phase 10 / Step 3b — token-aligned with the rest of the admin surface:
+ * / Step 3b — token-aligned with the rest of the admin surface:
  *   - card surface swapped from `border + bg-space-850` to `surface-flat`
  *   - "View SQL" pill swapped from `brand-yellow` aliases to canonical
  *     `metu-yellow` tokens

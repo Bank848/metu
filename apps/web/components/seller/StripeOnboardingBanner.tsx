@@ -5,13 +5,12 @@ import { useEffect, useState } from "react";
 import { CreditCard } from "lucide-react";
 
 /**
- * Phase 44 — the "Connect Stripe to start accepting payments" CTA
+ * the "Connect Stripe to start accepting payments" CTA
  * lived in the seller layout and rendered on every /seller/* page,
  * including /seller/onboarding itself. Clicking the banner button
  * while already on the destination did nothing, so users tapped it
  * repeatedly with no feedback.
- *
- * Phase 47 — the banner used to read its visibility from a server-
+ * the banner used to read its visibility from a server-
  * side `needsStripe` prop. App Router caches layouts across sibling
  * navigation, so `needsStripe` stayed at the value captured on the
  * first render and a seller who finished Stripe-Connect onboarding

@@ -8,7 +8,6 @@ import { requireAuth } from "../middleware/auth.js";
  *     the product so the productId comes from the URL, not the body)
  *   • PATCH/DELETE /reviews/:id          — modify (id is sufficient
  *     since reviews are globally-unique)
- *
  * Both share the same controller + service, so we ship two routers
  * from this one file rather than splitting the resource into two
  * files. app.ts mounts each at its respective prefix.

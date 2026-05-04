@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const res = await forwardToApi(req, "/auth/resend-email-verify");
-  // Phase 43 — when the API echoes a demo emailToken (DEMO_REVEAL_TOKENS),
+  // when the API echoes a demo emailToken (DEMO_REVEAL_TOKENS),
   // stamp it back into the metu_pv cookie so /verify-pending shows the
   // updated link without a page reload from a fresh register flow.
   if (res.status === 200) {

@@ -1,5 +1,5 @@
 /**
- * Phase 13.3 — forwarder to Express `POST /cart/items`. Merge-on-
+ * forwarder to Express `POST /cart/items`. Merge-on-
  * duplicate logic lives server-side; this proxy is just a passthrough
  * for the body + session cookie.
  */

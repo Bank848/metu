@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /admin/audit. Filter row + 10 audit-event
+ * skeleton for /admin/audit. Filter row + 10 audit-event
  * rows so the table reserves the right vertical space and pagination
  * doesn't pop in.
  */

@@ -1,5 +1,5 @@
 /**
- * Phase 14.4 — forwarder to Express `POST /auth/request-otp`.
+ * forwarder to Express `POST /auth/request-otp`.
  * Sends a 6-digit code to the user's phone via the configured
  * transport (console in dev, Twilio when env set).
  */

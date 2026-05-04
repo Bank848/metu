@@ -22,13 +22,11 @@ type StoreForm = {
 };
 
 /**
- * Phase 10 / Step 3a — refactored against Step 2 primitives.
- *
+ * / Step 3a — refactored against Step 2 primitives.
  * The original form hand-rolled a live preview block at the top of the
  * page. We now lean on `<PreviewPane variant="store">` (which lifted that
  * exact markup at component-build time) so future changes to the store
  * card propagate automatically.
- *
  * Two `<FormSection>` blocks: Store details (default surface) and Imagery
  * (mint surface-accent — same accent the new product form uses for its
  * imagery block, so the seller flow has a consistent visual language).

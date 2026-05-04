@@ -1,5 +1,5 @@
 /**
- * Phase 18 — forwarder to Express `GET /auth/connected-accounts`.
+ * forwarder to Express `GET /auth/connected-accounts`.
  * Lists the user's linked social provider rows (Google etc.) plus
  * a `googleEnabled` flag so the UI can render "Link Google" vs
  * "not configured".

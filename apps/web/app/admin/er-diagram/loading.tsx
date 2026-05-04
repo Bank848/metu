@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /admin/er-diagram. Big canvas placeholder
+ * skeleton for /admin/er-diagram. Big canvas placeholder
  * + the toolbar / shortcut row so the page doesn't jump when the
  * SVG mounts.
  */

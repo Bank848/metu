@@ -6,11 +6,9 @@ import { useEffect, useRef, useState } from "react";
  * Cloudflare Turnstile widget — invisible-by-default, dark-themed
  * challenge that proves the form submitter is a human (or at least
  * not a trivial bot).
- *
  * The component lazy-loads Turnstile's `api.js`, mounts the widget into
  * a div ref, and hands the token back via `onVerify`. When the token
  * expires (~5 min) we reset to null so the parent form can re-prompt.
- *
  * Render this only when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set —
  * otherwise the parent form skips both the widget and the server-side
  * verification entirely (handy for local dev).

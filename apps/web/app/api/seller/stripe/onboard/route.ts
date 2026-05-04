@@ -1,5 +1,5 @@
 /**
- * Phase 27 — BFF forwarder for Stripe onboarding link creation.
+ * BFF forwarder for Stripe onboarding link creation.
  * Returns { url } that the client redirects to.
  */
 import { type NextRequest } from "next/server";

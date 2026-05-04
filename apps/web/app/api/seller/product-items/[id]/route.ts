@@ -1,5 +1,5 @@
 /**
- * Phase 13.9.2 — forwarder to Express `PATCH /seller/product-items/:id`.
+ * forwarder to Express `PATCH /seller/product-items/:id`.
  * Targeted variant nudge (price / discountPercent / quantity) used
  * by the bulk-edit page.
  */

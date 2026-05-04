@@ -7,7 +7,6 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 
 /**
  * Global keyboard shortcuts. Mounted once in the root layout.
- *
  *   /        Focus the search pill in TopNav
  *   g h      Go home
  *   g b      Go to /browse
@@ -16,7 +15,6 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
  *   g o      Go to /orders
  *   g p      Go to /profile
  *   ?        Open / close the cheatsheet
- *
  * Two-key sequences (g + …) use a 1.2 s window — feels like Gmail / GitHub.
  * We never fire when the user is typing in an input/textarea so search
  * boxes still work normally.

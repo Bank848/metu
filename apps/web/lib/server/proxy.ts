@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { INTERNAL_API_URL } from "../config";
 
 // Forwards a BFF /api request to the Express API and threads cookies back.
 
-const API_BASE = process.env.INTERNAL_API_URL ?? "http://localhost:4000";
+const API_BASE = INTERNAL_API_URL;
 
 // Forward to the API, mirror the body, re-emit every Set-Cookie.
 export async function forwardToApi(
@@ -30,7 +31,7 @@ export async function forwardToApi(
   }
 
   // redirect:manual so OAuth 302s reach the browser instead of getting collapsed.
-  // Phase 45 follow-up — explicit cache: "no-store" so the BFF's outbound
+  // explicit cache: "no-store" so the BFF's outbound
   // fetch is never reused from Next.js's data cache. Without this, GET
   // /api/cart was returning stale snapshots even on `dynamic = "force-
   // dynamic"` routes (writes via POST/DELETE went through fresh, but
@@ -56,7 +57,7 @@ export async function forwardToApi(
   }
   const cookies = (upstream.headers as any).getSetCookie?.() ?? [];
   for (const c of cookies) {
-    // Phase 42 fix — better-auth's Set-Cookie carries `Domain=metu-api.fly.dev`
+    // better-auth's Set-Cookie carries `Domain=metu-api.fly.dev`
     // because the API runs on that host. When we mirror that header
     // verbatim through the BFF (served from metu.fly.dev), the browser
     // refuses to set a cookie for a sibling domain → OAuth state cookie

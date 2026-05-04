@@ -1,5 +1,5 @@
 /**
- * Phase 18 — forwarder to Express `DELETE /auth/connected-accounts/google`.
+ * forwarder to Express `DELETE /auth/connected-accounts/google`.
  * Unlinks the user's Google account. Server enforces the lockout
  * guard (refuses if the user has no password set).
  */

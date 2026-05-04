@@ -5,15 +5,13 @@ import { ShoppingBag } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 
 /**
- * Phase 11 run #2 / F8 — TopNav cart pill with a live count badge.
- *
+ * run #2 / F8 — TopNav cart pill with a live count badge.
  * The previous static `<Link>` showed only the bag icon, so a buyer
  * couldn't tell whether their `Add to cart` click registered until they
  * navigated to `/cart`. We mirror the MessagesNavIcon pattern: client
  * component that polls `/api/cart` on a slow tick (60s, same cadence
  * as MessagesNavIcon), and refreshes immediately whenever AddToCart
  * dispatches a `cart:update` window event.
- *
  * Renders for guests too — guests get a silent zero badge so the
  * entry point stays visible. The 401 branch swallows the error and
  * leaves the count at 0.

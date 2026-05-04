@@ -1,5 +1,5 @@
 /**
- * Phase 13.7 — forwarders to Express:
+ * forwarders to Express:
  *   POST   /favorites/:productId   — heart
  *   DELETE /favorites/:productId   — un-heart
  */

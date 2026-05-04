@@ -4,16 +4,14 @@ import { useEffect, useState } from "react";
 import { Filter, X } from "lucide-react";
 
 /**
- * Phase 11 / F19 — Mobile bottom-sheet wrapper for the browse filter
+ * / F19 — Mobile bottom-sheet wrapper for the browse filter
  * panel.
- *
  * Background: at md+ the FilterPanel sits in a left aside (`hidden
  * md:block`) — sticky, always visible. On mobile the aside used to
  * render ABOVE the product grid, forcing buyers to scroll past four
  * filter cards before seeing a single product. F19 hides the aside
  * on mobile and surfaces filters via this client-only sheet
  * triggered by a "Filters" pill at the top of the section.
- *
  * The sheet:
  *   - Renders nothing visible on md+ (`md:hidden` on both the
  *     trigger button and the dialog).
@@ -24,7 +22,6 @@ import { Filter, X } from "lucide-react";
  *   - Receives the FilterPanel as `children` so the existing server
  *     component renders unchanged inside the sheet — no markup
  *     duplication, no client-side data fetching.
- *
  * Active-filter count is computed by the server page (read off the
  * search params) so it stays accurate after every navigation.
  */

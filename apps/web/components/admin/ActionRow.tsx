@@ -5,13 +5,11 @@ import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 
 /**
- * Phase 10 / Step 2 — dropdown row-actions menu.
- *
+ * / Step 2 — dropdown row-actions menu.
  * Centralises the "three-dots → list of operations" pattern that admin
  * tables reach for (delete user, suspend store, refund txn, etc.). The
  * dismiss-on-click-outside behaviour is lifted from
  * `LocaleSwitcher.tsx:32-39` so all dropdowns in the app feel the same.
- *
  * Tone semantics map to the Wave-1 palette:
  *   - default     = metu-yellow (primary)
  *   - primary     = metu-yellow (alias for default — explicit when an
@@ -23,8 +21,7 @@ import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
  *                   but recoverable" register that admin actions
  *                   typically inhabit.
  *   - safe        = mint (success / "live" / positive)
- *
- * Phase 11 / F19 — the `confirm` prop now opens an in-page
+ * / F19 — the `confirm` prop now opens an in-page
  * <ConfirmDialog> primitive instead of the native `window.confirm()`.
  * Public API is unchanged: callers pass `confirm: "Are you sure …?"`
  * and the row action dispatches only after the user clicks the modal's
@@ -60,14 +57,14 @@ export interface ActionRowProps {
 export function ActionRow({ actions, ariaLabel = "Row actions", className }: ActionRowProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  // Phase 45 follow-up — flip the popover above the trigger when the
+  // flip the popover above the trigger when the
   // trigger sits near the bottom of the viewport. Without this, a row
   // dropdown on the last user/store in the table dangled below the
   // page bottom and forced a scrollbar (see screenshot in chat). We
   // measure on each open + on resize so the direction stays correct
   // even when the user scrolls the page or rotates a device.
   const [openUp, setOpenUp] = useState(false);
-  // Phase 11 / F19 — when a picked action carries a `confirm: string`
+  // / F19 — when a picked action carries a `confirm: string`
   // we stash the action here and open the in-page <ConfirmDialog>
   // primitive instead of calling `window.confirm()`. The dropdown
   // closes immediately on pick so the modal can take over the page.
@@ -146,7 +143,7 @@ export function ActionRow({ actions, ariaLabel = "Row actions", className }: Act
             // a table row. shadow-floating matches the elevation scale
             // intended for popovers (see tailwind.config.ts §boxShadow).
             "absolute right-0 w-48 rounded-xl border border-line bg-space-900 shadow-floating py-1 z-50",
-            // Phase 45 follow-up — flip up when there isn't enough room
+            // flip up when there isn't enough room
             // below the trigger so the menu never dangles past the
             // viewport bottom (admin tables routinely had this on the
             // last row). `bottom-full` anchors the menu's bottom edge

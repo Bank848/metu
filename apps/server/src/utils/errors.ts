@@ -3,7 +3,6 @@
  * communicate intent (HTTP status + machine-readable code + human
  * message). Caught by `middleware/error.ts` and serialised to a
  * uniform JSON shape: `{ error: code, message }`.
- *
  * Anything else thrown (raw Error, Prisma errors, etc.) → 500 +
  * full Pino log.
  */
@@ -11,7 +10,7 @@ export class AppError extends Error {
   readonly status: number;
   readonly code: string;
   /**
-   * Phase 48 — optional structured payload echoed in the JSON
+   * optional structured payload echoed in the JSON
    * response. Used by the cart's `AlreadyOwned` error to surface
    * the existing `orderId` so the frontend can render a
    * "view your order" CTA without a follow-up round-trip.

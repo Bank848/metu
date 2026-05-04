@@ -7,7 +7,6 @@ import type { CouponValidateResult } from "../models/coupons.model.js";
  * don't `throw AppError(404)` for "not found" because the cart UI
  * shows the rejection reason next to the input rather than treating
  * it as an HTTP error.
- *
  * Failure ladder (matches the legacy BFF behaviour 1:1):
  *   1. row missing or `isActive=false` → "Coupon not found or inactive"
  *   2. now < startDate                  → "Coupon is not yet active"

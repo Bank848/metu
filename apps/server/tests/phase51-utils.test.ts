@@ -1,6 +1,5 @@
 /**
  * Phase 51 — pure utility tests.
- *
  * Covers the low-level helpers we hardened during the security audit:
  *   - generateCode (otp.ts) — uses crypto.randomInt, 6-digit zero-padded
  *   - hashCode    (otp.ts) — SHA-256 of `<userId>:<phone>:<code>` so a

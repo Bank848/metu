@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /seller/coupons list. Header + new-coupon
+ * skeleton for /seller/coupons list. Header + new-coupon
  * CTA + table of coupons.
  */
 export default function SellerCouponsLoading() {

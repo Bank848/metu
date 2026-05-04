@@ -1,5 +1,5 @@
 /**
- * Phase 13.11 — forwarder to Express `GET /tags`.
+ * forwarder to Express `GET /tags`.
  * Public reference data driving tag chips on /browse.
  */
 import { type NextRequest } from "next/server";

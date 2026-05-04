@@ -1,5 +1,5 @@
 /**
- * Phase 13.3 — forwarder to Express `PATCH /cart/items/:id` and
+ * forwarder to Express `PATCH /cart/items/:id` and
  * `DELETE /cart/items/:id`. Ownership check (404 when the item
  * belongs to a different user) is enforced server-side in
  * cart.service.

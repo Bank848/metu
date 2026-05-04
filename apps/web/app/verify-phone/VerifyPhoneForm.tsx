@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, KeyRound, Loader2, RefreshCw } from "lucide-react";
 
-// Phase 41 - 6-digit OTP form. Submits to /api/auth/verify-phone-register
+// 6-digit OTP form. Submits to /api/auth/verify-phone-register
 // with the email key. Resend button re-issues a fresh OTP server-side.
 
 export function VerifyPhoneForm({ email }: { email: string }) {

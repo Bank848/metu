@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for the seller New Product form. Stack of
+ * skeleton for the seller New Product form. Stack of
  * form-section cards mirroring the live layout (basics, images,
  * variants, tags).
  */

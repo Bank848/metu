@@ -1,5 +1,5 @@
 /**
- * Phase 13.10 — forwarder to Express `GET /admin/reports/:name`.
+ * forwarder to Express `GET /admin/reports/:name`.
  * Five named raw-SQL reports: revenue-by-category, top-stores,
  * orders-by-status, signups-per-day, coupon-usage. Express returns
  * 404 UnknownReport for any other name.

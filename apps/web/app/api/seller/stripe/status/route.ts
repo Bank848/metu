@@ -1,5 +1,5 @@
 /**
- * Phase 27 — BFF forwarder for Stripe Connect status refresh.
+ * BFF forwarder for Stripe Connect status refresh.
  * Returns { stripeAccountId, payoutsEnabled, chargesEnabled }.
  */
 import { type NextRequest } from "next/server";

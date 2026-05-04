@@ -2,12 +2,10 @@ import { cn } from "@/lib/utils";
 
 /**
  * Hand-rolled "no search results" mark for `<EmptyState>`.
- *
  * Composition: a magnifying glass at a confident angle, with three
  * tiny dots inside the lens (the "we looked but found nothing" beat).
  * Two arc-flecks above the handle suggest motion / wobble — the lens
  * just *finished* looking.
- *
  * Purely currentColor so the parent can tint with `text-coral`,
  * `text-mint`, etc. Sized at 128×128 by default; pair with
  * `EmptyState`'s 20-unit icon slot or override via `className`.

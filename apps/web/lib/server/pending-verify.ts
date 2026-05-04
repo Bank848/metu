@@ -2,20 +2,17 @@ import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
 /**
- * Phase 42 — short-lived signed cookie that carries the email of the
+ * short-lived signed cookie that carries the email of the
  * account currently in the verify-email / verify-phone flow, so the
  * pages don't need `?email=` in the URL.
- *
- * Phase 43 — same cookie also carries optional demo fields. The Resend
+ * same cookie also carries optional demo fields. The Resend
  * sandbox sender only delivers email to the account owner, and the
  * phone OTP only logs to Fly stdout. For the live defense we surface
  * those values directly on the verify pages as a "demo" banner so the
  * presenter can finish the flow in front of the panel without digging
  * through `flyctl logs`.
- *
  * Format: base64url(payload).hex(hmacSha256(payload))
  *   payload = JSON { email, otp?, link?, exp }
- *
  * The cookie is HttpOnly + SameSite=Lax + Secure (prod) so it stays
  * scoped to the user's own browser. Demo fields self-expire after the
  * cookie's 1h TTL.

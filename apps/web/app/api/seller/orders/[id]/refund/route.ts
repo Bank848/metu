@@ -1,5 +1,5 @@
 /**
- * Phase 13.9.2 — forwarder to Express `POST /seller/orders/:id/refund`.
+ * forwarder to Express `POST /seller/orders/:id/refund`.
  * Marks order refunded + creates a refund Transaction in one atomic
  * write. Sellers can only refund orders containing one of their
  * lines AND currently paid/fulfilled.

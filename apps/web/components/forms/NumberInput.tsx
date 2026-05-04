@@ -2,8 +2,7 @@ import { forwardRef, type InputHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Phase 10 / Step 2 — number input primitive.
- *
+ * / Step 2 — number input primitive.
  * Same chrome as TextInput but locked to `type="number"` and with
  * explicit min/max/step props for ergonomics. We keep the native number
  * spinners (no `[appearance:textfield]` strip) — the seller flow is a

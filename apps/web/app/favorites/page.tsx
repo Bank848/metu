@@ -13,7 +13,7 @@ import { getServerT } from "@/lib/i18n/server";
 export const dynamic = "force-dynamic";
 
 export default async function FavoritesPage() {
-  // Phase 17.x — feature flag gate. When admin disables favorites
+  // .x — feature flag gate. When admin disables favorites
   // we 404 the route entirely so navigation stays consistent
   // (TopNav heart icon already hidden by the same flag).
   const settings = await safeGetSettings();

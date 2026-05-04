@@ -7,6 +7,7 @@ import { getSettings } from "./settings.service.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout } from "../utils/email-template.js";
 import { capQuantity, loadPurchasableProductItem } from "../utils/purchasable.js";
+import { SITE_URL } from "../config.js";
 import type {
   CheckoutInput,
   CheckoutResponse,
@@ -22,7 +23,7 @@ export async function checkout(
   userId: number,
   input: CheckoutInput,
 ): Promise<CheckoutResponse> {
-  // Phase 51 — opportunistic stale-pending sweep. Orders that have
+  // opportunistic stale-pending sweep. Orders that have
   // sat `pending` for >30 min are abandoned: cancel them and restore
   // any stock they held. Prevents inventory-DoS via abandoned carts.
   await sweepStalePendingOrders(userId).catch((err) => {
@@ -54,7 +55,7 @@ export async function checkout(
     throw new AppError(400, "EmptyCart", "No items selected for checkout.");
   }
 
-  // Phase 50 — defence in depth. Cart's addItem/updateItem already
+  // defence in depth. Cart's addItem/updateItem already
   // run this gate, but a buyer who held a cart open through a seller
   // pause / store suspension / soft-delete shouldn't be able to push
   // through with a stale row. Each line gets re-validated against the
@@ -74,7 +75,7 @@ export async function checkout(
     }
   }
 
-  // Phase 48 — second line of the already-owned guard. cart.service
+  // second line of the already-owned guard. cart.service
   // already blocks the add, but a buyer who pre-loaded their cart
   // before we shipped the guard could still slip through. Reject
   // checkout if any selected line is a non-stackable product the
@@ -172,13 +173,13 @@ export async function checkout(
   }
   const total = subtotal.sub(couponDiscount);
 
-  // Phase 51 — reject zero-total orders (large fixed-coupon abuse).
+  // reject zero-total orders (large fixed-coupon abuse).
   if (total.lte(0)) {
     throw new AppError(400, "InvalidTotal", "Order total must be greater than zero.");
   }
 
   // Single-store + Stripe-configured carts get a real PaymentIntent.
-  // Phase 51 — multi-store carts are blocked when any store has
+  // multi-store carts are blocked when any store has
   // Stripe connected. Previously the code silently fell back to demo
   // mode, giving the buyer free products from all stores.
   const storeIds = new Set(selectedItems.map((ci) => ci.productItem.product.storeId));
@@ -215,7 +216,7 @@ export async function checkout(
 
   const settings = await getSettings();
 
-  // Phase 51 — create PaymentIntent BEFORE the DB transaction so
+  // create PaymentIntent BEFORE the DB transaction so
   // stock is never decremented if Stripe is unavailable. The buyer
   // simply gets a 502 and can retry; no orphaned pending orders.
   let stripeClientSecret: string | null = null;
@@ -316,7 +317,7 @@ export async function checkout(
       });
     }
     if (resolvedCoupon) {
-      // Phase 51 — TOCTOU-safe limit check: count INSIDE the tx so
+      // TOCTOU-safe limit check: count INSIDE the tx so
       // a concurrent checkout can't sneak past. The unique
       // (couponId, userId) index prevents the same buyer from
       // double-using; we map the P2002 to a clean 400.
@@ -503,9 +504,8 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
     if (contact.length) textLines.push(`  Contact ${store.name}: ${contact.join(" · ")}`);
     textLines.push("");
   }
-  const siteBase = process.env.SITE_URL ?? "https://metu.online";
   textLines.push(
-    `View on the site: ${siteBase}/orders/${orderId}`,
+    `View on the site: ${SITE_URL}/orders/${orderId}`,
     "",
     "— METU Marketplace",
   );
@@ -554,7 +554,7 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
   const html = renderEmailLayout({
     heading: `Hi ${escape(buyer.firstName)} - your goods are ready`,
     intro: `Payment cleared. License keys + download links for order <strong>#${orderId}</strong> are below; everything stays available on your account too.`,
-    cta: { label: "View order", url: `${siteBase}/orders/${orderId}` },
+    cta: { label: "View order", url: `${SITE_URL}/orders/${orderId}` },
     bodyHtml: storeCards.join(""),
   });
 
@@ -623,7 +623,7 @@ export async function findByIdForUser(
 }
 
 /**
- * Phase 51 — cancel orders that have sat `pending` for >30 min and
+ * cancel orders that have sat `pending` for >30 min and
  * restore their stock. Called opportunistically at the start of every
  * checkout so abandoned carts don't lock inventory indefinitely.
  */

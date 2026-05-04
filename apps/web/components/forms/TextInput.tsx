@@ -2,16 +2,13 @@ import { forwardRef, type InputHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Phase 10 / Step 2 — text input primitive.
- *
+ * / Step 2 — text input primitive.
  * One source of truth for the input styling pattern that the form
  * agents have been hand-rolling: same border, same focus ring (mint —
  * matching SearchPill.tsx), same error treatment (coral, never red).
- *
  * Mirrors the SearchPill mint focus-ring decision: the brand
  * yellow stays reserved for primary CTAs so it doesn't compete with
  * "this input is focused" cues.
- *
  * Forwards the ref so callers can focus programmatically (e.g. autofocus
  * the first invalid field on submit).
  */

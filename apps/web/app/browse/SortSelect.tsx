@@ -11,9 +11,8 @@ const OPTIONS: Array<{ value: SortKey; label: string }> = [
 ];
 
 /**
- * Phase 11 / F22 + F11 — Browse Sort dropdown that auto-submits on
+ * / F22 + F11 — Browse Sort dropdown that auto-submits on
  * change.
- *
  * Old behaviour (pre-F22) required the user to change the `<select>`
  * AND then click "Apply", which felt slow and inconsistent with the
  * chip filters (which are anchor links and navigate instantly). F22
@@ -21,7 +20,6 @@ const OPTIONS: Array<{ value: SortKey; label: string }> = [
  * adjacent Apply button — clicking it after a sort change fired a
  * no-op submit because the URL had already been updated, which read
  * to users as "the button is broken".
- *
  * Other params (q, category, tags, etc.) are preserved by reading the
  * current URL search params and overwriting only `sort` + clearing
  * `page` (resorting always returns the user to page 1).

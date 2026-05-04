@@ -1,7 +1,6 @@
 /**
  * Tiny email facade — port of apps/web/lib/server/email.ts to the
  * Express server. Two providers:
- *
  *   - "console"  (default): logs the message to stdout. The demo
  *                doesn't have real recipient infra, so this is what
  *                actually runs locally + on Fly. Tokens land in
@@ -10,7 +9,6 @@
  *                endpoint. Free tier covers far more than this demo
  *                will ever send. Falls back to console on any failure
  *                so a flaky API key never hard-blocks a flow.
- *
  * Adding more providers later is a matter of dropping another branch
  * into `sendEmail`. Call sites stay identical.
  */

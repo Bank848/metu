@@ -1,5 +1,5 @@
 /**
- * Phase 13.11 — forwarder to Express `GET /business-types`.
+ * forwarder to Express `GET /business-types`.
  * Public reference data for the become-seller form dropdown.
  */
 import { type NextRequest } from "next/server";

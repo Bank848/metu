@@ -1,9 +1,3 @@
-/**
- * Reviews resource tests — covers the high-leverage paths:
- *   • POST /products/:productId/reviews  401 + happy + 404 on bad product
- *   • PATCH /reviews/:id                  403 on non-author / non-admin
- *   • DELETE /reviews/:id                 happy as admin (audit row written)
- */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { cookieFor } from "./_authMock.js";

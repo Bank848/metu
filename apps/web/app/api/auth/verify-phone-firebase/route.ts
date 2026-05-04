@@ -1,5 +1,5 @@
 /**
- * Phase 46 — forwards POST to Express /auth/verify-phone-firebase.
+ * forwards POST to Express /auth/verify-phone-firebase.
  * The client posts the Firebase ID token here after a successful SMS
  * confirmation; the API verifies it and stamps phoneVerifiedAt.
  */

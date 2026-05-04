@@ -1,11 +1,3 @@
-/**
- * Cart resource tests — covers the high-leverage flows:
- *   • GET    /cart           authed read returns the line envelope
- *   • POST   /cart/items     401 when no cookie + happy path with cookie
- *   • PATCH  /cart/items/:id 404 when the item belongs to someone else
- *                            (don't leak whether the id exists)
- *   • DELETE /cart/items/:id 404 same ownership rule
- */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { cookieFor } from "./_authMock.js";

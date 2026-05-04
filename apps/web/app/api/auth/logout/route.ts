@@ -1,5 +1,5 @@
 /**
- * Phase 13.2 — forwarder to Express `POST /auth/logout`. Express
+ * forwarder to Express `POST /auth/logout`. Express
  * sends a Set-Cookie header that clears the cookie; the proxy
  * mirrors it back to the browser.
  */

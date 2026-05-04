@@ -1,9 +1,8 @@
 /**
- * Phase 13.4 — forwarder to Express:
+ * forwarder to Express:
  *   POST /orders → checkout (cart + coupon resolution + order +
  *                  transaction + cart re-roll all in one tx)
  *   GET  /orders → user's order history
- *
  * The legacy BFF version called `revalidatePath("/", "/health",
  * "/admin")` after a successful POST so the public counters bumped
  * within a minute. We keep that revalidation BFF-side because it's

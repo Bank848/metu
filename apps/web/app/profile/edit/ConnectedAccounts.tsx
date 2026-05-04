@@ -1,20 +1,17 @@
 "use client";
 
 /**
- * Phase 18 — Connected social accounts panel on /profile/edit.
- *
+ * Connected social accounts panel on /profile/edit.
  * Three render states:
  *   1. googleEnabled=false               → "not configured" placeholder
  *   2. Google linked                     → linked-since date + Unlink button
  *   3. Not linked, googleEnabled=true    → Link button (anchor to better-auth's
  *                                          /api/auth/better/sign-in/google with
  *                                          a callbackURL back to /profile/edit)
- *
  * Linking flow is handled entirely by better-auth — the same /sign-in/google
  * endpoint that handles fresh sign-ins also links into the active session
  * when a session cookie is present on the request. No new server endpoint
  * needed for "link" — only "unlink".
- *
  * Unlink lockout guard: when `hasPassword=false`, the Unlink button is
  * disabled with an explanatory tooltip. The server also enforces this
  * (PasswordNotSet 400) — the client-side disable is just for UX.

@@ -1,6 +1,5 @@
 // Forwards POST /auth/login to Express via the BFF proxy.
-//
-// Phase 42: when login is blocked by the email-verify or phone-verify
+// when login is blocked by the email-verify or phone-verify
 // gate, also set a short-lived signed `metu_pv` cookie on the response
 // so the /verify-pending and /verify-phone pages can read the user's
 // email without it sitting in a `?email=` query string.

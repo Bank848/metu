@@ -4,7 +4,7 @@ import { SellerSidebar } from "@/components/SellerSidebar";
 import { StripeOnboardingBanner } from "@/components/seller/StripeOnboardingBanner";
 import { getMe, requireResetGuard } from "@/lib/session";
 
-// Phase 47 — force the layout to re-render every navigation so the
+// force the layout to re-render every navigation so the
 // Stripe-onboarding banner picks up the latest stripeChargesEnabled
 // flag the moment the account.updated webhook flips it. Without
 // this, the layout stayed mounted with stale needsStripe=true even
@@ -15,17 +15,17 @@ export default async function SellerLayout({ children }: { children: React.React
   const me = await getMe();
   if (!me) redirect("/login?next=/seller");
   if (!me.user?.store && me.role !== "admin") redirect("/become-seller");
-  // Phase 15.5 — sellers can't manage their store while a force-
+  // sellers can't manage their store while a force-
   // reset is pending. Bounce to /profile/edit until cleared.
   requireResetGuard(me, "/seller");
 
-  // Phase 16.1 — store suspended? Seller can still see + edit
+  // store suspended? Seller can still see + edit
   // everything, but a persistent banner explains why public surfaces
   // hide their store. Cleared the moment admin un-suspends.
   const suspendedAt = (me.user?.store as any)?.suspendedAt as Date | string | null | undefined;
   const isSuspended = Boolean(suspendedAt);
 
-  // Phase 47 — Stripe-onboarding banner now self-fetches its
+  // Stripe-onboarding banner now self-fetches its
   // visibility on mount + on every pathname change, so we don't
   // pre-compute `needsStripe` here. The previous server-side calc
   // got captured in App Router's layout cache and a seller who

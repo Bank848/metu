@@ -1,5 +1,5 @@
 /**
- * Phase 13.10 — forwarder to Express `GET /admin/stats`.
+ * forwarder to Express `GET /admin/stats`.
  * Composite KPI dashboard payload (users / stores / products /
  * reviews / orders / gmv / pendingOrders / recentTransactions /
  * 14-day daily revenue).

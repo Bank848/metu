@@ -13,7 +13,7 @@ export const metadata = { title: "Sign up — METU" };
 export const dynamic = "force-dynamic";
 
 export default async function RegisterPage() {
-  // Phase 17.x — Google button is hidden when GOOGLE_CLIENT_ID isn't
+  // .x — Google button is hidden when GOOGLE_CLIENT_ID isn't
   // set on the API. Read in parallel with the country list.
   const [countries, settings] = await Promise.all([
     prisma.country.findMany({

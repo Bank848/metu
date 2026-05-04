@@ -1,5 +1,5 @@
 /**
- * Phase 33B — BFF forwarder for the manual-payout endpoint. Single
+ * B — BFF forwarder for the manual-payout endpoint. Single
  * POST to the Express server which orchestrates the Stripe API call.
  */
 import { type NextRequest } from "next/server";

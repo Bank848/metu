@@ -4,7 +4,6 @@
  * Tiny client-only history of products the user has opened. Persisted to
  * `localStorage` so it survives reloads but never hits the server (no
  * tracking PII; works without auth).
- *
  * Cap at 12 entries so the strip on /browse stays scannable.
  */
 

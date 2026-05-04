@@ -1,5 +1,5 @@
 /**
- * Phase 13.11 — forwarder to Express `GET /stores/:id`.
+ * forwarder to Express `GET /stores/:id`.
  * Public storefront — Express handles the soft-deleted 404 + filters
  * soft-deleted products from the embedded list.
  */

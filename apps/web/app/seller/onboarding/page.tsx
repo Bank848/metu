@@ -6,8 +6,7 @@ import { OnboardingActions } from "./OnboardingActions";
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 27 — Stripe Connect Express onboarding entry point.
- *
+ * Stripe Connect Express onboarding entry point.
  * Server component: pulls the live status from the API. Client child
  * handles the POST → redirect dance to the Stripe-hosted onboarding URL.
  */

@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for /seller/coupons/new form. */
+/** skeleton for /seller/coupons/new form. */
 export default function SellerCouponsNewLoading() {
   return (
     <div className="max-w-xl">

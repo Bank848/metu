@@ -1,7 +1,7 @@
 import { TopNav } from "@/components/TopNav";
 import { Skeleton, ProductGridSkeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for /favorites. Reuses ProductGridSkeleton. */
+/** skeleton for /favorites. Reuses ProductGridSkeleton. */
 export default function FavoritesLoading() {
   return (
     <>

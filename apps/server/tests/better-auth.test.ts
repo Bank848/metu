@@ -1,12 +1,10 @@
 /**
  * Phase 14.1 — better-auth plumbing smoke test.
- *
  * Just confirms the catch-all route is mounted and the runtime
  * boots cleanly. Does NOT exercise sign-in flows yet — those need
  * the schema migration to land first (account/session/verification
  * tables) AND would either need real Postgres or extensive mocking
  * of better-auth's internal table layout.
- *
  * Phase 14.2 will add real flow tests against the migrated DB
  * (Mode A: better-auth owns the cookie).
  */

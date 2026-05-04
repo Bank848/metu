@@ -1,5 +1,5 @@
 /**
- * Phase 15.2 — forwarder to Express
+ * forwarder to Express
  * `DELETE /auth/sessions/all-others` — "Sign out everywhere".
  * Revokes every better-auth session for the user EXCEPT the
  * current one.

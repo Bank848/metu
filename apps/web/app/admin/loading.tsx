@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /admin overview. Mirrors the editorial hero,
+ * skeleton for /admin overview. Mirrors the editorial hero,
  * 4-stat KPI grid, and chart + recent-transactions split that the live
  * page renders, so navigation from the sidebar doesn't flash a blank
  * frame while admin/stats fetches.

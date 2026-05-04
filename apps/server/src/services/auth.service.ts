@@ -7,6 +7,7 @@ import { findFirstProfaneField } from "../utils/profanity.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout, escapeHtml } from "../utils/email-template.js";
 import { audit } from "../utils/audit.js";
+import { SITE_URL, DEMO_REVEAL_TOKENS } from "../config.js";
 import type {
   ChangePasswordInput,
   ForgotPasswordInput,
@@ -65,7 +66,7 @@ export interface AuthOutcome {
   user: SafeUser;
   role: UserRole;
   /**
-   * Phase 43 — only populated by `register()` when DEMO_REVEAL_TOKENS=true.
+   * only populated by `register()` when DEMO_REVEAL_TOKENS=true.
    * Carries the raw OTP + email-verify token so the BFF can stamp them
    * into the verify-page demo banner.
    */
@@ -104,7 +105,7 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
     }
   }
 
-  // Phase 41 - verification gates. Run AFTER password+TOTP so we
+  // verification gates. Run AFTER password+TOTP so we
   // don't leak which step failed. The frontend uses these distinct
   // codes to bounce the user to the right verify page.
   if (!user.emailVerified) {
@@ -155,7 +156,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
   }
 
   const hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-  // Phase 51 — wrap create in try/catch for the race where two
+  // wrap create in try/catch for the race where two
   // concurrent registers slip past the dup pre-check above. The DB
   // unique constraint catches it, we map P2002 to a clean 409 instead
   // of bubbling up as a 500.
@@ -203,7 +204,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
 
   await syncCredentialAccount(user.userId, user.email, hash);
 
-  // Phase 41 - mandatory verify flow. Email link goes to inbox; phone
+  // mandatory verify flow. Email link goes to inbox; phone
   // OTP goes to console (real SMS would replace logPhoneOtp).
   const [rawEmailToken, otp] = await Promise.all([
     issueEmailVerifyToken(user.userId),
@@ -223,14 +224,14 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
     meta: { email: user.email },
   });
 
-  // Phase 43 — demo escape hatch. When DEMO_REVEAL_TOKENS=true, the
+  // demo escape hatch. When DEMO_REVEAL_TOKENS=true, the
   // raw OTP and email-verify token come back in the response so the
   // BFF can surface them on the verify pages. The Resend sandbox
   // sender only delivers email to the account owner and SMS isn't
   // wired to a real provider, so without this escape hatch a fresh
   // demo register has no way to read the values.
   const demo =
-    process.env.DEMO_REVEAL_TOKENS === "true"
+    DEMO_REVEAL_TOKENS
       ? { otp, emailToken: rawEmailToken }
       : undefined;
   return {
@@ -241,7 +242,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
 }
 
 /**
- * Phase 41 - confirm an email-verify token from the URL. One-shot:
+ * confirm an email-verify token from the URL. One-shot:
  * the token row gets consumedAt stamped on success.
  */
 export async function verifyEmail(token: string): Promise<void> {
@@ -272,7 +273,7 @@ export async function verifyEmail(token: string): Promise<void> {
 }
 
 /**
- * Phase 41 - resend the email-verify link. Quietly succeeds if the
+ * resend the email-verify link. Quietly succeeds if the
  * email is already verified or doesn't exist (no enumeration).
  */
 export async function resendEmailVerify(
@@ -282,18 +283,18 @@ export async function resendEmailVerify(
   if (!user || user.deletedAt || user.emailVerified) return {};
   const raw = await issueEmailVerifyToken(user.userId);
   await sendEmailVerifyMessage(user.email, user.firstName, raw);
-  return process.env.DEMO_REVEAL_TOKENS === "true"
+  return DEMO_REVEAL_TOKENS
     ? { demo: { emailToken: raw } }
     : {};
 }
 
 /**
- * Phase 41 - verify the 6-digit OTP entered after register. Email
+ * verify the 6-digit OTP entered after register. Email
  * is the lookup key (no session yet at this stage).
  */
 export async function verifyPhoneRegister(email: string, code: string): Promise<void> {
   const user = await prisma.user.findUnique({ where: { email } });
-  // Phase 51 — collapse all failure modes to one InvalidCode error.
+  // collapse all failure modes to one InvalidCode error.
   // Distinct errors (UserNotFound vs NoPendingOtp vs OtpExpired) leak
   // whether an email is registered + whether they recently signed up.
   const GENERIC = new AppError(401, "InvalidCode", "OTP didn't match. Request a new one if needed.");
@@ -344,11 +345,10 @@ export async function verifyPhoneRegister(email: string, code: string): Promise<
 }
 
 /**
- * Phase 46 — verify a Firebase Phone Auth ID token + stamp the user's
+ * verify a Firebase Phone Auth ID token + stamp the user's
  * `phoneVerifiedAt`. Used as an alternative to our home-grown OTP
  * flow when the user opts to verify with SMS via Firebase (10 free
  * SMS/day at the time of writing).
- *
  * The client SDK takes the user through reCAPTCHA + SMS, then hands
  * back an ID token containing `phone_number`. We verify the token
  * server-side, confirm the phone matches what we have on file (or
@@ -408,7 +408,7 @@ export async function verifyPhoneFirebase(
 }
 
 /**
- * Phase 41 - resend a fresh OTP after register (e.g. user closed the
+ * resend a fresh OTP after register (e.g. user closed the
  * verify page or the code expired). Quietly succeeds if user is
  * already verified or doesn't exist.
  */
@@ -418,7 +418,7 @@ export async function resendPhoneOtp(
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || user.deletedAt || user.phoneVerifiedAt) return {};
   if (!user.phone) return {};
-  // Phase 51 — cooldown: if the existing OTP still has >8 min left
+  // cooldown: if the existing OTP still has >8 min left
   // (issued <2 min ago), don't re-issue. Prevents SMS/email spam.
   if (user.phoneOtpExpiresAt) {
     const remaining = user.phoneOtpExpiresAt.getTime() - Date.now();
@@ -430,7 +430,7 @@ export async function resendPhoneOtp(
   }
   const otp = await issuePhoneOtp(user.userId);
   logPhoneOtp(user.phone, otp);
-  return process.env.DEMO_REVEAL_TOKENS === "true" ? { demo: { otp } } : {};
+  return DEMO_REVEAL_TOKENS ? { demo: { otp } } : {};
 }
 
 // GET /auth/me. Returns null for missing or soft-deleted users.
@@ -753,7 +753,7 @@ const EMAIL_VERIFY_TOKEN_TTL_MIN = 30;
 const PHONE_OTP_TTL_MIN = 10;
 const PHONE_OTP_LENGTH = 6;
 
-// Phase 41 helpers - generate + persist email-verify token, return raw
+// helpers - generate + persist email-verify token, return raw
 // token for the email link.
 async function issueEmailVerifyToken(userId: number): Promise<string> {
   const raw = crypto.randomBytes(32).toString("base64url");
@@ -765,9 +765,9 @@ async function issueEmailVerifyToken(userId: number): Promise<string> {
   return raw;
 }
 
-// Phase 41 - generate 6-digit OTP, hash + store on User, return raw OTP
+// generate 6-digit OTP, hash + store on User, return raw OTP
 // to console-log. Real SMS would replace this with a Twilio send.
-// Phase 51 - crypto.randomInt instead of Math.random — OTP space is
+// crypto.randomInt instead of Math.random — OTP space is
 // only 1M so anything predictable enough to leak the seed leaks every
 // in-flight OTP. crypto.randomInt is CSPRNG-backed, not Mersenne Twister.
 async function issuePhoneOtp(userId: number): Promise<string> {
@@ -787,7 +787,7 @@ async function sendEmailVerifyMessage(
   firstName: string,
   rawToken: string,
 ): Promise<void> {
-  const base = process.env.SITE_URL ?? "https://metu.online";
+  const base = SITE_URL;
   const link = `${base}/verify-email?token=${rawToken}`;
   const html = renderEmailLayout({
     heading: `Hi ${escapeHtml(firstName)} - confirm your email`,
@@ -844,7 +844,7 @@ export async function forgotPassword(input: ForgotPasswordInput): Promise<void> 
   });
 
   // Link points at the BFF where /reset-password lives.
-  const base = process.env.SITE_URL ?? "https://metu.online";
+  const base = SITE_URL;
   const link = `${base}/reset-password?token=${raw}`;
 
   const firstName = user.firstName ?? "there";
@@ -1129,12 +1129,11 @@ export async function unlinkGoogle(userId: number): Promise<void> {
 }
 
 /**
- * Phase 48 — GDPR self-delete. The user removes their own account
+ * GDPR self-delete. The user removes their own account
  * via DELETE /auth/me. Mirrors admin.deleteUser's hybrid logic
  * (fresh = hard delete, history = anonymise) but skips the
  * SelfDeleteForbidden guard because here actor === target by
  * design.
- *
  * Audit row uses `user.self_delete` so the operator audit feed
  * tells self-initiated removals apart from admin-initiated ones.
  */
@@ -1161,7 +1160,7 @@ export async function selfDelete(
     }
   }
 
-  // Audit follow-up (MEDIUM #2) — block self-delete while a Stripe
+  // block self-delete while a Stripe
   // PaymentIntent is still pending. If we anonymise the buyer
   // mid-checkout, the webhook flips the order to paid later and
   // sendOrderReceipt mails `deleted_<id>@deleted.invalid` which

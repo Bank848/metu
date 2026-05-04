@@ -1,5 +1,5 @@
 /**
- * Phase 16.2 — forwarder to Express `POST /auth/totp/enroll-verify`.
+ * forwarder to Express `POST /auth/totp/enroll-verify`.
  * Confirms the secret with the first 6-digit code; flips
  * totpEnabled=true on success.
  */

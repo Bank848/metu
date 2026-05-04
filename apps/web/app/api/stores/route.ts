@@ -1,5 +1,5 @@
 /**
- * Phase 13.11 — forwarder to Express `GET /stores`.
+ * forwarder to Express `GET /stores`.
  * Public store list (live stores only). Preserves the `?limit=N`
  * query param.
  */

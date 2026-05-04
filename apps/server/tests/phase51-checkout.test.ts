@@ -1,16 +1,3 @@
-/**
- * Phase 51 — checkout + cart security regression tests.
- *
- * Each block exercises a guard added during the security audit:
- *   - Already-owned guard rejects re-purchase of non-stackable items
- *   - Multi-store checkout blocked when any seller has Stripe live
- *   - Zero-total order rejection (large fixed-coupon abuse)
- *   - CSV-formula injection neutralised in /seller/orders/export
- *
- * The cart/orders services hit ~6 prisma calls each in a transaction;
- * we mock the prisma surface and assert at the controller-level
- * contract.
- */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { cookieFor } from "./_authMock.js";

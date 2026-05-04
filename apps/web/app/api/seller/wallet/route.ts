@@ -1,5 +1,5 @@
 /**
- * Phase 27 — BFF forwarder for the Stripe-backed seller wallet.
+ * BFF forwarder for the Stripe-backed seller wallet.
  * Returns { configured, onboarded, balance, payouts, charges } —
  * everything fetched live from Stripe, nothing materialised in our DB.
  */

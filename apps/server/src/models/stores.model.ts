@@ -2,10 +2,8 @@ import { z } from "zod";
 
 /**
  * Stores data contracts.
- *
  * `listQuerySchema` — validates `?limit=N` for the index endpoint.
  *  Caps at 60 so a malicious caller can't ask for the whole table.
- *
  * Response shapes are intentionally `Record<string, unknown>` —
  * `getStore()` returns the raw Prisma row (with deep `include`)
  * because the storefront page consumes nearly every field, and

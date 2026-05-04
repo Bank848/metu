@@ -11,12 +11,10 @@ interface Settings {
 }
 
 /**
- * Phase 17.1 / 26 — settings form (slimmed down).
- *
+ * / 26 — settings form (slimmed down).
  * Toggles + percent input. Submit sends a partial PATCH (only the
  * fields that changed) so the audit log captures a clean diff.
- *
- * Phase 26 dropped: walletEnabled, chatEnabled, promptpayId,
+ * dropped: walletEnabled, chatEnabled, promptpayId,
  * withdrawalFeePercent — replaced by Stripe Connect in Phase 27.
  */
 export function SettingsForm({ initial }: { initial: Settings }) {

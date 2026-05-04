@@ -7,15 +7,13 @@ import { cn } from "@/lib/utils";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 
 /**
- * Phase 11 / F19 — reusable in-page confirm modal.
- *
+ * / F19 — reusable in-page confirm modal.
  * Replaces the native `window.confirm()` calls scattered across
  * destructive UI surfaces (review delete, Q&A delete, ActionRow row
  * actions, seller order status flips, product delete, bulk price
  * adjust). The native dialog clashes with the rest of the polished
  * chrome, can't be styled, and the QA report (`reports/qa-2026-04-25.md`
  * §F19) flagged that it locks Chrome MCP in admin moderation flows.
- *
  * Pattern (per `reports/decisions/RESOLVED-2026-04-25.md` Decision 4):
  *   - Sits next to the other Step-2 form primitives (`FormSection`,
  *     `TextInput`, etc.) so dialogs and inputs live in one place.
@@ -30,7 +28,6 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
  *     the destructive-row colour used in `ActionRow.tsx` and the
  *     design-system §9 don'ts (red stays reserved for hard / final
  *     destructive moments; coral is the recoverable register).
- *
  * The component is render-controlled — callers own the `open` state
  * and pass `onConfirm` / `onCancel` callbacks. `onConfirm` may return
  * a Promise so async delete handlers can await the network response
@@ -131,7 +128,7 @@ export function ConfirmDialog({
         <h3
           id="confirm-dialog-title"
           className={cn(
-            // Phase 45 follow-up — centre the title (and body below) so
+            // centre the title (and body below) so
             // the modal reads as a confirmation, not a left-aligned
             // notification. `px-8` instead of `pr-8` keeps symmetric
             // breathing room around the close X on both sides.

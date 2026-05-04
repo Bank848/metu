@@ -1,12 +1,10 @@
 /**
- * Phase 48 — IP-level ban service.
- *
+ * IP-level ban service.
  * Reads/writes the `banned_ip` table + maintains an in-memory cache
  * the middleware reads on every request. The cache is module-scoped
  * (one Map per Node process) with a 60-second TTL — DB sees one row
  * per banned IP per minute under sustained traffic, instead of one
  * lookup per request.
- *
  * Cache invalidation: every write (`addBan` / `removeBan` /
  * `banUserSessions`) calls `invalidateCache(ip)` so the next request
  * from that IP re-reads from the DB. The middleware imports the
@@ -20,7 +18,7 @@ import type { Request } from "express";
 
 type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 
-// Phase 48 follow-up audit (CRITICAL #2) — original cache TTL was
+// audit (CRITICAL #2) — original cache TTL was
 // 60s. With ≥2 Fly machines per app the cache is incoherent across
 // hosts: an addBan invalidates only on the machine that handled the
 // POST. Shorter TTL bounds the staleness window. We keep some
@@ -49,7 +47,7 @@ export async function isIpBanned(ip: string): Promise<boolean> {
   });
   const expiresAtMs = hit?.expiresAt?.getTime() ?? null;
   const banned = Boolean(hit && (!expiresAtMs || expiresAtMs > now));
-  // Audit follow-up (MEDIUM): if a row is present but expiring soon,
+  // if a row is present but expiring soon,
   // cap the cache TTL so the *next* request sees the row gone instead
   // of waiting another 10s. Same on the negative side — if the row
   // *will* be banned again at some known future time we don't model
@@ -92,7 +90,7 @@ export async function addBan(
 ) {
   const ip = input.ipAddress.trim();
   if (!ip) throw new AppError(400, "MissingIp", "ipAddress is required.");
-  // Audit follow-up (MEDIUM #4) — proper IPv4/IPv6 validation via
+  // proper IPv4/IPv6 validation via
   // node:net.isIP. Length-only check let "192.168.1.1; DROP TABLE"
   // through and polluted the audit feed with un-matchable entries
   // (it's not SQL-injectable thanks to Prisma parametrisation, but
@@ -100,7 +98,7 @@ export async function addBan(
   if (isIP(ip) === 0) {
     throw new AppError(400, "InvalidIp", "Not a valid IPv4 or IPv6 address.");
   }
-  // Audit follow-up (CRITICAL #1) — refuse to ban the actor's own
+  // refuse to ban the actor's own
   // current IP. Without this guard a single click can lock every
   // admin behind the same NAT out of the unban surface itself.
   if (req?.ip && req.ip.trim() === ip) {
@@ -189,7 +187,7 @@ export async function banUserSessions(
   const ips = sessions
     .map((s) => s.ipAddress?.trim())
     .filter((ip): ip is string => Boolean(ip && ip.length > 0))
-    // Audit follow-up (CRITICAL #1) — even the bulk action must skip
+    // even the bulk action must skip
     // the actor's current egress IP so they don't lock themselves
     // out. The session list often includes shared NAT addresses.
     .filter((ip) => {
@@ -199,7 +197,7 @@ export async function banUserSessions(
       }
       return true;
     })
-    // Audit follow-up (MEDIUM #4) — drop garbage IPs that somehow
+    // drop garbage IPs that somehow
     // ended up in better-auth's Session table. We don't want to
     // pollute banned_ip with unmatchable rows.
     .filter((ip) => isIP(ip) !== 0);

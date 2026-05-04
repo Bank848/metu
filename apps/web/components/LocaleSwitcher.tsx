@@ -11,7 +11,6 @@ import { LocaleFlag } from "@/components/LocaleFlag";
  * Two-language picker for the TopNav. Sets the locale on the client
  * provider AND the cookie, then refreshes the route so server-rendered
  * strings reflect the new language too.
- *
  * `inCluster` re-styles the trigger to nest inside the TopNav control
  * cluster shell (smaller, square-ish, borderless). Standalone usage
  * (the legacy default) keeps the original pill silhouette.

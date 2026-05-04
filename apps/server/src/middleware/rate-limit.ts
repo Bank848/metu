@@ -12,7 +12,7 @@ interface LimiterOptions {
   /** Optional key override; defaults to req.ip. */
   keyFn?: (req: Request) => string;
   /**
-   * Phase 49 — when true, the limiter still throttles even under
+   * when true, the limiter still throttles even under
    * `NODE_ENV=test`. Used by `rate-limit.test.ts` to assert the
    * boundary behaviour. The shared production limiters
    * (loginLimiter, registerLimiter, etc.) leave this false so the

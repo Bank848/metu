@@ -1,5 +1,5 @@
 /**
- * Phase 13.9 — full forwarders to Express:
+ * full forwarders to Express:
  *   GET    /seller/products/:id   (read, Phase 13.9.1)
  *   PATCH  /seller/products/:id   (write — fast-path { isActive } OR full edit)
  *   DELETE /seller/products/:id   (write — soft-delete + audit)

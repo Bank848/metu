@@ -1,5 +1,5 @@
 /**
- * Phase 17.1 — public settings forwarder.
+ * public settings forwarder.
  *   GET /settings — returns { settings: { walletEnabled, chatEnabled, promptpayId, updatedAt } }
  * Used by the BFF `getSettings()` server helper to gate UI surfaces
  * (wallet pill, chat icon, message CTAs).

@@ -1,16 +1,13 @@
 /**
- * Phase 21.2 — package.json reader for the admin tech-stack page.
- *
+ * package.json reader for the admin tech-stack page.
  * Server-only fs helper that walks the workspace package.json files at
  * BUILD TIME (the page is `force-static`) so the rendered table reflects
  * exactly what was installed when this build shipped. Reading at request
  * time would also work, but `force-static` keeps the page free.
- *
  * Resolves paths relative to the Next.js `process.cwd()` — the standalone
  * Fly build runs from `/app/apps/web` so we walk up two levels to reach
  * the monorepo root. Local dev runs `npm run dev -w @metu/web` from the
  * repo root with `cwd = apps/web`, so the same path traversal works.
- *
  * Returns a flat list of `{layer, name, version}` entries deduped by
  * `name` (workspace deps are listed once even if multiple packages
  * declare them — first-occurrence wins, mirroring how npm hoisting

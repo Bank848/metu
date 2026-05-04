@@ -1,5 +1,5 @@
 /**
- * Phase 13.10 — forwarder to Express `DELETE /admin/stores/:id`.
+ * forwarder to Express `DELETE /admin/stores/:id`.
  * Soft-delete + audit row.
  */
 import { type NextRequest } from "next/server";

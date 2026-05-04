@@ -64,7 +64,7 @@ export function buildApp() {
 
   // Logger first so failed requests still show up.
   app.use(loggerMiddleware);
-  // Phase 48 — network-layer ban check runs immediately after the
+  // network-layer ban check runs immediately after the
   // logger so blocked IPs never reach auth, parsing, or business
   // logic. The middleware skips /health + /api/webhooks/stripe so
   // Fly probes + Stripe callbacks always get through.

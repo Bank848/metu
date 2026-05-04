@@ -6,8 +6,7 @@ import { SettingsForm } from "./SettingsForm";
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 17.1 / 26 — admin settings page (slimmed down).
- *
+ * / 26 — admin settings page (slimmed down).
  * Shows the runtime feature flag + platform fee config plus a small
  * explainer card. Phase 26 dropped the wallet / chat / PromptPay
  * surfaces ; Phase 27 will expose Stripe Connect status here instead.

@@ -1,7 +1,7 @@
 import { TopNav } from "@/components/TopNav";
 import { Skeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for /profile/sessions table. */
+/** skeleton for /profile/sessions table. */
 export default function ProfileSessionsLoading() {
   return (
     <>

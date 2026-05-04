@@ -50,7 +50,7 @@ export function Reviews({
   const [sort, setSort] = useState<SortKey>("newest");
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  // Phase 11 / F19 — destructive moderation now flows through the
+  // / F19 — destructive moderation now flows through the
   // in-app <ConfirmDialog> primitive instead of native window.confirm().
   // Carries the row's reviewId so the modal knows which row to delete.
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);

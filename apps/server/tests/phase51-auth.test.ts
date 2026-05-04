@@ -1,17 +1,3 @@
-/**
- * Phase 51 — auth + review hardening tests.
- *
- * Each block exercises a guard added during the security audit:
- *   - Register: P2002 from a concurrent insert maps to 409 (not 500)
- *   - Reviews: 403 MustPurchaseToReview when the user has no paid
- *     order on the product (verified-purchase gate)
- *   - Reviews: 409 AlreadyReviewed enforces one review per user/product
- *   - Self-delete: 409 PendingOrderBlocksSelfDelete when an order is
- *     mid-checkout (would orphan the Stripe webhook receipt)
- *   - Self-delete: 400 LastAdminCannotBeRemoved when the only admin
- *     tries to anonymise themselves
- *   - Better-auth: signed-in soft-deleted user cannot use cookie
- */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { Prisma } from "@prisma/client";

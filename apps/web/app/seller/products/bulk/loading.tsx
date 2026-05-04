@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /seller/products/bulk price-adjust table.
+ * skeleton for /seller/products/bulk price-adjust table.
  * Same row count as the live page tends to render so the layout
  * doesn't shift after fetch.
  */

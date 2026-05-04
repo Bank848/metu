@@ -1,5 +1,5 @@
 /**
- * Phase 17.1 — admin grant coins forwarder.
+ * admin grant coins forwarder.
  *   POST /admin/users/:id/grant-coins
  *     body: { amount: number, reason: string }
  */

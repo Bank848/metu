@@ -6,7 +6,7 @@ import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 
 type Status = "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
 
-// Phase 11 / F19 — pending confirm-dialog state. Each entry maps a
+// / F19 — pending confirm-dialog state. Each entry maps a
 // transition kind to the human-readable copy shown in the modal body
 // and the destructive tone (refund/cancel = destructive, fulfil =
 // neutral). The handler reads back through this map on confirm so the
@@ -18,7 +18,6 @@ type Pending =
 
 /**
  * Seller-side order actions. Shown on /seller/orders rows.
- *
  * Transitions allowed from `paid`:  fulfilled · cancelled · refunded
  * Transitions allowed from `fulfilled`:  refunded (e.g. buyer reports a
  *   problem after delivery)
@@ -122,7 +121,7 @@ export function OrderStatusActions({
 
   if (!canFulfilOrCancel && !canRefund) return null;
 
-  // Phase 11 run #2 / F22 — pixel-position clicks on these action
+  // run #2 / F22 — pixel-position clicks on these action
   // buttons were failing in QA (only `button.click()` via devtools
   // triggered the dialog). Most likely cause: a transparent ancestor
   // (or a sibling growing on hover via the row-card transform) was

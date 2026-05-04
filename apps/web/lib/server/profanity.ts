@@ -1,22 +1,18 @@
 /**
  * Server-side profanity guard.
- *
- * Phase 11 run #2 / F3 (CEO Decision 1) — wraps `leo-profanity` so the
+ * run #2 / F3 (CEO Decision 1) — wraps `leo-profanity` so the
  * register + profile-edit flows can refuse usernames / display names
  * that contain slurs. The library ships an English dictionary (~1500
  * words). We extend it with:
- *
  *   1. A short custom blocklist of slurs the library misses or
  *      l33t-spells around (leo-profanity matches whole words only).
  *   2. A few transliterated Thai slurs — leo-profanity has no Thai
  *      dictionary on npm so we ship the most-flagged ones inline.
- *
  * The check is intentionally cheap: we lower-case the input, strip
  * spaces / punctuation that bury a slur ("nig ger", "n.i.g.g.e.r"),
  * then run `check()`. False positives are acceptable for a moderation
  * gate — the user can pick a different name. A future iteration can
  * tighten the matcher with a proper word-boundary regex.
- *
  * The dictionary is only loaded once per Node process (Next caches the
  * module). No I/O at request time.
  */

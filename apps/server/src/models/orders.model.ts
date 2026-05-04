@@ -1,6 +1,5 @@
 /**
  * Orders data contracts.
- *
  * `checkoutSchema` lives in @metu/shared (the cart's checkout form
  * uses it client-side too). Response shapes are TS interfaces.
  */

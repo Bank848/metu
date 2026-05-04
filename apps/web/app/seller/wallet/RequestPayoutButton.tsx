@@ -4,11 +4,10 @@ import { useRouter } from "next/navigation";
 import { Loader2, ArrowDownToLine } from "lucide-react";
 
 /**
- * Phase 33B — manual payout trigger. Stripe TH Connect schedules
+ * B — manual payout trigger. Stripe TH Connect schedules
  * payouts weekly by default ; this button lets the seller pull funds
  * to their bank on demand (useful for the demo and for real sellers
  * who want their balance now).
- *
  * Disabled when availableSatang <= 0 because Stripe rejects empty
  * payouts. The amount field defaults to the full available balance
  * but the seller can edit it down (e.g. leave a buffer for refunds).

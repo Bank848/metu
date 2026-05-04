@@ -22,8 +22,7 @@ interface Wallet {
 }
 
 /**
- * Phase 27 — Stripe-backed seller wallet.
- *
+ * Stripe-backed seller wallet.
  * Lives on /seller/wallet, fetches every figure live from Stripe via
  * the /api/seller/wallet proxy. Nothing is materialised in our DB —
  * Stripe is the system of record for balance / payout / charge

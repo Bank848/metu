@@ -29,12 +29,11 @@ import { getServerT } from "@/lib/i18n/server";
 
 type Tab = { label: string; icon: any; href: string };
 
-// Phase 47 — category IDs mirror packages/db/seed.ts (and the live
+// category IDs mirror packages/db/seed.ts (and the live
 // `category` table) exactly. Previous values (11/17/19/20) were
 // invented IDs that didn't exist, so every tab sent buyers to an
 // empty `/browse?category=XX` page. Now each tab lands on real,
 // product-bearing categories that the marketplace actually has.
-//
 // Order + labels mirror the /browse left sidebar (categories sorted
 // alphabetically by categoryName via the API's findCategories()
 // orderBy). Keep the two surfaces in sync so a buyer scanning chips

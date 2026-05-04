@@ -1,5 +1,5 @@
 /**
- * Phase 48 — DELETE forwarder for /admin/banned-ips/:id. Removes
+ * DELETE forwarder for /admin/banned-ips/:id. Removes
  * the row + invalidates the middleware's in-memory cache for that IP.
  */
 import { type NextRequest } from "next/server";

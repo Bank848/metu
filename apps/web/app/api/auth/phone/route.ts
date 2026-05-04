@@ -1,5 +1,5 @@
 /**
- * Phase 14.4 — forwarder to Express `PATCH /auth/phone`.
+ * forwarder to Express `PATCH /auth/phone`.
  * Sets/updates the user's phone, clears phoneVerifiedAt.
  */
 import { type NextRequest } from "next/server";

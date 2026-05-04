@@ -1,7 +1,6 @@
 /**
  * Smoke test for the health resource. Mocks Prisma's `$queryRaw` so
  * the test stays runtime-deterministic and doesn't need a live DB.
- *
  * Pattern repeated across every layered resource: mock the Prisma
  * client at module level → import `buildApp()` from app.ts → drive
  * with supertest. No port binding, no fixtures.

@@ -33,7 +33,7 @@ export function AddToCart({
 }: {
   items: Item[];
   /**
-   * Phase 48 — when set, the buyer already owns this product (paid /
+   * when set, the buyer already owns this product (paid /
    * fulfilled / pending order). Page passes `null` for stackable
    * products (license_key, seller-overridden) so this banner only
    * appears for true single-copy assets.
@@ -77,7 +77,7 @@ export function AddToCart({
         const data = await res.json().catch(() => ({} as { message?: string; error?: string; orderId?: number }));
         setMessage(data?.message ?? "Failed to add to cart");
         play("error");
-        // Phase 48 — AlreadyOwned: refresh so the parent re-fetches
+        // AlreadyOwned: refresh so the parent re-fetches
         // `getOwnedOrderId` and swaps the buy box for the
         // "✓ Already in your library" banner pointing at the
         // existing order.
@@ -90,7 +90,7 @@ export function AddToCart({
       setJustAdded(true);
       play("cart");
       setTimeout(() => setJustAdded(false), 900);
-      // Phase 11 run #2 / F8 — broadcast a cart-mutation event so the
+      // run #2 / F8 — broadcast a cart-mutation event so the
       // <CartNavIcon> in TopNav re-fetches `/api/cart` immediately.
       // `router.refresh()` alone wasn't enough because the count lives
       // in a client component that owns its own state; the event lets
@@ -114,7 +114,7 @@ export function AddToCart({
     }
   }
 
-  // Phase 48 — when the buyer already owns this single-copy product,
+  // when the buyer already owns this single-copy product,
   // swap the buy box for a mint banner pointing back at the existing
   // order. We still render the variant + sample link so the buyer can
   // click into the variant they bought (handy for multi-variant pages

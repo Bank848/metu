@@ -1,10 +1,8 @@
 /**
  * Pure cart-math helpers — extracted from `app/cart/CartLines.tsx` so
  * they can be unit-tested without React, jsdom, or any Prisma mocks.
- *
  * The CartLines component re-imports these and wires them into its
  * useMemo selectors; the math itself stays a one-line function call.
- *
  * Keep these functions pure (no I/O, no React, no globals). If you
  * find yourself reaching for `useState`, the helper belongs in the
  * component, not here.
@@ -75,11 +73,9 @@ export type CouponDiscount = {
 
 /**
  * Compute the discount amount a coupon applies to an eligible subtotal.
- *
  *   - "percent"  → `eligibleSubtotal * (value / 100)`
  *   - "fixed"    → `min(eligibleSubtotal, value)` so we never refund
  *                  more than the buyer is paying for the eligible lines.
- *
  * Returns 0 for non-positive eligible subtotals (e.g. when the buyer
  * deselects the only line that would have qualified for the coupon).
  */

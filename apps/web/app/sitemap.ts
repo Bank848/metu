@@ -5,15 +5,12 @@ import { prisma } from "@/lib/server/prisma";
  * Dynamic sitemap — emits the static landing pages plus every published
  * product (top 200 by review count) and every public store, with their
  * `updatedAt` so search engines recrawl only what changed.
- *
  * Soft-deleted rows and paused products are excluded so we never advertise
  * a URL that 404s. The list is intentionally capped: 200 products is well
  * inside the 50k URL / 50 MB sitemap budget and keeps the response cheap
  * to render even on a cold Neon compute wake.
- *
  * Next 14 reads this file at /sitemap.xml automatically.
- *
- * Phase 50 fixes:
+ * fixes:
  *   - `force-dynamic` so the sitemap is generated per-request from
  *     live data. Previously it baked at build time, which on the
  *     first deploy meant Next tried to query a Postgres at
@@ -54,7 +51,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         where: {
           isActive: true,
           deletedAt: null,
-          // Phase 50 — match `getProduct`'s public gate so we don't
+          // match `getProduct`'s public gate so we don't
           // advertise products on suspended stores.
           store: { deletedAt: null, suspendedAt: null },
         },

@@ -7,7 +7,6 @@ import { AppError } from "../utils/errors.js";
  * POST /coupons/validate — body `{ code }`. Always returns 200 with
  * `{ valid, reason? }` so the client can surface the rejection
  * reason inline (see service for the failure ladder).
- *
  * Validation gate ONLY rejects malformed bodies (missing / oversized
  * code) with 400; "this code doesn't exist" is a 200-with-`valid:false`
  * answer.

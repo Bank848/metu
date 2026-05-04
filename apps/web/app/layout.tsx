@@ -82,7 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // before the client provider takes over.
   const locale = getServerLocale();
   return (
-    // Phase 11 QA round #3 / F1 — `suppressHydrationWarning` on <html>
+    // QA round #3 / F1 — `suppressHydrationWarning` on <html>
     // is defensive: the `themeBootstrapScript` mounted in <head> below
     // intentionally rewrites this element's className BEFORE React
     // hydrates (e.g. dark → light when the user has saved that pref).

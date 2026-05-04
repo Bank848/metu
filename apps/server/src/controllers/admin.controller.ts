@@ -61,7 +61,7 @@ export const deleteUser: RequestHandler<{ id: string }> = async (req, res, next)
   }
 };
 
-// Phase 48 — clears bannedAt + bannedReason so the user can sign in again.
+// clears bannedAt + bannedReason so the user can sign in again.
 export const unbanUser: RequestHandler<{ id: string }> = async (req, res, next) => {
   try {
     const auth = currentAuth(req)!;
@@ -74,7 +74,7 @@ export const unbanUser: RequestHandler<{ id: string }> = async (req, res, next) 
   }
 };
 
-// Phase 48 — IP ban admin surface. Lazy-imported so the heavier
+// IP ban admin surface. Lazy-imported so the heavier
 // banned-ip.service module (with its in-memory cache) only loads
 // when an admin actually opens the page.
 export const listBannedIps: RequestHandler = async (_req, res, next) => {

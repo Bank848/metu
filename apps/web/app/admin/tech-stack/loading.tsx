@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /admin/tech-stack. The live page paints a
+ * skeleton for /admin/tech-stack. The live page paints a
  * flowchart with brand logos; we approximate with a wide canvas
  * placeholder + a category legend to reserve viewport height.
  */

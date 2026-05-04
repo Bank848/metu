@@ -2,8 +2,7 @@ import { forwardRef, type TextareaHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Phase 10 / Step 2 — textarea primitive.
- *
+ * / Step 2 — textarea primitive.
  * Matches TextInput's pattern: mint focus ring, coral error state, label
  * above, helper/error below. `resize-none` by default because every
  * authoring textarea in the codebase uses fixed rows — callers who want

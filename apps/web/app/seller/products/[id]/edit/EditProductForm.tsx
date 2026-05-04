@@ -39,7 +39,6 @@ const DEFAULT_VARIANT: Variant = {
  * Edit form for an existing product. Mirrors NewProductForm so sellers
  * have the same mental model — same FormSection layout, same VariantRow,
  * same sticky live preview. Differences:
- *
  *   - initial state comes from props
  *   - submits via PATCH instead of POST
  *   - existing variants are protected (can't be removed) because
@@ -72,7 +71,7 @@ export function EditProductForm({
   const [images, setImages] = useState<string[]>(initial.images.length ? initial.images : [""]);
   const [tagIds, setTagIds] = useState<number[]>(initial.tagIds);
   const [variants, setVariants] = useState<Variant[]>(initial.items.length ? initial.items : [{ ...DEFAULT_VARIANT }]);
-  // Phase 48 — when false, buyers can't re-purchase this product.
+  // when false, buyers can't re-purchase this product.
   // Default seeded from props; the checkbox lets the seller override
   // the delivery-method-based default (license_key = stackable, the
   // rest = single-copy).

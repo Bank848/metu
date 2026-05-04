@@ -64,7 +64,7 @@ export function requireAuth(roles?: UserRole[]) {
         include: { stats: true, store: true },
       });
       // Soft-deleted OR banned users get treated as logged-out.
-      // Audit follow-up — `bannedAt` is checked separately from
+      // `bannedAt` is checked separately from
       // `deletedAt` so a future operator who clears `deletedAt`
       // without clearing the ban still gets the kick-out.
       if (!user || user.deletedAt || user.bannedAt) {

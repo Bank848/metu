@@ -27,14 +27,12 @@ function parseSort(v: string | undefined): SortKey {
 
 /**
  * Resolve `?category=` to a categoryId.
- *
- * Phase 11 / F3 — historically this used `Number(searchParams.category)`
+ * / F3 — historically this used `Number(searchParams.category)`
  * which silently coerced non-numeric slugs to `NaN` and dropped the
  * filter, so /browse?category=fonts returned the unfiltered grid. We now
  * accept either the numeric categoryId or a slug-style name and look the
  * latter up against the existing categories list (already cached for an
  * hour by `getCategories()`, so the lookup is a pure in-memory match).
- *
  * Returns `undefined` when the slug is unknown — the caller treats that
  * as "no category filter" rather than throwing, mirroring how every
  * other browse param is forgiving of bad input.
@@ -87,7 +85,7 @@ export default async function BrowsePage({
   const activeSort = searchParams.sort ?? "newest";
   const activeQ = searchParams.q ?? "";
 
-  // Phase 11 / F19 — count active filters (excluding `q`, which is
+  // / F19 — count active filters (excluding `q`, which is
   // the search bar, and `sort` / `page`, which are presentation state).
   // The mobile sheet trigger shows this badge so users know at a
   // glance how many filters are narrowing the result.
@@ -208,7 +206,7 @@ export default async function BrowsePage({
               // layout at 320px wide produced cards too narrow to read.
               <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-5">
                 {result.items.map((p, i) => (
-                  // Phase 11 / F4 (priority={i<4}) → QA r3/F1 narrowed to
+                  // / F4 (priority={i<4}) → QA r3/F1 narrowed to
                   // priority={i===0}. Stacking ≥2 priority+fill <Image>
                   // reliably triggers React #418 + #422 in Next 14 App
                   // Router (the multiple <link rel="preload"> injections
@@ -281,7 +279,7 @@ function FilterPanel({
     "border border-transparent text-ink-secondary hover:bg-white/5 hover:text-white";
 
   return (
-    // Phase 11 / F19 — sticky sidebar gets a max-height + scroll so a
+    // / F19 — sticky sidebar gets a max-height + scroll so a
     // tall filter list (lots of tags) doesn't run off-screen on
     // shorter laptops. `top-28` keeps it clear of the TopNav.
     // The whole tree converted from <a> to <Link scroll={false}> so

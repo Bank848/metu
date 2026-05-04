@@ -4,6 +4,7 @@ import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
 import { refundOrder as stripeRefund } from "./stripe.service.js";
+import { PUBLIC_SITE_URL } from "../config.js";
 import {
   type UserListQuery,
   type UpdateUserRoleInput,
@@ -19,7 +20,7 @@ type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 // actions write an AuditLog row through utils/audit.ts.
 
 export async function listUsers(q: UserListQuery) {
-  // Phase 48 — `?status=banned` filter for the new "Banned" chip on the
+  // `?status=banned` filter for the new "Banned" chip on the
   // /admin/users page. Default view hides anonymised rows (their email
   // starts with `deleted_` per `deleteUser`'s anonymise path) so the
   // operator's table stays clean.
@@ -72,7 +73,7 @@ export async function listUsers(q: UserListQuery) {
     // never needs it and accidental log-leak risk is real.
     items: items.map(({ password, store, ...u }) => ({
       ...u,
-      // Phase 45 follow-up — null out store when it's been
+      // null out store when it's been
       // soft-deleted so /admin/users reflects the real "no active
       // store" state instead of pointing at a tombstoned row.
       store: store && !store.deletedAt
@@ -90,8 +91,7 @@ export async function listUsers(q: UserListQuery) {
  * Change a user's role. Self-demote forbidden — an admin removing
  * their own admin role would lock themselves out of the very page
  * they're using.
- *
- * Phase 48 — also handles store side effects so the role flip
+ * also handles store side effects so the role flip
  * actually means something in the rest of the app:
  *   - to "seller" + user has no active store → auto-create one
  *     (or restore a soft-deleted one) via
@@ -183,7 +183,7 @@ export async function updateUserRole(
 }
 
 /**
- * Phase 48 — three-path remove flow:
+ * three-path remove flow:
  *   - reason supplied → ban (existing soft-delete + bannedAt + bannedReason,
  *     "Banned" badge stays for moderation accountability).
  *   - no reason + fresh account (no orders/reviews/transactions) →
@@ -194,7 +194,6 @@ export async function updateUserRole(
  *     review / transaction history stays intact so seller analytics
  *     don't break. listUsers filters anonymised rows out so the
  *     "Deleted" badge no longer lingers on the operator's screen.
- *
  * Also blocks removing the only remaining admin so an operator can't
  * lock the marketplace out of admin entirely.
  */
@@ -233,14 +232,7 @@ export async function deleteUser(
     }
   }
 
-  // BAN PATH — soft-state the row + drop the live session so the
-  // banned user is kicked out of every open tab on their next request
-  // (better-auth's session token stops resolving). Audit follow-up
-  // (Scenario 1) — without the deleteMany call the better-auth session
-  // row stayed alive in DB; even though `requireAuth` already rejected
-  // on `deletedAt`, dropping the row makes the kick-out clean at every
-  // layer (no orphan rows, no race where a slow read sees the user but
-  // misses the deletedAt flip).
+  // Ban path: soft-delete + drop sessions so the next request 401s.
   if (reason) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
@@ -311,7 +303,7 @@ export async function deleteUser(
 }
 
 /**
- * Phase 48 — clears `bannedAt` + `bannedReason` + `deletedAt` so the
+ * clears `bannedAt` + `bannedReason` + `deletedAt` so the
  * user can sign in again. Doesn't touch role / store / order history.
  * Used by the new "Unban" row action when admin filters
  * /admin/users by `status=banned`.
@@ -542,14 +534,14 @@ export async function refundTransaction(
     );
   }
 
-  // Phase 51 — idempotency: refuse if every linked order is already
+  // idempotency: refuse if every linked order is already
   // refunded. Previously calling this twice created two negative
   // payout rows, double-debiting the ledger.
   if (tx.orders.length > 0 && tx.orders.every((o) => o.status === "refunded")) {
     throw new AppError(409, "AlreadyRefunded", "This transaction has already been refunded.");
   }
 
-  // Phase 51 — actually call Stripe for any orders that have a PI.
+  // actually call Stripe for any orders that have a PI.
   // Each order can be on a different connected account, so we iterate.
   // If any single Stripe call fails, we bail out before touching the
   // DB so the operator can retry without partial state.
@@ -582,7 +574,7 @@ export async function refundTransaction(
       where: { transactionId, status: { not: "refunded" } },
       data: { status: "refunded" },
     }),
-    // Phase 45 — TransactionType enum is now { purchase, payout } per
+    // TransactionType enum is now { purchase, payout } per
     // the docx report. A refund logs as a "payout" with a negative
     // amount (the platform paying the buyer back).
     prisma.transaction.create({
@@ -632,7 +624,7 @@ export async function setRequirePasswordReset(
     select: { email: true, firstName: true },
   });
 
-  // Phase 48 — out-of-band notification when an admin flags the
+  // out-of-band notification when an admin flags the
   // account so the user isn't surprised by the redirect on next
   // login. Email failure is non-blocking — the flag still flips
   // because the operator's intent is what matters.
@@ -641,8 +633,7 @@ export async function setRequirePasswordReset(
     try {
       const { sendEmail } = await import("../utils/email.js");
       const greeting = updated.firstName ? `Hi ${updated.firstName},` : "Hi,";
-      const baseUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ?? "https://metu.online";
+      const baseUrl = PUBLIC_SITE_URL;
       const html = `
         <p>${greeting}</p>
         <p>An administrator has flagged your METU account for a

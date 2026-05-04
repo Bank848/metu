@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/health — lightweight keep-warm + status probe.
- *
  * Hit every 4 minutes by Vercel Cron (see `apps/web/vercel.json`) so
  * Neon's serverless compute never idles long enough to cold-start
  * during demo hours. Also handy for a manual status check:

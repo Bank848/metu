@@ -1,5 +1,5 @@
 /**
- * Phase 48 — POST /api/admin/users/:id/unban → Express
+ * POST /api/admin/users/:id/unban → Express
  * `/admin/users/:id/unban`. Clears bannedAt + bannedReason +
  * deletedAt so the user can sign in again.
  */

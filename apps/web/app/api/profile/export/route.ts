@@ -7,19 +7,17 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/profile/export — GDPR-style "download your data" endpoint.
- *
  * Returns a single JSON blob with everything we know about the
  * authenticated user: profile, orders + line items, reviews, favourites,
  * coupon usages, messages they sent or received, and the audit-log
  * entries where they were the actor. Stripped of sensitive fields:
  *   - the password hash
  *   - other users' personal info on shared resources
- *
  * Set as a downloadable attachment so the browser saves a `.json` file
  * rather than rendering it.
  */
 export async function GET() {
-  // Phase 16.3 — Mode A: auth resolves through `getMe()` which calls
+  // Mode A: auth resolves through `getMe()` which calls
   // /auth/me on Express (better-auth's session cookie is forwarded
   // automatically by `apiFetch`). Replaces the legacy JWT-cookie
   // requireAuth from lib/server/auth.ts.
@@ -27,7 +25,7 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const userId = me.user.userId;
 
-  // Phase 26 — dropped Message/StockAlert/ProductQuestion exports
+  // dropped Message/StockAlert/ProductQuestion exports
   // alongside the trim of those tables. Order history + reviews +
   // favourites + audit trail still ship in the personal-data JSON.
   const [

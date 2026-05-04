@@ -30,7 +30,7 @@ type AuditRow = {
   targetId: number | string;
   createdAt: Date;
   meta: unknown;
-  // Phase 15.4 — request context. NULL on pre-15.4 rows + on system
+  // request context. NULL on pre-15.4 rows + on system
   // actions (cron, scripts) that don't originate from an HTTP request.
   ipAddress: string | null;
   userAgent: string | null;
@@ -49,7 +49,7 @@ const columns: DataTableColumn<AuditRow>[] = [
   { key: "action",    header: "Action" },
   { key: "actor",     header: "Actor" },
   { key: "target",    header: "Target" },
-  // Phase 15.4 — Origin column shows captured IP + first ~30 chars
+  // Origin column shows captured IP + first ~30 chars
   // of UA. Kept narrow because most callsites haven't passed `req`
   // yet so most rows render an em-dash.
   { key: "origin",    header: "Origin" },

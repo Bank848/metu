@@ -53,7 +53,7 @@ export default async function EditProductPage({ params }: { params: { id: string
           categoryId: product.categoryId,
           images: product.images.map((i) => i.productImage),
           tagIds: product.productNTags.map((nt) => nt.tagId),
-          // Phase 48 — surfaces the "Allow re-purchase" checkbox in
+          // surfaces the "Allow re-purchase" checkbox in
           // the form. Defaults to whatever the product currently has
           // (which seed.ts + seller.service set from the delivery
           // method when the product was first created).

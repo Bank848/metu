@@ -1,19 +1,3 @@
-/**
- * Stripe webhook handler tests — Phase 51 hardening.
- *
- * Covers the new defence-in-depth checks added during the security
- * audit:
- *   - signature verification rejects unsigned/forged calls (400)
- *   - missing webhook secret rejects (400)
- *   - duplicate event ids are idempotent (no double-fulfil)
- *   - amount-mismatch payment_intent.succeeded is REJECTED (the order
- *     stays pending + an audit row is written)
- *   - amount-match payment_intent.succeeded flips status -> paid
- *   - charge.refunded updates the refund fields on the matching order
- *
- * The Stripe SDK is mocked at the module level so we can hand-craft
- * `webhooks.constructEvent` results without minting real signatures.
- */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
 

@@ -26,7 +26,7 @@ const columns: DataTableColumn<Store>[] = [
 ];
 
 export default async function AdminStores() {
-  // Phase 11 run #2 / F13 — direct Prisma read instead of the prior
+  // run #2 / F13 — direct Prisma read instead of the prior
   // `apiAuth("/admin/stores")` proxy. The same-host HTTP hop was the
   // dominant chunk of the 2.5s skeleton-flash QA flagged; the route's
   // auth guard is already covered upstream by `app/admin/layout.tsx`,
@@ -38,14 +38,12 @@ export default async function AdminStores() {
   // Promoted KPIs — replaces the three Kpi tiles that lived inside each
   // card. The "Products" tile becomes the row's lead via the highlight
   // variant; rating-average and CTR-average are the supporting stats.
-  //
-  // Phase 11 / F23 — the headline averages used to include
+  // / F23 — the headline averages used to include
   // soft-deleted junk stores AND zero-rated stores that simply haven't
   // sold anything yet, both of which dragged the row down to 2.1★ on
   // /admin/stores. The KPI now restricts the population to active
   // stores that actually have products listed.
-  //
-  // Phase 11 run #2 / F1 (CEO Decision 2) — the helper already filters
+  // run #2 / F1 (CEO Decision 2) — the helper already filters
   // out soft-deleted stores so the table + subtitle naturally read 4
   // (matching `/`, `/health`, `/admin`). The defensive `!s.deletedAt`
   // guard stays so a future change to the helper never re-introduces

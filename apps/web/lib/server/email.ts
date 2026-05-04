@@ -1,14 +1,12 @@
 /**
  * Tiny email facade used by password-reset, restock alerts, and order
  * receipts. Two providers:
- *
  *   - "console"  (default): logs the message to stdout — perfect for
  *                local dev + the demo, where there's no real recipient
  *                infra and the user can pull tokens from `fly logs`.
  *   - "resend"   (when RESEND_API_KEY is set in the environment): hits
  *                Resend's REST endpoint. Free tier covers far more than
  *                this demo will ever send.
- *
  * Adding more providers later is a matter of dropping another branch
  * into `sendEmail`. The call sites stay identical.
  */

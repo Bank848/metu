@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/Skeleton";
 
-/** Phase 47 — skeleton for the coupon usage report page. */
+/** skeleton for the coupon usage report page. */
 export default function SellerCouponReportLoading() {
   return (
     <div>

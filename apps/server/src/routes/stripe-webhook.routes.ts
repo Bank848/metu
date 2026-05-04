@@ -95,7 +95,7 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
   const orderId = Number(pi.metadata?.orderId ?? 0);
   if (!orderId) return;
 
-  // Phase 51 — defence-in-depth: confirm the amount Stripe collected
+  // defence-in-depth: confirm the amount Stripe collected
   // matches the order total we recorded at checkout. If they diverge,
   // something tampered with the PI between create and confirm — flag
   // for manual review instead of auto-finalising.

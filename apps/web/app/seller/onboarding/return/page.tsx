@@ -4,7 +4,7 @@ import { apiFetch } from "@/lib/server/api";
 export const dynamic = "force-dynamic";
 
 /**
- * Phase 27 — Stripe redirects sellers here after they finish (or
+ * Stripe redirects sellers here after they finish (or
  * abandon) the hosted onboarding flow. We hit /seller/stripe/status
  * via apiFetch (which forwards the seller's session cookie) so the
  * server-side capability-flag sync runs ; then bounce to /seller/

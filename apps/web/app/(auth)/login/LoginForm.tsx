@@ -51,13 +51,13 @@ export function LoginForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Phase 49 — admin OTP step state.
+  // admin OTP step state.
   const [adminOtp, setAdminOtp] = useState("");
   const [confirmOwner, setConfirmOwner] = useState(false);
   const [trustDevice, setTrustDevice] = useState(false);
   const [recipientMasked, setRecipientMasked] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
-  // Phase 51 — Turnstile token (only required on the credentials step).
+  // Turnstile token (only required on the credentials step).
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -162,7 +162,7 @@ export function LoginForm({
           setBusy(false);
           return;
         }
-        // Phase 49 — admin OTP gate. The server has already mailed
+        // admin OTP gate. The server has already mailed
         // the code to the configured private recipient; flip the UI
         // to the OTP step and surface the masked recipient so the
         // user knows where to look.
@@ -199,7 +199,7 @@ export function LoginForm({
           setBusy(false);
           return;
         }
-        // Phase 42 — bounce to the verify pages without exposing the
+        // bounce to the verify pages without exposing the
         // email in the URL. The session cookie + the failed-login
         // marker the API set on res lets each verify page read the
         // address from /auth/me on the next request.
@@ -236,7 +236,7 @@ export function LoginForm({
   // better-auth exposes social sign-in via POST /sign-in/social with
   // a JSON body; follow the {url} response to Google.
   const callbackURL = next ?? "/";
-  // Phase 42 — used to pre-decide "email-exists" for every OAuth
+  // used to pre-decide "email-exists" for every OAuth
   // failure, which masked unrelated errors (state_mismatch, network,
   // cancelled-by-user). Use a generic param and let the error-message
   // helper map known codes; everything else shows the generic copy.

@@ -1,5 +1,5 @@
 /**
- * Phase 13.3 — forwarder to Express `POST /coupons/validate`.
+ * forwarder to Express `POST /coupons/validate`.
  * Always 200 with `{ valid, reason? }` so the cart UI surfaces
  * rejection reasons inline.
  */

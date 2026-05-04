@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/Skeleton";
 
 /**
- * Phase 47 — skeleton for /seller/products/[id]/edit. Same layout as
+ * skeleton for /seller/products/[id]/edit. Same layout as
  * the New Product form so the user gets identical perceived weight
  * during navigation either direction.
  */

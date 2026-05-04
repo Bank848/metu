@@ -24,12 +24,11 @@ interface SessionsResponse {
 }
 
 /**
- * Phase 23.1 — `/profile/sessions`. Surface the better-auth Session
+ * `/profile/sessions`. Surface the better-auth Session
  * table to the user so they can:
  *   • see every device that's logged in
  *   • revoke one stale session
  *   • "Sign out everywhere else" in one shot
- *
  * Backend has been live since Phase 15.2 — this is the missing UI.
  */
 export default async function SessionsPage() {

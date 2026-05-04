@@ -1,21 +1,17 @@
 /**
- * Phase 24 — wraps `@dagrejs/dagre` to compute auto-layout positions
+ * wraps `@dagrejs/dagre` to compute auto-layout positions
  * for the ER diagram. The output shape is plain serializable data so
  * the renderer (`ErDiagramView.tsx`) can stay pure-React/SVG without
  * touching dagre's mutable graph object directly.
- *
  * Layout strategy (revised after user feedback "ดูยาวๆ เกินไป, ให้ออก
  * ข้างบ้าง"):
- *
  *   1. Pre-compute a category-grid layout — one column per category
  *      (Identity / Store / Catalog / …). Within each column tables
  *      stack vertically. This gives the eye a clear "block" shape per
  *      domain instead of a 6 000 px-tall single column.
- *
  *   2. Run dagre only to *route edges* — we hand it our pre-computed
  *      node positions so it doesn't reshuffle clusters. Routing still
  *      handles the orthogonal bends and crow-foot endpoints.
- *
  * The result is a wide diagram (~2 800 × 2 200 px) where related
  * entities visually cluster, mirroring the way the Lucidchart export
  * in the friend's CPE241 report PDF arranges things.
@@ -124,7 +120,7 @@ function placeOnCategoryGrid(entities: ErEntity[]): {
 
   for (const cat of CATEGORY_COLUMN_ORDER) {
     const list = groups.get(cat) ?? [];
-    // Phase 26 trim left some categories (notably "wallet") empty —
+    // trim left some categories (notably "wallet") empty —
     // skip them here so the layout doesn't reserve a useless column
     // gap that wastes horizontal real estate + stretches edges.
     if (list.length === 0) continue;
