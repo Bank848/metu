@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
-import { isConfigured as stripeConfigured, createPaymentIntent, getClient } from "./stripe.service.js";
+import { isConfigured as stripeConfigured, createPaymentIntent, getClient, refreshAccountStatus } from "./stripe.service.js";
 import { getSettings } from "./settings.service.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout } from "../utils/email-template.js";
@@ -191,10 +191,26 @@ export async function checkout(
       where: { storeId: singleStoreId },
       select: { stripeAccountId: true, stripeChargesEnabled: true },
     });
-    if (store?.stripeAccountId && store.stripeChargesEnabled) {
+    // The DB flag can drift from Stripe's runtime state — Stripe might disable
+    // charges for the seller (capability lost, identity verification expired,
+    // etc.) without our webhook landing in time. Refresh from Stripe before
+    // checkout so the buyer doesn't get sent to a Stripe page that immediately
+    // errors out at confirm time. One extra API call per checkout is cheap
+    // compared to a busted purchase flow.
+    let chargesEnabled = Boolean(store?.stripeChargesEnabled);
+    if (store?.stripeAccountId) {
+      try {
+        const fresh = await refreshAccountStatus(singleStoreId);
+        chargesEnabled = Boolean(fresh.chargesEnabled);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[orders.checkout] refreshAccountStatus failed; using DB flag:", err);
+      }
+    }
+    if (store?.stripeAccountId && chargesEnabled) {
       useStripe = true;
       sellerStripeAccountId = store.stripeAccountId;
-    } else if (store?.stripeAccountId && !store.stripeChargesEnabled) {
+    } else if (store?.stripeAccountId && !chargesEnabled) {
       // Connected but Stripe is restricting the account — silently
       // falling back to demo mode would hand the buyer a free product.
       // Block checkout with a clear message instead.

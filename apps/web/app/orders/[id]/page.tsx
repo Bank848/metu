@@ -1,14 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect, notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Receipt, Sparkles, Tag as TagIcon, Mail } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Receipt, Sparkles, Tag as TagIcon, Mail, Loader2, XCircle } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
 import { getServerT } from "@/lib/i18n/server";
-import { coins, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins, fmtDate, fmtDateTime } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { prisma } from "@/lib/server/prisma";
 import { Confetti } from "./Confetti";
@@ -82,7 +82,17 @@ export default async function OrderDetail({
   const reviewedSet = new Set(existing.map((r) => r.productId));
   const canReview = order.status === "paid" || order.status === "fulfilled";
 
-  const isNew = Boolean(searchParams.new);
+  // `?new=1` is set when Stripe redirects after a payment confirm. Don't trust
+  // the URL alone — Stripe will redirect even when the buyer cancels a redirect-
+  // based method (PromptPay, FPX, etc.), and an old `?new=1` URL stays in
+  // browser history. Only show the celebration UI when the order is actually
+  // paid/fulfilled. Show a "processing" hero while waiting on the webhook, and
+  // a "didn't go through" hero when the order ended up cancelled.
+  const newFlag = Boolean(searchParams.new);
+  const isPaidHero = newFlag && (order.status === "paid" || order.status === "fulfilled");
+  const isPendingHero = newFlag && order.status === "pending";
+  const isFailedHero = newFlag && (order.status === "cancelled" || order.status === "refunded");
+  const isHero = isPaidHero || isPendingHero || isFailedHero;
   const subtotal = order.items.reduce(
     (a, it) => a + Number(it.pricePerUnit) * it.quantity,
     0,
@@ -94,7 +104,12 @@ export default async function OrderDetail({
   return (
     <>
       <TopNav />
-      {isNew && <Confetti />}
+      {isPaidHero && <Confetti />}
+      {/* Pending orders need to poll the server-side render until the webhook
+          flips status. Plain meta refresh is enough for our scale. */}
+      {isPendingHero && (
+        <meta httpEquiv="refresh" content="5" />
+      )}
       <main id="main" className="relative">
         {/* radial gold glow background, dim */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-[640px] vibrant-mesh opacity-60 pointer-events-none" />
@@ -113,7 +128,7 @@ export default async function OrderDetail({
             <header className="relative px-7 py-8 border-b border-white/8">
               <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent" />
 
-              {isNew ? (
+              {isPaidHero ? (
                 <div className="flex flex-col items-center text-center">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500/15 text-green-400 mb-3">
                     <CheckCircle2 className="h-8 w-8" strokeWidth={2} />
@@ -128,6 +143,40 @@ export default async function OrderDetail({
                     <Link href="/orders" className="text-metu-yellow hover:underline">orders dashboard</Link>.
                   </p>
                 </div>
+              ) : isPendingHero ? (
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15 text-amber-300 mb-3">
+                    <Loader2 className="h-8 w-8 animate-spin" strokeWidth={2} />
+                  </div>
+                  <Badge variant="warning" className="mb-3 !px-3 !py-1">Payment processing</Badge>
+                  <h1 className="font-display text-3xl md:text-4xl font-extrabold text-white">
+                    We're waiting on your payment.
+                  </h1>
+                  <p className="text-ink-secondary mt-2 max-w-md">
+                    If you completed payment in the previous step, this page will refresh
+                    automatically once we receive the confirmation. If you cancelled or
+                    closed the payment window, you can{" "}
+                    <Link href={`/checkout/${order.orderId}`} className="text-metu-yellow hover:underline">try again</Link>{" "}
+                    or head back to your{" "}
+                    <Link href="/cart" className="text-metu-yellow hover:underline">cart</Link>.
+                  </p>
+                </div>
+              ) : isFailedHero ? (
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-coral/15 text-coral mb-3">
+                    <XCircle className="h-8 w-8" strokeWidth={2} />
+                  </div>
+                  <Badge variant="danger" className="mb-3 !px-3 !py-1">Payment didn't go through</Badge>
+                  <h1 className="font-display text-3xl md:text-4xl font-extrabold text-white">
+                    This order wasn't paid.
+                  </h1>
+                  <p className="text-ink-secondary mt-2 max-w-md">
+                    No money has changed hands. Head back to your{" "}
+                    <Link href="/cart" className="text-metu-yellow hover:underline">cart</Link>{" "}
+                    to retry checkout, or browse{" "}
+                    <Link href="/browse" className="text-metu-yellow hover:underline">other products</Link>.
+                  </p>
+                </div>
               ) : (
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -140,10 +189,7 @@ export default async function OrderDetail({
                     </h1>
                     <p className="text-sm text-ink-secondary mt-1">
                       Placed{" "}
-                      {new Date(order.createdAt).toLocaleString("en-US", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
+{fmtDateTime(order.createdAt)}
                     </p>
                   </div>
                   <Badge className="uppercase" variant={statusBadge[order.status]}>
@@ -154,7 +200,7 @@ export default async function OrderDetail({
             </header>
 
             {/* Order # mono row (small) for the new state — replaces the duplicated block above */}
-            {isNew && (
+            {isHero && (
               <div className="px-7 py-3 border-b border-white/8 flex items-center justify-between bg-surface-2/40">
                 <div className="text-xs font-mono text-ink-dim flex items-center gap-1.5">
                   <Receipt className="h-3 w-3" />
@@ -318,11 +364,7 @@ export default async function OrderDetail({
                   <div>
                     <div className="text-ink-dim">Recorded</div>
                     <div className="text-white mt-0.5">
-                      {new Date(order.transaction.date).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
+{fmtDate(order.transaction.date)}
                     </div>
                   </div>
                 </div>
