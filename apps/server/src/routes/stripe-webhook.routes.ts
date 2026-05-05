@@ -141,9 +141,10 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     },
   });
 
-  // Now that the charge is real, retire the cart that held these items
-  // and hand the buyer a fresh active one for their next purchase.
-  await clearCartAfterPayment(order.userId).catch((err) => {
+  // Now that the charge is real, drop the purchased items from whatever
+  // active cart the buyer carried forward. Cart row itself stays open
+  // for any unrelated items still in it.
+  await clearCartAfterPayment(order.userId, orderId).catch((err) => {
     // eslint-disable-next-line no-console
     console.warn("[stripe-webhook] clearCartAfterPayment failed (non-fatal):", err);
   });

@@ -474,10 +474,14 @@ export async function getOwnedOrderId(
   userId: number,
   productId: number,
 ): Promise<number | null> {
+  // Only paid/fulfilled count as "already owned". A pending order isn't a
+  // purchase yet — treating it as owned hides the buy box on the product
+  // page and traps the buyer in the pending order if Stripe didn't go
+  // through.
   const owned = await prisma.order.findFirst({
     where: {
       userId,
-      status: { in: ["paid", "fulfilled", "pending"] },
+      status: { in: ["paid", "fulfilled"] },
       items: { some: { productItem: { productId } } },
     },
     select: { orderId: true },

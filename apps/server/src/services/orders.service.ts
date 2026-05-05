@@ -330,14 +330,38 @@ export async function checkout(
       }
     }
 
-    // Leave the cart untouched until payment succeeds. The webhook
-    // (onPaymentIntentSucceeded) flips it to checked_out and creates a
-    // new active cart only after Stripe confirms the charge. This way a
-    // back-button-out-of-Stripe doesn't make the buyer's cart appear to
-    // vanish — their items are still there to retry. Stock has already
-    // been decremented above, and cancelUserPendingOrders() at the top
-    // of checkout() guarantees we don't double-decrement on retry.
-    void unselectedItems;
+    // Order has a UNIQUE(cart_id) constraint so each order needs its own
+    // cart. Flip the current cart to checked_out, mint a fresh active one,
+    // and copy the unselected items + a snapshot of the selected items
+    // forward — that way a back-button-out-of-Stripe leaves the buyer's
+    // cart intact (items can be retried) while the unique-cart invariant
+    // is preserved. cancelUserPendingOrders() above clears any stale
+    // pending order before this point so we never double-decrement stock.
+    await tx.cart.update({
+      where: { cartId: cart.cartId },
+      data: { status: "checked_out" },
+    });
+    const newCart = await tx.cart.create({
+      data: { userId, status: "active" },
+    });
+    if (unselectedItems.length > 0) {
+      await tx.cartItem.updateMany({
+        where: { cartItemId: { in: unselectedItems.map((ci) => ci.cartItemId) } },
+        data: { cartId: newCart.cartId },
+      });
+    }
+    // Re-create the selected items in the new cart so /cart still shows
+    // what the buyer was about to pay for. They get cleared on payment
+    // success via clearCartAfterPayment() in the webhook handler.
+    for (const ci of selectedItems) {
+      await tx.cartItem.create({
+        data: {
+          cartId: newCart.cartId,
+          productItemId: ci.productItemId,
+          quantity: ci.quantity,
+        },
+      });
+    }
     if (resolvedCoupon) {
       // TOCTOU-safe limit check: count INSIDE the tx so
       // a concurrent checkout can't sneak past. The unique
@@ -746,29 +770,27 @@ export async function cancelUserPendingOrders(userId: number): Promise<void> {
 }
 
 /**
- * Swap the user's cart over after a successful payment: mark whichever cart
- * still holds the order's items as `checked_out`, then ensure they have a
- * fresh active cart for their next purchase. Called from the Stripe webhook
- * once payment is confirmed.
+ * Remove a paid order's items from the user's active cart. Called from the
+ * Stripe webhook once payment is confirmed — the items are no longer
+ * "pending purchase" so they shouldn't keep showing in /cart. The cart row
+ * itself stays active so unrelated items still in the cart are preserved.
  */
-export async function clearCartAfterPayment(userId: number): Promise<void> {
+export async function clearCartAfterPayment(userId: number, orderId: number): Promise<void> {
   const active = await prisma.cart.findFirst({
     where: { userId, status: "active" },
     select: { cartId: true },
   });
-  if (active) {
-    await prisma.cart.update({
-      where: { cartId: active.cartId },
-      data: { status: "checked_out" },
-    });
-  }
-  // Ensure exactly one active cart exists for the next purchase.
-  const fresh = await prisma.cart.findFirst({
-    where: { userId, status: "active" },
-    select: { cartId: true },
+  if (!active) return;
+  const orderItems = await prisma.orderItem.findMany({
+    where: { orderId },
+    select: { productItemId: true },
   });
-  if (!fresh) {
-    await prisma.cart.create({ data: { userId, status: "active" } });
-  }
+  if (orderItems.length === 0) return;
+  await prisma.cartItem.deleteMany({
+    where: {
+      cartId: active.cartId,
+      productItemId: { in: orderItems.map((it) => it.productItemId) },
+    },
+  });
 }
 
