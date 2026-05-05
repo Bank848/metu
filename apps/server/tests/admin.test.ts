@@ -298,15 +298,24 @@ describe("DELETE /admin/stores/:id", () => {
 });
 
 describe("GET /admin/stats", () => {
-  it("composes the KPI payload (gmv coerced from $queryRaw text)", async () => {
-    (prisma.user.count as any).mockResolvedValue(50);
-    (prisma.store.count as any).mockResolvedValue(8);
-    (prisma.product.count as any).mockResolvedValue(40);
-    (prisma.productReview.count as any).mockResolvedValue(100);
-    (prisma.order.count as any).mockResolvedValueOnce(20).mockResolvedValueOnce(3);
+  it("composes the KPI payload from a single counts CTE + daily series", async () => {
+    // Refactor: 7 separate prisma.*.count() calls collapsed into one
+    // $queryRaw CTE so all KPI tiles come back in a single round trip.
     (prisma.transaction.findMany as any).mockResolvedValue([]);
     (prisma.$queryRaw as any)
-      .mockResolvedValueOnce([{ total: "12345.67" }])
+      // 1st call: counts CTE
+      .mockResolvedValueOnce([
+        {
+          users: 50n,
+          stores: 8n,
+          products: 40n,
+          reviews: 100n,
+          orders: 20n,
+          pending_orders: 3n,
+          gmv: "12345.67",
+        },
+      ])
+      // 2nd call: 14-day revenue series
       .mockResolvedValueOnce([
         { day: "2026-04-28", revenue: "100", order_count: 2n },
       ]);
@@ -315,6 +324,10 @@ describe("GET /admin/stats", () => {
       .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     expect(res.body.users).toBe(50);
+    expect(res.body.stores).toBe(8);
+    expect(res.body.products).toBe(40);
+    expect(res.body.reviews).toBe(100);
+    expect(res.body.orders).toBe(20);
     expect(res.body.gmv).toBe(12345.67);
     expect(res.body.pendingOrders).toBe(3);
     expect(res.body.daily[0].orderCount).toBe(2);

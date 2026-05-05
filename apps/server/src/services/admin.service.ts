@@ -404,32 +404,49 @@ export async function setStoreSuspended(
 //  STATS — composite dashboard payload
 // =============================================================================
 
+/**
+ * Admin dashboard KPI tiles. Was 7 separate Prisma `.count()` round-trips
+ * — collapsed to a single CTE-style query so all six counters + GMV come
+ * back in one DB hit. The recent-transactions feed and 14-day revenue
+ * series are kept separate because they have different shapes / time
+ * windows; running them in parallel via Promise.all preserves the
+ * original concurrency.
+ *
+ * Indexes used:
+ *   - users(deleted_at) partial idx
+ *   - store(deleted_at) partial idx
+ *   - product(deleted_at, store_id) composite
+ *   - orders(status) — covers pending-count + gmv FILTER
+ */
 export async function getStats(): Promise<AdminStatsResponse> {
-  const [
-    users,
-    stores,
-    products,
-    reviews,
-    orders,
-    gmv,
-    pendingOrders,
-    recentTransactions,
-    daily,
-  ] = await Promise.all([
-    prisma.user.count({ where: { deletedAt: null } }),
-    prisma.store.count({ where: { deletedAt: null } }),
-    // Gates on live store too so KPIs match /browse counts.
-    prisma.product.count({
-      where: { deletedAt: null, store: { deletedAt: null } },
-    }),
-    prisma.productReview.count(),
-    prisma.order.count(),
-    prisma.$queryRaw<Array<{ total: string }>>`
-      SELECT COALESCE(SUM(total_price), 0)::text AS total
-      FROM orders
-      WHERE status IN ('paid', 'fulfilled')
+  type CountsRow = {
+    users: bigint;
+    stores: bigint;
+    products: bigint;
+    reviews: bigint;
+    orders: bigint;
+    pending_orders: bigint;
+    gmv: string;
+  };
+  const [counts, recentTransactions, daily] = await Promise.all([
+    prisma.$queryRaw<CountsRow[]>`
+      SELECT
+        (SELECT COUNT(*) FROM "users" WHERE deleted_at IS NULL)                    AS users,
+        (SELECT COUNT(*) FROM "store" WHERE deleted_at IS NULL)                    AS stores,
+        (SELECT COUNT(*)
+           FROM "product" p
+           JOIN "store"   s ON s.store_id = p.store_id
+          WHERE p.deleted_at IS NULL AND s.deleted_at IS NULL)                     AS products,
+        (SELECT COUNT(*) FROM "product_review")                                    AS reviews,
+        (SELECT COUNT(*) FROM "orders")                                            AS orders,
+        (SELECT COUNT(*) FROM "orders" WHERE status = 'pending')                   AS pending_orders,
+        (SELECT COALESCE(SUM(total_price), 0)::text
+           FROM "orders"
+          WHERE status IN ('paid', 'fulfilled'))                                   AS gmv
     `,
-    prisma.order.count({ where: { status: "pending" } }),
+    // Recent transactions — keeping Prisma here because the nested
+    // `user` select rides Prisma's typed builder cleanly, and the row
+    // shape feeds straight into the API response without remapping.
     prisma.transaction.findMany({
       orderBy: { createdAt: "desc" },
       take: 30,
@@ -444,6 +461,9 @@ export async function getStats(): Promise<AdminStatsResponse> {
         },
       },
     }),
+    // 14-day revenue series. generate_series fills in zero-revenue
+    // days so the chart never has gaps; FILTER limits the SUM/COUNT
+    // to settled orders only without a second LEFT JOIN.
     prisma.$queryRaw<
       Array<{ day: string; revenue: string; order_count: bigint }>
     >`
@@ -452,21 +472,22 @@ export async function getStats(): Promise<AdminStatsResponse> {
         COALESCE(SUM(o.total_price) FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::text AS revenue,
         COUNT(o.order_id) FILTER (WHERE o.status IN ('paid','fulfilled')) AS order_count
       FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') d
-      LEFT JOIN orders o
+      LEFT JOIN "orders" o
         ON DATE(o.created_at) = d::date
       GROUP BY d
       ORDER BY d ASC
     `,
   ]);
 
+  const c = counts[0]!;
   return {
-    users,
-    stores,
-    products,
-    reviews,
-    orders,
-    gmv: Number(gmv[0]?.total ?? 0),
-    pendingOrders,
+    users: Number(c.users),
+    stores: Number(c.stores),
+    products: Number(c.products),
+    reviews: Number(c.reviews),
+    orders: Number(c.orders),
+    gmv: Number(c.gmv),
+    pendingOrders: Number(c.pending_orders),
     recentTransactions,
     daily: daily.map((d) => ({
       day: d.day,
