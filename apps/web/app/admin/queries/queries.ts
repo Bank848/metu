@@ -245,4 +245,232 @@ ORDER BY size_bytes DESC;`,
       "Prisma can't introspect the live catalog — its `prisma db pull` is a CLI tool that runs offline. Direct catalog SELECTs make the admin page a real-time view of what's deployed.",
     source: "apps/server/src/services/admin.service.ts → getDatabaseSnapshot()",
   },
+  {
+    id: "admin-coupons-list",
+    title: "Admin coupons with usage + total discount",
+    category: "reports",
+    summary:
+      "List every coupon (master + store) with three computed columns: redemption count, total ฿ saved by buyers, and an active/expired flag. Filter (scope/status), sort (discount/expiry/newest), and 20-row pagination all happen in SQL.",
+    sql: `SELECT
+  c.coupon_id, c.code, c.store_id,
+  s.name AS store_name,
+  c.discount_type, c.discount_value, c.usage_limit,
+  (SELECT COUNT(*)::int FROM coupon_usage cu
+    WHERE cu.coupon_id = c.coupon_id) AS used_count,
+  COALESCE((
+    SELECT SUM(
+      CASE WHEN c.discount_type = 'percent'
+           THEN oi.price_per_unit * oi.quantity * c.discount_value / 100.0
+           ELSE LEAST(c.discount_value, oi.price_per_unit * oi.quantity)
+      END
+    )
+    FROM order_item oi
+    JOIN orders o ON o.order_id = oi.order_id
+    WHERE oi.coupon_id = c.coupon_id
+      AND o.status IN ('paid', 'fulfilled')
+  ), 0)::text AS total_discount,
+  c.start_date, c.end_date, c.is_active
+FROM coupon c
+LEFT JOIN store s ON s.store_id = c.store_id
+WHERE 1=1 -- + scope/status conditions
+ORDER BY total_discount::numeric DESC
+LIMIT 20 OFFSET 0;`,
+    indexes: [
+      { name: "coupon_is_active_idx", on: "coupon(is_active)", why: "active-only filter narrows the scan" },
+      { name: "coupon_usage_coupon_id_idx", on: "coupon_usage(coupon_id)", why: "speeds up the redemption count subquery" },
+      { name: "order_item_coupon_id_idx", on: "order_item(coupon_id)", why: "speeds up the discount aggregation" },
+    ],
+    rationale:
+      "Three correlated aggregates per row would each be a separate Prisma query if we used the typed builder, multiplied by the page size. Hand-written SQL ships them as inline subqueries that the planner can fuse.",
+    source: "apps/web/app/admin/coupons/page.tsx",
+  },
+  {
+    id: "admin-tags-usage",
+    title: "Tag usage analytics with last-used date",
+    category: "analytics",
+    summary:
+      "List every tag in the platform with its product count and the most recent product update timestamp. Search by tag name, sort by popularity, paginate at 20 per page — fully server-side.",
+    sql: `SELECT
+  t.tag_id, t.tag_name,
+  (SELECT COUNT(*)::int FROM product_n_tag pnt
+    WHERE pnt.tag_id = t.tag_id) AS product_count,
+  (SELECT MAX(p.updated_at)
+     FROM product_n_tag pnt
+     JOIN product p ON p.product_id = pnt.product_id
+    WHERE pnt.tag_id = t.tag_id) AS last_used_at
+FROM tag t
+WHERE t.tag_name ILIKE '%' || $1 || '%'
+ORDER BY product_count DESC, t.tag_name ASC
+LIMIT 20 OFFSET 0;`,
+    indexes: [
+      { name: "product_n_tag_tag_id_idx", on: "product_n_tag(tag_id)", why: "subquery scans by tag" },
+      { name: "tag_pkey", on: "tag(tag_id)", why: "outer join key" },
+    ],
+    rationale:
+      "Two aggregates per tag (count + max date) hand-written so the planner can use the tag_id index for both, instead of Prisma generating two round trips per tag.",
+    source: "apps/web/app/admin/tags/page.tsx",
+  },
+  {
+    id: "featured-stores-ranked",
+    title: "Featured stores by seller level + rating",
+    category: "analytics",
+    summary:
+      "Landing page featured-creators ranking. Promotes high-tier sellers (seller_level DESC), then by store rating, then by recency — surfaces established storefronts on the homepage.",
+    sql: `SELECT
+  s.store_id, s.name, s.profile_image, s.cover_image,
+  s.description, s.created_at, s.rating,
+  COALESCE(us.seller_level, 0) AS seller_level,
+  bt.name AS business_type_name,
+  (SELECT COUNT(*)::int FROM product p
+    WHERE p.store_id = s.store_id) AS product_count
+FROM store s
+JOIN business_type bt ON bt.business_type_id = s.business_type_id
+LEFT JOIN user_stats us ON us.user_id = s.owner_id
+WHERE s.suspended_at IS NULL
+ORDER BY us.seller_level DESC NULLS LAST,
+         s.rating DESC,
+         s.created_at DESC
+LIMIT 4;`,
+    indexes: [
+      { name: "store_business_type_id_idx", on: "store(business_type_id)", why: "join to business_type" },
+      { name: "user_stats_pkey", on: "user_stats(user_id)", why: "lookup of seller_level" },
+    ],
+    rationale:
+      "Multi-column ranking with NULLS LAST is a SQL primitive Prisma can't express. Composing it through the typed builder would require a fetch-then-sort in JS, which breaks the LIMIT.",
+    source: "apps/web/lib/server/queries.ts → getFeaturedStores()",
+  },
+  {
+    id: "featured-coupons-near-expiry",
+    title: "Featured coupons (almost-out + expiring soon)",
+    category: "analytics",
+    summary:
+      "Landing page coupon strip. Sorts by remaining redemptions ascending then end_date ascending — surfaces coupons that are about to run out so buyers grab them before competitors do.",
+    sql: `SELECT
+  c.coupon_id, c.code, c.store_id, s.name AS store_name,
+  c.discount_type, c.discount_value, c.usage_limit, c.end_date,
+  (SELECT COUNT(*)::int FROM coupon_usage cu
+    WHERE cu.coupon_id = c.coupon_id) AS used_count
+FROM coupon c
+LEFT JOIN store s ON s.store_id = c.store_id
+WHERE c.is_active = true
+  AND c.start_date <= NOW()
+  AND c.end_date   >= NOW()
+ORDER BY (c.usage_limit - (
+  SELECT COUNT(*) FROM coupon_usage cu WHERE cu.coupon_id = c.coupon_id
+)) ASC, c.end_date ASC
+LIMIT 6;`,
+    indexes: [
+      { name: "coupon_is_active_idx", on: "coupon(is_active)", why: "narrows to live coupons" },
+      { name: "coupon_usage_coupon_id_idx", on: "coupon_usage(coupon_id)", why: "subquery aggregation" },
+    ],
+    rationale:
+      "Computing remaining inventory inside ORDER BY isn't expressible in Prisma — the typed builder requires the sort key to be a column. Inline correlated subquery puts it in the planner's hands.",
+    source: "apps/web/lib/server/queries.ts → getFeaturedCoupons()",
+  },
+  {
+    id: "coupon-history-baht-saved",
+    title: "Buyer's coupon history with ฿ saved",
+    category: "reports",
+    summary:
+      "Per-buyer redemption history showing the order each coupon applied to and the actual baht saved. Mirrors the checkout discount math so the page reads as 'you saved X' not 'you used X'.",
+    sql: `SELECT
+  cu.usage_id, cu.coupon_id, c.code, s.name AS store_name,
+  c.discount_type, c.discount_value, cu.created_at AS used_at,
+  (SELECT MAX(o.order_id) FROM order_item oi
+     JOIN orders o ON o.order_id = oi.order_id
+    WHERE oi.coupon_id = c.coupon_id AND o.user_id = $1) AS order_id,
+  COALESCE((
+    SELECT SUM(
+      CASE WHEN c.discount_type = 'percent'
+           THEN oi.price_per_unit * oi.quantity * c.discount_value / 100.0
+           ELSE LEAST(c.discount_value, oi.price_per_unit * oi.quantity)
+      END
+    )
+    FROM order_item oi
+    JOIN orders o ON o.order_id = oi.order_id
+    WHERE oi.coupon_id = c.coupon_id
+      AND o.user_id    = $1
+      AND o.status     IN ('paid','fulfilled')
+  ), 0)::text AS amount_saved
+FROM coupon_usage cu
+JOIN coupon c ON c.coupon_id = cu.coupon_id
+LEFT JOIN store s ON s.store_id = c.store_id
+WHERE cu.user_id = $1
+ORDER BY cu.created_at DESC;`,
+    indexes: [
+      { name: "coupon_usage_user_id_idx", on: "coupon_usage(user_id)", why: "filter by buyer" },
+      { name: "order_item_coupon_id_idx", on: "order_item(coupon_id)", why: "discount aggregation per coupon" },
+      { name: "orders_user_id_idx", on: "orders(user_id)", why: "scope to this buyer's orders" },
+    ],
+    rationale:
+      "Replicating the checkout-time discount math (percent vs fixed cap) inside SQL means a single query produces the page in one round trip; doing it in JS would need a separate findMany per redemption.",
+    source: "apps/web/app/coupons/history/page.tsx",
+  },
+  {
+    id: "admin-dashboard-rollup",
+    title: "Admin dashboard analytics roll-up (8 metrics in parallel)",
+    category: "reports",
+    summary:
+      "/admin overview dashboard — eight independent analytics queries fire in Promise.all so the page renders in ~200ms instead of 8 sequential round trips. Covers user growth, coupon impact, review monitor, top stores, top products, age groups, category analytics, top tags.",
+    sql: `-- Top stores by revenue (one of the eight; the rest follow the same shape)
+SELECT
+  s.store_id, s.name, s.rating,
+  COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
+  COUNT(DISTINCT o.order_id)::bigint                       AS orders
+FROM store s
+LEFT JOIN product      p  ON p.store_id        = s.store_id
+LEFT JOIN product_item pi ON pi.product_id     = p.product_id
+LEFT JOIN order_item   oi ON oi.product_item_id = pi.product_item_id
+LEFT JOIN orders       o  ON o.order_id        = oi.order_id
+                          AND o.status IN ('paid','fulfilled')
+GROUP BY s.store_id, s.name, s.rating
+ORDER BY revenue::numeric DESC
+LIMIT 5;`,
+    indexes: [
+      { name: "product_store_id_idx", on: "product(store_id)", why: "join chain head" },
+      { name: "product_item_product_id_idx", on: "product_item(product_id)", why: "next join hop" },
+      { name: "order_item_product_item_id_idx", on: "order_item(product_item_id)", why: "fan-out to orders" },
+      { name: "orders_status_idx", on: "orders(status)", why: "settled-only filter" },
+    ],
+    rationale:
+      "Five-table join with conditional aggregation is exactly what raw SQL is for. Prisma's groupBy doesn't support correlated joins; we'd have to fetch every line and reduce in JS.",
+    source: "apps/server/src/services/admin.service.ts → getDashboardMetrics()",
+  },
+  {
+    id: "browse-top-sellers",
+    title: "From-top-sellers carousel (sellerLevel ≥ 3)",
+    category: "search",
+    summary:
+      "/browse home prepends 8 product cards from sellers at level 3 or higher, ranked by seller_level DESC then store.rating then review count. Surfaces premium creators above the rest of the catalogue.",
+    sql: `SELECT
+  p.product_id, p.name, p.description,
+  (SELECT pi2.product_image FROM product_image pi2
+    WHERE pi2.product_id = p.product_id
+    ORDER BY pi2.sort_order ASC LIMIT 1) AS image,
+  s.name AS store_name, s.store_id,
+  COALESCE(us.seller_level, 0) AS seller_level,
+  s.rating,
+  COALESCE((
+    SELECT MIN(price * (100 - COALESCE(discount_percent, 0)) / 100.0)::text
+      FROM product_item WHERE product_id = p.product_id
+  ), '0') AS min_price
+FROM product p
+JOIN store   s  ON s.store_id = p.store_id
+LEFT JOIN user_stats us ON us.user_id = s.owner_id
+WHERE p.is_active = true
+  AND s.suspended_at IS NULL
+  AND COALESCE(us.seller_level, 0) >= 3
+ORDER BY us.seller_level DESC NULLS LAST,
+         s.rating DESC,
+         (SELECT COUNT(*) FROM product_review pr
+            WHERE pr.product_id = p.product_id) DESC
+LIMIT 8;`,
+    indexes: [
+      { name: "product_is_active_idx", on: "product(is_active)", why: "narrows to live products" },
+      { name: "user_stats_pkey", on: "user_stats(user_id)", why: "level lookup" },
+    ],
+    rationale:
+      "Three-key sort with a correlated subquery as the tiebreaker isn't expressible in Prisma's orderBy. The min_price subquery also lets the card render the 'from ฿X' line without a separate productItem fetch.",
+    source: "apps/web/lib/server/queries.ts → getTopSellerProducts()",
+  },
 ];
