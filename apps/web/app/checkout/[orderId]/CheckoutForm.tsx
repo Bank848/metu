@@ -47,12 +47,12 @@ export function CheckoutForm({
         appearance: { theme: "night", labels: "floating" },
       }}
     >
-      <InnerForm orderId={orderId} />
+      <InnerForm orderId={orderId} clientSecret={clientSecret} />
     </Elements>
   );
 }
 
-function InnerForm({ orderId }: { orderId: number }) {
+function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: string }) {
   const stripe = useStripe();
   const elements = useElements();
   const [busy, setBusy] = useState(false);
@@ -71,8 +71,22 @@ function InnerForm({ orderId }: { orderId: number }) {
     if (!stripe || !elements) return;
     setBusy(true);
     setError(null);
+    // Validate the PaymentElement BEFORE asking Stripe to confirm. Without
+    // this, clicking Pay now with an empty card field hands `confirmPayment`
+    // an unvalidated form and the iframe quietly waits for input that the
+    // user can't see — busy stays true and the button hangs on
+    // "Confirming…" forever. `elements.submit()` triggers the same
+    // built-in validation Stripe shows after a real submit attempt and
+    // surfaces inline field errors to the buyer.
+    const submission = await elements.submit();
+    if (submission.error) {
+      setError(submission.error.message ?? "Please fill in your payment details.");
+      setBusy(false);
+      return;
+    }
     const result = await stripe.confirmPayment({
       elements,
+      clientSecret,
       confirmParams: {
         return_url: `${window.location.origin}/orders/${orderId}?new=1`,
       },
