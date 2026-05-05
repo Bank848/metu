@@ -108,7 +108,7 @@ export async function checkout(
       orderBy: { createdAt: "desc" },
     });
     if (ownedAlready) {
-      const ownedProductId = ownedAlready.items[0]?.productItem.productId;
+      const ownedProductId = ownedAlready.items[0]?.productItem?.productId;
       throw new AppError(
         409,
         "AlreadyOwned",
@@ -439,7 +439,11 @@ export async function retryOrderPayment(
   if (!stripeConfigured()) {
     throw new AppError(503, "StripeNotConfigured", "Payments are temporarily unavailable.");
   }
-  const storeIds = new Set(order.items.map((it) => it.productItem.product.storeId));
+  const storeIds = new Set(
+    order.items
+      .map((it) => it.productItem?.product.storeId)
+      .filter((s): s is number => s !== undefined),
+  );
   if (storeIds.size !== 1) {
     throw new AppError(400, "MultiStoreCheckoutUnsupported", "Cannot retry a multi-store order.");
   }
@@ -509,6 +513,7 @@ export async function finalizeOrder(orderId: number): Promise<void> {
   for (const item of order.items) {
     if (item.deliveredAt) continue;
     const pi = item.productItem;
+    if (!pi) continue;
     let key: string | null = null;
     let url: string | null = null;
     switch (pi.deliveryMethod) {
@@ -574,12 +579,17 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
   // Group items by store so the email reads as one section per store
   // (multi-store cart was a documented requirement even though the
   // current Stripe flow constrains to single-store at checkout time).
-  type Store = NonNullable<typeof order.items[number]["productItem"]["product"]["store"]>;
-  type Bucket = { store: Store; lines: typeof order.items };
+  type StoreInfo = { storeId: number; name: string; contactEmail: string | null; phone: string | null };
+  type Bucket = { store: StoreInfo; lines: typeof order.items };
+  const ORPHAN_STORE_ID = -1;
   const byStore = new Map<number, Bucket>();
   for (const it of order.items) {
-    const sid = it.productItem.product.store.storeId;
-    const bucket = byStore.get(sid) ?? { store: it.productItem.product.store, lines: [] };
+    const store = it.productItem?.product.store;
+    const sid = store?.storeId ?? ORPHAN_STORE_ID;
+    const storeInfo: StoreInfo = store
+      ? store
+      : { storeId: ORPHAN_STORE_ID, name: "(deleted store)", contactEmail: null, phone: null };
+    const bucket = byStore.get(sid) ?? { store: storeInfo, lines: [] };
     bucket.lines.push(it);
     byStore.set(sid, bucket);
   }
@@ -587,7 +597,7 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
 
   const subject =
     stores.length === 1
-      ? `Your METU order #${orderId} — items from ${stores[0].store.name}`
+      ? `Your METU order #${orderId} — items from ${stores[0]!.store.name}`
       : `Your METU order #${orderId} — items from ${stores.length} stores`;
 
   // Plain-text body
@@ -600,7 +610,7 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
   for (const { store, lines } of stores) {
     textLines.push(`── ${store.name} ──`);
     for (const it of lines) {
-      const name = it.productItem.product.name;
+      const name = it.productItem?.product.name ?? it.productNameSnapshot;
       textLines.push(`  ${it.quantity}× ${name}`);
       if (it.deliveredKey) textLines.push(`     License key: ${it.deliveredKey}`);
       if (it.deliveredUrl) textLines.push(`     Download: ${it.deliveredUrl}`);
@@ -627,7 +637,7 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
       `<div style="display: inline-block; background: #10b981; color: #ffffff; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
     );
     for (const it of lines) {
-      const name = escape(it.productItem.product.name);
+      const name = escape(it.productItem?.product.name ?? it.productNameSnapshot);
       storeCards.push(
         `<div style="margin: 10px 0; padding: 12px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">`,
         `<div style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 6px;">${it.quantity}&times; ${name}</div>`,
@@ -750,6 +760,7 @@ export async function cancelUserPendingOrders(userId: number): Promise<void> {
       });
       if (!fresh || fresh.status !== "pending") return;
       for (const item of fresh.items) {
+        if (item.productItemId == null) continue;
         const pi = await tx.productItem.findUnique({
           where: { productItemId: item.productItemId },
           select: { deliveryMethod: true },
@@ -785,10 +796,14 @@ export async function clearCartAfterPayment(userId: number, orderId: number): Pr
     select: { productItemId: true },
   });
   if (orderItems.length === 0) return;
+  const productItemIds = orderItems
+    .map((it) => it.productItemId)
+    .filter((id): id is number => id !== null);
+  if (productItemIds.length === 0) return;
   await prisma.cartItem.deleteMany({
     where: {
       cartId: active.cartId,
-      productItemId: { in: orderItems.map((it) => it.productItemId) },
+      productItemId: { in: productItemIds },
     },
   });
 }

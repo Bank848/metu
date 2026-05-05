@@ -31,6 +31,7 @@ vi.mock("../src/db/prisma.js", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
     // Phase 48 — adminCreateStore picks the first BusinessType row.
     businessType: { findFirst: vi.fn() },
@@ -228,7 +229,7 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
     });
   });
 
-  it("with reason → 'user.ban' audit, deletedAt + bannedAt + bannedReason + sessions dropped", async () => {
+  it("with reason → 'user.ban' audit, bannedAt + bannedReason + sessions dropped", async () => {
     // Phase 48 — last-admin guard runs first; mock target as buyer
     // and admin-count > 1 so the guard passes.
     (prisma.userStats.findUnique as any).mockResolvedValue({ role: "buyer" });
@@ -251,7 +252,6 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
       .send({ reason: "Racial slur in display name" });
     expect(res.status).toBe(200);
     const update = txUserUpdate.mock.calls[0][0];
-    expect(update.data.deletedAt).toBeInstanceOf(Date);
     expect(update.data.bannedAt).toBeInstanceOf(Date);
     expect(update.data.bannedReason).toBe("Racial slur in display name");
     expect(txSessionDeleteMany).toHaveBeenCalledWith({ where: { userId: 9 } });
@@ -265,31 +265,27 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
 });
 
 describe("GET /admin/stores", () => {
-  it("filters deletedAt:null + nested products count too", async () => {
+  it("returns the store list with product count", async () => {
     (prisma.store.findMany as any).mockResolvedValue([{ storeId: 11 }]);
     const res = await request(buildApp())
       .get("/admin/stores")
       .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
     const call = (prisma.store.findMany as any).mock.calls[0][0];
-    expect(call.where).toEqual({ deletedAt: null });
-    expect(call.include._count.select.products.where).toEqual({
-      deletedAt: null,
-    });
+    expect(call.include._count.select.products).toBe(true);
   });
 });
 
 describe("DELETE /admin/stores/:id", () => {
-  it("soft-deletes + writes 'store.delete' audit", async () => {
-    (prisma.store.update as any).mockResolvedValue({});
+  it("hard-deletes + writes 'store.delete' audit", async () => {
+    (prisma.store.delete as any).mockResolvedValue({});
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .delete("/admin/stores/11")
       .set("Cookie", await cookieFor(1, "admin"));
     expect(res.status).toBe(200);
-    expect(prisma.store.update).toHaveBeenCalledWith({
+    expect(prisma.store.delete).toHaveBeenCalledWith({
       where: { storeId: 11 },
-      data: { deletedAt: expect.any(Date) },
     });
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: "store.delete" }),

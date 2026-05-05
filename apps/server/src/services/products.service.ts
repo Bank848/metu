@@ -89,13 +89,11 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
   // and our cart guard rejects checkout against non-ready stores
   // with a clear error.
   const anyStoreReady = await prisma.store.count({
-    where: { stripeChargesEnabled: true, deletedAt: null, suspendedAt: null },
+    where: { stripeChargesEnabled: true, suspendedAt: null },
   });
   const where: Prisma.ProductWhereInput = {
     isActive: true,
-    deletedAt: null,
     store: {
-      deletedAt: null,
       suspendedAt: null,
       ...(anyStoreReady > 0 ? { stripeChargesEnabled: true } : {}),
     },
@@ -246,14 +244,12 @@ export async function findFeatured(limit = 8): Promise<ProductListItem[]> {
   // gate once at least one store is actually ready, otherwise show
   // the seed catalogue as-is.
   const anyStoreReady = await prisma.store.count({
-    where: { stripeChargesEnabled: true, deletedAt: null, suspendedAt: null },
+    where: { stripeChargesEnabled: true, suspendedAt: null },
   });
   return listProducts(
     {
       isActive: true,
-      deletedAt: null,
       store: {
-        deletedAt: null,
         suspendedAt: null,
         ...(anyStoreReady > 0 ? { stripeChargesEnabled: true } : {}),
       },
@@ -288,7 +284,6 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
           profileImage: true,
           coverImage: true,
           description: true,
-          deletedAt: true,
           suspendedAt: true,
           rating: true,
           businessType: true,
@@ -317,9 +312,7 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
   if (!product) return null;
   // findUnique can't filter on the nested store; check post-fetch.
   if (
-    product.deletedAt !== null ||
     !product.isActive ||
-    product.store.deletedAt !== null ||
     product.store.suspendedAt !== null
   ) {
     return null;

@@ -63,11 +63,8 @@ export function requireAuth(roles?: UserRole[]) {
         where: { userId: uid },
         include: { stats: true, store: true },
       });
-      // Soft-deleted OR banned users get treated as logged-out.
-      // `bannedAt` is checked separately from
-      // `deletedAt` so a future operator who clears `deletedAt`
-      // without clearing the ban still gets the kick-out.
-      if (!user || user.deletedAt || user.bannedAt) {
+      // Banned users get treated as logged-out.
+      if (!user || user.bannedAt) {
         throw new AppError(401, "Unauthorized");
       }
 
@@ -98,7 +95,7 @@ export function softAuth() {
         where: { userId: uid },
         include: { stats: true, store: true },
       });
-      if (user && !user.deletedAt && !user.bannedAt) {
+      if (user && !user.bannedAt) {
         const role = (user.stats?.role ?? "buyer") as UserRole;
         (req as any).auth = { uid, role } as TokenPayload;
         (req as any).user = user;

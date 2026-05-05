@@ -67,12 +67,10 @@ export async function loadPurchasableProductItem(
           name: true,
           isStackable: true,
           isActive: true,
-          deletedAt: true,
           storeId: true,
           store: {
             select: {
               ownerId: true,
-              deletedAt: true,
               suspendedAt: true,
               stripeChargesEnabled: true,
             },
@@ -86,18 +84,12 @@ export async function loadPurchasableProductItem(
   }
   // Public-catalogue gates — match `findProducts`'s `where` clause so a
   // line that wouldn't surface on /browse can't sneak through cart.
-  if (row.product.deletedAt) {
-    throw new AppError(409, "ProductUnavailable", "This product is no longer available.");
-  }
   if (!row.product.isActive) {
     throw new AppError(
       409,
       "ProductUnavailable",
       "This product is paused by the seller and can't be purchased right now.",
     );
-  }
-  if (row.product.store.deletedAt) {
-    throw new AppError(409, "StoreUnavailable", "This store is no longer available.");
   }
   if (row.product.store.suspendedAt) {
     throw new AppError(409, "StoreUnavailable", "This store is suspended and can't accept orders.");

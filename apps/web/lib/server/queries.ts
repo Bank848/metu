@@ -16,8 +16,8 @@ export async function getStats() {
   // Public counters: exclude soft-deletes; products gate on live store
   // too so /, /health, /admin all show the same number.
   const [sellers, products, orders, reviews] = await Promise.all([
-    prisma.store.count({ where: { deletedAt: null } }),
-    prisma.product.count({ where: { deletedAt: null, store: { deletedAt: null } } }),
+    prisma.store.count(),
+    prisma.product.count(),
     prisma.order.count(),
     prisma.productReview.count(),
   ]);
@@ -219,8 +219,12 @@ export async function getPendingReviewProducts(userId: number) {
     },
   });
 
-  const byId = new Map<number, (typeof orderItems)[number]["productItem"]["product"]>();
-  for (const oi of orderItems) byId.set(oi.productItem.product.productId, oi.productItem.product);
+  type ProductPayload = NonNullable<(typeof orderItems)[number]["productItem"]>["product"];
+  const byId = new Map<number, ProductPayload>();
+  for (const oi of orderItems) {
+    if (!oi.productItem) continue;
+    byId.set(oi.productItem.product.productId, oi.productItem.product);
+  }
   const productIds = [...byId.keys()];
   if (productIds.length === 0) return [];
 
@@ -371,8 +375,6 @@ export async function browseProducts(params: {
   // minRating branch: resolve qualifying ids via raw SQL, then page.
   const where: Prisma.ProductWhereInput = {
     isActive: true,
-    deletedAt: null,
-    store: { deletedAt: null },
   };
   if (params.category) where.categoryId = params.category;
   if (params.q) {
@@ -492,9 +494,8 @@ export async function getProduct(id: number) {
   const product = await prisma.product.findFirst({
     where: {
       productId: id,
-      deletedAt: null,
       isActive: true,
-      store: { deletedAt: null, suspendedAt: null },
+      store: { suspendedAt: null },
     },
     include: {
       store: {
@@ -511,8 +512,6 @@ export async function getProduct(id: number) {
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
       reviews: {
-        // Hide reviews from soft-deleted users (cascade moderation).
-        where: { user: { deletedAt: null } },
         orderBy: { createdAt: "desc" },
         take: 5,
         include: {
@@ -524,13 +523,13 @@ export async function getProduct(id: number) {
   });
   if (!product) return null;
   const aggregate = await prisma.productReview.aggregate({
-    where: { productId: id, user: { deletedAt: null } },
+    where: { productId: id },
     _count: { _all: true },
     _avg: { rating: true },
   });
-  const reviewCount = aggregate._count._all;
+  const reviewCount = aggregate._count?._all ?? 0;
   const avgRating =
-    aggregate._avg.rating !== null && aggregate._avg.rating !== undefined
+    aggregate._avg?.rating !== null && aggregate._avg?.rating !== undefined
       ? Number(aggregate._avg.rating)
       : undefined;
   return { ...product, avgRating, reviewCount };
@@ -679,15 +678,12 @@ export async function getRecentPurchaseCount(productId: number, days = 7): Promi
 // Admin store list. Direct Prisma to skip the same-host HTTP hop.
 export async function getAdminStores() {
   return prisma.store.findMany({
-    where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     include: {
       owner: { select: { username: true, firstName: true, lastName: true, profileImage: true } },
       businessType: true,
       _count: {
-        select: {
-          products: { where: { deletedAt: null } },
-        },
+        select: { products: true },
       },
     },
   });

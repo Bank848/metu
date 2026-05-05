@@ -224,29 +224,6 @@ describe("Phase 50 — POST /cart/items availability gate", () => {
     expect(res.body.error).toBe("ProductUnavailable");
   });
 
-  it("409 ProductUnavailable when the product is soft-deleted", async () => {
-    (prisma.productItem.findUnique as any).mockResolvedValue({
-      productItemId: 200,
-      deliveryMethod: "download",
-      quantity: 99,
-      product: {
-        productId: 50,
-        name: "Deleted product",
-        isStackable: true,
-        isActive: true,
-        deletedAt: new Date(),
-        storeId: 9,
-        store: { ownerId: 99, deletedAt: null, suspendedAt: null, stripeChargesEnabled: true },
-      },
-    });
-    const res = await request(buildApp())
-      .post("/cart/items")
-      .set("Cookie", await cookieFor(7))
-      .send({ productItemId: 200, quantity: 1 });
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe("ProductUnavailable");
-  });
-
   it("409 StoreUnavailable when the store is suspended", async () => {
     (prisma.productItem.findUnique as any).mockResolvedValue({
       productItemId: 200,
@@ -257,40 +234,10 @@ describe("Phase 50 — POST /cart/items availability gate", () => {
         name: "Product on suspended store",
         isStackable: true,
         isActive: true,
-        deletedAt: null,
         storeId: 9,
         store: {
           ownerId: 99,
-          deletedAt: null,
           suspendedAt: new Date(),
-          stripeChargesEnabled: true,
-        },
-      },
-    });
-    const res = await request(buildApp())
-      .post("/cart/items")
-      .set("Cookie", await cookieFor(7))
-      .send({ productItemId: 200, quantity: 1 });
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe("StoreUnavailable");
-  });
-
-  it("409 StoreUnavailable when the store is soft-deleted", async () => {
-    (prisma.productItem.findUnique as any).mockResolvedValue({
-      productItemId: 200,
-      deliveryMethod: "download",
-      quantity: 99,
-      product: {
-        productId: 50,
-        name: "Product on deleted store",
-        isStackable: true,
-        isActive: true,
-        deletedAt: null,
-        storeId: 9,
-        store: {
-          ownerId: 99,
-          deletedAt: new Date(),
-          suspendedAt: null,
           stripeChargesEnabled: true,
         },
       },

@@ -98,7 +98,7 @@ export default async function CheckoutPage({
           clientSecret={clientSecret}
           publishableKey={publishableKey}
           stripeAccount={
-            order.items[0]?.productItem.product.store.stripeAccountId ?? null
+            order.items[0]?.productItem?.product.store.stripeAccountId ?? null
           }
         />
       </main>

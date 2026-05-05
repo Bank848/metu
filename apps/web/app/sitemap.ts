@@ -50,10 +50,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       prisma.product.findMany({
         where: {
           isActive: true,
-          deletedAt: null,
           // match `getProduct`'s public gate so we don't
           // advertise products on suspended stores.
-          store: { deletedAt: null, suspendedAt: null },
+          store: { suspendedAt: null },
         },
         // Order by review count desc → most-engaged products first.
         orderBy: [{ reviews: { _count: "desc" } }, { createdAt: "desc" }],
@@ -61,7 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         select: { productId: true, createdAt: true },
       }),
       prisma.store.findMany({
-        where: { deletedAt: null, suspendedAt: null },
+        where: { suspendedAt: null },
         orderBy: { createdAt: "desc" },
         take: 200,
         select: { storeId: true, createdAt: true },

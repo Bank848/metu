@@ -29,7 +29,7 @@ export async function addFavorite(userId: number, productId: number): Promise<vo
   await ensureFavoritesEnabled();
   const exists = await prisma.product.findFirst({
     // Reject suspended stores too.
-    where: { productId, deletedAt: null, store: { deletedAt: null, suspendedAt: null } },
+    where: { productId, store: { suspendedAt: null } },
     select: { productId: true },
   });
   if (!exists) throw new AppError(404, "ProductNotFound");

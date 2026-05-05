@@ -13,7 +13,7 @@ import type {
  */
 export async function findStores(filters: ListStoreQuery): Promise<StoreListResponse> {
   return prisma.store.findMany({
-    where: { deletedAt: null, suspendedAt: null },
+    where: { suspendedAt: null },
     take: filters.limit,
     orderBy: { createdAt: "desc" },
     include: {
@@ -33,7 +33,7 @@ export async function findStoreById(
   const [store, products] = await Promise.all([
     prisma.store.findFirst({
       // Suspended stores are hidden from public surfaces.
-      where: { storeId, deletedAt: null, suspendedAt: null },
+      where: { storeId, suspendedAt: null },
       include: {
         owner: {
           select: {
@@ -49,7 +49,7 @@ export async function findStoreById(
     }),
     prisma.product.findMany({
       // Parent store already verified live above.
-      where: { storeId, isActive: true, deletedAt: null },
+      where: { storeId, isActive: true },
       orderBy: { productId: "desc" },
       include: {
         items: { select: { price: true, discountPercent: true } },

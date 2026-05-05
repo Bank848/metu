@@ -29,6 +29,7 @@ vi.mock("../src/db/prisma.js", () => ({
       count: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
     productItem: { findUnique: vi.fn(), update: vi.fn() },
     productReview: { findMany: vi.fn() },
@@ -131,7 +132,7 @@ describe("GET /seller/store", () => {
 });
 
 describe("GET /seller/products", () => {
-  it("lists live products only (deletedAt:null)", async () => {
+  it("lists products scoped to the seller's store", async () => {
     (prisma.product.findMany as any).mockResolvedValue([
       { productId: 100, name: "thing" },
     ]);
@@ -142,7 +143,7 @@ describe("GET /seller/products", () => {
     expect(res.body).toHaveLength(1);
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { storeId: 11, deletedAt: null },
+        where: { storeId: 11 },
       }),
     );
   });
@@ -357,7 +358,7 @@ describe("PATCH /seller/products/:id (pause toggle fast path)", () => {
   });
 });
 
-describe("DELETE /seller/products/:id (soft-delete + audit)", () => {
+describe("DELETE /seller/products/:id (hard-delete + audit)", () => {
   it("404 when product missing", async () => {
     (prisma.product.findUnique as any).mockResolvedValue(null);
     const res = await request(buildApp())
@@ -377,21 +378,20 @@ describe("DELETE /seller/products/:id (soft-delete + audit)", () => {
     expect(res.status).toBe(403);
   });
 
-  it("happy: soft-delete + audit row written", async () => {
+  it("happy: hard-delete + audit row written", async () => {
     (prisma.product.findUnique as any).mockResolvedValue({
       productId: 100,
       storeId: 11,
       name: "thing",
     });
-    (prisma.product.update as any).mockResolvedValue({});
+    (prisma.product.delete as any).mockResolvedValue({});
     (prisma.auditLog.create as any).mockResolvedValue({});
     const res = await request(buildApp())
       .delete("/seller/products/100")
       .set("Cookie", await cookieFor(7));
     expect(res.status).toBe(200);
-    expect(prisma.product.update).toHaveBeenCalledWith({
+    expect(prisma.product.delete).toHaveBeenCalledWith({
       where: { productId: 100 },
-      data: { deletedAt: expect.any(Date) },
     });
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({

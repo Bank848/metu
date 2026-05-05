@@ -58,11 +58,7 @@ export async function listUsers(q: UserListQuery) {
       include: {
         country: true,
         stats: true,
-        // Pull deletedAt so we can hide the store column for sellers
-        // whose store was soft-deleted from /admin/stores. Without
-        // this, the row kept showing the dead store's name even
-        // though /admin/stores itself dropped the row.
-        store: { select: { storeId: true, name: true, deletedAt: true } },
+        store: { select: { storeId: true, name: true } },
       },
     }),
     prisma.user.count({ where }),
@@ -73,10 +69,7 @@ export async function listUsers(q: UserListQuery) {
     // never needs it and accidental log-leak risk is real.
     items: items.map(({ password, store, ...u }) => ({
       ...u,
-      // null out store when it's been
-      // soft-deleted so /admin/users reflects the real "no active
-      // store" state instead of pointing at a tombstoned row.
-      store: store && !store.deletedAt
+      store: store
         ? { storeId: store.storeId, name: store.name }
         : null,
     })),
@@ -122,7 +115,7 @@ export async function updateUserRole(
     select: {
       username: true,
       stats: { select: { role: true } },
-      store: { select: { storeId: true, deletedAt: true } },
+      store: { select: { storeId: true } },
     },
   });
   if (!target) throw new AppError(404, "UserNotFound");
@@ -147,20 +140,10 @@ export async function updateUserRole(
         meta: { ownerId: targetUserId, byAdmin: actorUserId, defaulted: true },
         req,
       });
-    } else if (result.action === "restored") {
-      sideEffectMeta.restoredStoreId = result.storeId;
-      await audit({
-        actorId: actorUserId,
-        action: "store.restore",
-        targetType: "store",
-        targetId: result.storeId,
-        meta: { ownerId: targetUserId, byAdmin: actorUserId },
-        req,
-      });
     }
   }
 
-  if (input.role === "buyer" && target.store && !target.store.deletedAt) {
+  if (input.role === "buyer" && target.store) {
     sideEffectMeta.deletedStoreId = target.store.storeId;
     // Re-uses the existing soft-delete + audit row.
     await deleteStore(target.store.storeId, actorUserId, req);
@@ -221,7 +204,7 @@ export async function deleteUser(
   });
   if (targetStats?.role === "admin") {
     const liveAdmins = await prisma.userStats.count({
-      where: { role: "admin", user: { deletedAt: null } },
+      where: { role: "admin" },
     });
     if (liveAdmins <= 1) {
       throw new AppError(
@@ -232,13 +215,13 @@ export async function deleteUser(
     }
   }
 
-  // Ban path: soft-delete + drop sessions so the next request 401s.
+  // Ban path: drop sessions so the next request 401s.
   if (reason) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { userId: targetUserId },
-        data: { deletedAt: now, bannedAt: now, bannedReason: reason },
+        data: { bannedAt: now, bannedReason: reason },
       });
       await tx.session.deleteMany({ where: { userId: targetUserId } });
     });
@@ -277,7 +260,7 @@ export async function deleteUser(
     return;
   }
 
-  // Anonymise: blank PII, clear auth state, soft-delete the row,
+  // Anonymise: blank PII, clear auth state,
   // drop sessions + better-auth accounts so the user can't log back in.
   await prisma.$transaction(async (tx) => {
     await tx.user.update({
@@ -293,7 +276,6 @@ export async function deleteUser(
         password: null,
         totpSecret: null,
         totpEnabled: false,
-        deletedAt: new Date(),
         requirePasswordReset: false,
       },
     });
@@ -323,7 +305,7 @@ export async function unbanUser(
   }
   await prisma.user.update({
     where: { userId: targetUserId },
-    data: { bannedAt: null, bannedReason: null, deletedAt: null },
+    data: { bannedAt: null, bannedReason: null },
   });
   await audit({
     actorId: actorUserId,
@@ -342,7 +324,6 @@ export async function unbanUser(
  */
 export async function listStores() {
   return prisma.store.findMany({
-    where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
     include: {
       owner: {
@@ -355,17 +336,16 @@ export async function listStores() {
       },
       businessType: true,
       _count: {
-        select: { products: { where: { deletedAt: null } } },
+        select: { products: true },
       },
     },
   });
 }
 
-/** Soft-delete a store + audit row. Order/review history stays valid. */
+/** Hard-delete a store + audit row. Order/review history stays valid via OrderItem snapshots. */
 export async function deleteStore(storeId: number, actorUserId: number, req?: AuditReq) {
-  await prisma.store.update({
+  await prisma.store.delete({
     where: { storeId },
-    data: { deletedAt: new Date() },
   });
   await audit({
     actorId: actorUserId,
@@ -412,9 +392,6 @@ export async function setStoreSuspended(
  * original concurrency.
  *
  * Indexes used:
- *   - users(deleted_at) partial idx
- *   - store(deleted_at) partial idx
- *   - product(deleted_at, store_id) composite
  *   - orders(status) — covers pending-count + gmv FILTER
  */
 export async function getStats(): Promise<AdminStatsResponse> {
@@ -430,12 +407,11 @@ export async function getStats(): Promise<AdminStatsResponse> {
   const [counts, recentTransactions, daily] = await Promise.all([
     prisma.$queryRaw<CountsRow[]>`
       SELECT
-        (SELECT COUNT(*) FROM "users" WHERE deleted_at IS NULL)                    AS users,
-        (SELECT COUNT(*) FROM "store" WHERE deleted_at IS NULL)                    AS stores,
+        (SELECT COUNT(*) FROM "users")                                             AS users,
+        (SELECT COUNT(*) FROM "store")                                             AS stores,
         (SELECT COUNT(*)
            FROM "product" p
-           JOIN "store"   s ON s.store_id = p.store_id
-          WHERE p.deleted_at IS NULL AND s.deleted_at IS NULL)                     AS products,
+           JOIN "store"   s ON s.store_id = p.store_id)                            AS products,
         (SELECT COUNT(*) FROM "product_review")                                    AS reviews,
         (SELECT COUNT(*) FROM "orders")                                            AS orders,
         (SELECT COUNT(*) FROM "orders" WHERE status = 'pending')                   AS pending_orders,
@@ -518,7 +494,7 @@ export async function getDashboardMetrics() {
       active_7d: bigint;
     }>>`
       SELECT
-        (SELECT COUNT(*) FROM "users" WHERE deleted_at IS NULL)                                    AS total_users,
+        (SELECT COUNT(*) FROM "users")                                                             AS total_users,
         (SELECT COUNT(*) FROM "user_stats" WHERE role = 'buyer')                                  AS buyers,
         (SELECT COUNT(*) FROM "user_stats" WHERE role = 'seller')                                 AS sellers,
         (SELECT COUNT(*) FROM "user_stats" WHERE role = 'admin')                                  AS admins,
@@ -536,7 +512,6 @@ export async function getDashboardMetrics() {
       LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
       LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
       LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
-      WHERE s.deleted_at IS NULL
       GROUP BY s.store_id, s.name, s.rating
       ORDER BY revenue::numeric DESC
       LIMIT 5
@@ -552,7 +527,6 @@ export async function getDashboardMetrics() {
       LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
       LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
       LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
-      WHERE p.deleted_at IS NULL
       GROUP BY p.product_id, p.name
       ORDER BY revenue::numeric DESC
       LIMIT 5
@@ -568,7 +542,7 @@ export async function getDashboardMetrics() {
         END                  AS bucket,
         COUNT(*)::bigint     AS buyers
       FROM "users"
-      WHERE date_of_birth IS NOT NULL AND deleted_at IS NULL
+      WHERE date_of_birth IS NOT NULL
       GROUP BY bucket
       ORDER BY bucket
     `,
@@ -580,7 +554,7 @@ export async function getDashboardMetrics() {
         COUNT(DISTINCT p.product_id)::bigint                                AS product_count,
         COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text             AS revenue
       FROM "category" c
-      LEFT JOIN "product"      p  ON p.category_id     = c.category_id AND p.deleted_at IS NULL
+      LEFT JOIN "product"      p  ON p.category_id     = c.category_id
       LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
       LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
       LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
@@ -754,7 +728,7 @@ export async function refundTransaction(
       where: { orderId: o.orderId },
       select: { productItem: { select: { product: { select: { store: { select: { stripeAccountId: true } } } } } } },
     });
-    const acct = lineWithStore?.productItem.product.store.stripeAccountId;
+    const acct = lineWithStore?.productItem?.product.store.stripeAccountId;
     if (!acct) continue;
     try {
       const refund = await stripeRefund(o.stripePaymentIntentId, acct);
@@ -902,8 +876,6 @@ JOIN product p       ON p.product_id = pi.product_id
 JOIN store s         ON s.store_id = p.store_id
 JOIN category c      ON c.category_id = p.category_id
 WHERE o.status IN ('paid','fulfilled')
-  AND p.deleted_at IS NULL
-  AND s.deleted_at IS NULL
 GROUP BY c.category_id, c.category_name
 ORDER BY revenue DESC`;
       const rows = await prisma.$queryRaw<
@@ -924,8 +896,6 @@ ORDER BY revenue DESC`;
         JOIN store s         ON s.store_id = p.store_id
         JOIN category c      ON c.category_id = p.category_id
         WHERE o.status IN ('paid','fulfilled')
-          AND p.deleted_at IS NULL
-          AND s.deleted_at IS NULL
         GROUP BY c.category_id, c.category_name
         ORDER BY revenue DESC
       `;
@@ -948,7 +918,6 @@ LEFT JOIN product p       ON p.store_id = s.store_id
 LEFT JOIN product_item pi ON pi.product_id = p.product_id
 LEFT JOIN order_item oi   ON oi.product_item_id = pi.product_item_id
 LEFT JOIN orders o        ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
-WHERE s.deleted_at IS NULL
 GROUP BY s.store_id, s.name
 ORDER BY revenue DESC
 LIMIT 10`;
@@ -963,7 +932,6 @@ LIMIT 10`;
         LEFT JOIN product_item pi ON pi.product_id = p.product_id
         LEFT JOIN order_item oi   ON oi.product_item_id = pi.product_item_id
         LEFT JOIN orders o        ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
-        WHERE s.deleted_at IS NULL
         GROUP BY s.store_id, s.name
         ORDER BY revenue DESC
         LIMIT 10

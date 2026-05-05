@@ -86,7 +86,7 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
       carts: { where: { status: "active" }, take: 1, select: { cartId: true } },
     },
   });
-  if (!user || user.deletedAt) {
+  if (!user) {
     throw new AppError(401, "InvalidCredentials");
   }
   // Google-only users have a NULL password; same response as wrong password.
@@ -280,7 +280,7 @@ export async function resendEmailVerify(
   email: string,
 ): Promise<{ demo?: { emailToken: string } }> {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || user.deletedAt || user.emailVerified) return {};
+  if (!user || user.emailVerified) return {};
   const raw = await issueEmailVerifyToken(user.userId);
   await sendEmailVerifyMessage(user.email, user.firstName, raw);
   return DEMO_REVEAL_TOKENS
@@ -298,7 +298,7 @@ export async function verifyPhoneRegister(email: string, code: string): Promise<
   // Distinct errors (UserNotFound vs NoPendingOtp vs OtpExpired) leak
   // whether an email is registered + whether they recently signed up.
   const GENERIC = new AppError(401, "InvalidCode", "OTP didn't match. Request a new one if needed.");
-  if (!user || user.deletedAt) throw GENERIC;
+  if (!user) throw GENERIC;
   if (user.phoneVerifiedAt) return; // already verified
   if (!user.phoneOtpHash || !user.phoneOtpExpiresAt) throw GENERIC;
   if (user.phoneOtpExpiresAt < new Date()) {
@@ -581,7 +581,7 @@ export async function resendPhoneOtp(
   email: string,
 ): Promise<{ demo?: { otp: string } }> {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || user.deletedAt || user.phoneVerifiedAt) return {};
+  if (!user || user.phoneVerifiedAt) return {};
   if (!user.phone) return {};
   // cooldown: if the existing OTP still has >8 min left
   // (issued <2 min ago), don't re-issue. Prevents SMS/email spam.
@@ -598,13 +598,13 @@ export async function resendPhoneOtp(
   return DEMO_REVEAL_TOKENS ? { demo: { otp } } : {};
 }
 
-// GET /auth/me. Returns null for missing or soft-deleted users.
+// GET /auth/me. Returns null for missing users.
 export async function getById(userId: number): Promise<SafeUser | null> {
   const user = await prisma.user.findUnique({
     where: { userId },
     include: { stats: true, store: true },
   });
-  if (!user || user.deletedAt) return null;
+  if (!user) return null;
   return sanitize(user);
 }
 
@@ -998,7 +998,7 @@ function logPhoneOtp(phone: string, code: string): void {
  */
 export async function forgotPassword(input: ForgotPasswordInput): Promise<void> {
   const user = await prisma.user.findUnique({ where: { email: input.email } });
-  if (!user || user.deletedAt) return;
+  if (!user) return;
 
   const raw = crypto.randomBytes(32).toString("base64url");
   const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
@@ -1314,7 +1314,7 @@ export async function selfDelete(
   });
   if (stats?.role === "admin") {
     const liveAdmins = await prisma.userStats.count({
-      where: { role: "admin", user: { deletedAt: null } },
+      where: { role: "admin" },
     });
     if (liveAdmins <= 1) {
       throw new AppError(
@@ -1377,7 +1377,6 @@ export async function selfDelete(
         password: null,
         totpSecret: null,
         totpEnabled: false,
-        deletedAt: new Date(),
         requirePasswordReset: false,
       },
     });

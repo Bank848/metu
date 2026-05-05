@@ -168,6 +168,7 @@ async function onPaymentIntentFailed(event: Stripe.Event) {
     });
     if (!order || order.status !== "pending") return;
     for (const item of order.items) {
+      if (item.productItemId == null) continue;
       const pIt = await tx.productItem.findUnique({
         where: { productItemId: item.productItemId },
         select: { deliveryMethod: true },

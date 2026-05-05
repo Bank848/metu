@@ -12,8 +12,8 @@ export async function GET() {
   // run #2 / F14 — products count now also gates on live store
   // (matches `/admin/stores` summation so all four surfaces agree).
   const [sellers, products, orders, reviews] = await Promise.all([
-    prisma.store.count({ where: { deletedAt: null } }),
-    prisma.product.count({ where: { deletedAt: null, store: { deletedAt: null } } }),
+    prisma.store.count(),
+    prisma.product.count(),
     prisma.order.count(),
     prisma.productReview.count(),
   ]);

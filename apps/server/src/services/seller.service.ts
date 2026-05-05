@@ -31,13 +31,12 @@ export async function getStore(storeId: number) {
 }
 
 /**
- * List the seller's live products (deletedAt:null) — soft-deleted
- * rows stay out of the dashboard. Admin /admin/audit can still see
- * them via the audit log.
+ * List the seller's products. Hard-delete removes them from this list
+ * automatically — there is no soft-delete column anymore.
  */
 export async function listProducts(storeId: number) {
   return prisma.product.findMany({
-    where: { storeId, deletedAt: null },
+    where: { storeId },
     orderBy: { productId: "desc" },
     include: {
       category: true,
@@ -81,7 +80,7 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
       where: { storeId },
       include: { businessType: true },
     }),
-    prisma.product.count({ where: { storeId, deletedAt: null } }),
+    prisma.product.count({ where: { storeId } }),
     prisma.productReview.findMany({
       where: { product: { storeId } },
       orderBy: { createdAt: "desc" },
@@ -260,6 +259,9 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
   for (const o of orders) {
     for (const li of o.items) {
       // Skip lines belonging to OTHER stores — order may be multi-store.
+      // When productItem is null (product hard-deleted), the line is
+      // not ours to export; skip too.
+      if (!li.productItem) continue;
       if (li.productItem.product.storeId !== storeId) continue;
       const subtotal = Number(li.pricePerUnit) * li.quantity;
       const cells = [
@@ -325,20 +327,11 @@ function escapeCsv(value: unknown): string {
 export async function adminCreateStore(userId: number, username: string) {
   const existing = await prisma.store.findUnique({
     where: { ownerId: userId },
-    select: { storeId: true, deletedAt: true },
+    select: { storeId: true },
   });
 
-  if (existing && !existing.deletedAt) {
+  if (existing) {
     return { storeId: existing.storeId, action: "noop" as const };
-  }
-
-  if (existing && existing.deletedAt) {
-    // Restore the soft-deleted store — same row, same id, same products.
-    await prisma.store.update({
-      where: { storeId: existing.storeId },
-      data: { deletedAt: null },
-    });
-    return { storeId: existing.storeId, action: "restored" as const };
   }
 
   // Brand new store — pick defaults.
@@ -609,9 +602,9 @@ export async function updateProduct(
 }
 
 /**
- * DELETE /seller/products/:id — soft-delete (sets deletedAt). Order
- * history + reviews + favourites stay valid; public queries filter
- * by `deletedAt: null` so the product disappears immediately.
+ * DELETE /seller/products/:id — hard-delete the product. OrderItem
+ * rows survive via SetNull on productItemId + the snapshot fields
+ * (productNameSnapshot/productImageSnapshot) so receipts stay valid.
  * Writes a `product.delete` AuditLog row with the pre-delete name
  * snapshot so the audit feed reads cleanly.
  */
@@ -621,9 +614,8 @@ export async function deleteProduct(
   actorId: number,
   productName: string,
 ) {
-  await prisma.product.update({
+  await prisma.product.delete({
     where: { productId },
-    data: { deletedAt: new Date() },
   });
   await audit({
     actorId,
@@ -642,7 +634,7 @@ export async function deleteProduct(
  */
 export async function duplicateProduct(sourceId: number, storeId: number) {
   const source = await prisma.product.findFirst({
-    where: { productId: sourceId, deletedAt: null },
+    where: { productId: sourceId },
     include: {
       items: true,
       images: { orderBy: { sortOrder: "asc" } },
@@ -773,7 +765,7 @@ export async function updateOrderStatus(
   if (!order) throw new AppError(404, "NotFound");
 
   const hasOwnedItem = order.items.some(
-    (it) => it.productItem.product.storeId === storeId,
+    (it) => it.productItem?.product.storeId === storeId,
   );
   if (!hasOwnedItem) throw new AppError(403, "Forbidden");
 
@@ -826,7 +818,7 @@ export async function refundOrder(
   if (!order) throw new AppError(404, "NotFound");
 
   const hasOwnedItem = order.items.some(
-    (it) => it.productItem.product.storeId === storeId,
+    (it) => it.productItem?.product.storeId === storeId,
   );
   if (!hasOwnedItem) throw new AppError(403, "Forbidden");
 

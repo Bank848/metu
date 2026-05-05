@@ -37,9 +37,9 @@ async function getCounts() {
     // run #2 / F14 — products count now also gates on live
     // store so /health matches /admin overview + /admin/stores.
     const [users, stores, products, orders] = await Promise.all([
-      prisma.user.count({ where: { deletedAt: null } }),
-      prisma.store.count({ where: { deletedAt: null } }),
-      prisma.product.count({ where: { deletedAt: null, store: { deletedAt: null } } }),
+      prisma.user.count(),
+      prisma.store.count(),
+      prisma.product.count(),
       prisma.order.count(),
     ]);
     return { users, stores, products, orders };

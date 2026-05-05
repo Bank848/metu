@@ -61,12 +61,12 @@ export default async function CouponReportPage({ params }: { params: { id: strin
         orderId: li.orderId,
         createdAt: li.order.createdAt,
         buyer: li.order.user,
-        items: [{ name: li.productItem.product.name, quantity: li.quantity, subtotal }],
+        items: [{ name: li.productItem?.product.name ?? li.productNameSnapshot, quantity: li.quantity, subtotal }],
         grossSubtotal: subtotal,
         discount: computeDiscount(subtotal, coupon.discountType, coupon.discountValue),
       });
     } else {
-      r.items.push({ name: li.productItem.product.name, quantity: li.quantity, subtotal });
+      r.items.push({ name: li.productItem?.product.name ?? li.productNameSnapshot, quantity: li.quantity, subtotal });
       r.grossSubtotal += subtotal;
       r.discount += computeDiscount(subtotal, coupon.discountType, coupon.discountValue);
     }

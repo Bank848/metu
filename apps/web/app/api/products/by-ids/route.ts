@@ -26,13 +26,11 @@ export async function GET(req: NextRequest) {
   if (ids.length === 0) return NextResponse.json({ items: [] });
 
   const products = await prisma.product.findMany({
-    // Hide products the seller paused/deleted, or whose store was deleted —
-    // a user's recently-viewed history shouldn't surface ghosts.
+    // Hide products the seller paused — a user's recently-viewed history
+    // shouldn't surface ghosts. Hard-deleted products are gone naturally.
     where: {
       productId: { in: ids },
       isActive: true,
-      deletedAt: null,
-      store: { deletedAt: null },
     },
     include: {
       store: { select: { name: true, storeId: true } },

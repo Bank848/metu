@@ -20,7 +20,7 @@ export default async function EditProductPage({ params }: { params: { id: string
   // Direct Prisma read + ownership check — same pattern as the admin routes.
   // Soft-deleted products vanish from the seller's edit screen too.
   const product = await prisma.product.findFirst({
-    where: { productId, deletedAt: null },
+    where: { productId },
     include: {
       items: { orderBy: { productItemId: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },

@@ -187,24 +187,9 @@ describe("DELETE /auth/me — self-delete guards", () => {
 });
 
 describe("requireAuth — kicked-out states", () => {
-  it("401 when the session resolves but the user is soft-deleted", async () => {
+  it("401 when the user is banned", async () => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
-      deletedAt: new Date(),
-      bannedAt: null,
-      stats: { role: "buyer" },
-      store: null,
-    });
-    const res = await request(buildApp())
-      .get("/auth/me")
-      .set("Cookie", await cookieFor(7));
-    expect(res.status).toBe(401);
-  });
-
-  it("401 when the user is banned (separate from deletedAt)", async () => {
-    (prisma.user.findUnique as any).mockResolvedValue({
-      userId: 7,
-      deletedAt: null,
       bannedAt: new Date(),
       stats: { role: "buyer" },
       store: null,

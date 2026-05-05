@@ -44,12 +44,8 @@ export default async function AdminStores() {
   // sold anything yet, both of which dragged the row down to 2.1★ on
   // /admin/stores. The KPI now restricts the population to active
   // stores that actually have products listed.
-  // run #2 / F1 (CEO Decision 2) — the helper already filters
-  // out soft-deleted stores so the table + subtitle naturally read 4
-  // (matching `/`, `/health`, `/admin`). The defensive `!s.deletedAt`
-  // guard stays so a future change to the helper never re-introduces
-  // ghost rows in the KPI averages.
-  const liveStores = stores.filter((s) => !s.deletedAt);
+  // Stores are hard-deleted now — every row in the list is live.
+  const liveStores = stores;
   const totalProducts = liveStores.reduce((sum, s) => sum + s._count.products, 0);
   const ratedStores = liveStores.filter(
     (s) => s._count.products > 0 && s.rating > 0,

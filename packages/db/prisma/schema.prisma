@@ -104,11 +104,8 @@ model User {
   // Required by better-auth's adapter on every model.
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  // Soft-delete: hides user from public surfaces, keeps order/review FKs intact.
-  deletedAt DateTime? @map("deleted_at")
-
-  // Moderation metadata. NULL for active users + self-deletes;
-  // populated only by admin-driven removals (profanity, fraud, abuse).
+  // Moderation metadata. NULL for active users; populated by admin-driven
+  // bans (profanity, fraud, abuse). Hard-delete removes the row entirely.
   bannedAt     DateTime? @map("banned_at")
   bannedReason String?   @map("banned_reason") @db.VarChar(120)
 
@@ -137,7 +134,6 @@ model User {
 
   @@index([countryId])
   @@index([createdDate])
-  @@index([deletedAt])
   @@index([bannedAt])
   @@map("users")
 }
@@ -178,8 +174,6 @@ model Store {
   profileImage         String?   @map("profile_image") @db.Text
   coverImage           String?   @map("cover_image") @db.Text
   createdAt            DateTime  @default(now()) @map("created_at")
-  // Soft-delete: hides from public surfaces, keeps history intact.
-  deletedAt            DateTime? @map("deleted_at")
   // Suspended: hidden from buyers, still visible to the seller. Reversible.
   suspendedAt          DateTime? @map("suspended_at")
   /// Stripe Connect Express account. NULL = not onboarded yet.
@@ -201,7 +195,6 @@ model Store {
 
   @@index([businessTypeId])
   @@index([createdAt])
-  @@index([deletedAt])
   @@map("store")
 }
 
@@ -246,8 +239,6 @@ model Product {
   // each line at quantity=1 (e.g. one-off pitch decks, single-seat
   // license keys). True for assets a buyer can buy multiple copies of.
   isStackable    Boolean        @default(true) @map("is_stackable")
-  // Soft-delete: hidden everywhere except order history / reviews / favourites.
-  deletedAt      DateTime?      @map("deleted_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   // Owned by the product_touch_updated_at trigger; no @updatedAt
@@ -266,7 +257,6 @@ model Product {
   @@index([storeId])
   @@index([categoryId])
   @@index([isActive])
-  @@index([deletedAt])
   @@map("product")
 }
 
@@ -469,26 +459,28 @@ model Order {
 model OrderItem {
   orderItemId   Int     @id @default(autoincrement()) @map("order_item_id")
   orderId       Int     @map("order_id")
-  productItemId Int     @map("product_item_id")
+  // Nullable + SetNull so a hard-deleted product / store / user doesn't
+  // cascade-delete buyer order history. The snapshot fields below carry
+  // enough detail to render the receipt even after the FK is null.
+  productItemId Int?    @map("product_item_id")
   couponId      Int?    @map("coupon_id")
   quantity      Int
-  // Phase 45 — renamed price_at_purchase → price_per_unit + widened
-  // to (12,2) per the docx report. The semantic stays "the unit price
-  // we charged on this line at checkout time".
+  // Snapshot of what we charged at checkout time.
   pricePerUnit  Decimal @map("price_per_unit") @db.Decimal(12, 2)
+  // Snapshot of the product so the receipt survives later product/store
+  // deletion. Filled at order-create time; never updated.
+  productNameSnapshot  String  @default("(deleted product)") @map("product_name_snapshot")  @db.VarChar(120)
+  productImageSnapshot String? @map("product_image_snapshot") @db.Text
 
-  // Phase 33 — snapshot of what was delivered to THIS buyer when the
-  // payment_intent.succeeded webhook fired. Snapshotted (not joined
-  // live) so a seller editing product_item.delivery_url later doesn't
-  // change what an existing buyer sees on /orders/[id]. Null until
+  // Snapshot of what was delivered when the webhook fired. Null until
   // finalizeOrder() runs.
   deliveredUrl    String?   @map("delivered_url") @db.Text
   deliveredKey    String?   @map("delivered_key") @db.VarChar(80)
   deliveredAt     DateTime? @map("delivered_at")
 
-  order       Order       @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
-  productItem ProductItem @relation(fields: [productItemId], references: [productItemId])
-  coupon      Coupon?     @relation(fields: [couponId], references: [couponId])
+  order       Order        @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+  productItem ProductItem? @relation(fields: [productItemId], references: [productItemId], onDelete: SetNull)
+  coupon      Coupon?      @relation(fields: [couponId], references: [couponId], onDelete: SetNull)
 
   @@index([orderId])
   @@index([productItemId])
