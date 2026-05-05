@@ -1,25 +1,20 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Layers, RotateCcw, GitBranch, Shield, Database, Code2 } from "lucide-react";
+import { LayoutDashboard, Users, Store, ShieldCheck, Settings, RotateCcw, Database, Code2, Tag, Ticket } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { href: "/admin",              label: "Overview",   icon: LayoutDashboard },
-  { href: "/admin/users",        label: "Users",      icon: Users },
-  { href: "/admin/stores",       label: "Stores",     icon: Store },
-  { href: "/admin/reports",      label: "Reports",    icon: FileBarChart },
-  { href: "/admin/audit",        label: "Audit log",  icon: History },
-  { href: "/admin/refunds",      label: "Refunds",    icon: RotateCcw },
-  { href: "/admin/security",     label: "Security",   icon: Shield },
-  { href: "/admin/settings",     label: "Settings",   icon: Settings },
-  { href: "/admin/er-diagram",   label: "ER Diagram", icon: Network },
-  { href: "/admin/database",     label: "Database",   icon: Database },
-  { href: "/admin/queries",      label: "Queries",    icon: Code2 },
-  { href: "/admin/tech-stack",   label: "Tech Stack", icon: Layers },
-  { href: "/admin/timeline",     label: "Timeline",   icon: GitBranch },
-  { href: "/admin/changelog",    label: "What's new", icon: Sparkles },
+  { href: "/admin",          label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/users",    label: "Users",    icon: Users },
+  { href: "/admin/stores",   label: "Stores",   icon: Store },
+  { href: "/admin/coupons",  label: "Coupons",  icon: Ticket },
+  { href: "/admin/tags",     label: "Tags",     icon: Tag },
+  { href: "/admin/refunds",  label: "Refunds",  icon: RotateCcw },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin/database", label: "Database", icon: Database },
+  { href: "/admin/queries",  label: "Queries",  icon: Code2 },
 ];
 
 export function AdminSidebar() {
