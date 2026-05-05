@@ -24,6 +24,9 @@ router.post("/stores/:id/suspend",    ctrl.setStoreSuspended);
 router.get("/stats",                  ctrl.getStats);
 router.get("/dashboard",              ctrl.getDashboard);
 
+// Master coupons (platform-wide).
+router.post("/coupons",               ctrl.createMasterCoupon);
+
 // Transactions
 router.delete("/transactions/:id",    ctrl.deleteTransaction);
 router.post("/transactions/:id/refund", ctrl.refundTransaction);

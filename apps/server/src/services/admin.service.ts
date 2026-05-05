@@ -651,6 +651,47 @@ export async function getDashboardMetrics() {
   };
 }
 
+// Master coupon = platform-wide (storeId = null). Admin-only create.
+export async function createMasterCoupon(input: {
+  code: string;
+  discountType: "percent" | "fixed";
+  discountValue: number;
+  startDate: string;
+  endDate: string;
+  usageLimit: number;
+}, actorId: number, req?: AuditReq) {
+  const code = input.code.trim().toUpperCase();
+  if (!code) throw new AppError(400, "BadCode", "Code is required.");
+  // Master-coupon code uniqueness via partial unique index. We also
+  // pre-check to give a friendly 409 instead of P2002.
+  const dup = await prisma.coupon.findFirst({
+    where: { code, storeId: null },
+    select: { couponId: true },
+  });
+  if (dup) throw new AppError(409, "CodeTaken", "A master coupon with that code already exists.");
+  const created = await prisma.coupon.create({
+    data: {
+      storeId: null,
+      code,
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+      startDate: new Date(input.startDate),
+      endDate: new Date(input.endDate),
+      usageLimit: input.usageLimit,
+      isActive: true,
+    },
+  });
+  await audit({
+    actorId,
+    action: "coupon.master_create",
+    targetType: "coupon",
+    targetId: created.couponId,
+    meta: { code, discountType: input.discountType, discountValue: input.discountValue },
+    req,
+  });
+  return created;
+}
+
 // =============================================================================
 //  TRANSACTIONS
 // =============================================================================

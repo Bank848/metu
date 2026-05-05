@@ -118,6 +118,34 @@ export const getDashboard: RequestHandler = async (_req, res, next) => {
   }
 };
 
+export const createMasterCoupon: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const body = req.body ?? {};
+    const code = String(body.code ?? "").trim();
+    const discountType = body.discountType === "percent" || body.discountType === "fixed"
+      ? body.discountType
+      : null;
+    const discountValue = Number(body.discountValue);
+    const startDate = String(body.startDate ?? "");
+    const endDate = String(body.endDate ?? "");
+    const usageLimit = Number(body.usageLimit);
+    if (!code || !discountType || !Number.isFinite(discountValue) || discountValue <= 0
+        || !startDate || !endDate || !Number.isFinite(usageLimit) || usageLimit < 1) {
+      throw new AppError(400, "InvalidCouponInput", "All coupon fields are required.");
+    }
+    if (discountType === "percent" && (discountValue < 1 || discountValue > 100)) {
+      throw new AppError(400, "InvalidPercent", "Percent discount must be 1-100.");
+    }
+    const created = await service.createMasterCoupon({
+      code, discountType, discountValue, startDate, endDate, usageLimit,
+    }, auth.uid, req);
+    res.json({ ok: true, couponId: created.couponId });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── Transactions ────────────────────────────────────────────────────
 
 export const deleteTransaction: RequestHandler<{ id: string }> = async (req, res, next) => {
