@@ -39,6 +39,14 @@ router.post(
   forgotPasswordLimiter,
   ctrl.verifyPhoneFirebaseByEmail,
 );
+// Server-side throttle the client hits BEFORE asking Firebase to send
+// an SMS. Per-IP cap via forgotPasswordLimiter, per-user + per-phone
+// cooldowns inside the service.
+router.post(
+  "/request-firebase-sms",
+  forgotPasswordLimiter,
+  ctrl.requestFirebaseSms,
+);
 
 // Authed.
 router.get("/me",                 requireAuth(), ctrl.me);

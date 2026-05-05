@@ -345,6 +345,115 @@ export async function verifyPhoneRegister(email: string, code: string): Promise<
 }
 
 /**
+ * Server-side gate that the client must call BEFORE asking Firebase to
+ * send an SMS. Firebase Phone Auth fires SMS client-direct (browser →
+ * Firebase Auth servers), so without this gate an attacker who clears
+ * localStorage / opens incognito / scripts the Firebase SDK can burn our
+ * Blaze billing at $0.01 per text. We enforce three orthogonal limits
+ * against the audit log:
+ *
+ *   - per-user 5-minute cooldown (one buyer can't loop the same email)
+ *   - per-user 5/hour cap (then forced 1-hour timeout)
+ *   - per-phone 2-minute cross-account cooldown (anti-bombing — one
+ *     phone number can't receive SMS triggered by 50 different fake
+ *     emails in a row)
+ *
+ * Returns OK or throws 429 with retryAfterSec in the message.
+ */
+const SMS_COOLDOWN_MS = 5 * 60_000;
+const SMS_HOURLY_CAP = 5;
+const SMS_HOURLY_WINDOW_MS = 60 * 60_000;
+const SMS_HOURLY_LOCKOUT_MS = 60 * 60_000;
+const SMS_PHONE_COOLDOWN_MS = 2 * 60_000;
+
+export async function gateFirebaseSmsRequest(email: string): Promise<{ ok: true }> {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { userId: true, phone: true, phoneVerifiedAt: true },
+  });
+  if (!user) {
+    // Quiet refusal — don't leak whether the email is registered. Pretend
+    // the rate-limit hit so a probe can't enumerate accounts.
+    throw new AppError(429, "RateLimited", "Wait a few minutes before requesting another code.");
+  }
+  // Already verified — no SMS needed at all.
+  if (user.phoneVerifiedAt) {
+    throw new AppError(400, "AlreadyVerified", "This phone is already verified.");
+  }
+
+  const now = Date.now();
+  // Per-user attempts in the last hour.
+  const userRecent = await prisma.auditLog.findMany({
+    where: {
+      action: "phone.firebase_sms.requested",
+      targetType: "user",
+      targetId: user.userId,
+      createdAt: { gte: new Date(now - SMS_HOURLY_WINDOW_MS) },
+    },
+    select: { createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // 5/hour cap → 1-hour lockout from the OLDEST attempt in window.
+  if (userRecent.length >= SMS_HOURLY_CAP) {
+    const oldest = userRecent[userRecent.length - 1].createdAt.getTime();
+    const retryAt = oldest + SMS_HOURLY_LOCKOUT_MS;
+    const retryAfterSec = Math.max(1, Math.ceil((retryAt - now) / 1000));
+    throw new AppError(
+      429,
+      "RateLimited",
+      `Too many SMS requests. Try again in ${Math.ceil(retryAfterSec / 60)} minutes.`,
+    );
+  }
+
+  // 5-minute cooldown between consecutive sends.
+  if (userRecent.length > 0) {
+    const lastAt = userRecent[0].createdAt.getTime();
+    const allowedAt = lastAt + SMS_COOLDOWN_MS;
+    if (now < allowedAt) {
+      const retryAfterSec = Math.max(1, Math.ceil((allowedAt - now) / 1000));
+      throw new AppError(
+        429,
+        "RateLimited",
+        `Wait ${retryAfterSec >= 60 ? `${Math.ceil(retryAfterSec / 60)} min` : `${retryAfterSec}s`} before requesting another code.`,
+      );
+    }
+  }
+
+  // Cross-account phone cooldown — block the same phone from being
+  // bombed via re-registration loops. We look at audit metadata for
+  // `phone` and refuse if any account texted this number recently.
+  if (user.phone) {
+    const phoneRecent = await prisma.auditLog.findFirst({
+      where: {
+        action: "phone.firebase_sms.requested",
+        meta: { path: ["phone"], equals: user.phone },
+        createdAt: { gte: new Date(now - SMS_PHONE_COOLDOWN_MS) },
+      },
+      select: { logId: true, targetId: true },
+    });
+    if (phoneRecent && phoneRecent.targetId !== user.userId) {
+      throw new AppError(
+        429,
+        "RateLimited",
+        "This phone number was just texted from another account. Wait a couple of minutes.",
+      );
+    }
+  }
+
+  // Pass — record the attempt so subsequent calls see this one.
+  await audit({
+    actorId: user.userId,
+    action: "phone.firebase_sms.requested",
+    targetType: "user",
+    targetId: user.userId,
+    meta: user.phone ? { phone: user.phone } : null,
+  });
+
+  return { ok: true };
+}
+
+/**
  * Same Firebase phone verify but lookups by email so the post-register
  * page can call it before a session exists. Anti-abuse: Firebase token
  * proves SMS delivery, the email lookup proves which account.

@@ -580,6 +580,23 @@ export const verifyPhoneFirebaseByEmail: RequestHandler = async (req, res, next)
   }
 };
 
+// Server-side gate the client must pass BEFORE asking Firebase to send
+// an SMS. Firebase Phone Auth bypasses our backend (browser → Firebase),
+// so without this gate the client-side localStorage limit is the only
+// throttle and easily bypassed (clear storage / incognito / scripts).
+export const requestFirebaseSms: RequestHandler = async (req, res, next) => {
+  try {
+    const email = String((req.body ?? {}).email ?? "").trim();
+    if (!email) {
+      throw new AppError(400, "MissingFields", "email is required.");
+    }
+    const out = await service.gateFirebaseSmsRequest(email);
+    res.json(out);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // resend a fresh OTP after register. Always 200.
 export const resendPhoneOtp: RequestHandler = async (req, res, next) => {
   try {

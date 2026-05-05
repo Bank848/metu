@@ -74,9 +74,7 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
 
   // Firebase-only state.
   const e164 = defaultPhone ? toE164Thai(defaultPhone) : "";
-  const [fbStep, setFbStep] = useState<"send" | "sending" | "verify">(
-    firebaseConfigured && e164 ? "sending" : "send",
-  );
+  const [fbStep, setFbStep] = useState<"send" | "sending" | "verify">("send");
   const [cooldownUntil, setCooldownUntil] = useState<number>(0);
   const [now, setNow] = useState<number>(() => Date.now());
   const recaptchaRef = useRef<HTMLDivElement>(null);
@@ -136,6 +134,10 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
 
   const firebaseSend = useCallback(async () => {
     if (!firebaseConfigured || !e164) return;
+    // Client-side cooldown UX so the user sees a countdown without
+    // round-tripping the server. Server's `request-firebase-sms` is
+    // authoritative; this just hides the button when we KNOW the
+    // request will be rejected.
     const gate = checkRateLimit();
     if (gate.allowedAt > 0) {
       setCooldownUntil(gate.allowedAt);
@@ -147,6 +149,31 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
     setBusy(true);
     setFbStep("sending");
     try {
+      // Server gate: must pass before we let Firebase ship an SMS. The
+      // server tracks per-user / per-phone cooldowns in audit_log so
+      // clearing localStorage or opening incognito does NOT reset the
+      // limit. Firebase Phone Auth bills per send, so this gate is what
+      // actually keeps the bill bounded.
+      const gateRes = await fetch("/api/auth/request-firebase-sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email }),
+      });
+      if (!gateRes.ok) {
+        const data = await gateRes.json().catch(() => ({} as { message?: string }));
+        const msg = data?.message ?? "Too many SMS requests right now. Try again in a few minutes.";
+        // Surface the cooldown so the button greys out — best-effort
+        // 5-min default, server's Retry-After header overrides if present.
+        const retryAfter = Number(gateRes.headers.get("retry-after"));
+        const cooldown = Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : COOLDOWN_MS;
+        setCooldownUntil(Date.now() + cooldown);
+        setError(msg);
+        setFbStep("send");
+        return;
+      }
       const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
       const auth = getFirebaseAuth();
       if (!auth) throw new Error("Firebase auth client unavailable.");
@@ -195,18 +222,13 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
     } finally {
       setBusy(false);
     }
-  }, [e164]);
-
-  // Auto-fire on first mount when Firebase is configured + phone is
-  // known. The buyer shouldn't have to click "Send SMS" — we already
-  // told them on page load that we'd text them.
-  useEffect(() => {
-    if (sentOnceRef.current) return;
-    if (!firebaseConfigured || !e164) return;
-    sentOnceRef.current = true;
-    void firebaseSend();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [e164, email]);
+  // Note: removed auto-fire on mount. Sending an SMS the moment a buyer
+  // lands on /verify-phone meant a refresh / accidental re-visit burned
+  // a Firebase SMS each time. Now the user explicitly clicks "Send SMS"
+  // (or "Resend code" on the verify step). Server-side rate limit at
+  // /api/auth/request-firebase-sms is the second line of defence.
+  void sentOnceRef;
 
   async function firebaseVerify(e: React.FormEvent) {
     e.preventDefault();
