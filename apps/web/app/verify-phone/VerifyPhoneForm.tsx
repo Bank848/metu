@@ -1,14 +1,67 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, KeyRound, Loader2, RefreshCw, Smartphone } from "lucide-react";
+import { CheckCircle2, KeyRound, Loader2, RefreshCw } from "lucide-react";
 import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
 
-// Two paths:
-//   1. Firebase SMS (when the project has firebase env vars set) — real
-//      SMS through reCAPTCHA, then post the ID token to the server.
-//   2. In-house OTP fallback (legacy) — code printed to API logs in
-//      DEMO_REVEAL_TOKENS mode.
+// Two paths share this component:
+//   1. Firebase SMS (when the project has the NEXT_PUBLIC_FIREBASE_*
+//      env vars set at build time) — real SMS via invisible reCAPTCHA,
+//      then post the ID token to the server.
+//   2. In-house OTP fallback — code printed to API logs in
+//      DEMO_REVEAL_TOKENS mode and surfaced in a yellow banner on the
+//      page. Never sends a real SMS.
+
+// Rate-limit knobs for the Firebase resend button. Phone-auth abuse is
+// real (every text Firebase sends costs us / hits the daily quota) so
+// we throttle on the client AND let Firebase's own quota be the second
+// line of defence.
+const COOLDOWN_MS = 5 * 60 * 1000;       // wait 5 min between sends
+const HOURLY_CAP = 5;                     // max sends per rolling hour
+const HOURLY_WINDOW_MS = 60 * 60 * 1000;  // rolling hour
+const COOLDOWN_AFTER_CAP_MS = 60 * 60 * 1000; // 1 hour cool-down once cap hit
+
+const RATE_KEY = "metu:phone-verify-attempts";
+
+type Attempt = { at: number };
+
+function loadAttempts(): Attempt[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RATE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as Attempt[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveAttempts(list: Attempt[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(RATE_KEY, JSON.stringify(list));
+  } catch {
+    /* quota / private mode — fall back to in-memory */
+  }
+}
+
+/**
+ * Coerce a Thai-style phone (e.g. "0973368429" or "097 336 8429") into
+ * E.164 format that Firebase accepts (+66...). Already-E.164 inputs are
+ * returned unchanged. Best-effort for non-Thai numbers — strips spaces
+ * and prepends "+" if missing.
+ */
+function toE164Thai(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.startsWith("+")) {
+    return "+" + trimmed.slice(1).replace(/[^\d]/g, "");
+  }
+  const digits = trimmed.replace(/[^\d]/g, "");
+  if (digits.startsWith("66")) return "+" + digits;
+  if (digits.startsWith("0")) return "+66" + digits.slice(1);
+  return "+" + digits;
+}
 
 export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaultPhone?: string }) {
   const router = useRouter();
@@ -20,13 +73,26 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
   const [resentMsg, setResentMsg] = useState<string | null>(null);
 
   // Firebase-only state.
-  const [phone, setPhone] = useState(defaultPhone ?? "");
-  const [fbStep, setFbStep] = useState<"send" | "verify">("send");
+  const e164 = defaultPhone ? toE164Thai(defaultPhone) : "";
+  const [fbStep, setFbStep] = useState<"send" | "sending" | "verify">(
+    firebaseConfigured && e164 ? "sending" : "send",
+  );
+  const [cooldownUntil, setCooldownUntil] = useState<number>(0);
+  const [now, setNow] = useState<number>(() => Date.now());
   const recaptchaRef = useRef<HTMLDivElement>(null);
   const confirmationRef = useRef<{
     confirm: (code: string) => Promise<{ user: { getIdToken: () => Promise<string> } }>;
   } | null>(null);
+  const sentOnceRef = useRef(false);
 
+  // Tick every second so the cooldown countdown re-renders. Cheap.
+  useEffect(() => {
+    if (!cooldownUntil) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [cooldownUntil]);
+
+  // Cleanup the recaptcha container on unmount.
   useEffect(() => {
     return () => {
       try {
@@ -37,9 +103,49 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
     };
   }, []);
 
-  async function firebaseSend() {
+  /**
+   * Returns the timestamp the next send is allowed at, or 0 if it's OK
+   * to send right now. Trims expired attempts as a side-effect.
+   */
+  function checkRateLimit(): { allowedAt: number; reason: string | null } {
+    const all = loadAttempts();
+    const cutoff = Date.now() - HOURLY_WINDOW_MS;
+    const recent = all.filter((a) => a.at >= cutoff);
+    if (recent.length !== all.length) saveAttempts(recent);
+
+    if (recent.length >= HOURLY_CAP) {
+      const oldestInWindow = Math.min(...recent.map((a) => a.at));
+      const allowedAt = oldestInWindow + COOLDOWN_AFTER_CAP_MS;
+      return {
+        allowedAt,
+        reason: `You've requested ${HOURLY_CAP} codes in the last hour. Try again later.`,
+      };
+    }
+    if (recent.length > 0) {
+      const last = recent[recent.length - 1].at;
+      const allowedAt = last + COOLDOWN_MS;
+      if (Date.now() < allowedAt) {
+        return {
+          allowedAt,
+          reason: "Wait a few minutes before requesting another code.",
+        };
+      }
+    }
+    return { allowedAt: 0, reason: null };
+  }
+
+  const firebaseSend = useCallback(async () => {
+    if (!firebaseConfigured || !e164) return;
+    const gate = checkRateLimit();
+    if (gate.allowedAt > 0) {
+      setCooldownUntil(gate.allowedAt);
+      setError(gate.reason);
+      setFbStep("verify"); // we may already have a confirmationRef from a prior send
+      return;
+    }
     setError(null);
     setBusy(true);
+    setFbStep("sending");
     try {
       const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
       const auth = getFirebaseAuth();
@@ -48,16 +154,37 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
         recaptchaRef.current.innerHTML = '<div id="recaptcha-container" />';
       }
       const verifier = new RecaptchaVerifier(auth, "recaptcha-container", { size: "invisible" });
-      const formatted = phone.startsWith("+") ? phone : `+${phone.replace(/[^0-9]/g, "")}`;
-      const conf = await signInWithPhoneNumber(auth, formatted, verifier);
-      confirmationRef.current = conf as any;
+      const conf = await signInWithPhoneNumber(auth, e164, verifier);
+      confirmationRef.current = conf as never;
+      // Record the attempt + arm the cooldown clock.
+      const attempts = loadAttempts();
+      attempts.push({ at: Date.now() });
+      saveAttempts(attempts);
+      setCooldownUntil(Date.now() + COOLDOWN_MS);
       setFbStep("verify");
-    } catch (e: any) {
-      setError(e?.message ?? "Couldn't send the SMS. Check the number and try again.");
+      setResentMsg("Code sent. Check your phone.");
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? "Couldn't send the SMS. Try again in a bit.";
+      // Firebase wraps errors as `Firebase: ... (auth/code).` — strip the
+      // tedious prefix so the buyer just sees the actionable bit.
+      const cleaned = msg.replace(/^Firebase:\s*/, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "");
+      setError(cleaned);
+      setFbStep("send");
     } finally {
       setBusy(false);
     }
-  }
+  }, [e164]);
+
+  // Auto-fire on first mount when Firebase is configured + phone is
+  // known. The buyer shouldn't have to click "Send SMS" — we already
+  // told them on page load that we'd text them.
+  useEffect(() => {
+    if (sentOnceRef.current) return;
+    if (!firebaseConfigured || !e164) return;
+    sentOnceRef.current = true;
+    void firebaseSend();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function firebaseVerify(e: React.FormEvent) {
     e.preventDefault();
@@ -79,8 +206,9 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
         router.push(data?.emailVerified ? "/" : "/verify-pending");
         router.refresh();
       }, 1200);
-    } catch (e: any) {
-      setError(e?.message ?? "That code didn't match. Try again or resend.");
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? "That code didn't match. Try again or resend.";
+      setError(msg.replace(/^Firebase:\s*/, "").replace(/\s*\(auth\/[^)]+\)\.?$/, ""));
     } finally {
       setBusy(false);
     }
@@ -110,8 +238,6 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
         return;
       }
       setVerified(true);
-      // After phone is verified, send the user to the email-verify
-      // pending page if email isn't confirmed yet, otherwise home.
       setTimeout(() => {
         router.push(data?.emailVerified ? "/" : "/verify-pending");
         router.refresh();
@@ -155,41 +281,51 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
   }
 
   if (firebaseConfigured) {
+    const cooldownLeft = Math.max(0, cooldownUntil - now);
+    const cooldownActive = cooldownLeft > 0;
+    const cooldownLabel = (() => {
+      if (!cooldownActive) return null;
+      const totalSec = Math.ceil(cooldownLeft / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return m > 0 ? `${m}m ${s.toString().padStart(2, "0")}s` : `${s}s`;
+    })();
     return (
       <div className="space-y-4">
+        {/* The reCAPTCHA verifier needs an element with id
+            "recaptcha-container" in the DOM; we keep it invisible
+            (size: "invisible" above) but it still has to render. */}
         <div ref={recaptchaRef}>
           <div id="recaptcha-container" />
         </div>
-        {fbStep === "send" && (
-          <>
-            <label className="block">
-              <span className="block text-xs uppercase tracking-wider text-ink-dim mb-1.5">
-                Phone number
-              </span>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+66812345678"
-                className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-white focus:border-metu-yellow outline-none"
-              />
-            </label>
-            {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-            <button
-              type="button"
-              onClick={firebaseSend}
-              disabled={busy || !phone}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-metu-yellow px-5 py-3 text-sm font-bold text-surface-1 hover:bg-metu-yellow/90 transition disabled:opacity-50"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
-              {busy ? "Sending SMS…" : "Send SMS code"}
-            </button>
-          </>
+
+        {fbStep === "sending" && (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 flex items-start gap-3">
+            <Loader2 className="h-5 w-5 text-metu-yellow animate-spin mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <div className="font-semibold text-white mb-0.5">Sending SMS…</div>
+              <div className="text-ink-secondary">
+                We&apos;re texting a 6-digit code to{" "}
+                <span className="font-mono text-white">{e164 || defaultPhone}</span>.
+              </div>
+            </div>
+          </div>
         )}
+
+        {fbStep === "send" && (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-ink-secondary">
+            We&apos;ll text the code to{" "}
+            <span className="font-mono text-white">{e164 || defaultPhone}</span>. Hit{" "}
+            <strong className="text-white">Send SMS code</strong> below if it doesn&apos;t go out
+            on its own.
+          </div>
+        )}
+
         {fbStep === "verify" && (
           <form onSubmit={firebaseVerify} className="space-y-4">
             <p className="text-sm text-ink-secondary">
-              Enter the 6-digit code we sent to <strong className="text-white">{phone}</strong>.
+              Enter the 6-digit code we sent to{" "}
+              <strong className="text-white font-mono">{e164 || defaultPhone}</strong>.
             </p>
             <input
               type="text"
@@ -201,26 +337,58 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               placeholder="123456"
               className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-center tracking-[0.4em] font-mono text-xl text-white focus:border-metu-yellow outline-none"
+              autoFocus
             />
             {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={busy || code.length !== 6}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-metu-yellow px-5 py-3 text-sm font-bold text-surface-1 hover:bg-metu-yellow/90 transition disabled:opacity-50"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                {busy ? "Verifying…" : "Verify phone"}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setFbStep("send"); setCode(""); setError(null); }}
-                className="text-xs text-ink-dim hover:text-white px-3"
-              >
-                Change number
-              </button>
-            </div>
+            {resentMsg && !error && <p className="text-sm text-mint">{resentMsg}</p>}
+            <button
+              type="submit"
+              disabled={busy || code.length !== 6}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-metu-yellow px-5 py-3 text-sm font-bold text-surface-1 hover:bg-metu-yellow/90 transition disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+              {busy ? "Verifying…" : "Verify phone"}
+            </button>
           </form>
+        )}
+
+        {/* Resend lives outside the verify form so it's always reachable
+            (including from the "send" + "sending" states). The button is
+            disabled while a previous send is in flight or while the
+            cooldown timer hasn't ticked down. */}
+        {fbStep !== "sending" && (
+          <button
+            type="button"
+            onClick={firebaseSend}
+            disabled={busy || cooldownActive}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-xs font-semibold text-ink-secondary hover:bg-white/10 transition disabled:opacity-50"
+            title={cooldownActive ? `Wait ${cooldownLabel}` : undefined}
+          >
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {cooldownActive ? `Resend in ${cooldownLabel}` : "Resend code"}
+          </button>
+        )}
+
+        {fbStep === "send" && (
+          <button
+            type="button"
+            onClick={firebaseSend}
+            disabled={busy || cooldownActive}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-metu-yellow px-5 py-3 text-sm font-bold text-surface-1 hover:bg-metu-yellow/90 transition disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {cooldownActive ? `Wait ${cooldownLabel}` : busy ? "Sending…" : "Send SMS code"}
+          </button>
+        )}
+
+        {error && fbStep !== "verify" && (
+          <p role="alert" className="text-sm text-red-400">
+            {error}
+          </p>
         )}
       </div>
     );

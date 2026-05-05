@@ -67,7 +67,11 @@ export default async function VerifyPhonePage() {
             <strong className="text-white">{phoneTail}</strong>. Enter it below
             to finish setting up your account.
           </p>
-          {demoOtp && (
+          {/* Demo banner only shows when Firebase isn't wired — once the
+              client config is present (NEXT_PUBLIC_FIREBASE_API_KEY at
+              build time) we route through real SMS and the demo OTP is
+              irrelevant. */}
+          {demoOtp && !process.env.NEXT_PUBLIC_FIREBASE_API_KEY && (
             <div className="mb-5 rounded-xl border border-amber-400/40 bg-amber-500/10 p-3 text-xs text-amber-100">
               <div className="font-bold uppercase tracking-wider text-amber-200 mb-1.5">
                 Demo mode · SMS not actually sent
