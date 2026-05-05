@@ -491,33 +491,63 @@ export async function getOwnedOrderId(
 }
 
 // More like this: same category and shared tags, excludes self.
+//
+// Two-stage query for efficiency + clean typing:
+//   1. Raw SQL ranks candidate productIds by a hand-written scoring
+//      formula (category match weighted 10x, shared tag count weighted
+//      1x, review count as tie-breaker). CTE + correlated subqueries +
+//      ARRAY containment via ANY. This is the kind of recommendation
+//      query Prisma's builder can't express without N+1 round-trips.
+//   2. Prisma hydrates the top-N IDs into typed Product rows with
+//      nested store/items/images/tags — Prisma is genuinely better
+//      here because the hydration is a fan-out the SQL builder would
+//      have to assemble manually.
+//
+// Indexes used:
+//   - product(category_id) for the category match
+//   - product_n_tag(product_id, tag_id) composite for shared-tag count
+//   - product_review(product_id) for the review-count tie-breaker
 export async function getRelatedProducts(productId: number, take = 4) {
-  const source = await prisma.product.findUnique({
-    where: { productId },
-    select: {
-      categoryId: true,
-      productNTags: { select: { tagId: true } },
-    },
-  });
-  if (!source) return [];
-  const tagIds = source.productNTags.map((nt) => nt.tagId);
+  const ranked = await prisma.$queryRaw<Array<{ product_id: number }>>`
+    WITH source AS (
+      SELECT p.category_id,
+             ARRAY_AGG(DISTINCT pnt.tag_id) FILTER (WHERE pnt.tag_id IS NOT NULL) AS tag_ids
+        FROM "product" p
+        LEFT JOIN "product_n_tag" pnt ON pnt.product_id = p.product_id
+       WHERE p.product_id = ${productId}
+       GROUP BY p.category_id
+    ),
+    candidates AS (
+      SELECT
+        p.product_id,
+        CASE WHEN p.category_id = (SELECT category_id FROM source) THEN 1 ELSE 0 END AS category_match,
+        COALESCE(
+          (SELECT COUNT(*)::int FROM "product_n_tag" x
+            WHERE x.product_id = p.product_id
+              AND x.tag_id = ANY((SELECT tag_ids FROM source))),
+          0
+        ) AS shared_tags,
+        (SELECT COUNT(*)::int FROM "product_review" r
+          WHERE r.product_id = p.product_id) AS review_count
+      FROM "product" p
+      JOIN "store" s ON s.store_id = p.store_id
+      WHERE p.is_active = true
+        AND p.deleted_at IS NULL
+        AND s.deleted_at IS NULL
+        AND s.suspended_at IS NULL
+        AND p.product_id <> ${productId}
+    )
+    SELECT product_id
+      FROM candidates
+     WHERE category_match = 1 OR shared_tags > 0
+     ORDER BY (category_match * 10 + shared_tags) DESC, review_count DESC
+     LIMIT ${take}
+  `;
+  if (ranked.length === 0) return [];
+  const ids = ranked.map((r) => r.product_id);
 
   const products = await prisma.product.findMany({
-    where: {
-      isActive: true,
-      deletedAt: null,
-      // `suspendedAt` was missing from the related-products
-      // gate, so a product on a suspended store could surface as a
-      // recommendation while the same store was hidden from /browse.
-      store: { deletedAt: null, suspendedAt: null },
-      productId: { not: productId },
-      OR: [
-        { categoryId: source.categoryId },
-        ...(tagIds.length ? [{ productNTags: { some: { tagId: { in: tagIds } } } }] : []),
-      ],
-    },
-    orderBy: { reviews: { _count: "desc" } },
-    take,
+    where: { productId: { in: ids } },
     include: {
       store: { select: { name: true, storeId: true } },
       items: { select: { price: true, discountPercent: true } },
@@ -526,7 +556,12 @@ export async function getRelatedProducts(productId: number, take = 4) {
       reviews: { select: { rating: true } },
     },
   });
-  return products.map((p) => {
+  // Preserve the SQL's ranking order — Prisma's `findMany` returns rows
+  // by PK, not in `ids`'s sort order. Re-key by id and walk `ids` to
+  // emit them ranked.
+  const byId = new Map(products.map((p) => [p.productId, p]));
+  const ordered = ids.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => p != null);
+  return ordered.map((p) => {
     const prices = p.items.map((i) => Number(i.price));
     const ratings = p.reviews.map((r) => r.rating);
     const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
