@@ -1,5 +1,6 @@
 import Image from "next/image";
-import { Users, Store, Package, ShoppingBag, Banknote, Clock } from "lucide-react";
+import Link from "next/link";
+import { Users, Store, Package, ShoppingBag, Banknote, Clock, Ticket, Star, MessageSquare, TrendingUp, Tag as TagIcon } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -22,11 +23,25 @@ type Stats = {
   daily: Array<{ day: string; revenue: number; orderCount: number }>;
 };
 
+type Dashboard = {
+  growth: { totalUsers: number; buyers: number; sellers: number; admins: number; active7d: number } | null;
+  topStores: Array<{ storeId: number; name: string; revenue: number; orders: number; rating: number }>;
+  topProducts: Array<{ productId: number; name: string; revenue: number; units: number }>;
+  ageGroups: Array<{ bucket: string; buyers: number }>;
+  categories: Array<{ categoryId: number; name: string; productCount: number; revenue: number }>;
+  tags: Array<{ tagId: number; tagName: string; productCount: number }>;
+  couponImpact: { totalCoupons: number; activeCoupons: number; totalRedemptions: number; totalDiscount: number; nearExpiry: number } | null;
+  reviewMonitor: { avgRating: number; totalReviews: number; reviews7d: number; lowRated: number } | null;
+};
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminOverview() {
-  const stats = await apiAuth<Stats>("/admin/stats");
-  if (!stats) return <p>Failed to load</p>;
+  const [stats, dashboard] = await Promise.all([
+    apiAuth<Stats>("/admin/stats"),
+    apiAuth<Dashboard>("/admin/dashboard"),
+  ]);
+  if (!stats || !dashboard) return <p>Failed to load</p>;
 
   return (
     <>
@@ -62,6 +77,138 @@ export default async function AdminOverview() {
 
       <div className="mb-6">
         <RevenueChart data={stats.daily} />
+      </div>
+
+      {/* User Growth + Coupon Impact + Review Monitor */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {dashboard.growth && (
+          <div className="rounded-2xl border border-line bg-space-900 p-5">
+            <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-mint" />
+              User growth
+            </h3>
+            <ul className="space-y-1.5 text-sm">
+              <li className="flex justify-between"><span className="text-ink-secondary">Buyers</span><span className="font-mono text-white">{dashboard.growth.buyers.toLocaleString()}</span></li>
+              <li className="flex justify-between"><span className="text-ink-secondary">Sellers</span><span className="font-mono text-white">{dashboard.growth.sellers.toLocaleString()}</span></li>
+              <li className="flex justify-between"><span className="text-ink-secondary">Admins</span><span className="font-mono text-white">{dashboard.growth.admins.toLocaleString()}</span></li>
+              <li className="flex justify-between border-t border-line pt-1.5"><span className="text-ink-dim text-xs">Active in last 7 days</span><span className="font-mono text-mint">{dashboard.growth.active7d.toLocaleString()}</span></li>
+            </ul>
+          </div>
+        )}
+        {dashboard.couponImpact && (
+          <div className="rounded-2xl border border-line bg-space-900 p-5">
+            <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+              <Ticket className="h-4 w-4 text-metu-yellow" />
+              Coupon impact
+            </h3>
+            <ul className="space-y-1.5 text-sm">
+              <li className="flex justify-between"><span className="text-ink-secondary">Total coupons</span><span className="font-mono text-white">{dashboard.couponImpact.totalCoupons}</span></li>
+              <li className="flex justify-between"><span className="text-ink-secondary">Active</span><span className="font-mono text-mint">{dashboard.couponImpact.activeCoupons}</span></li>
+              <li className="flex justify-between"><span className="text-ink-secondary">Redemptions</span><span className="font-mono text-white">{dashboard.couponImpact.totalRedemptions}</span></li>
+              <li className="flex justify-between"><span className="text-ink-secondary">Total discount</span><span className="font-mono text-metu-yellow">{coins(thbToCoins(dashboard.couponImpact.totalDiscount))}</span></li>
+              <li className="flex justify-between border-t border-line pt-1.5"><span className="text-ink-dim text-xs">Near expiry (≤7d)</span><span className="font-mono text-coral">{dashboard.couponImpact.nearExpiry}</span></li>
+            </ul>
+          </div>
+        )}
+        {dashboard.reviewMonitor && (
+          <div className="rounded-2xl border border-line bg-space-900 p-5">
+            <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-info" />
+              Review monitor
+            </h3>
+            <ul className="space-y-1.5 text-sm">
+              <li className="flex justify-between"><span className="text-ink-secondary">Avg rating</span><span className="font-mono text-metu-yellow">{dashboard.reviewMonitor.avgRating.toFixed(2)}★</span></li>
+              <li className="flex justify-between"><span className="text-ink-secondary">Total reviews</span><span className="font-mono text-white">{dashboard.reviewMonitor.totalReviews.toLocaleString()}</span></li>
+              <li className="flex justify-between"><span className="text-ink-secondary">Last 7 days</span><span className="font-mono text-mint">{dashboard.reviewMonitor.reviews7d}</span></li>
+              <li className="flex justify-between border-t border-line pt-1.5"><span className="text-ink-dim text-xs">Low-rated (≤2★)</span><span className="font-mono text-coral">{dashboard.reviewMonitor.lowRated}</span></li>
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Top stores + Top products */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="rounded-2xl border border-line bg-space-900 p-5">
+          <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+            <Store className="h-4 w-4 text-metu-yellow" />
+            Top stores by revenue
+          </h3>
+          <ol className="space-y-2 text-sm">
+            {dashboard.topStores.length === 0 && <li className="text-ink-dim">No store revenue yet.</li>}
+            {dashboard.topStores.map((s, i) => (
+              <li key={s.storeId} className="flex items-center justify-between border-b border-line/50 pb-1.5 last:border-0">
+                <span className="flex items-center gap-2">
+                  <span className="text-ink-dim text-xs font-mono w-5">{i + 1}.</span>
+                  <Link href={`/store/${s.storeId}`} className="text-white hover:text-metu-yellow truncate max-w-[180px]">{s.name}</Link>
+                  {s.rating > 0 && <span className="text-xs text-metu-yellow font-mono">{(s.rating / 10).toFixed(1)}★</span>}
+                </span>
+                <span className="font-mono text-mint">{coins(thbToCoins(s.revenue))}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <div className="rounded-2xl border border-line bg-space-900 p-5">
+          <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+            <Package className="h-4 w-4 text-mint" />
+            Top products by revenue
+          </h3>
+          <ol className="space-y-2 text-sm">
+            {dashboard.topProducts.length === 0 && <li className="text-ink-dim">No product sales yet.</li>}
+            {dashboard.topProducts.map((p, i) => (
+              <li key={p.productId} className="flex items-center justify-between border-b border-line/50 pb-1.5 last:border-0">
+                <span className="flex items-center gap-2">
+                  <span className="text-ink-dim text-xs font-mono w-5">{i + 1}.</span>
+                  <Link href={`/product/${p.productId}`} className="text-white hover:text-metu-yellow truncate max-w-[200px]">{p.name}</Link>
+                  <span className="text-xs text-ink-dim">×{p.units}</span>
+                </span>
+                <span className="font-mono text-mint">{coins(thbToCoins(p.revenue))}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+
+      {/* Categories + Tags + Age groups */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="rounded-2xl border border-line bg-space-900 p-5">
+          <h3 className="font-display font-bold text-white mb-3">Category analytics</h3>
+          <ul className="space-y-1.5 text-sm">
+            {dashboard.categories.slice(0, 8).map((c) => (
+              <li key={c.categoryId} className="flex items-center justify-between">
+                <span className="text-ink-secondary truncate max-w-[140px]">{c.name}</span>
+                <span className="font-mono text-xs text-ink-dim">
+                  {c.productCount}p · {coins(thbToCoins(c.revenue))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-2xl border border-line bg-space-900 p-5">
+          <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+            <TagIcon className="h-4 w-4 text-info" />
+            Top tags
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {dashboard.tags.slice(0, 12).map((t) => (
+              <Badge key={t.tagId} variant="mist" className="text-xs">
+                {t.tagName} · {t.productCount}
+              </Badge>
+            ))}
+            {dashboard.tags.length === 0 && <span className="text-xs text-ink-dim">No tags yet.</span>}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-line bg-space-900 p-5">
+          <h3 className="font-display font-bold text-white mb-3">Age groups</h3>
+          <ul className="space-y-1.5 text-sm">
+            {dashboard.ageGroups.length === 0 && <li className="text-ink-dim text-xs">No buyers with DOB on file.</li>}
+            {dashboard.ageGroups.map((a) => (
+              <li key={a.bucket} className="flex items-center justify-between">
+                <span className="text-ink-secondary">{a.bucket}</span>
+                <span className="font-mono text-white">{a.buyers}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <section className="rounded-2xl border border-line bg-space-850">
