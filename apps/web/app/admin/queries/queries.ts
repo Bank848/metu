@@ -40,12 +40,11 @@ export const SHOWCASE_QUERIES: ShowcaseQuery[] = [
     summary:
       "Returns every counter on /admin (users, stores, products, reviews, orders, pending orders, GMV) in a single query so the dashboard renders without seven sequential DB calls.",
     sql: `SELECT
-  (SELECT COUNT(*) FROM "users" WHERE deleted_at IS NULL)                    AS users,
-  (SELECT COUNT(*) FROM "store" WHERE deleted_at IS NULL)                    AS stores,
+  (SELECT COUNT(*) FROM "users")                                             AS users,
+  (SELECT COUNT(*) FROM "store")                                             AS stores,
   (SELECT COUNT(*)
      FROM "product" p
-     JOIN "store"   s ON s.store_id = p.store_id
-    WHERE p.deleted_at IS NULL AND s.deleted_at IS NULL)                     AS products,
+     JOIN "store"   s ON s.store_id = p.store_id)                            AS products,
   (SELECT COUNT(*) FROM "product_review")                                    AS reviews,
   (SELECT COUNT(*) FROM "orders")                                            AS orders,
   (SELECT COUNT(*) FROM "orders" WHERE status = 'pending')                   AS pending_orders,
@@ -113,8 +112,6 @@ candidates AS (
   FROM "product" p
   JOIN "store" s ON s.store_id = p.store_id
   WHERE p.is_active = true
-    AND p.deleted_at IS NULL
-    AND s.deleted_at IS NULL
     AND s.suspended_at IS NULL
     AND p.product_id <> $1
 )
@@ -196,12 +193,12 @@ LEFT JOIN LATERAL (
     FROM product_item
    WHERE product_id = p.product_id
 ) i ON true
-WHERE p.deleted_at IS NULL
+WHERE p.is_active = true
 ORDER BY COALESCE(i.min_price, 0) ASC
 LIMIT 12;`,
     indexes: [
       { name: "product_item_product_id_idx", on: "product_item(product_id)", why: "the LATERAL subquery executes once per product, this index is what makes that cheap" },
-      { name: "product_deleted_at_idx", on: "product(deleted_at)", why: "soft-delete filter" },
+      { name: "product_is_active_idx", on: "product(is_active)", why: "live-only filter" },
     ],
     rationale:
       "LATERAL is the cleanest way to project an aggregate per outer row. Prisma's relation orderBy can't express 'min over a derived expression' — only over a single column.",

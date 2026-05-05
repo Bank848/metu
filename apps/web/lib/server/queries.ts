@@ -154,11 +154,11 @@ export async function getFeaturedStores(take = 4) {
       COALESCE(us.seller_level, 0) AS seller_level,
       bt.name AS business_type_name,
       (SELECT COUNT(*)::int FROM "product" p
-        WHERE p.store_id = s.store_id AND p.deleted_at IS NULL) AS product_count
+        WHERE p.store_id = s.store_id) AS product_count
     FROM "store" s
-    JOIN "business_type" bt ON bt.business_type_id = s.business_type_id
+    JOIN "business_type" bt ON bt.type_id = s.business_type_id
     LEFT JOIN "user_stats" us ON us.user_id = s.owner_id
-    WHERE s.deleted_at IS NULL AND s.suspended_at IS NULL
+    WHERE s.suspended_at IS NULL
     ORDER BY us.seller_level DESC NULLS LAST,
              s.rating DESC,
              s.created_at DESC
@@ -654,8 +654,6 @@ export async function getRelatedProducts(productId: number, take = 4) {
       FROM "product" p
       JOIN "store" s ON s.store_id = p.store_id
       WHERE p.is_active = true
-        AND p.deleted_at IS NULL
-        AND s.deleted_at IS NULL
         AND s.suspended_at IS NULL
         AND p.product_id <> ${productId}
     )

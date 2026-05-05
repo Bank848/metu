@@ -35,7 +35,7 @@ LEFT JOIN LATERAL (
   SELECT MIN(price::float * (100 - COALESCE(discount_percent, 0)) / 100.0) AS min_price
   FROM product_item WHERE product_id = p.product_id
 ) i ON true
-WHERE p.deleted_at IS NULL
+WHERE p.is_active = true
 ORDER BY COALESCE(i.min_price, 0) ASC
 LIMIT 12`,
   },
