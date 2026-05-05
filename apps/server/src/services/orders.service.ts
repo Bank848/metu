@@ -284,7 +284,6 @@ export async function checkout(
     });
     const order = await tx.order.create({
       data: {
-        cartId: cart.cartId,
         userId,
         totalPrice: total,
         // All orders start `pending`. Stripe webhook flips to `paid`;
@@ -545,7 +544,7 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { orderId },
     include: {
-      cart: { include: { user: { select: { email: true, firstName: true } } } },
+      user: { select: { email: true, firstName: true } },
       items: {
         include: {
           productItem: {
@@ -569,7 +568,7 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
     },
   });
   if (!order) return;
-  const buyer = order.cart?.user;
+  const buyer = order.user;
   if (!buyer?.email) return;
 
   // Group items by store so the email reads as one section per store
@@ -677,7 +676,7 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
 // List the user's orders newest first.
 export async function listForUser(userId: number): Promise<OrderListItem[]> {
   return prisma.order.findMany({
-    where: { cart: { userId } },
+    where: { userId },
     orderBy: { createdAt: "desc" },
     include: {
       items: {
@@ -699,13 +698,13 @@ export async function listForUser(userId: number): Promise<OrderListItem[]> {
   });
 }
 
-// Single order; ownership gated via cart.userId.
+// Single order; ownership gated via order.userId.
 export async function findByIdForUser(
   userId: number,
   orderId: number,
 ): Promise<OrderDetail | null> {
   return prisma.order.findFirst({
-    where: { orderId, cart: { userId } },
+    where: { orderId, userId },
     include: {
       items: {
         include: {

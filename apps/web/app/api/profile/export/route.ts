@@ -42,7 +42,7 @@ export async function GET() {
       include: { stats: true, country: true },
     }),
     prisma.order.findMany({
-      where: { cart: { userId } },
+      where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
         items: {

@@ -124,7 +124,7 @@ export async function getPendingReviewProducts(userId: number) {
   const orderItems = await prisma.orderItem.findMany({
     where: {
       order: {
-        cart: { userId },
+        userId,
         status: { in: ["paid", "fulfilled"] },
       },
     },
@@ -597,9 +597,9 @@ export async function getRecentPurchaseCount(productId: number, days = 7): Promi
         createdAt: { gte: since },
       },
     },
-    select: { order: { select: { cart: { select: { userId: true } } } } },
+    select: { order: { select: { userId: true } } },
   });
-  return new Set(rows.map((r) => r.order.cart.userId)).size;
+  return new Set(rows.map((r) => r.order.userId)).size;
 }
 
 // Admin store list. Direct Prisma to skip the same-host HTTP hop.

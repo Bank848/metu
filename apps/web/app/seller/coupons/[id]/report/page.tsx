@@ -36,11 +36,7 @@ export default async function CouponReportPage({ params }: { params: { id: strin
     include: {
       order: {
         include: {
-          cart: {
-            include: {
-              user: { select: { userId: true, username: true, firstName: true, lastName: true } },
-            },
-          },
+          user: { select: { userId: true, username: true, firstName: true, lastName: true } },
         },
       },
       productItem: { include: { product: { select: { productId: true, name: true } } } },
@@ -64,7 +60,7 @@ export default async function CouponReportPage({ params }: { params: { id: strin
       rows.set(li.orderId, {
         orderId: li.orderId,
         createdAt: li.order.createdAt,
-        buyer: li.order.cart.user,
+        buyer: li.order.user,
         items: [{ name: li.productItem.product.name, quantity: li.quantity, subtotal }],
         grossSubtotal: subtotal,
         discount: computeDiscount(subtotal, coupon.discountType, coupon.discountValue),

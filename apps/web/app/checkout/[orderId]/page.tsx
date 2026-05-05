@@ -33,12 +33,9 @@ export default async function CheckoutPage({
   const order = await prisma.order.findUnique({
     where: { orderId },
     include: {
-      cart: { select: { userId: true } },
-      // direct-charge PaymentIntents live on the
-      // seller's Connect account, so the front-end's Stripe.js needs
-      // to be scoped with stripeAccount: <sellerAcct>. We derive it
-      // from the first item's product's store. (All items in a Stripe
-      // order are guaranteed single-store by orders.service.)
+      // Direct-charge PIs live on the seller's Connect account, so
+      // Stripe.js scopes with stripeAccount: <sellerAcct>. Derived from
+      // the first item's product's store (all items single-store).
       items: {
         take: 1,
         include: {
@@ -55,7 +52,7 @@ export default async function CheckoutPage({
       },
     },
   });
-  if (!order || order.cart.userId !== me.user.userId) return notFound();
+  if (!order || order.userId !== me.user.userId) return notFound();
 
   // If the order has already settled (webhook landed first) bounce to
   // the receipt page.

@@ -182,16 +182,12 @@ export async function listOrders(storeId: number, status?: string) {
     },
     orderBy: { createdAt: "desc" },
     include: {
-      cart: {
-        include: {
-          user: {
-            select: {
-              username: true,
-              firstName: true,
-              lastName: true,
-              profileImage: true,
-            },
-          },
+      user: {
+        select: {
+          username: true,
+          firstName: true,
+          lastName: true,
+          profileImage: true,
         },
       },
       items: {
@@ -227,16 +223,12 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
     },
     orderBy: { createdAt: "desc" },
     include: {
-      cart: {
-        include: {
-          user: {
-            select: {
-              username: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
+      user: {
+        select: {
+          username: true,
+          email: true,
+          firstName: true,
+          lastName: true,
         },
       },
       items: {
@@ -275,9 +267,9 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
         o.createdAt.toISOString(),
         o.status,
         Number(o.totalPrice).toFixed(2),
-        o.cart.user.username,
-        `${o.cart.user.firstName} ${o.cart.user.lastName}`.trim(),
-        maskEmail(o.cart.user.email),
+        o.user.username,
+        `${o.user.firstName} ${o.user.lastName}`.trim(),
+        maskEmail(o.user.email),
         li.productItem.product.name,
         li.productItem.deliveryMethod,
         li.quantity,
@@ -827,7 +819,6 @@ export async function refundOrder(
   const order = await prisma.order.findUnique({
     where: { orderId },
     include: {
-      cart: { select: { userId: true } },
       items: {
         include: {
           productItem: { select: { product: { select: { storeId: true } } } },
@@ -888,7 +879,7 @@ export async function refundOrder(
     }),
     prisma.transaction.create({
       data: {
-        userId: order.cart.userId,
+        userId: order.userId,
         transactionType: "payout",
         totalAmount: new Prisma.Decimal(order.totalPrice).neg(),
       },
@@ -900,7 +891,7 @@ export async function refundOrder(
     targetType: "order",
     targetId: orderId,
     meta: {
-      buyerId: order.cart.userId,
+      buyerId: order.userId,
       amount: Number(order.totalPrice),
       storeId,
       from: order.status,

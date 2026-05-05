@@ -22,7 +22,7 @@ export default async function AdminRefundsPage() {
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
-      cart: { include: { user: { select: { email: true, firstName: true, lastName: true } } } },
+      user: { select: { email: true, firstName: true, lastName: true } },
     },
   });
 
@@ -56,8 +56,8 @@ export default async function AdminRefundsPage() {
                   <tr key={o.orderId} className="border-t border-white/5 hover:bg-white/[0.02]">
                     <td className="py-2 px-4 font-mono">#{o.orderId}</td>
                     <td className="py-2 px-4">
-                      <div className="text-white">{o.cart.user.firstName} {o.cart.user.lastName}</div>
-                      <div className="text-xs text-ink-dim">{o.cart.user.email}</div>
+                      <div className="text-white">{o.user.firstName} {o.user.lastName}</div>
+                      <div className="text-xs text-ink-dim">{o.user.email}</div>
                     </td>
                     <td className="py-2 px-4 font-mono">฿{Number(o.totalPrice).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                     <td className="py-2 px-4 font-mono">

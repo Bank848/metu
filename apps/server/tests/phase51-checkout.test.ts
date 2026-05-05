@@ -225,14 +225,12 @@ describe("GET /seller/orders/export — CSV formula injection neutralised", () =
         createdAt: new Date("2026-01-01"),
         status: "paid",
         totalPrice: "100",
-        cart: {
-          user: {
-            // Adversarial username — formulas in spreadsheets execute on open.
-            username: "=cmd|'/c calc'!A0",
-            email: "evil@example.com",
-            firstName: "@evil",
-            lastName: "+SUM(A1:A100)",
-          },
+        user: {
+          // Adversarial username — formulas in spreadsheets execute on open.
+          username: "=cmd|'/c calc'!A0",
+          email: "evil@example.com",
+          firstName: "@evil",
+          lastName: "+SUM(A1:A100)",
         },
         items: [
           {

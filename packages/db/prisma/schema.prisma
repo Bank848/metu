@@ -404,9 +404,8 @@ model Cart {
   expiredAt DateTime?  @map("expired_at")
   sessionId Int?       @map("session_id")
 
-  user   User       @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  orders Order[]
-  items  CartItem[]
+  user  User       @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  items CartItem[]
 
   // At most one active cart per user (enforced in the app layer).
   @@index([userId, status])
@@ -448,10 +447,8 @@ model Transaction {
 
 model Order {
   orderId            Int         @id @default(autoincrement()) @map("order_id")
-  cartId             Int         @map("cart_id")
-  // Phase 45 — direct FK to the buyer per the docx report. Denormalised
-  // from cart.userId at checkout time so reports / admin queries can
-  // join straight to User without going through Cart.
+  // Buyer FK — orders are derived from selected CartItem rows at
+  // checkout, not anchored to a Cart. Order is owned by the user.
   userId             Int         @map("user_id")
   totalPrice         Decimal     @map("total_price") @db.Decimal(12, 2)
   status             OrderStatus @default(pending)
@@ -471,7 +468,6 @@ model Order {
   stripeAmountReceived  Int?    @map("stripe_amount_received")
   stripeAmountRefunded  Int     @default(0) @map("stripe_amount_refunded")
 
-  cart        Cart         @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
   user        User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
   transaction Transaction? @relation(fields: [transactionId], references: [transactionId])
   items       OrderItem[]
@@ -479,7 +475,6 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([userId])
-  @@index([cartId])
   @@index([stripePaymentIntentId])
   @@map("orders")
 }

@@ -209,13 +209,11 @@ describe("GET /seller/orders/export", () => {
         createdAt: new Date("2026-04-28T10:00:00Z"),
         status: "paid",
         totalPrice: "100.00",
-        cart: {
-          user: {
-            username: "buyer1",
-            email: "b@example.com",
-            firstName: "Buy",
-            lastName: "Er",
-          },
+        user: {
+          username: "buyer1",
+          email: "b@example.com",
+          firstName: "Buy",
+          lastName: "Er",
         },
         items: [
           {
@@ -550,7 +548,7 @@ describe("POST /seller/orders/:id/refund", () => {
     (prisma.order.findUnique as any).mockResolvedValue({
       orderId: 1,
       status: "paid",
-      cart: { userId: 9 },
+      userId: 9,
       items: [{ productItem: { product: { storeId: 99 } } }],
     });
     const res = await request(buildApp())
@@ -564,7 +562,7 @@ describe("POST /seller/orders/:id/refund", () => {
       orderId: 1,
       status: "paid",
       totalPrice: "100.00",
-      cart: { userId: 9 },
+      userId: 9,
       items: [{ productItem: { product: { storeId: 11 } } }],
     });
     (prisma.$transaction as any).mockResolvedValue([{}, {}]);
