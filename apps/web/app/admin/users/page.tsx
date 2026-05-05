@@ -19,10 +19,9 @@ type UserRow = {
   country?: { name: string } | null;
   stats?: { role: "buyer" | "seller" | "admin" } | null;
   store?: { name: string } | null;
-  // moderation metadata. Both NULL for active users.
-  // bannedAt populated only for admin-driven removals; deletedAt
-  // alone (no bannedAt) indicates a self-delete or pre-12.2 removal.
-  deletedAt?: string | null;
+  // moderation metadata. NULL for active users; bannedAt is populated
+  // only for admin-driven bans (which we now keep around so the user
+  // can be unbanned). Self-deletes hard-delete the row entirely.
   bannedAt?: string | null;
   bannedReason?: string | null;
 };
@@ -230,19 +229,16 @@ export default async function AdminUsers({
                       <span className="text-sm font-semibold text-white truncate">
                         {u.firstName} {u.lastName}
                       </span>
-                      {/* Phase 12.2 — moderation badges. BANNED takes
-                          precedence over DELETED because a ban is also
-                          a delete; we want admins to see the cause
-                          first. Reason surfaces on hover via title. */}
-                      {u.bannedAt ? (
+                      {/* Banned rows stick around in the user table so
+                          the operator can lift the ban; reason surfaces
+                          on hover via title. Self-deletes hard-delete
+                          the row, so a deleted user simply isn't in the
+                          listing. */}
+                      {u.bannedAt && (
                         <Badge variant="coral" className="uppercase text-[10px]" title={u.bannedReason ?? "Banned by admin"}>
                           Banned
                         </Badge>
-                      ) : u.deletedAt ? (
-                        <Badge variant="mist" className="uppercase text-[10px]" title="Soft-deleted">
-                          Deleted
-                        </Badge>
-                      ) : null}
+                      )}
                     </div>
                     <div className="text-xs text-ink-dim">@{u.username}</div>
                     {u.bannedReason && (

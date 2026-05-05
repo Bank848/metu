@@ -52,9 +52,8 @@ export const SHOWCASE_QUERIES: ShowcaseQuery[] = [
      FROM "orders"
     WHERE status IN ('paid', 'fulfilled'))                                   AS gmv;`,
     indexes: [
-      { name: "users_deleted_at_idx", on: "users(deleted_at)", why: "predicate filter on every dashboard load" },
-      { name: "store_deleted_at_idx", on: "store(deleted_at)", why: "ditto" },
-      { name: "product_store_id_deleted_at_idx", on: "product(store_id, deleted_at)", why: "covers the join + soft-delete filter together" },
+      { name: "store_live_idx", on: "store(created_at DESC) WHERE suspended_at IS NULL", why: "live-store predicate on browse/dashboard reads" },
+      { name: "product_store_id_idx", on: "product(store_id)", why: "covers the join from product → store" },
       { name: "orders_status_idx", on: "orders(status)", why: "two enum-equality predicates use this index for both pending count and gmv FILTER" },
     ],
     rationale:
