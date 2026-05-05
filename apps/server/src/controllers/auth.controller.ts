@@ -563,6 +563,52 @@ export const verifyPhoneFirebase: RequestHandler = async (req, res, next) => {
   }
 };
 
+// ── Sensitive change flows (email + phone) ─────────────────────────
+export const startEmailChange: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req); if (!auth) throw new AppError(401, "Unauthorized");
+    const u = await currentUser(req); if (!u) throw new AppError(401, "Unauthorized");
+    const newEmail = String((req.body ?? {}).newEmail ?? "");
+    if (!newEmail) throw new AppError(400, "MissingFields", "newEmail is required.");
+    await service.startEmailChange(auth.uid, u.email, newEmail);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+};
+
+export const verifyEmailChange: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req); if (!auth) throw new AppError(401, "Unauthorized");
+    const u = await currentUser(req); if (!u) throw new AppError(401, "Unauthorized");
+    const newEmail = String((req.body ?? {}).newEmail ?? "");
+    const code = String((req.body ?? {}).code ?? "");
+    if (!newEmail || !code) throw new AppError(400, "MissingFields", "newEmail and code are required.");
+    const updated = await service.verifyEmailChange(auth.uid, u.email, newEmail, code);
+    res.json({ ok: true, user: updated });
+  } catch (err) { next(err); }
+};
+
+export const startPhoneChange: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req); if (!auth) throw new AppError(401, "Unauthorized");
+    const u = await currentUser(req); if (!u) throw new AppError(401, "Unauthorized");
+    const newPhone = String((req.body ?? {}).newPhone ?? "");
+    if (!newPhone) throw new AppError(400, "MissingFields", "newPhone is required.");
+    await service.startPhoneChange(auth.uid, u.email, newPhone);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+};
+
+export const verifyPhoneChange: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req); if (!auth) throw new AppError(401, "Unauthorized");
+    const newPhone = String((req.body ?? {}).newPhone ?? "");
+    const code = String((req.body ?? {}).code ?? "");
+    if (!newPhone || !code) throw new AppError(400, "MissingFields", "newPhone and code are required.");
+    const updated = await service.verifyPhoneChange(auth.uid, newPhone, code);
+    res.json({ ok: true, user: updated });
+  } catch (err) { next(err); }
+};
+
 // Same as verifyPhoneFirebase but keyed on the email body field instead
 // of a session — used by the post-register /verify-phone page when no
 // cookie exists yet.

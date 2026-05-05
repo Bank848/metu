@@ -7,6 +7,7 @@ import { FileImageInput } from "@/components/FileImageInput";
 import { FirebasePhoneVerify } from "@/components/auth/FirebasePhoneVerify";
 import { firebaseConfigured } from "@/lib/firebase";
 import { fmtDate } from "@/lib/format";
+import { ChangeContactPanel } from "./ChangeContactPanel";
 
 // Active session entry from GET /auth/sessions.
 type SessionRow = {
@@ -460,16 +461,23 @@ export function EditProfileForm({
           </label>
         </div>
 
-        <label className="block">
-          <span className="text-sm font-semibold text-white">Email</span>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required
-            className={`mt-1 ${inputCls}`}
+        <div className="space-y-2">
+          <label className="block">
+            <span className="text-sm font-semibold text-white">Email</span>
+            <input
+              type="email"
+              value={form.email}
+              readOnly
+              disabled
+              className={`mt-1 ${inputCls} opacity-70 cursor-not-allowed`}
+            />
+          </label>
+          <ChangeContactPanel
+            mode="email"
+            currentValue={initial.email}
+            currentEmail={initial.email}
           />
-        </label>
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <label className="block">
@@ -552,23 +560,21 @@ export function EditProfileForm({
           )}
         </h2>
         <p className="text-sm text-ink-secondary -mt-2">
-          Add a phone number for security alerts and account recovery. We'll send a 6-digit code to verify it.
+          Phone number on file. Changing it requires confirming the new number via your current email.
         </p>
 
-        <form onSubmit={savePhone} className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="tel"
-            value={phoneInput}
-            onChange={(e) => setPhoneInput(e.target.value)}
-            placeholder="+66 91 234 5678"
-            maxLength={20}
-            pattern="[+()\d\s-]+"
-            className={`flex-1 ${inputCls}`}
-          />
-          <GlassButton tone="glass" size="md" type="submit" disabled={busy !== null}>
-            {busy === "phone" ? "Saving…" : "Save phone"}
-          </GlassButton>
-        </form>
+        <input
+          type="tel"
+          value={phoneInput}
+          readOnly
+          disabled
+          className={`${inputCls} opacity-70 cursor-not-allowed`}
+        />
+        <ChangeContactPanel
+          mode="phone"
+          currentValue={initial.phone ?? ""}
+          currentEmail={initial.email}
+        />
 
         {/* Verify only enabled when a phone is on file.
             Firebase wired = real SMS. Otherwise the legacy in-house

@@ -61,6 +61,12 @@ router.post("/change-password",   requireAuth(), requireRecent2FA(15), ctrl.chan
 router.post("/set-password",      requireAuth(), ctrl.setPassword);
 
 router.patch("/phone",            requireAuth(), ctrl.updatePhone);
+
+// Sensitive change flows: OTP to current email first, then apply.
+router.post("/me/email-change/start",  requireAuth(), ctrl.startEmailChange);
+router.post("/me/email-change/verify", requireAuth(), ctrl.verifyEmailChange);
+router.post("/me/phone-change/start",  requireAuth(), ctrl.startPhoneChange);
+router.post("/me/phone-change/verify", requireAuth(), ctrl.verifyPhoneChange);
 router.post("/request-otp",       requireAuth(), requestOtpLimiter, ctrl.requestOtp);
 router.post("/verify-otp",        requireAuth(), ctrl.verifyOtp);
 

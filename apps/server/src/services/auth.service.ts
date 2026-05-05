@@ -608,7 +608,9 @@ export async function getById(userId: number): Promise<SafeUser | null> {
   return sanitize(user);
 }
 
-// PATCH /auth/me. Profanity gate + email uniqueness (only if email changed).
+// PATCH /auth/me. Profanity gate + email/phone change requires the
+// new dedicated start/verify flows (sensitive_change_otp_*) — they
+// can no longer slip through this generic update.
 export async function updateProfile(
   userId: number,
   input: UpdateProfileInput,
@@ -621,25 +623,21 @@ export async function updateProfile(
   if (profane) {
     throw new AppError(400, "ProfanityRejected", profane.message);
   }
-
+  // Email + phone changes require an OTP-confirmed flow so a stolen
+  // session can't trivially hijack the account by swapping recovery
+  // contact info. Use POST /auth/me/email-change/{start,verify} and
+  // POST /auth/me/phone-change/{start,verify} instead.
   if (input.email && input.email !== currentEmail) {
-    const dup = await prisma.user.findUnique({
-      where: { email: input.email },
-      select: { userId: true },
-    });
-    if (dup && dup.userId !== userId) {
-      throw new AppError(
-        409,
-        "EmailTaken",
-        "Another account is already using that email.",
-      );
-    }
+    throw new AppError(
+      400,
+      "UseEmailChangeFlow",
+      "Email changes require OTP confirmation. Use the Change email button.",
+    );
   }
 
   const data: Record<string, unknown> = {};
   if (input.firstName !== undefined) data.firstName = input.firstName;
   if (input.lastName !== undefined) data.lastName = input.lastName;
-  if (input.email !== undefined) data.email = input.email;
   if (input.profileImage !== undefined) data.profileImage = input.profileImage;
   if (input.countryId !== undefined) data.countryId = input.countryId;
   if (input.gender !== undefined) data.gender = input.gender;
@@ -653,13 +651,159 @@ export async function updateProfile(
     include: { stats: true },
   });
 
-  // Keep the credential account_id in sync with the new email.
-  if (input.email && input.email !== currentEmail) {
-    await prisma.account.updateMany({
-      where: { userId, providerId: "credential", accountId: currentEmail },
-      data: { accountId: input.email },
-    });
+  return sanitize(updated);
+}
+
+// =============================================================================
+//  SENSITIVE CHANGE FLOWS — email + phone
+// =============================================================================
+//
+// Both flows: send a 6-digit OTP to the user's CURRENT email (proof the
+// session belongs to the rightful owner), then on verify apply the new
+// value. Phone changes also re-set phoneVerifiedAt to NULL so the buyer
+// goes through normal phone OTP for the NEW number on next sign-in.
+//
+// We piggy-back on the User.phoneOtpHash + phoneOtpExpiresAt columns —
+// they're already there for the register-time phone OTP and these
+// changes happen post-register so there's no collision risk.
+
+const SENSITIVE_OTP_LIFETIME_MS = 10 * 60_000;
+
+async function issueSensitiveOtp(userId: number, email: string, intent: "email" | "phone", target: string): Promise<void> {
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+  const hash = crypto.createHash("sha256").update(`${intent}:${target}:${code}`).digest("hex");
+  await prisma.user.update({
+    where: { userId },
+    data: {
+      phoneOtpHash: hash,
+      phoneOtpExpiresAt: new Date(Date.now() + SENSITIVE_OTP_LIFETIME_MS),
+    },
+  });
+  const subject = intent === "email"
+    ? `METU email change confirmation — ${code}`
+    : `METU phone change confirmation — ${code}`;
+  const heading = intent === "email" ? "Confirm your email change" : "Confirm your phone change";
+  const intro = intent === "email"
+    ? `You asked to change your METU email to <strong>${escapeHtml(target)}</strong>. Enter the 6-digit code below to confirm. If this wasn't you, change your password immediately.`
+    : `You asked to change your METU phone to <strong>${escapeHtml(target)}</strong>. Enter the 6-digit code below to confirm. If this wasn't you, change your password immediately.`;
+  const body = renderEmailLayout({
+    heading,
+    intro,
+    bodyHtml: `<p style="text-align:center;font-family:monospace;font-size:32px;letter-spacing:8px;color:#facc15;font-weight:bold;margin:24px 0;">${code}</p><p style="text-align:center;color:#94a3b8;font-size:13px;margin:0;">Expires in 10 minutes.</p>`,
+  });
+  await sendEmail({ to: email, subject, html: body }).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[sensitive-otp] email send failed:", err);
+  });
+}
+
+function verifySensitiveOtp(stored: { phoneOtpHash: string | null; phoneOtpExpiresAt: Date | null }, intent: "email" | "phone", target: string, code: string): boolean {
+  if (!stored.phoneOtpHash || !stored.phoneOtpExpiresAt) return false;
+  if (stored.phoneOtpExpiresAt < new Date()) return false;
+  const expected = crypto.createHash("sha256").update(`${intent}:${target}:${code}`).digest("hex");
+  return stored.phoneOtpHash === expected;
+}
+
+export async function startEmailChange(userId: number, currentEmail: string, newEmail: string): Promise<void> {
+  const trimmed = newEmail.trim().toLowerCase();
+  if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    throw new AppError(400, "InvalidEmail", "That email doesn't look right.");
   }
+  if (trimmed === currentEmail.toLowerCase()) {
+    throw new AppError(400, "SameEmail", "New email is the same as the current one.");
+  }
+  const dup = await prisma.user.findUnique({ where: { email: trimmed }, select: { userId: true } });
+  if (dup && dup.userId !== userId) {
+    throw new AppError(409, "EmailTaken", "Another account already uses that email.");
+  }
+  await issueSensitiveOtp(userId, currentEmail, "email", trimmed);
+}
+
+export async function verifyEmailChange(userId: number, currentEmail: string, newEmail: string, code: string): Promise<SafeUser> {
+  const trimmed = newEmail.trim().toLowerCase();
+  const u = await prisma.user.findUnique({
+    where: { userId },
+    select: { phoneOtpHash: true, phoneOtpExpiresAt: true, email: true },
+  });
+  if (!u) throw new AppError(404, "UserNotFound");
+  if (!verifySensitiveOtp(u, "email", trimmed, code)) {
+    throw new AppError(400, "InvalidOtp", "That code didn't match or has expired.");
+  }
+  const dup = await prisma.user.findUnique({ where: { email: trimmed }, select: { userId: true } });
+  if (dup && dup.userId !== userId) {
+    throw new AppError(409, "EmailTaken", "Another account already uses that email.");
+  }
+  const updated = await prisma.user.update({
+    where: { userId },
+    data: {
+      email: trimmed,
+      // The new email is unverified until the user clicks the new
+      // verification link below. Better-auth uses this field to gate
+      // login; flipping it back to false forces re-verification.
+      emailVerified: false,
+      phoneOtpHash: null,
+      phoneOtpExpiresAt: null,
+    },
+    include: { stats: true },
+  });
+  await prisma.account.updateMany({
+    where: { userId, providerId: "credential", accountId: currentEmail },
+    data: { accountId: trimmed },
+  });
+  // Send a verify-email link to the NEW address so we know the buyer
+  // owns it before lifting the gate.
+  const newToken = await issueEmailVerifyToken(userId);
+  await sendEmailVerifyMessage(trimmed, updated.firstName, newToken).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[email-change] new-address verify send failed:", err);
+  });
+  await audit({
+    actorId: userId,
+    action: "user.email_change",
+    targetType: "user",
+    targetId: userId,
+    meta: { from: currentEmail, to: trimmed },
+  });
+  return sanitize(updated);
+}
+
+export async function startPhoneChange(userId: number, currentEmail: string, newPhone: string): Promise<void> {
+  const trimmed = newPhone.trim();
+  if (!trimmed || !/^\+?[\d\s-]{6,}$/.test(trimmed)) {
+    throw new AppError(400, "InvalidPhone", "That phone number doesn't look right.");
+  }
+  await issueSensitiveOtp(userId, currentEmail, "phone", trimmed);
+}
+
+export async function verifyPhoneChange(userId: number, newPhone: string, code: string): Promise<SafeUser> {
+  const trimmed = newPhone.trim();
+  const u = await prisma.user.findUnique({
+    where: { userId },
+    select: { phoneOtpHash: true, phoneOtpExpiresAt: true },
+  });
+  if (!u) throw new AppError(404, "UserNotFound");
+  if (!verifySensitiveOtp(u, "phone", trimmed, code)) {
+    throw new AppError(400, "InvalidOtp", "That code didn't match or has expired.");
+  }
+  const updated = await prisma.user.update({
+    where: { userId },
+    data: {
+      phone: trimmed,
+      // Flip phoneVerifiedAt to NULL — the buyer has to re-verify the
+      // new number via the normal phone-OTP flow on next sign-in.
+      phoneVerifiedAt: null,
+      phoneOtpHash: null,
+      phoneOtpExpiresAt: null,
+    },
+    include: { stats: true },
+  });
+  await audit({
+    actorId: userId,
+    action: "user.phone_change",
+    targetType: "user",
+    targetId: userId,
+    meta: { phone: trimmed },
+  });
   return sanitize(updated);
 }
 
