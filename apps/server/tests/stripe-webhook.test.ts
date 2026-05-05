@@ -37,6 +37,7 @@ vi.mock("../src/db/prisma.js", () => ({
 
 vi.mock("../src/services/orders.service.js", () => ({
   finalizeOrder: vi.fn(async () => undefined),
+  clearCartAfterPayment: vi.fn(async () => undefined),
 }));
 
 vi.mock("../src/lib/auth.js", () => ({
@@ -159,6 +160,7 @@ describe("POST /api/webhooks/stripe — payment_intent.succeeded", () => {
     (prisma.order.findUnique as any).mockResolvedValue({
       totalPrice: "150.00",
       status: "pending",
+      userId: 7,
     });
 
     const res = await request(buildApp())

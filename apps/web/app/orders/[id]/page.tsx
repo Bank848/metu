@@ -13,6 +13,7 @@ import { isDataUrl } from "@/lib/utils";
 import { prisma } from "@/lib/server/prisma";
 import { Confetti } from "./Confetti";
 import { ReviewItemButton } from "./ReviewItemButton";
+import { RetryPaymentLink } from "./RetryPaymentLink";
 
 type Order = {
   orderId: number;
@@ -156,7 +157,7 @@ export default async function OrderDetail({
                     If you completed payment in the previous step, this page will refresh
                     automatically once we receive the confirmation. If you cancelled or
                     closed the payment window, you can{" "}
-                    <Link href={`/checkout/${order.orderId}`} className="text-metu-yellow hover:underline">try again</Link>{" "}
+                    <RetryPaymentLink orderId={order.orderId} />{" "}
                     or head back to your{" "}
                     <Link href="/cart" className="text-metu-yellow hover:underline">cart</Link>.
                   </p>

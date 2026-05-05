@@ -48,3 +48,16 @@ export const getOne: RequestHandler = async (req, res, next) => {
     next(err);
   }
 };
+
+export const retryPayment: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) throw new AppError(400, "BadId");
+    const result = await service.retryOrderPayment(auth.uid, id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};

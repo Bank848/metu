@@ -23,12 +23,14 @@ export async function checkout(
   userId: number,
   input: CheckoutInput,
 ): Promise<CheckoutResponse> {
-  // opportunistic stale-pending sweep. Orders that have
-  // sat `pending` for >30 min are abandoned: cancel them and restore
-  // any stock they held. Prevents inventory-DoS via abandoned carts.
-  await sweepStalePendingOrders(userId).catch((err) => {
+  // Cancel any of this user's still-pending orders before creating a new one.
+  // The buyer cancelled out of Stripe / closed the tab and is now retrying;
+  // letting both orders sit pending would double-decrement non-digital stock
+  // and clutter the orders list with abandoned rows. Restores stock as it
+  // goes, so the stock reservation we're about to make below is clean.
+  await cancelUserPendingOrders(userId).catch((err) => {
     // eslint-disable-next-line no-console
-    console.warn("[orders.checkout] stale-sweep failed (non-fatal):", err);
+    console.warn("[orders.checkout] cancel-pending failed (non-fatal):", err);
   });
 
   const cart = await prisma.cart.findFirst({
@@ -328,19 +330,14 @@ export async function checkout(
       }
     }
 
-    await tx.cart.update({
-      where: { cartId: cart.cartId },
-      data: { status: "checked_out" },
-    });
-    const newCart = await tx.cart.create({
-      data: { userId, status: "active" },
-    });
-    if (unselectedItems.length > 0) {
-      await tx.cartItem.updateMany({
-        where: { cartItemId: { in: unselectedItems.map((ci) => ci.cartItemId) } },
-        data: { cartId: newCart.cartId },
-      });
-    }
+    // Leave the cart untouched until payment succeeds. The webhook
+    // (onPaymentIntentSucceeded) flips it to checked_out and creates a
+    // new active cart only after Stripe confirms the charge. This way a
+    // back-button-out-of-Stripe doesn't make the buyer's cart appear to
+    // vanish — their items are still there to retry. Stock has already
+    // been decremented above, and cancelUserPendingOrders() at the top
+    // of checkout() guarantees we don't double-decrement on retry.
+    void unselectedItems;
     if (resolvedCoupon) {
       // TOCTOU-safe limit check: count INSIDE the tx so
       // a concurrent checkout can't sneak past. The unique
@@ -391,6 +388,68 @@ export async function checkout(
     couponStoreId: resolvedCoupon ? resolvedCoupon.storeId : null,
     stripeClientSecret,
   };
+}
+
+/**
+ * Generate a fresh PaymentIntent for an existing pending order. Used when the
+ * buyer cancelled out of the Stripe page (browser back, closed window, etc.)
+ * and now wants to retry without losing the cart items the order already locked.
+ */
+export async function retryOrderPayment(
+  userId: number,
+  orderId: number,
+): Promise<{ clientSecret: string }> {
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    include: {
+      items: {
+        include: { productItem: { include: { product: { select: { storeId: true } } } } },
+      },
+    },
+  });
+  if (!order || order.userId !== userId) {
+    throw new AppError(404, "OrderNotFound", "Order not found.");
+  }
+  if (order.status !== "pending") {
+    throw new AppError(400, "OrderNotPending", "This order can no longer accept a payment.");
+  }
+  if (!stripeConfigured()) {
+    throw new AppError(503, "StripeNotConfigured", "Payments are temporarily unavailable.");
+  }
+  const storeIds = new Set(order.items.map((it) => it.productItem.product.storeId));
+  if (storeIds.size !== 1) {
+    throw new AppError(400, "MultiStoreCheckoutUnsupported", "Cannot retry a multi-store order.");
+  }
+  const storeId = [...storeIds][0]!;
+  const store = await prisma.store.findUnique({
+    where: { storeId },
+    select: { stripeAccountId: true, stripeChargesEnabled: true },
+  });
+  if (!store?.stripeAccountId || !store.stripeChargesEnabled) {
+    throw new AppError(
+      400,
+      "SellerNotReadyForPayments",
+      "This seller hasn't finished setting up payments yet.",
+    );
+  }
+
+  const settings = await getSettings();
+  const buyer = await prisma.user.findUnique({
+    where: { userId },
+    select: { email: true },
+  });
+  const intent = await createPaymentIntent({
+    orderId,
+    amountBaht: Number(order.totalPrice),
+    sellerStripeAccountId: store.stripeAccountId,
+    applicationFeePercent: Number(settings.platformFeePercent),
+    buyerEmail: buyer?.email,
+  });
+  await prisma.order.update({
+    where: { orderId },
+    data: { stripePaymentIntentId: intent.paymentIntentId },
+  });
+  return { clientSecret: intent.clientSecret };
 }
 
 /**
@@ -648,23 +707,19 @@ export async function findByIdForUser(
 }
 
 /**
- * cancel orders that have sat `pending` for >30 min and
- * restore their stock. Called opportunistically at the start of every
- * checkout so abandoned carts don't lock inventory indefinitely.
+ * Cancel every pending order this user has and restore their stock. Called
+ * at the start of each checkout so a buyer who backed out of Stripe and is
+ * now retrying doesn't end up with two pending orders fighting for the same
+ * inventory.
  */
-async function sweepStalePendingOrders(userId: number): Promise<void> {
-  const cutoff = new Date(Date.now() - 30 * 60_000);
-  const stale = await prisma.order.findMany({
-    where: {
-      userId,
-      status: "pending",
-      createdAt: { lt: cutoff },
-    },
+export async function cancelUserPendingOrders(userId: number): Promise<void> {
+  const pending = await prisma.order.findMany({
+    where: { userId, status: "pending" },
     select: { orderId: true },
   });
-  if (stale.length === 0) return;
+  if (pending.length === 0) return;
   const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
-  for (const order of stale) {
+  for (const order of pending) {
     await prisma.$transaction(async (tx) => {
       const fresh = await tx.order.findUnique({
         where: { orderId: order.orderId },
@@ -689,3 +744,31 @@ async function sweepStalePendingOrders(userId: number): Promise<void> {
     });
   }
 }
+
+/**
+ * Swap the user's cart over after a successful payment: mark whichever cart
+ * still holds the order's items as `checked_out`, then ensure they have a
+ * fresh active cart for their next purchase. Called from the Stripe webhook
+ * once payment is confirmed.
+ */
+export async function clearCartAfterPayment(userId: number): Promise<void> {
+  const active = await prisma.cart.findFirst({
+    where: { userId, status: "active" },
+    select: { cartId: true },
+  });
+  if (active) {
+    await prisma.cart.update({
+      where: { cartId: active.cartId },
+      data: { status: "checked_out" },
+    });
+  }
+  // Ensure exactly one active cart exists for the next purchase.
+  const fresh = await prisma.cart.findFirst({
+    where: { userId, status: "active" },
+    select: { cartId: true },
+  });
+  if (!fresh) {
+    await prisma.cart.create({ data: { userId, status: "active" } });
+  }
+}
+

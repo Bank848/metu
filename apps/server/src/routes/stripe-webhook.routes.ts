@@ -8,7 +8,7 @@ import type { Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
 import { prisma } from "../db/prisma.js";
 import { getClient, isConfigured } from "../services/stripe.service.js";
-import { finalizeOrder } from "../services/orders.service.js";
+import { finalizeOrder, clearCartAfterPayment } from "../services/orders.service.js";
 
 const router = Router();
 
@@ -101,7 +101,7 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
   // for manual review instead of auto-finalising.
   const order = await prisma.order.findUnique({
     where: { orderId },
-    select: { totalPrice: true, status: true },
+    select: { totalPrice: true, status: true, userId: true },
   });
   if (!order) return;
   // Idempotency for retried success events.
@@ -141,6 +141,13 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     },
   });
 
+  // Now that the charge is real, retire the cart that held these items
+  // and hand the buyer a fresh active one for their next purchase.
+  await clearCartAfterPayment(order.userId).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.warn("[stripe-webhook] clearCartAfterPayment failed (non-fatal):", err);
+  });
+
   // finalizeOrder is idempotent so Stripe retries are safe.
   await finalizeOrder(orderId);
 }
@@ -149,9 +156,28 @@ async function onPaymentIntentFailed(event: Stripe.Event) {
   const pi = event.data.object as Stripe.PaymentIntent;
   const orderId = Number(pi.metadata?.orderId ?? 0);
   if (!orderId) return;
-  await prisma.order.update({
-    where: { orderId },
-    data: { status: "cancelled" },
+  const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
+  // Cancel the order AND restore any non-digital stock it held, in one tx.
+  // Without the stock restore, every failed PromptPay attempt would burn
+  // inventory on a real-goods listing.
+  await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { orderId },
+      select: { status: true, items: { select: { productItemId: true, quantity: true } } },
+    });
+    if (!order || order.status !== "pending") return;
+    for (const item of order.items) {
+      const pIt = await tx.productItem.findUnique({
+        where: { productItemId: item.productItemId },
+        select: { deliveryMethod: true },
+      });
+      if (!pIt || DIGITAL_METHODS.has(pIt.deliveryMethod)) continue;
+      await tx.productItem.update({
+        where: { productItemId: item.productItemId },
+        data: { quantity: { increment: item.quantity } },
+      });
+    }
+    await tx.order.update({ where: { orderId }, data: { status: "cancelled" } });
   });
 }
 
