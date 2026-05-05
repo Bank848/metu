@@ -11,16 +11,20 @@ primary_region = "sin"
 
 # NEXT_PUBLIC_* values are inlined into the client bundle by `next build`
 # at image-build time, so they have to be passed as Docker build args (not
-# Fly runtime secrets). These are public-by-design (visible in the browser
-# bundle anyway), so committing them here is fine. The Dockerfile's builder
-# stage declares matching ARG lines and re-exports them as ENV before
-# `next build` runs.
-[build.args]
-  NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSyDthfpPgy0AjUNoDDhxcG_Vh5LGYCKpL3Y"
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = "metu-prod.firebaseapp.com"
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID = "metu-prod"
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_51TRpAtQTRENstKux8Og4JWsFwuYaj8kBMS1JYhF1TtxhBlFh0PECduFaskzDrAreBHPUDjD1WMgZ7KkOWdx87kpJ00Mwpjd5Oo"
-  NEXT_PUBLIC_SITE_URL = "https://metu.online"
+# Fly runtime secrets). They're public-by-design — they ship to the browser
+# in the JS bundle anyway — but we keep them out of the repo to satisfy
+# GitHub secret scanning. Pass them at deploy time instead:
+#
+#   flyctl deploy --remote-only -a metu \
+#     --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="AIza..." \
+#     --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="<project>.firebaseapp.com" \
+#     --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="<project-id>" \
+#     --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..." \
+#     --build-arg NEXT_PUBLIC_SITE_URL="https://metu.online"
+#
+# The full deploy invocation lives in scripts/deploy-web.sh (gitignored
+# .env.deploy.local). The Dockerfile's builder stage declares matching
+# ARG lines and re-exports them as ENV before `next build` runs.
 
 [env]
   PORT = "8080"
