@@ -77,11 +77,28 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   const [giftEmail, setGiftEmail] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
 
-  // Every item is selected by default. Checkbox state survives qty / remove
-  // as long as the item is still in the cart.
-  const [selected, setSelected] = useState<Record<number, boolean>>(() =>
-    Object.fromEntries(initial.items.map((l) => [l.cartItemId, true])),
-  );
+  // Every item is selected by default; mirror to localStorage so checkbox
+  // state survives navigations (cart refresh after add-to-cart, return from
+  // a failed Stripe checkout, etc.). Keyed by cartItemId because that's the
+  // only id that's stable across re-renders.
+  const SELECTION_STORAGE_KEY = "metu:cart-selection";
+  const [selected, setSelected] = useState<Record<number, boolean>>(() => {
+    const allOn = Object.fromEntries(initial.items.map((l) => [l.cartItemId, true]));
+    if (typeof window === "undefined") return allOn;
+    try {
+      const raw = window.localStorage.getItem(SELECTION_STORAGE_KEY);
+      const saved: Record<string, boolean> = raw ? JSON.parse(raw) : {};
+      // Trust the saved value where the line still exists; default new lines
+      // to selected so newly-added items show up in the order summary.
+      const merged: Record<number, boolean> = {};
+      for (const l of initial.items) {
+        merged[l.cartItemId] = saved[String(l.cartItemId)] !== false;
+      }
+      return merged;
+    } catch {
+      return allOn;
+    }
+  });
   useEffect(() => {
     setSelected((prev) => {
       const next = { ...prev };
@@ -92,6 +109,15 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       return next;
     });
   }, [cart.items]);
+  // Persist whenever it changes so a later page mount can rehydrate.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(selected));
+    } catch {
+      // Quota / SSR / private mode — fall back to in-memory only.
+    }
+  }, [selected]);
 
   // Auto-dismiss the toast after a few seconds so it doesn't linger.
   useEffect(() => {
