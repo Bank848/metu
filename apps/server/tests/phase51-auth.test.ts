@@ -64,7 +64,6 @@ beforeEach(async () => {
   vi.clearAllMocks();
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,
-    deletedAt: null,
     bannedAt: null,
     stats: { role: "buyer" },
     store: null,
@@ -169,7 +168,6 @@ describe("DELETE /auth/me — self-delete guards", () => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
       username: "admin1",
-      deletedAt: null,
       bannedAt: null,
       stats: { role: "admin" },
       store: null,
@@ -203,7 +201,6 @@ describe("requireAuth — kicked-out states", () => {
   it("403 Forbidden when the user role doesn't match the route requirement", async () => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
-      deletedAt: null,
       bannedAt: null,
       stats: { role: "buyer" },
       store: null,

@@ -3,8 +3,8 @@
  *   • Auth + role gates (401 / 403 buyer)
  *   • GET    /admin/users            list + filter passthrough
  *   • PATCH  /admin/users/:id        role change happy + 400 SelfDemoteForbidden + audit row
- *   • DELETE /admin/users/:id        soft-delete vs ban (with reason) + 400 SelfDeleteForbidden
- *   • GET    /admin/stores           list (deletedAt:null filter)
+ *   • DELETE /admin/users/:id        hard-delete / anonymise vs ban (with reason) + 400 SelfDeleteForbidden
+ *   • GET    /admin/stores           list
  *   • DELETE /admin/stores/:id       audit row
  *   • GET    /admin/stats            composite payload
  *   • DELETE /admin/transactions/:id snapshot audit
@@ -74,14 +74,12 @@ const { buildApp } = await import("../src/app.js");
 const adminUser = {
   userId: 1,
   username: "admin1",
-  deletedAt: null,
   stats: { role: "admin" },
   store: null,
 };
 const buyerUser = {
   userId: 9,
   username: "buyer9",
-  deletedAt: null,
   stats: { role: "buyer" },
   store: null,
 };
@@ -423,7 +421,6 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
     // get past the 401 and reach the 403 forbidden gate.
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
-      deletedAt: null,
       stats: { role: "buyer" },
       store: null,
     });

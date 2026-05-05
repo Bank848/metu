@@ -90,7 +90,6 @@ describe("POST /auth/login", () => {
       userId: 7,
       email: "buyer@metu.dev",
       password: hash,
-      deletedAt: null,
       emailVerified: true,
       phoneVerifiedAt: new Date(),
       stats: { role: "buyer" },
@@ -116,7 +115,6 @@ describe("POST /auth/login", () => {
       userId: 7,
       email: "buyer@metu.dev",
       password: hash,
-      deletedAt: null,
       stats: { role: "buyer" },
       carts: [],
     });
@@ -156,7 +154,6 @@ describe("POST /auth/login", () => {
         userId: 1,
         email: "admin@metu.dev",
         password: hash,
-        deletedAt: null,
         emailVerified: true,
         phoneVerifiedAt: new Date(),
         stats: { role: "admin" },
@@ -181,7 +178,6 @@ describe("POST /auth/login", () => {
         userId: 1,
         email: "admin@metu.dev",
         password: hash,
-        deletedAt: null,
         emailVerified: true,
         phoneVerifiedAt: new Date(),
         stats: { role: "admin" },
@@ -278,7 +274,6 @@ describe("GET /auth/me", () => {
       userId: 7,
       email: "buyer@metu.dev",
       firstName: "Thana",
-      deletedAt: null,
     });
     const res2 = await request(buildApp())
       .post("/auth/forgot-password")
@@ -304,7 +299,6 @@ describe("GET /auth/me", () => {
       userId: 7,
       email: "buyer@metu.dev",
       password: "$2a$10$shouldNeverEscape",
-      deletedAt: null,
       stats: { role: "buyer" },
       store: null,
     });
@@ -338,7 +332,6 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
         return Promise.resolve({ password: "$2a$10$existinghash" });
       return Promise.resolve({
         userId: where.userId,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });
@@ -356,7 +349,6 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
       if (select?.password) return Promise.resolve({ password: null });
       return Promise.resolve({
         userId: where.userId,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });
@@ -389,7 +381,6 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
   it("400 when newPassword + confirmPassword don't match", async () => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
-      deletedAt: null,
       stats: { role: "buyer" },
       store: null,
     });
@@ -418,7 +409,6 @@ describe("Phase 14.4 — phone + OTP", () => {
     it("400 ValidationError for non-phone-shaped string", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });
@@ -433,7 +423,6 @@ describe("Phase 14.4 — phone + OTP", () => {
     it("happy: normalises (strips non-digits) + clears phoneVerifiedAt", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });
@@ -461,7 +450,6 @@ describe("Phase 14.4 — phone + OTP", () => {
         if (select?.phone) return Promise.resolve({ phone: null });
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -479,7 +467,6 @@ describe("Phase 14.4 — phone + OTP", () => {
         if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -512,7 +499,6 @@ describe("Phase 14.4 — phone + OTP", () => {
     it("400 ValidationError for non-6-digit code", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });
@@ -529,7 +515,6 @@ describe("Phase 14.4 — phone + OTP", () => {
         if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -548,7 +533,6 @@ describe("Phase 14.4 — phone + OTP", () => {
         if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -574,7 +558,6 @@ describe("Phase 14.4 — phone + OTP", () => {
         if (select?.phone) return Promise.resolve({ phone: "+66912345678" });
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -613,7 +596,6 @@ describe("Phase 14.4 — phone + OTP", () => {
           }
           return Promise.resolve({
             userId: where.userId,
-            deletedAt: null,
             stats: { role: "buyer" },
             store: null,
           });
@@ -640,7 +622,6 @@ describe("Phase 14.4 — phone + OTP", () => {
             });
           return Promise.resolve({
             userId: where.userId,
-            deletedAt: null,
             stats: { role: "buyer" },
             store: null,
           });
@@ -683,7 +664,6 @@ describe("Phase 14.4 — phone + OTP", () => {
             });
           return Promise.resolve({
             userId: where.userId,
-            deletedAt: null,
             stats: { role: "buyer" },
             store: null,
           });
@@ -723,7 +703,6 @@ describe("Phase 14.4 — phone + OTP", () => {
             });
           return Promise.resolve({
             userId: where.userId,
-            deletedAt: null,
             stats: { role: "buyer" },
             store: null,
           });
@@ -754,7 +733,6 @@ describe("Phase 14.4 — phone + OTP", () => {
         if (select?.phone) return Promise.resolve({ phone });
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -813,7 +791,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
         }
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -837,7 +814,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
         }
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -869,7 +845,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
         }
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -893,7 +868,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
         }
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -928,7 +902,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
         }
         return Promise.resolve({
           userId: where.userId,
-          deletedAt: null,
           stats: { role: "buyer" },
           store: null,
         });
@@ -963,7 +936,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
         password: "$2a$10$existinghash",
         totpEnabled: true,
         totpSecret: "JBSWY3DPEHPK3PXP",
-        deletedAt: null,
         stats: { role: "buyer" },
         carts: [],
       });
@@ -983,7 +955,6 @@ describe("Phase 16.2 — TOTP 2FA", () => {
         password: "$2a$10$existinghash",
         totpEnabled: true,
         totpSecret: "JBSWY3DPEHPK3PXP",
-        deletedAt: null,
         stats: { role: "buyer" },
         carts: [],
       });
@@ -1014,7 +985,6 @@ describe("Phase 15.2 — sessions UI", () => {
     it("returns sessions ordered + currentSessionId from getSession (Mode A)", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });
@@ -1048,7 +1018,6 @@ describe("Phase 15.2 — sessions UI", () => {
     it("404 SessionNotFound when no row matches the user", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });
@@ -1063,7 +1032,6 @@ describe("Phase 15.2 — sessions UI", () => {
     it("happy: deletes the session, ownership-checked via userId predicate", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });
@@ -1082,7 +1050,6 @@ describe("Phase 15.2 — sessions UI", () => {
     it("revokes all OTHER sessions, keeps current row (Mode A)", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
-        deletedAt: null,
         stats: { role: "buyer" },
         store: null,
       });

@@ -66,7 +66,6 @@ beforeEach(async () => {
   vi.clearAllMocks();
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,
-    deletedAt: null,
     stats: { role: "buyer" },
     store: null,
   });
@@ -84,9 +83,8 @@ describe("POST /cart/items — already-owned guard (Phase 48)", () => {
         name: "One-shot eBook",
         isStackable: false,
         isActive: true,
-        deletedAt: null,
         storeId: 99,
-        store: { deletedAt: null, suspendedAt: null, stripeChargesEnabled: true },
+        store: { suspendedAt: null, stripeChargesEnabled: true },
       },
     });
     // The buyer already has a paid order containing this product.
@@ -114,9 +112,8 @@ describe("POST /cart/items — already-owned guard (Phase 48)", () => {
         name: "License key bulk pack",
         isStackable: true,
         isActive: true,
-        deletedAt: null,
         storeId: 99,
-        store: { deletedAt: null, suspendedAt: null, stripeChargesEnabled: true },
+        store: { suspendedAt: null, stripeChargesEnabled: true },
       },
     });
     // Even if we have a previous purchase, stackable = OK.
@@ -162,9 +159,8 @@ describe("POST /orders — defence-in-depth checkout guards", () => {
               productId: 50,
               isStackable,
               isActive: true,
-              deletedAt: null,
               storeId,
-              store: { deletedAt: null, suspendedAt: null, stripeChargesEnabled: true },
+              store: { suspendedAt: null, stripeChargesEnabled: true },
               name: "Item",
             },
           },
@@ -182,10 +178,9 @@ describe("POST /orders — defence-in-depth checkout guards", () => {
         productId: 50,
         isStackable,
         isActive: true,
-        deletedAt: null,
         storeId,
         name: "Item",
-        store: { deletedAt: null, suspendedAt: null, stripeChargesEnabled: true },
+        store: { suspendedAt: null, stripeChargesEnabled: true },
       },
     });
   }
@@ -212,9 +207,8 @@ describe("GET /seller/orders/export — CSV formula injection neutralised", () =
   beforeEach(() => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
-      deletedAt: null,
       stats: { role: "seller" },
-      store: { storeId: 99, deletedAt: null, suspendedAt: null },
+      store: { storeId: 99, suspendedAt: null },
     });
   });
 

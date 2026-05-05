@@ -26,9 +26,11 @@ export const updateUserRoleSchema = z.object({
 export type UpdateUserRoleInput = z.infer<typeof updateUserRoleSchema>;
 
 /**
- * DELETE /admin/users/:id body. With reason: ban (sets deletedAt +
- * bannedAt + bannedReason, audits "user.ban"). Without: plain
- * soft-delete (deletedAt only, audits "user.delete").
+ * DELETE /admin/users/:id body. With reason → ban (sets bannedAt +
+ * bannedReason; row stays so it can be unbanned, audits "user.ban").
+ * Without reason → hard-delete for fresh accounts or anonymise for
+ * accounts with order/review/transaction history (audits "user.delete"
+ * or "user.anonymize" respectively).
  */
 export const deleteUserSchema = z.object({
   reason: z.string().optional(),

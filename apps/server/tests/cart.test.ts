@@ -48,7 +48,6 @@ beforeEach(async () => {
   // Default: requireAuth() resolves user 7 successfully.
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,
-    deletedAt: null,
     stats: { role: "buyer" },
     store: null,
   });
@@ -57,9 +56,8 @@ beforeEach(async () => {
   // Phase 48 — `isStackable: true` so the already-owned guard skips
   // straight through; tests that need the guard active set their own
   // mock with `isStackable: false` + an `order.findFirst` return.
-  // Phase 50 — `loadPurchasableProductItem` now also reads
-  // `product.isActive`, `product.deletedAt`, `product.name`,
-  // `product.storeId`, `store.deletedAt`, `store.suspendedAt`, and
+  // `loadPurchasableProductItem` reads `product.isActive`,
+  // `product.name`, `product.storeId`, `store.suspendedAt`, and
   // `store.stripeChargesEnabled`; mock the happy-state values so the
   // availability gate passes for existing tests.
   (prisma.productItem.findUnique as any).mockResolvedValue({
@@ -71,11 +69,9 @@ beforeEach(async () => {
       name: "Test product",
       isStackable: true,
       isActive: true,
-      deletedAt: null,
       storeId: 9,
       store: {
         ownerId: 99,
-        deletedAt: null,
         suspendedAt: null,
         stripeChargesEnabled: true,
       },
@@ -211,9 +207,8 @@ describe("Phase 50 — POST /cart/items availability gate", () => {
         name: "Paused product",
         isStackable: true,
         isActive: false,
-        deletedAt: null,
         storeId: 9,
-        store: { ownerId: 99, deletedAt: null, suspendedAt: null, stripeChargesEnabled: true },
+        store: { ownerId: 99, suspendedAt: null, stripeChargesEnabled: true },
       },
     });
     const res = await request(buildApp())

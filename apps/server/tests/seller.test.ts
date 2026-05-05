@@ -64,13 +64,11 @@ const { buildApp } = await import("../src/app.js");
 
 const sellerUser = {
   userId: 7,
-  deletedAt: null,
   stats: { role: "seller" },
   store: { storeId: 11, ownerId: 7, name: "My Shop" },
 };
 const buyerUser = {
   userId: 9,
-  deletedAt: null,
   stats: { role: "buyer" },
   store: null,
 };

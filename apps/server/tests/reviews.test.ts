@@ -46,7 +46,6 @@ beforeEach(async () => {
   // Default: requireAuth() resolves user 7 (buyer).
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,
-    deletedAt: null,
     stats: { role: "buyer" },
     store: null,
   });
@@ -114,7 +113,6 @@ describe("DELETE /reviews/:id (admin → audit row)", () => {
   it("admin deleting a non-self review writes an AuditLog entry", async () => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 40,
-      deletedAt: null,
       stats: { role: "admin" },
       store: null,
     });

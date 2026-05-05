@@ -38,12 +38,12 @@ const SECTIONS: FeatureSection[] = [
   {
     icon: Database,
     badge: "How data is organized",
-    title: "27 things we keep track of",
+    title: "29 things we keep track of",
     body:
-      "Users, stores, products, orders, coupons, reviews — every piece of information has a clean home. We designed it so nothing gets duplicated and nothing accidentally gets erased.",
+      "Users, stores, products, orders, coupons, reviews — every piece of information has a clean home. We designed it so nothing gets duplicated and history stays readable even after rows go away.",
     bullets: [
-      "Deleted accounts and stores are hidden, not erased — order history stays intact",
-      "If a sale is tied to a product, the database refuses to let that product disappear",
+      "Order history survives a deleted product — every line carries its own product name + image snapshot",
+      "If a sale is tied to a product, deleting the product just nulls the link; the receipt still reads correctly",
       "Built-in checks block bad data — like a five-star rating that's actually 99 stars",
     ],
     accent: "purple",
@@ -133,13 +133,12 @@ const SECTIONS: FeatureSection[] = [
     badge: "Foundation",
     title: "Modern, well-tested foundation",
     body:
-      "Built with proven, current tools. 144 automated tests run before every release so bugs we caught yesterday stay caught today.",
+      "Built with proven, current tools. 181 automated tests run before every release so bugs we caught yesterday stay caught today.",
     bullets: [
-      "A live page lists every tool we use and which version, sorted into 8 clear categories",
+      "Next.js 14 + Express + Prisma + Postgres on Fly.io with Stripe Connect for live payments",
       "Updates reach the live site within minutes of a successful test run",
       "The whole project lives in one place so changes can be reviewed end to end",
     ],
-    cta: { href: "/admin/tech-stack", label: "See what we use" },
     accent: "blue",
   },
 ];
@@ -189,9 +188,9 @@ export default function FeatureTourPage() {
 
         <Reveal from="up" delay="delay-300">
           <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl">
-            <HeroStat label="Things tracked" value={27} />
-            <HeroStat label="Database updates shipped" value={29} />
-            <HeroStat label="Automated tests" value={144} />
+            <HeroStat label="Things tracked" value={29} />
+            <HeroStat label="Database updates shipped" value={42} />
+            <HeroStat label="Automated tests" value={181} />
             <HeroStat label="Live payments" value={1} suffix=" via Stripe" />
           </div>
         </Reveal>

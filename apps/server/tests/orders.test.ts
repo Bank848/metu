@@ -39,7 +39,6 @@ beforeEach(async () => {
   await signedInAs(7);
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,
-    deletedAt: null,
     stats: { role: "buyer" },
     store: null,
   });

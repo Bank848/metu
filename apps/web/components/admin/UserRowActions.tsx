@@ -233,13 +233,13 @@ export function UserRowActions({
           confirm: `Lift the ban on @${username}? They can sign in again immediately. The original ban reason is cleared.`,
         }
       : {
-          // relabelled "Delete user" → "Remove user" to match
-          // the new dialog flow that asks for an optional ban reason.
-          // Without a reason it's a soft-delete (deletedAt only); with a
-          // reason it becomes a ban (deletedAt + bannedAt + bannedReason
-          // populated, audit action = "user.ban").
-          // without a reason this now hard-deletes fresh
-          // accounts and anonymises accounts with order/review history.
+          // relabelled "Delete user" → "Remove user" to match the
+          // dialog flow that asks for an optional ban reason. With a
+          // reason it becomes a ban (bannedAt + bannedReason populated,
+          // audit "user.ban", row stays so admin can unban). Without a
+          // reason it hard-deletes fresh accounts and anonymises
+          // accounts with order/review history (audit "user.delete" /
+          // "user.anonymize" respectively).
           label: "Remove user",
           icon: Trash2,
           tone: "destructive",

@@ -267,7 +267,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 20
       },
       {
-        "name": "deleted_at",
+        "name": "banned_at",
         "type": "DATETIME",
         "pk": false,
         "fk": null,
@@ -276,22 +276,13 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 21
       },
       {
-        "name": "banned_at",
-        "type": "DATETIME",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": true,
-        "ordinal": 22
-      },
-      {
         "name": "banned_reason",
         "type": "VARCHAR(120)",
         "pk": false,
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 23
+        "ordinal": 22
       }
     ]
   },
@@ -462,7 +453,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 8
       },
       {
-        "name": "deleted_at",
+        "name": "suspended_at",
         "type": "DATETIME",
         "pk": false,
         "fk": null,
@@ -471,22 +462,13 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 9
       },
       {
-        "name": "suspended_at",
-        "type": "DATETIME",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": true,
-        "ordinal": 10
-      },
-      {
         "name": "stripe_account_id",
         "type": "VARCHAR(40)",
         "pk": false,
         "fk": null,
         "unique": true,
         "nullable": true,
-        "ordinal": 11
+        "ordinal": 10
       },
       {
         "name": "stripe_payouts_enabled",
@@ -495,7 +477,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 12
+        "ordinal": 11
       },
       {
         "name": "stripe_charges_enabled",
@@ -504,7 +486,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 13
+        "ordinal": 12
       },
       {
         "name": "contact_email",
@@ -513,7 +495,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 14
+        "ordinal": 13
       },
       {
         "name": "phone",
@@ -522,42 +504,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 15
-      }
-    ]
-  },
-  {
-    "table": "store_stats",
-    "fields": [
-      {
-        "name": "stat_id",
-        "type": "INT",
-        "pk": true,
-        "fk": null,
-        "unique": false,
-        "nullable": false,
-        "ordinal": 1
-      },
-      {
-        "name": "store_id",
-        "type": "INT",
-        "pk": false,
-        "fk": {
-          "table": "store",
-          "column": "store_id"
-        },
-        "unique": true,
-        "nullable": false,
-        "ordinal": 2
-      },
-      {
-        "name": "ctr",
-        "type": "INT",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": false,
-        "ordinal": 3
+        "ordinal": 14
       },
       {
         "name": "rating",
@@ -566,25 +513,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 4
-      },
-      {
-        "name": "response_time",
-        "type": "INT",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": false,
-        "ordinal": 5
-      },
-      {
-        "name": "updated_at",
-        "type": "DATETIME",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": false,
-        "ordinal": 6
+        "ordinal": 15
       }
     ]
   },
@@ -734,22 +663,13 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 8
       },
       {
-        "name": "deleted_at",
-        "type": "DATETIME",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": true,
-        "ordinal": 9
-      },
-      {
         "name": "created_at",
         "type": "DATETIME",
         "pk": false,
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 10
+        "ordinal": 9
       },
       {
         "name": "updated_at",
@@ -758,7 +678,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 11
+        "ordinal": 10
       }
     ]
   },
@@ -1336,18 +1256,6 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 1
       },
       {
-        "name": "cart_id",
-        "type": "INT",
-        "pk": false,
-        "fk": {
-          "table": "cart",
-          "column": "cart_id"
-        },
-        "unique": true,
-        "nullable": false,
-        "ordinal": 2
-      },
-      {
         "name": "user_id",
         "type": "INT",
         "pk": false,
@@ -1357,7 +1265,7 @@ export const ER_ENTITIES: ErEntity[] = [
         },
         "unique": false,
         "nullable": false,
-        "ordinal": 3
+        "ordinal": 2
       },
       {
         "name": "total_price",
@@ -1366,7 +1274,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 4
+        "ordinal": 3
       },
       {
         "name": "status",
@@ -1375,7 +1283,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 5
+        "ordinal": 4
       },
       {
         "name": "transaction_id",
@@ -1387,7 +1295,7 @@ export const ER_ENTITIES: ErEntity[] = [
         },
         "unique": false,
         "nullable": true,
-        "ordinal": 6
+        "ordinal": 5
       },
       {
         "name": "created_at",
@@ -1396,7 +1304,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 7
+        "ordinal": 6
       },
       {
         "name": "updated_at",
@@ -1405,7 +1313,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 8
+        "ordinal": 7
       },
       {
         "name": "expired_at",
@@ -1414,7 +1322,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 9
+        "ordinal": 8
       },
       {
         "name": "gift_recipient_email",
@@ -1423,7 +1331,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 10
+        "ordinal": 9
       },
       {
         "name": "gift_message",
@@ -1432,7 +1340,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 11
+        "ordinal": 10
       },
       {
         "name": "stripe_payment_intent_id",
@@ -1441,7 +1349,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 12
+        "ordinal": 11
       },
       {
         "name": "stripe_charge_id",
@@ -1450,7 +1358,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 13
+        "ordinal": 12
       },
       {
         "name": "stripe_refund_id",
@@ -1459,7 +1367,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 14
+        "ordinal": 13
       },
       {
         "name": "stripe_amount_received",
@@ -1468,7 +1376,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 15
+        "ordinal": 14
       },
       {
         "name": "stripe_amount_refunded",
@@ -1477,7 +1385,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": false,
-        "ordinal": 16
+        "ordinal": 15
       }
     ]
   },
@@ -1514,7 +1422,7 @@ export const ER_ENTITIES: ErEntity[] = [
           "column": "product_item_id"
         },
         "unique": false,
-        "nullable": false,
+        "nullable": true,
         "ordinal": 3
       },
       {
@@ -1548,13 +1456,31 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 6
       },
       {
+        "name": "product_name_snapshot",
+        "type": "VARCHAR(120)",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": false,
+        "ordinal": 7
+      },
+      {
+        "name": "product_image_snapshot",
+        "type": "TEXT",
+        "pk": false,
+        "fk": null,
+        "unique": false,
+        "nullable": true,
+        "ordinal": 8
+      },
+      {
         "name": "delivered_url",
         "type": "TEXT",
         "pk": false,
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 7
+        "ordinal": 9
       },
       {
         "name": "delivered_key",
@@ -1563,7 +1489,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 8
+        "ordinal": 10
       },
       {
         "name": "delivered_at",
@@ -1572,7 +1498,7 @@ export const ER_ENTITIES: ErEntity[] = [
         "fk": null,
         "unique": false,
         "nullable": true,
-        "ordinal": 9
+        "ordinal": 11
       }
     ]
   },
@@ -2199,68 +2125,6 @@ export const ER_ENTITIES: ErEntity[] = [
     ]
   },
   {
-    "table": "banned_ip",
-    "fields": [
-      {
-        "name": "banned_ip_id",
-        "type": "INT",
-        "pk": true,
-        "fk": null,
-        "unique": false,
-        "nullable": false,
-        "ordinal": 1
-      },
-      {
-        "name": "ip_address",
-        "type": "VARCHAR(45)",
-        "pk": false,
-        "fk": null,
-        "unique": true,
-        "nullable": false,
-        "ordinal": 2
-      },
-      {
-        "name": "reason",
-        "type": "VARCHAR(255)",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": true,
-        "ordinal": 3
-      },
-      {
-        "name": "banned_by_id",
-        "type": "INT",
-        "pk": false,
-        "fk": {
-          "table": "users",
-          "column": "user_id"
-        },
-        "unique": false,
-        "nullable": false,
-        "ordinal": 4
-      },
-      {
-        "name": "banned_at",
-        "type": "DATETIME",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": false,
-        "ordinal": 5
-      },
-      {
-        "name": "expires_at",
-        "type": "DATETIME",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": true,
-        "ordinal": 6
-      }
-    ]
-  },
-  {
     "table": "trusted_device",
     "fields": [
       {
@@ -2399,14 +2263,6 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
     "fromOptional": false
   },
   {
-    "from": "store_stats",
-    "fromColumn": "store_id",
-    "to": "store",
-    "toColumn": "store_id",
-    "cardinality": "one-to-one",
-    "fromOptional": false
-  },
-  {
     "from": "product",
     "fromColumn": "store_id",
     "to": "store",
@@ -2528,14 +2384,6 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
   },
   {
     "from": "orders",
-    "fromColumn": "cart_id",
-    "to": "cart",
-    "toColumn": "cart_id",
-    "cardinality": "one-to-one",
-    "fromOptional": false
-  },
-  {
-    "from": "orders",
     "fromColumn": "user_id",
     "to": "users",
     "toColumn": "user_id",
@@ -2564,7 +2412,7 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
     "to": "product_item",
     "toColumn": "product_item_id",
     "cardinality": "one-to-many",
-    "fromOptional": false
+    "fromOptional": true
   },
   {
     "from": "order_item",
@@ -2633,14 +2481,6 @@ export const ER_RELATIONSHIPS: ErRelationship[] = [
   {
     "from": "session",
     "fromColumn": "user_id",
-    "to": "users",
-    "toColumn": "user_id",
-    "cardinality": "one-to-many",
-    "fromOptional": false
-  },
-  {
-    "from": "banned_ip",
-    "fromColumn": "banned_by_id",
     "to": "users",
     "toColumn": "user_id",
     "cardinality": "one-to-many",

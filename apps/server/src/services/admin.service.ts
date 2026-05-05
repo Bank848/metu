@@ -103,14 +103,14 @@ export async function listUsers(q: UserListQuery) {
  * Change a user's role. Self-demote forbidden — an admin removing
  * their own admin role would lock themselves out of the very page
  * they're using.
- * also handles store side effects so the role flip
- * actually means something in the rest of the app:
- *   - to "seller" + user has no active store → auto-create one
- *     (or restore a soft-deleted one) via
+ * also handles store side effects so the role flip actually means
+ * something in the rest of the app:
+ *   - to "seller" + user has no store → auto-create one via
  *     `seller.service.adminCreateStore`.
- *   - to "buyer" + user owns an active store → soft-delete the
- *     store via `deleteStore` so the new role isn't contradicted
- *     by a still-live storefront.
+ *   - to "buyer" + user owns a store → hard-delete the store via
+ *     `deleteStore` so the new role isn't contradicted by a still-live
+ *     storefront. Order/payment history survives via OrderItem
+ *     snapshots; the FK from OrderItem.productItem becomes NULL.
  *   - to "admin" → role flip only; existing stores stay as-is.
  */
 export async function updateUserRole(
@@ -186,16 +186,17 @@ export async function updateUserRole(
 
 /**
  * three-path remove flow:
- *   - reason supplied → ban (existing soft-delete + bannedAt + bannedReason,
- *     "Banned" badge stays for moderation accountability).
+ *   - reason supplied → ban (sets bannedAt + bannedReason; row stays so
+ *     /admin/users?status=banned can list it for unban).
  *   - no reason + fresh account (no orders/reviews/transactions) →
  *     hard-delete via prisma.user.delete(); cascades take care of cart,
  *     session, account, favourite. Row truly disappears from /admin/users.
  *   - no reason + has business history → anonymise: blank PII, clear
- *     password/totp, set deletedAt, drop sessions + accounts. Order /
- *     review / transaction history stays intact so seller analytics
- *     don't break. listUsers filters anonymised rows out so the
- *     "Deleted" badge no longer lingers on the operator's screen.
+ *     password/totp, drop sessions + accounts. Order / review /
+ *     transaction history stays intact so seller analytics don't break.
+ *     The anonymised row is still a real user (no soft-delete column
+ *     anymore) — listUsers identifies it by the deleted_*@deleted.invalid
+ *     email pattern and filters it out by default.
  * Also blocks removing the only remaining admin so an operator can't
  * lock the marketplace out of admin entirely.
  */
@@ -304,10 +305,10 @@ export async function deleteUser(
 }
 
 /**
- * clears `bannedAt` + `bannedReason` + `deletedAt` so the
- * user can sign in again. Doesn't touch role / store / order history.
- * Used by the new "Unban" row action when admin filters
- * /admin/users by `status=banned`.
+ * clears `bannedAt` + `bannedReason` so the user can sign in again.
+ * Doesn't touch role / store / order history.
+ * Used by the "Unban" row action when admin filters /admin/users by
+ * `status=banned`.
  */
 export async function unbanUser(
   targetUserId: number,

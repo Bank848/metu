@@ -71,7 +71,6 @@ describe("PATCH /admin/settings", () => {
   it("returns 403 for non-admin auth", async () => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
-      deletedAt: null,
       stats: { role: "buyer" },
       store: null,
     });
@@ -85,7 +84,6 @@ describe("PATCH /admin/settings", () => {
   it("happy: admin flips favoritesEnabled, updated row returned, audit row written", async () => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 1,
-      deletedAt: null,
       stats: { role: "admin" },
       store: null,
     });
@@ -115,7 +113,6 @@ describe("PATCH /admin/settings", () => {
   it("returns 400 EmptyPatch when body has no recognised keys", async () => {
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 1,
-      deletedAt: null,
       stats: { role: "admin" },
       store: null,
     });

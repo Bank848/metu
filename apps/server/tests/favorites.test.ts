@@ -52,7 +52,6 @@ beforeEach(async () => {
   vi.clearAllMocks();
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,
-    deletedAt: null,
     stats: { role: "buyer" },
     store: null,
   });
