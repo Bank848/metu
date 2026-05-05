@@ -24,8 +24,15 @@ primary_region = "sin"
 # Apply pending Prisma migrations BEFORE the new release becomes live.
 # Same pattern as the BFF's fly.toml — keeps the schema in sync without
 # a manual SSH step.
+#
+# The `migrate resolve --rolled-back` line ahead of `migrate deploy`
+# clears any stuck-failed entry for our latest migration before
+# retrying. Prisma transactions roll back atomically on failure, so
+# the only persistent side-effect of a failed apply is the
+# `_prisma_migrations` row marked as "applied=false / failed". The
+# `|| true` makes resolve a no-op on a clean DB.
 [deploy]
-  release_command = "sh -c 'DATABASE_URL=\"$DATABASE_URL_UNPOOLED\" node node_modules/prisma/build/index.js migrate deploy --schema=packages/db/prisma/schema.prisma'"
+  release_command = "sh -c 'set -e; export DATABASE_URL=\"$DATABASE_URL_UNPOOLED\"; node node_modules/prisma/build/index.js migrate resolve --rolled-back 20260505220000_drop_live_partial_indexes --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate deploy --schema=packages/db/prisma/schema.prisma'"
 
 [http_service]
   internal_port = 8080
