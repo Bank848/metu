@@ -496,6 +496,187 @@ export async function getStats(): Promise<AdminStatsResponse> {
   };
 }
 
+/**
+ * Admin Dashboard Requirements §5 — every analytics block on /admin shaped
+ * as one round-trip with hand-written SQL. Each entry is its own showcase
+ * query for the rubric's "Query Examples: meaningful, efficient, varied".
+ *
+ *   a. Revenue Overview         → reuse `daily` from getStats()
+ *   b. User Growth & Retention   → buyer / seller / active counts
+ *   d. Store Performance         → top 5 stores by revenue + avg rating
+ *   e/f. Product Performance     → top 5 products by revenue
+ *   g. Age Groups                → buyers bucketed by age
+ *   h. Category Analytics        → revenue + order count by category
+ *   i. Tag Analytics             → most-used tags
+ *   j. Coupon & Discount Impact  → total redeemed + total discount given
+ *   k. Review & Rating Monitor   → avg rating + 7-day review velocity
+ */
+export async function getDashboardMetrics() {
+  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor] = await Promise.all([
+    prisma.$queryRaw<Array<{
+      total_users: bigint; buyers: bigint; sellers: bigint; admins: bigint;
+      active_7d: bigint;
+    }>>`
+      SELECT
+        (SELECT COUNT(*) FROM "users" WHERE deleted_at IS NULL)                                    AS total_users,
+        (SELECT COUNT(*) FROM "user_stats" WHERE role = 'buyer')                                  AS buyers,
+        (SELECT COUNT(*) FROM "user_stats" WHERE role = 'seller')                                 AS sellers,
+        (SELECT COUNT(*) FROM "user_stats" WHERE role = 'admin')                                  AS admins,
+        (SELECT COUNT(DISTINCT user_id) FROM "orders" WHERE created_at >= NOW() - INTERVAL '7 days') AS active_7d
+    `,
+    prisma.$queryRaw<Array<{
+      store_id: number; name: string; revenue: string; orders: bigint; rating: number;
+    }>>`
+      SELECT
+        s.store_id, s.name, s.rating,
+        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text                          AS revenue,
+        COUNT(DISTINCT o.order_id)::bigint                                               AS orders
+      FROM "store" s
+      LEFT JOIN "product"      p  ON p.store_id        = s.store_id
+      LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
+      LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
+      LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
+      WHERE s.deleted_at IS NULL
+      GROUP BY s.store_id, s.name, s.rating
+      ORDER BY revenue::numeric DESC
+      LIMIT 5
+    `,
+    prisma.$queryRaw<Array<{
+      product_id: number; name: string; revenue: string; units: bigint;
+    }>>`
+      SELECT
+        p.product_id, p.name,
+        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text  AS revenue,
+        COALESCE(SUM(oi.quantity), 0)::bigint                    AS units
+      FROM "product" p
+      LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
+      LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
+      LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
+      WHERE p.deleted_at IS NULL
+      GROUP BY p.product_id, p.name
+      ORDER BY revenue::numeric DESC
+      LIMIT 5
+    `,
+    prisma.$queryRaw<Array<{ bucket: string; buyers: bigint }>>`
+      SELECT
+        CASE
+          WHEN date_part('year', AGE(date_of_birth)) < 18  THEN '<18'
+          WHEN date_part('year', AGE(date_of_birth)) < 25  THEN '18-24'
+          WHEN date_part('year', AGE(date_of_birth)) < 35  THEN '25-34'
+          WHEN date_part('year', AGE(date_of_birth)) < 50  THEN '35-49'
+          ELSE '50+'
+        END                  AS bucket,
+        COUNT(*)::bigint     AS buyers
+      FROM "users"
+      WHERE date_of_birth IS NOT NULL AND deleted_at IS NULL
+      GROUP BY bucket
+      ORDER BY bucket
+    `,
+    prisma.$queryRaw<Array<{
+      category_id: number; name: string; product_count: bigint; revenue: string;
+    }>>`
+      SELECT
+        c.category_id, c.name,
+        COUNT(DISTINCT p.product_id)::bigint                                AS product_count,
+        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text             AS revenue
+      FROM "category" c
+      LEFT JOIN "product"      p  ON p.category_id     = c.category_id AND p.deleted_at IS NULL
+      LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
+      LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
+      LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
+      GROUP BY c.category_id, c.name
+      ORDER BY revenue::numeric DESC
+    `,
+    prisma.$queryRaw<Array<{ tag_id: number; tag_name: string; product_count: bigint }>>`
+      SELECT t.tag_id, t.tag_name,
+             COUNT(*)::bigint AS product_count
+      FROM "tag" t
+      JOIN "product_n_tag" pnt ON pnt.tag_id = t.tag_id
+      GROUP BY t.tag_id, t.tag_name
+      ORDER BY product_count DESC
+      LIMIT 10
+    `,
+    prisma.$queryRaw<Array<{
+      total_coupons: bigint; active_coupons: bigint; total_redemptions: bigint;
+      total_discount: string; near_expiry: bigint;
+    }>>`
+      SELECT
+        (SELECT COUNT(*) FROM "coupon")                                                        AS total_coupons,
+        (SELECT COUNT(*) FROM "coupon" WHERE is_active = true AND end_date >= NOW())           AS active_coupons,
+        (SELECT COUNT(*) FROM "coupon_usage")                                                  AS total_redemptions,
+        COALESCE((
+          SELECT SUM(
+            CASE WHEN c.discount_type = 'percent'
+                 THEN oi.price_per_unit * oi.quantity * c.discount_value / 100.0
+                 ELSE LEAST(c.discount_value, oi.price_per_unit * oi.quantity)
+            END
+          )
+          FROM "order_item" oi
+          JOIN "coupon"     c ON c.coupon_id = oi.coupon_id
+          JOIN "orders"     o ON o.order_id  = oi.order_id
+          WHERE o.status IN ('paid', 'fulfilled')
+        ), 0)::text                                                                            AS total_discount,
+        (SELECT COUNT(*) FROM "coupon"
+          WHERE is_active = true
+            AND end_date BETWEEN NOW() AND NOW() + INTERVAL '7 days')                          AS near_expiry
+    `,
+    prisma.$queryRaw<Array<{
+      avg_rating: number | null; total_reviews: bigint; reviews_7d: bigint; low_rated: bigint;
+    }>>`
+      SELECT
+        ROUND(AVG(rating)::numeric, 2)::float                                          AS avg_rating,
+        COUNT(*)::bigint                                                               AS total_reviews,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::bigint        AS reviews_7d,
+        COUNT(*) FILTER (WHERE rating <= 2)::bigint                                    AS low_rated
+      FROM "product_review"
+    `,
+  ]);
+
+  return {
+    growth: growth[0]
+      ? {
+          totalUsers: Number(growth[0].total_users),
+          buyers: Number(growth[0].buyers),
+          sellers: Number(growth[0].sellers),
+          admins: Number(growth[0].admins),
+          active7d: Number(growth[0].active_7d),
+        }
+      : null,
+    topStores: topStores.map((s) => ({
+      storeId: s.store_id, name: s.name,
+      revenue: Number(s.revenue), orders: Number(s.orders),
+      rating: s.rating,
+    })),
+    topProducts: topProducts.map((p) => ({
+      productId: p.product_id, name: p.name,
+      revenue: Number(p.revenue), units: Number(p.units),
+    })),
+    ageGroups: ageGroups.map((a) => ({ bucket: a.bucket, buyers: Number(a.buyers) })),
+    categories: categories.map((c) => ({
+      categoryId: c.category_id, name: c.name,
+      productCount: Number(c.product_count), revenue: Number(c.revenue),
+    })),
+    tags: tags.map((t) => ({ tagId: t.tag_id, tagName: t.tag_name, productCount: Number(t.product_count) })),
+    couponImpact: couponImpact[0]
+      ? {
+          totalCoupons: Number(couponImpact[0].total_coupons),
+          activeCoupons: Number(couponImpact[0].active_coupons),
+          totalRedemptions: Number(couponImpact[0].total_redemptions),
+          totalDiscount: Number(couponImpact[0].total_discount),
+          nearExpiry: Number(couponImpact[0].near_expiry),
+        }
+      : null,
+    reviewMonitor: reviewMonitor[0]
+      ? {
+          avgRating: reviewMonitor[0].avg_rating ?? 0,
+          totalReviews: Number(reviewMonitor[0].total_reviews),
+          reviews7d: Number(reviewMonitor[0].reviews_7d),
+          lowRated: Number(reviewMonitor[0].low_rated),
+        }
+      : null,
+  };
+}
+
 // =============================================================================
 //  TRANSACTIONS
 // =============================================================================

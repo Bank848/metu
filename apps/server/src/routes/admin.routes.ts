@@ -22,6 +22,7 @@ router.post("/stores/:id/suspend",    ctrl.setStoreSuspended);
 
 // Stats
 router.get("/stats",                  ctrl.getStats);
+router.get("/dashboard",              ctrl.getDashboard);
 
 // Transactions
 router.delete("/transactions/:id",    ctrl.deleteTransaction);
@@ -30,14 +31,8 @@ router.post("/transactions/:id/refund", ctrl.refundTransaction);
 // Reports
 router.get("/reports/:name",          ctrl.runReport);
 
-// Database inspector — read-only Postgres state for the /admin/database page.
+// Database inspector
 router.get("/db/snapshot",            ctrl.dbSnapshot);
 router.post("/db/run",                ctrl.dbRunSql);
-
-// IP bans (network-layer abuse blocks).
-router.get("/banned-ips",             ctrl.listBannedIps);
-router.post("/banned-ips",            ctrl.addBannedIp);
-router.delete("/banned-ips/:id",      ctrl.removeBannedIp);
-router.post("/users/:id/ban-ips",     ctrl.banUserIps);
 
 export default router;

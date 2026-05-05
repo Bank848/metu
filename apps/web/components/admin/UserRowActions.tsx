@@ -140,26 +140,6 @@ export function UserRowActions({
     setBusy(null);
   }
 
-  async function banUserIps() {
-    setError(null);
-    try {
-      const res = await fetch(`/api/admin/users/${userId}/ban-ips`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ reason: `Sessions of @${username}` }),
-      });
-      const data = await res.json().catch(() => ({} as { message?: string; bannedCount?: number }));
-      if (!res.ok) {
-        setError(data?.message ?? "Couldn't ban IPs.");
-        return;
-      }
-      hardRefresh();
-    } catch {
-      setError("Network error");
-    }
-  }
-
   async function remove() {
     setError(null);
     setBusy("delete");
@@ -238,18 +218,6 @@ export function UserRowActions({
       tone: requirePasswordReset ? "safe" : "primary",
       onClick: toggleForceReset,
       disabled,
-    },
-    {
-      // quick action: ban every IP this user has logged
-      // in from. Useful when a single account spams from multiple
-      // addresses. Banned IPs are listed on /admin/security and can
-      // be lifted there.
-      label: "Ban this user's IPs",
-      icon: ShieldOff,
-      tone: "destructive",
-      onClick: banUserIps,
-      disabled,
-      confirm: `Pull every distinct IP from @${username}'s session history and add them to the IP ban list. This may also block other users on shared networks (school / office / VPN). Reason will be set to "Sessions of @${username}".`,
     },
     // Banned users get an "Unban" item INSTEAD of
     // "Remove user". Re-removing a banned (already soft-deleted)

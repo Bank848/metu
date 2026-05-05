@@ -130,7 +130,6 @@ model User {
   sessions Session[]
 
   // Phase 48 — admin who issued IP bans (network-layer abuse blocks).
-  bannedIpsIssued BannedIp[] @relation("BannedIpBy")
 
   // Phase 49 — devices the user has confirmed via the email-OTP gate
   // and chosen to "trust for 7 days" so they don't re-OTP every login.
@@ -656,27 +655,7 @@ model Verification {
   @@map("verification")
 }
 
-/// Phase 48 — IP-level ban list. Independent from User.bannedAt
-/// because IPs aren't tied to a single account (NAT, VPN, shared
-/// workstations). Middleware reads cached entries before requests
-/// reach the auth layer so abusive networks get blocked early.
-model BannedIp {
-  bannedIpId  Int       @id @default(autoincrement()) @map("banned_ip_id")
-  /// 45 chars covers IPv4 + IPv6 maximum representations.
-  ipAddress   String    @unique @map("ip_address") @db.VarChar(45)
-  /// Free-form note shown to admins; never echoed to the banned user.
-  reason      String?   @db.VarChar(255)
-  bannedById  Int       @map("banned_by_id")
-  bannedAt    DateTime  @default(now()) @map("banned_at")
-  /// NULL = forever; otherwise middleware ignores rows past this time.
-  expiresAt   DateTime? @map("expires_at")
-  bannedBy    User      @relation("BannedIpBy", fields: [bannedById], references: [userId])
-
-  @@index([ipAddress])
-  @@map("banned_ip")
-}
-
-/// Phase 49 — Devices the user has confirmed via email-OTP and ticked
+/// Devices the user has confirmed via email-OTP and ticked
 /// "Trust this device for 7 days". Subsequent logins from the same
 /// browser within `expiresAt` skip the OTP gate. We store only the
 /// SHA-256 hash of the cookie value the browser holds, so a DB dump
