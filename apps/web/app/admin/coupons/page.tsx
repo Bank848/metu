@@ -48,12 +48,19 @@ export default async function AdminCouponsPage({
   // Single round trip: list + per-coupon stats (used_count, total_discount in
   // baht). uses correlated subquery per row — fine because LIMIT 20 caps the
   // outer fan-out.
+  //
+  // The inner SELECT exposes total_discount as a numeric column; the outer
+  // SELECT casts it to text for Prisma marshaling. We wrap in a subquery so
+  // ORDER BY total_discount_num resolves cleanly — Postgres rejects
+  // `ORDER BY alias::cast DESC` because SELECT-list aliases can't appear
+  // inside expressions in ORDER BY (they must stand alone), and inlining
+  // the full expression in the outer ORDER BY would duplicate ~10 lines.
   const orderBy = (() => {
     switch (sort) {
-      case "newest":   return `c.start_date DESC`;
-      case "expiring": return `c.end_date ASC`;
+      case "newest":   return `start_date DESC`;
+      case "expiring": return `end_date ASC`;
       case "discount":
-      default:         return `total_discount::numeric DESC`;
+      default:         return `total_discount_num DESC`;
     }
   })();
   const scopeWhere = scope === "master"
@@ -70,26 +77,34 @@ export default async function AdminCouponsPage({
   const offset = (page - 1) * PAGE_SIZE;
   const rows = await prisma.$queryRawUnsafe<Row[]>(
     `SELECT
-       c.coupon_id, c.code, c.store_id,
-       s.name AS store_name,
-       c.discount_type, c.discount_value, c.usage_limit,
-       (SELECT COUNT(*)::int FROM coupon_usage cu WHERE cu.coupon_id = c.coupon_id) AS used_count,
-       COALESCE((
-         SELECT SUM(
-           CASE WHEN c.discount_type = 'percent'
-                THEN oi.price_per_unit * oi.quantity * c.discount_value / 100.0
-                ELSE LEAST(c.discount_value, oi.price_per_unit * oi.quantity)
-           END
-         )
-         FROM order_item oi
-         JOIN orders o ON o.order_id = oi.order_id
-         WHERE oi.coupon_id = c.coupon_id
-           AND o.status IN ('paid', 'fulfilled')
-       ), 0)::text AS total_discount,
-       c.start_date, c.end_date, c.is_active, c.start_date AS created_at
-     FROM coupon c
-     LEFT JOIN store s ON s.store_id = c.store_id
-     WHERE 1=1 ${scopeWhere} ${statusWhere}
+       coupon_id, code, store_id, store_name,
+       discount_type, discount_value, usage_limit,
+       used_count,
+       total_discount_num::text AS total_discount,
+       start_date, end_date, is_active, created_at
+     FROM (
+       SELECT
+         c.coupon_id, c.code, c.store_id,
+         s.name AS store_name,
+         c.discount_type, c.discount_value, c.usage_limit,
+         (SELECT COUNT(*)::int FROM coupon_usage cu WHERE cu.coupon_id = c.coupon_id) AS used_count,
+         COALESCE((
+           SELECT SUM(
+             CASE WHEN c.discount_type = 'percent'
+                  THEN oi.price_per_unit * oi.quantity * c.discount_value / 100.0
+                  ELSE LEAST(c.discount_value, oi.price_per_unit * oi.quantity)
+             END
+           )
+           FROM order_item oi
+           JOIN orders o ON o.order_id = oi.order_id
+           WHERE oi.coupon_id = c.coupon_id
+             AND o.status IN ('paid', 'fulfilled')
+         ), 0) AS total_discount_num,
+         c.start_date, c.end_date, c.is_active, c.start_date AS created_at
+       FROM coupon c
+       LEFT JOIN store s ON s.store_id = c.store_id
+       WHERE 1=1 ${scopeWhere} ${statusWhere}
+     ) ranked
      ORDER BY ${orderBy}
      LIMIT ${PAGE_SIZE} OFFSET ${offset}`,
   );

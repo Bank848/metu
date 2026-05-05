@@ -248,28 +248,36 @@ ORDER BY size_bytes DESC;`,
     summary:
       "List every coupon (master + store) with three computed columns: redemption count, total ฿ saved by buyers, and an active/expired flag. Filter (scope/status), sort (discount/expiry/newest), and 20-row pagination all happen in SQL.",
     sql: `SELECT
-  c.coupon_id, c.code, c.store_id,
-  s.name AS store_name,
-  c.discount_type, c.discount_value, c.usage_limit,
-  (SELECT COUNT(*)::int FROM coupon_usage cu
-    WHERE cu.coupon_id = c.coupon_id) AS used_count,
-  COALESCE((
-    SELECT SUM(
-      CASE WHEN c.discount_type = 'percent'
-           THEN oi.price_per_unit * oi.quantity * c.discount_value / 100.0
-           ELSE LEAST(c.discount_value, oi.price_per_unit * oi.quantity)
-      END
-    )
-    FROM order_item oi
-    JOIN orders o ON o.order_id = oi.order_id
-    WHERE oi.coupon_id = c.coupon_id
-      AND o.status IN ('paid', 'fulfilled')
-  ), 0)::text AS total_discount,
-  c.start_date, c.end_date, c.is_active
-FROM coupon c
-LEFT JOIN store s ON s.store_id = c.store_id
-WHERE 1=1 -- + scope/status conditions
-ORDER BY total_discount::numeric DESC
+  coupon_id, code, store_id, store_name,
+  discount_type, discount_value, usage_limit,
+  used_count,
+  total_discount_num::text AS total_discount,
+  start_date, end_date, is_active
+FROM (
+  SELECT
+    c.coupon_id, c.code, c.store_id,
+    s.name AS store_name,
+    c.discount_type, c.discount_value, c.usage_limit,
+    (SELECT COUNT(*)::int FROM coupon_usage cu
+      WHERE cu.coupon_id = c.coupon_id) AS used_count,
+    COALESCE((
+      SELECT SUM(
+        CASE WHEN c.discount_type = 'percent'
+             THEN oi.price_per_unit * oi.quantity * c.discount_value / 100.0
+             ELSE LEAST(c.discount_value, oi.price_per_unit * oi.quantity)
+        END
+      )
+      FROM order_item oi
+      JOIN orders o ON o.order_id = oi.order_id
+      WHERE oi.coupon_id = c.coupon_id
+        AND o.status IN ('paid', 'fulfilled')
+    ), 0) AS total_discount_num,
+    c.start_date, c.end_date, c.is_active
+  FROM coupon c
+  LEFT JOIN store s ON s.store_id = c.store_id
+  WHERE 1=1 -- + scope/status conditions
+) ranked
+ORDER BY total_discount_num DESC -- subquery wrap so the alias resolves
 LIMIT 20 OFFSET 0;`,
     indexes: [
       { name: "coupon_is_active_idx", on: "coupon(is_active)", why: "active-only filter narrows the scan" },
