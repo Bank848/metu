@@ -9,6 +9,19 @@ primary_region = "sin"
 [build]
   dockerfile = "Dockerfile"
 
+# NEXT_PUBLIC_* values are inlined into the client bundle by `next build`
+# at image-build time, so they have to be passed as Docker build args (not
+# Fly runtime secrets). These are public-by-design (visible in the browser
+# bundle anyway), so committing them here is fine. The Dockerfile's builder
+# stage declares matching ARG lines and re-exports them as ENV before
+# `next build` runs.
+[build.args]
+  NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSyDthfpPgy0AjUNoDDhxcG_Vh5LGYCKpL3Y"
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = "metu-prod.firebaseapp.com"
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID = "metu-prod"
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_51TRpAtQTRENstKux8Og4JWsFwuYaj8kBMS1JYhF1TtxhBlFh0PECduFaskzDrAreBHPUDjD1WMgZ7KkOWdx87kpJ00Mwpjd5Oo"
+  NEXT_PUBLIC_SITE_URL = "https://metu.online"
+
 [env]
   PORT = "8080"
   NODE_ENV = "production"

@@ -41,6 +41,24 @@ COPY . .
 # Generate Prisma Client against our schema.
 RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 
+# NEXT_PUBLIC_* env vars are inlined into the client bundle by Next at
+# build time, NOT picked up at runtime. Fly's `flyctl secrets set` only
+# affects runtime env, so we accept these as build args and re-export
+# them as ENV before `next build` runs. Values come from fly.toml's
+# `[build.args]` block (or `--build-arg` overrides on `flyctl deploy`).
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY \
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN \
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID \
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+
 # Build Next in standalone mode (see apps/web/next.config.mjs).
 # `apps/web/scripts/build.mjs` gracefully skips `prisma migrate deploy`
 # when DATABASE_URL isn't set (it isn't, inside docker build), so only
