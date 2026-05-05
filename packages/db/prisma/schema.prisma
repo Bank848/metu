@@ -192,30 +192,18 @@ model Store {
   // Optional public contact channels surfaced in the buyer's receipt.
   contactEmail         String?   @map("contact_email") @db.VarChar(120)
   phone                String?   @db.VarChar(20)
+  // avg review rating × 10 (e.g. 48 = 4.8★). Recomputed on review insert.
+  rating               Int       @default(0)
 
   owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
   businessType BusinessType @relation(fields: [businessTypeId], references: [typeId])
   products     Product[]
   coupons      Coupon[]
-  stats        StoreStats?
 
   @@index([businessTypeId])
   @@index([createdAt])
   @@index([deletedAt])
   @@map("store")
-}
-
-model StoreStats {
-  statId       Int      @id @default(autoincrement()) @map("stat_id")
-  storeId      Int      @unique @map("store_id")
-  ctr          Int      @default(0) @map("ctr") // basis points (0..10000)
-  rating       Int      @default(0) // avg rating × 10 (e.g. 48 = 4.8★)
-  responseTime Int      @default(0) @map("response_time") // minutes
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  store Store @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
-
-  @@map("store_stats")
 }
 
 // ============================================================================

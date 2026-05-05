@@ -280,7 +280,7 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
           description: true,
           deletedAt: true,
           suspendedAt: true,
-          stats: true,
+          rating: true,
           businessType: true,
         },
       },

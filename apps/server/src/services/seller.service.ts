@@ -22,11 +22,11 @@ type CouponInput       = z.infer<typeof couponInputSchema>;
 // Seller service. Functions take a storeId rather than reaching for
 // the request, keeping them testable in isolation.
 
-/** Current seller's store with businessType + stats. */
+/** Current seller's store with businessType. */
 export async function getStore(storeId: number) {
   return prisma.store.findUnique({
     where: { storeId },
-    include: { businessType: true, stats: true },
+    include: { businessType: true },
   });
 }
 
@@ -79,7 +79,7 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
   const [store, productCount, recentReviews, totals] = await Promise.all([
     prisma.store.findUnique({
       where: { storeId },
-      include: { stats: true, businessType: true },
+      include: { businessType: true },
     }),
     prisma.product.count({ where: { storeId, deletedAt: null } }),
     prisma.productReview.findMany({
@@ -359,7 +359,6 @@ export async function adminCreateStore(userId: number, username: string) {
         name: `@${username}'s store`.slice(0, 60),
         description:
           "Newly created store. Update name, description, and images on the storefront edit page.",
-        stats: { create: {} },
       },
       select: { storeId: true },
     });
@@ -394,9 +393,7 @@ export async function becomeSeller(userId: number, input: BecomeSellerInput) {
         description: input.description,
         profileImage: input.profileImage,
         coverImage: input.coverImage,
-        stats: { create: {} },
       },
-      include: { stats: true },
     });
     const existingStats = await tx.userStats.findUnique({ where: { userId } });
     const nextRole = existingStats?.role === "admin" ? "admin" : "seller";

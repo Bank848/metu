@@ -429,7 +429,6 @@ export async function getProduct(id: number) {
           name: true,
           profileImage: true,
           businessType: { select: { name: true } },
-          stats: { select: { responseTime: true } },
         },
       },
       category: true,
@@ -610,7 +609,6 @@ export async function getAdminStores() {
     include: {
       owner: { select: { username: true, firstName: true, lastName: true, profileImage: true } },
       businessType: true,
-      stats: true,
       _count: {
         select: {
           products: { where: { deletedAt: null } },

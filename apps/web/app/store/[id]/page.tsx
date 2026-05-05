@@ -95,23 +95,13 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                   <Calendar className="h-3 w-3" /> Member since{" "}
                   {fmtMonthYear(store.createdAt)}
                 </span>
-                {store.stats && (
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3 w-3" />{" "}
-                    {store.stats.responseTime > 0
-                      ? `~${Math.round(store.stats.responseTime / 60)}h response`
-                      : t("empty.responseTime")}
-                  </span>
-                )}
               </div>
             </div>
           </header>
 
-          {/* Stat cards — Wave-3: lead stat uses `highlight` so the row
-              stops reading as four identical glass tiles (playbook §1
-              row 8). Remaining stats use the shared `StatCard` so they
-              inherit the new flat treatment. */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+          {/* Three stat tiles: products, rating, reviews. Lead tile is
+              highlighted; the rest use the shared flat StatCard. */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-10">
             <StatCard
               variant="highlight"
               icon={PackageIcon}
@@ -128,11 +118,6 @@ export default async function StorePage({ params }: { params: { id: string } }) 
               icon={MessageSquare}
               label="Reviews"
               value={reviewCount}
-            />
-            <StatCard
-              icon={Activity}
-              label="Engagement"
-              value={store.stats ? `${(store.stats.ctr / 100).toFixed(1)}%` : "—"}
             />
           </div>
 

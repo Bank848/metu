@@ -107,16 +107,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
                   <span className="text-ink-dim">({product.reviewCount} reviews)</span>
                 </div>
               )}
-              {product.store.stats && (
-                <div className="flex items-center gap-1 text-ink-dim">
-                  <Clock className="h-4 w-4" />
-                  <span>
-                    {product.store.stats.responseTime > 0
-                      ? `~${Math.round(product.store.stats.responseTime / 60)}h response`
-                      : t("empty.responseTime")}
-                  </span>
-                </div>
-              )}
             </div>
             {/* Social proof — only render when ≥2 buyers in the last week
                 so a single sale doesn't trigger an awkward "1 person bought

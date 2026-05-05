@@ -130,7 +130,6 @@ async function clear() {
   await prisma.productItem.deleteMany();
   await prisma.product.deleteMany();
   await prisma.coupon.deleteMany();
-  await prisma.storeStats.deleteMany();
   await prisma.store.deleteMany();
   await prisma.userStats.deleteMany();
   await prisma.user.deleteMany();
@@ -369,17 +368,9 @@ async function seedStores(sellers: U[], businessTypes: { typeId: number; name: s
         description: d.description,
         coverImage: d.cover,
         profileImage: d.profile,
-        // Default contact info; sellers can edit later from /seller/store/edit.
         contactEmail: d.seller.email,
         phone: "+66812345678",
-      },
-    });
-    await prisma.storeStats.create({
-      data: {
-        storeId: s.storeId,
-        ctr: Math.floor(Math.random() * 130) + 20,
         rating: Math.floor(Math.random() * 11) + 38,
-        responseTime: Math.floor(Math.random() * 2820) + 60,
       },
     });
     stores.push(s);
@@ -927,7 +918,6 @@ async function summary() {
     ["user_stats",     await prisma.userStats.count()],
     ["business_type",  await prisma.businessType.count()],
     ["store",          await prisma.store.count()],
-    ["store_stats",    await prisma.storeStats.count()],
     ["category",       await prisma.category.count()],
     ["product_tag",    await prisma.productTag.count()],
     ["product",        await prisma.product.count()],
@@ -969,7 +959,7 @@ async function main() {
   const users = await seedUsers(countries);
   console.log(`✓ ${users.length} users (+ user_stats + carts)`);
   const stores = await seedStores(users, businessTypes);
-  console.log(`✓ ${stores.length} stores (+ store_stats)`);
+  console.log(`✓ ${stores.length} stores`);
   const { products, items } = await seedProducts(stores, categories, tags);
   console.log(`✓ ${products.length} products, ${items.length} variants (+ images + tags)`);
   await seedReviews(products, users.slice(5));

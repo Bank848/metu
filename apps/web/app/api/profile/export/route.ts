@@ -85,7 +85,6 @@ export async function GET() {
     }),
     prisma.store.findUnique({
       where: { ownerId: userId },
-      include: { stats: true },
     }),
   ]);
 

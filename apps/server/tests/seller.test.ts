@@ -125,7 +125,7 @@ describe("GET /seller/store", () => {
     expect(res.body.storeId).toBe(11);
     expect(prisma.store.findUnique).toHaveBeenCalledWith({
       where: { storeId: 11 },
-      include: { businessType: true, stats: true },
+      include: { businessType: true },
     });
   });
 });

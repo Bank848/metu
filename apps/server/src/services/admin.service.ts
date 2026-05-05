@@ -354,7 +354,6 @@ export async function listStores() {
         },
       },
       businessType: true,
-      stats: true,
       _count: {
         select: { products: { where: { deletedAt: null } } },
       },

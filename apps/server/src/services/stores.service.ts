@@ -18,7 +18,6 @@ export async function findStores(filters: ListStoreQuery): Promise<StoreListResp
     orderBy: { createdAt: "desc" },
     include: {
       businessType: true,
-      stats: true,
       _count: { select: { products: true } },
     },
   });
@@ -46,7 +45,6 @@ export async function findStoreById(
           },
         },
         businessType: true,
-        stats: true,
       },
     }),
     prisma.product.findMany({

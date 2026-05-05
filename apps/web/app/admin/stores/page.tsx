@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Package, Star, MousePointerClick } from "lucide-react";
+import { Package, Star } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/StatCard";
@@ -7,6 +7,7 @@ import { StoreActions } from "@/components/admin/StoreActions";
 import { DataTable, type DataTableColumn } from "@/components/admin/DataTable";
 import { EmptyState } from "@/components/EmptyState";
 import { getAdminStores } from "@/lib/server/queries";
+import { fmtDate } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
 // Type derived from the Prisma helper so the row shape stays in lock-step
@@ -22,7 +23,7 @@ const columns: DataTableColumn<Store>[] = [
   { key: "type",     header: "Type" },
   { key: "products", header: "Products", align: "right" },
   { key: "rating",   header: "Rating",   align: "right" },
-  { key: "ctr",      header: "CTR",      align: "right" },
+  { key: "created",  header: "Created",  align: "right" },
 ];
 
 export default async function AdminStores() {
@@ -51,17 +52,12 @@ export default async function AdminStores() {
   const liveStores = stores.filter((s) => !s.deletedAt);
   const totalProducts = liveStores.reduce((sum, s) => sum + s._count.products, 0);
   const ratedStores = liveStores.filter(
-    (s) => s.stats && s._count.products > 0 && s.stats.rating > 0,
+    (s) => s._count.products > 0 && s.rating > 0,
   );
   const avgRating =
     ratedStores.length === 0
       ? null
-      : ratedStores.reduce((sum, s) => sum + (s.stats?.rating ?? 0), 0) / ratedStores.length / 10;
-  const ctrPopulation = liveStores.filter((s) => s.stats && s._count.products > 0);
-  const avgCtr =
-    ctrPopulation.length === 0
-      ? null
-      : ctrPopulation.reduce((sum, s) => sum + (s.stats?.ctr ?? 0), 0) / ctrPopulation.length / 100;
+      : ratedStores.reduce((sum, s) => sum + s.rating, 0) / ratedStores.length / 10;
 
   return (
     <>
@@ -70,7 +66,7 @@ export default async function AdminStores() {
         subtitle={`${stores.length} stores on the marketplace`}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <StatCard
           variant="highlight"
           icon={Package}
@@ -82,12 +78,6 @@ export default async function AdminStores() {
           label="Avg. rating"
           value={avgRating === null ? "—" : `${avgRating.toFixed(1)}★`}
           variant={avgRating === null ? "zero" : "default"}
-        />
-        <StatCard
-          icon={MousePointerClick}
-          label="Avg. CTR"
-          value={avgCtr === null ? "—" : `${avgCtr.toFixed(1)}%`}
-          variant={avgCtr === null ? "zero" : "default"}
         />
       </div>
 
@@ -160,13 +150,13 @@ export default async function AdminStores() {
             case "rating":
               return (
                 <span className="font-mono text-sm text-ink-secondary">
-                  {s.stats ? `${(s.stats.rating / 10).toFixed(1)}★` : "—"}
+                  {s.rating > 0 ? `${(s.rating / 10).toFixed(1)}★` : "—"}
                 </span>
               );
-            case "ctr":
+            case "created":
               return (
-                <span className="font-mono text-sm text-ink-secondary">
-                  {s.stats ? `${(s.stats.ctr / 100).toFixed(1)}%` : "—"}
+                <span className="font-mono text-xs text-ink-dim">
+                  {fmtDate(s.createdAt)}
                 </span>
               );
             default:
