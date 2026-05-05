@@ -164,11 +164,33 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
       setFbStep("verify");
       setResentMsg("Code sent. Check your phone.");
     } catch (e) {
-      const msg = (e as { message?: string })?.message ?? "Couldn't send the SMS. Try again in a bit.";
-      // Firebase wraps errors as `Firebase: ... (auth/code).` — strip the
-      // tedious prefix so the buyer just sees the actionable bit.
-      const cleaned = msg.replace(/^Firebase:\s*/, "").replace(/\s*\(auth\/[^)]+\)\.?$/, "");
-      setError(cleaned);
+      const err = e as { message?: string; code?: string };
+      const msg = err?.message ?? "Couldn't send the SMS. Try again in a bit.";
+      const code = err?.code;
+      // eslint-disable-next-line no-console
+      console.error("[firebase-phone] send failed:", code, msg);
+      // Translate the most common Firebase phone-auth error codes into
+      // actionable copy. Anything we don't recognise falls back to the
+      // raw Firebase message so the user can screenshot it for support.
+      const friendly = (() => {
+        switch (code) {
+          case "auth/billing-not-enabled":
+            return "Phone auth needs a Blaze (pay-as-you-go) plan in Firebase. Free Spark tier no longer supports SMS.";
+          case "auth/invalid-phone-number":
+            return "Phone number format isn't valid. Use +66XXXXXXXXX or a Thai mobile.";
+          case "auth/captcha-check-failed":
+            return "reCAPTCHA blocked this request. Refresh and try again.";
+          case "auth/quota-exceeded":
+            return "We've hit Firebase's daily SMS quota. Try again tomorrow or contact support.";
+          case "auth/operation-not-allowed":
+            return "Phone sign-in isn't enabled on the Firebase project. Enable it in Authentication → Sign-in method.";
+          case "auth/too-many-requests":
+            return "Too many requests. Wait a few minutes before retrying.";
+          default:
+            return msg.replace(/^Firebase:\s*/, "");
+        }
+      })();
+      setError(code ? `${friendly} [${code}]` : friendly);
       setFbStep("send");
     } finally {
       setBusy(false);
@@ -207,8 +229,11 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
         router.refresh();
       }, 1200);
     } catch (e) {
-      const msg = (e as { message?: string })?.message ?? "That code didn't match. Try again or resend.";
-      setError(msg.replace(/^Firebase:\s*/, "").replace(/\s*\(auth\/[^)]+\)\.?$/, ""));
+      const err = e as { message?: string; code?: string };
+      const msg = err?.message ?? "That code didn't match. Try again or resend.";
+      // eslint-disable-next-line no-console
+      console.error("[firebase-phone] verify failed:", err?.code, msg);
+      setError(msg.replace(/^Firebase:\s*/, ""));
     } finally {
       setBusy(false);
     }
