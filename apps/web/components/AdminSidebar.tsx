@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Layers, RotateCcw, GitBranch, Shield, Database } from "lucide-react";
+import { LayoutDashboard, Users, Store, FileBarChart, ShieldCheck, History, Sparkles, Settings, Network, Layers, RotateCcw, GitBranch, Shield, Database, Code2 } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,7 @@ const items = [
   { href: "/admin/settings",     label: "Settings",   icon: Settings },
   { href: "/admin/er-diagram",   label: "ER Diagram", icon: Network },
   { href: "/admin/database",     label: "Database",   icon: Database },
+  { href: "/admin/queries",      label: "Queries",    icon: Code2 },
   { href: "/admin/tech-stack",   label: "Tech Stack", icon: Layers },
   { href: "/admin/timeline",     label: "Timeline",   icon: GitBranch },
   { href: "/admin/changelog",    label: "What's new", icon: Sparkles },
