@@ -16,9 +16,9 @@ export function ClosingSlide() {
             metu.online
           </h2>
           <p className="mt-6 text-xl text-ink-secondary leading-relaxed">
-            Scan the QR with your phone or visit the URL. The marketplace is
-            fully live — browse stores, sign in with Google, and walk through
-            a real checkout (test cards welcome).
+            Open the URL on a laptop to walk through the marketplace —
+            browse stores, sign in with Google, and run a real checkout
+            with Stripe test cards. The QR is here for note-taking.
           </p>
 
           <div className="mt-10 flex items-center gap-3 text-sm text-ink-dim">
@@ -39,7 +39,7 @@ export function ClosingSlide() {
             />
           </div>
           <div className="text-xs uppercase tracking-[0.3em] text-ink-dim">
-            point your camera here
+            metu.online
           </div>
         </div>
       </div>
