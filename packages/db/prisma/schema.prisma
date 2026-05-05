@@ -404,9 +404,9 @@ model Cart {
   expiredAt DateTime?  @map("expired_at")
   sessionId Int?       @map("session_id")
 
-  user  User       @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  order Order?
-  items CartItem[]
+  user   User       @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  orders Order[]
+  items  CartItem[]
 
   // At most one active cart per user (enforced in the app layer).
   @@index([userId, status])
@@ -448,7 +448,7 @@ model Transaction {
 
 model Order {
   orderId            Int         @id @default(autoincrement()) @map("order_id")
-  cartId             Int         @unique @map("cart_id")
+  cartId             Int         @map("cart_id")
   // Phase 45 — direct FK to the buyer per the docx report. Denormalised
   // from cart.userId at checkout time so reports / admin queries can
   // join straight to User without going through Cart.
@@ -479,6 +479,7 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([userId])
+  @@index([cartId])
   @@index([stripePaymentIntentId])
   @@map("orders")
 }
