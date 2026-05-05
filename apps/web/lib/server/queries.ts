@@ -724,16 +724,76 @@ export async function getRecentPurchaseCount(productId: number, days = 7): Promi
   return new Set(rows.map((r) => r.order.userId)).size;
 }
 
-// Admin store list. Direct Prisma to skip the same-host HTTP hop.
-export async function getAdminStores() {
-  return prisma.store.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      owner: { select: { username: true, firstName: true, lastName: true, profileImage: true } },
-      businessType: true,
-      _count: {
-        select: { products: true },
+// Admin store list with optional filters + revenue insight per store.
+// Filters: search by store/owner name, business type, rating range, min
+// product count. Returns the same shape as before plus `revenue` so the
+// admin page can show "฿X total" inline. 20 rows per page.
+export interface AdminStoresFilters {
+  q?: string;
+  businessTypeId?: number;
+  minRating?: number;
+  minProducts?: number;
+  page?: number;
+}
+export async function getAdminStores(f: AdminStoresFilters = {}) {
+  const page = Math.max(1, f.page ?? 1);
+  const pageSize = 20;
+  const where: Prisma.StoreWhereInput = {};
+  if (f.businessTypeId) where.businessTypeId = f.businessTypeId;
+  if (f.minRating !== undefined) where.rating = { gte: f.minRating };
+  if (f.q?.trim()) {
+    const q = f.q.trim();
+    where.OR = [
+      { name: { contains: q, mode: "insensitive" } },
+      { owner: { OR: [
+        { username: { contains: q, mode: "insensitive" } },
+        { firstName: { contains: q, mode: "insensitive" } },
+        { lastName: { contains: q, mode: "insensitive" } },
+      ] } },
+    ];
+  }
+  const [rows, total] = await Promise.all([
+    prisma.store.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        owner: { select: { username: true, firstName: true, lastName: true, profileImage: true } },
+        businessType: true,
+        _count: { select: { products: true } },
       },
-    },
-  });
+    }),
+    prisma.store.count({ where }),
+  ]);
+  // Apply minProducts in memory because Prisma can't filter on _count
+  // directly; we still page in DB so the slice we filter is bounded.
+  const filtered = f.minProducts
+    ? rows.filter((s) => s._count.products >= f.minProducts!)
+    : rows;
+  // Per-store revenue (one extra raw-SQL roll-up). Empty stores get 0.
+  const ids = filtered.map((s) => s.storeId);
+  const revenueMap = new Map<number, number>();
+  if (ids.length > 0) {
+    const rev = await prisma.$queryRaw<Array<{ store_id: number; revenue: string }>>`
+      SELECT s.store_id,
+             COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue
+        FROM store s
+        LEFT JOIN product      p  ON p.store_id        = s.store_id
+        LEFT JOIN product_item pi ON pi.product_id     = p.product_id
+        LEFT JOIN order_item   oi ON oi.product_item_id = pi.product_item_id
+        LEFT JOIN orders       o  ON o.order_id        = oi.order_id
+                                  AND o.status IN ('paid','fulfilled')
+        WHERE s.store_id IN (${Prisma.join(ids)})
+        GROUP BY s.store_id
+    `;
+    for (const r of rev) revenueMap.set(r.store_id, Number(r.revenue));
+  }
+  return {
+    items: filtered.map((s) => ({ ...s, revenue: revenueMap.get(s.storeId) ?? 0 })),
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
 }
