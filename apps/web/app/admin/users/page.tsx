@@ -56,13 +56,21 @@ const columns: DataTableColumn<UserRow>[] = [
 export default async function AdminUsers({
   searchParams,
 }: {
-  searchParams: { q?: string; role?: string; status?: string; page?: string };
+  searchParams: {
+    q?: string;
+    role?: string;
+    status?: string;
+    page?: string;
+    gender?: string;
+    countryId?: string;
+    buyerLevel?: string;
+    sellerLevel?: string;
+    signupAfter?: string;
+    signupBefore?: string;
+  };
 }) {
   const qs = new URLSearchParams();
-  if (searchParams.q) qs.set("q", searchParams.q);
-  if (searchParams.role) qs.set("role", searchParams.role);
-  if (searchParams.status) qs.set("status", searchParams.status);
-  if (searchParams.page) qs.set("page", searchParams.page);
+  for (const [k, v] of Object.entries(searchParams)) if (v) qs.set(k, v);
   const [data, me] = await Promise.all([
     apiAuth<UsersResp>(`/admin/users?${qs.toString()}`).then(
       (d) => d ?? { items: [], total: 0, page: 1, totalPages: 1 },
@@ -78,9 +86,7 @@ export default async function AdminUsers({
   // /admin/audit so navigation works without JS.
   const buildHref = (next: number) => {
     const p = new URLSearchParams();
-    if (searchParams.q) p.set("q", searchParams.q);
-    if (searchParams.role) p.set("role", searchParams.role);
-    if (searchParams.status) p.set("status", searchParams.status);
+    for (const [k, v] of Object.entries(searchParams)) if (v && k !== "page") p.set(k, v);
     p.set("page", String(next));
     return `/admin/users?${p.toString()}`;
   };
@@ -89,25 +95,65 @@ export default async function AdminUsers({
     <>
       <PageHeader title="Users" subtitle={`${data.total} total users on the marketplace`} />
 
-      <form action="/admin/users" method="get" className="mb-4 flex gap-2">
+      <form action="/admin/users" method="get" className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-2">
         <input
           name="q"
           defaultValue={searchParams.q ?? ""}
           placeholder="Search by username, email, name…"
-          className="flex-1 rounded-full border border-line bg-space-800 px-4 py-2.5 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
+          className="md:col-span-2 rounded-full border border-line bg-space-800 px-4 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
         />
         <select
           name="role"
           defaultValue={searchParams.role ?? ""}
-          className="rounded-full border border-line bg-space-800 px-3 py-2.5 text-sm text-white"
+          className="rounded-full border border-line bg-space-800 px-3 py-2 text-sm text-white"
         >
           <option value="">All roles</option>
           <option value="buyer">Buyers</option>
           <option value="seller">Sellers</option>
           <option value="admin">Admins</option>
         </select>
-        <button className="rounded-full bg-metu-yellow text-space-black px-4 py-2.5 text-sm font-bold">
-          Filter
+        <select
+          name="gender"
+          defaultValue={searchParams.gender ?? ""}
+          className="rounded-full border border-line bg-space-800 px-3 py-2 text-sm text-white"
+        >
+          <option value="">Any gender</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+          <option value="other">Other</option>
+        </select>
+        <select
+          name="buyerLevel"
+          defaultValue={searchParams.buyerLevel ?? ""}
+          className="rounded-full border border-line bg-space-800 px-3 py-2 text-sm text-white"
+        >
+          <option value="">Any buyer level</option>
+          {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>Buyer Lv.{n}</option>)}
+        </select>
+        <select
+          name="sellerLevel"
+          defaultValue={searchParams.sellerLevel ?? ""}
+          className="rounded-full border border-line bg-space-800 px-3 py-2 text-sm text-white"
+        >
+          <option value="">Any seller level</option>
+          {[0, 1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>Seller Lv.{n}</option>)}
+        </select>
+        <input
+          type="date"
+          name="signupAfter"
+          defaultValue={searchParams.signupAfter ?? ""}
+          placeholder="Signed up after"
+          className="rounded-full border border-line bg-space-800 px-3 py-2 text-xs text-white"
+        />
+        <input
+          type="date"
+          name="signupBefore"
+          defaultValue={searchParams.signupBefore ?? ""}
+          placeholder="Signed up before"
+          className="rounded-full border border-line bg-space-800 px-3 py-2 text-xs text-white"
+        />
+        <button className="rounded-full bg-metu-yellow text-space-black px-4 py-2 text-sm font-bold col-span-2 md:col-span-1">
+          Apply filters
         </button>
       </form>
 

@@ -82,6 +82,55 @@ export async function getFeaturedProducts(take = 8) {
   return (items as any[]).slice(0, take);
 }
 
+// 8 product cards from sellers at sellerLevel ≥ 3, ranked by store rating
+// + sellerLevel + reviews. Drives the "From top sellers" carousel on
+// /browse — surfaces high-tier creators above the rest of the grid.
+export async function getTopSellerProducts(take = 8) {
+  type Row = {
+    product_id: number; name: string; description: string;
+    image: string | null;
+    store_name: string; store_id: number;
+    seller_level: number; rating: number;
+    min_price: string;
+  };
+  const rows = await prisma.$queryRaw<Row[]>`
+    SELECT
+      p.product_id, p.name, p.description,
+      (SELECT pi2.product_image FROM "product_image" pi2
+        WHERE pi2.product_id = p.product_id
+        ORDER BY pi2.sort_order ASC LIMIT 1) AS image,
+      s.name        AS store_name,
+      s.store_id    AS store_id,
+      COALESCE(us.seller_level, 0) AS seller_level,
+      s.rating      AS rating,
+      COALESCE((
+        SELECT MIN(price * (100 - COALESCE(discount_percent, 0)) / 100.0)::text
+          FROM "product_item" WHERE product_id = p.product_id
+      ), '0') AS min_price
+    FROM "product" p
+    JOIN "store"   s  ON s.store_id = p.store_id
+    LEFT JOIN "user_stats" us ON us.user_id = s.owner_id
+    WHERE p.is_active = true
+      AND s.suspended_at IS NULL
+      AND COALESCE(us.seller_level, 0) >= 3
+    ORDER BY us.seller_level DESC NULLS LAST,
+             s.rating DESC,
+             (SELECT COUNT(*) FROM "product_review" pr WHERE pr.product_id = p.product_id) DESC
+    LIMIT ${take}
+  `;
+  return rows.map((r) => ({
+    productId: r.product_id,
+    name: r.name,
+    description: r.description,
+    image: r.image ?? `https://picsum.photos/seed/p${r.product_id}/800/600`,
+    minPrice: Number(r.min_price),
+    storeName: r.store_name,
+    storeId: r.store_id,
+    sellerLevel: Number(r.seller_level),
+    avgRating: r.rating > 0 ? r.rating / 10 : undefined,
+  }));
+}
+
 // Featured stores ranked by owner's sellerLevel, then store rating, then
 // recency. Promotes high-tier sellers on the landing page so newcomers
 // see established storefronts first.

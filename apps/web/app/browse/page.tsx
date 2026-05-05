@@ -6,12 +6,12 @@ import { ProductCard } from "@/components/ProductCard";
 import { EmptyState } from "@/components/EmptyState";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { browseProducts, getCategories, getTags, getFavoriteSet } from "@/lib/server/queries";
+import { browseProducts, getCategories, getTags, getFavoriteSet, getTopSellerProducts } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { RecentStrip } from "./RecentStrip";
 import { SortSelect } from "./SortSelect";
 import { BrowseFiltersSheet } from "./BrowseFiltersSheet";
-import { Filter, Package } from "lucide-react";
+import { Filter, Package, Sparkles } from "lucide-react";
 
 type Category = { categoryId: number; categoryName: string };
 type Tag = { tagId: number; tagName: string };
@@ -60,13 +60,14 @@ export default async function BrowsePage({
   searchParams: Record<string, string | undefined>;
 }) {
   const me = await getMe();
-  // Categories are needed to resolve `?category=<slug>` (F3) before we
-  // can dispatch browseProducts, but the lookup is a 1-hour cache hit
-  // so the wait is essentially free.
-  const [categories, tags, favSet] = await Promise.all([
+  const [categories, tags, favSet, topSellerProducts] = await Promise.all([
     getCategories(),
     getTags(),
     getFavoriteSet(me?.user.userId),
+    // Only show the "From top sellers" carousel on the unfiltered first
+    // page — once a buyer is searching or filtering they want focused
+    // results, not a marketing strip.
+    Object.keys(searchParams).length === 0 ? getTopSellerProducts(8) : Promise.resolve([]),
   ]);
   const categoryId = resolveCategoryId(searchParams.category, categories);
   const result = await browseProducts({
@@ -167,6 +168,29 @@ export default async function BrowsePage({
                 </Link>
               )}
             </div>
+
+            {/* "From top sellers" — only on the unfiltered first page,
+                rendered ABOVE the regular grid so high-tier creators
+                surface immediately. Hidden when there's a search/filter
+                active so it doesn't dilute focused results. */}
+            {topSellerProducts.length > 0 && (
+              <section className="mb-8 rounded-2xl border border-metu-yellow/30 bg-gradient-to-br from-metu-yellow/5 to-transparent p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="h-5 w-5 text-metu-yellow" />
+                  <h2 className="font-display text-lg font-extrabold text-white">From top sellers</h2>
+                  <Badge variant="gold" className="text-[10px]">Lv.3+</Badge>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {topSellerProducts.map((p) => (
+                    <ProductCard
+                      key={p.productId}
+                      product={p as never}
+                      isFavorited={favSet.has(p.productId)}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
             {result.items.length === 0 ? (
               activeQ ? (

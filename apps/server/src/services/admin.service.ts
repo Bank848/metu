@@ -34,6 +34,22 @@ export async function listUsers(q: UserListQuery) {
           email: { not: { startsWith: "deleted_" } },
         };
 
+  // stats.* filters merge into the same nested key so role + level
+  // play together cleanly.
+  const statsFilter = {
+    ...(q.role ? { role: q.role } : {}),
+    ...(q.buyerLevel !== undefined ? { buyerLevel: q.buyerLevel } : {}),
+    ...(q.sellerLevel !== undefined ? { sellerLevel: q.sellerLevel } : {}),
+  };
+  const signupRange: Record<string, Date> = {};
+  if (q.signupAfter) {
+    const d = new Date(q.signupAfter);
+    if (!isNaN(d.getTime())) signupRange.gte = d;
+  }
+  if (q.signupBefore) {
+    const d = new Date(q.signupBefore);
+    if (!isNaN(d.getTime())) signupRange.lte = d;
+  }
   const where = {
     ...(q.q
       ? {
@@ -45,7 +61,10 @@ export async function listUsers(q: UserListQuery) {
           ],
         }
       : {}),
-    ...(q.role ? { stats: { role: q.role } } : {}),
+    ...(Object.keys(statsFilter).length > 0 ? { stats: statsFilter } : {}),
+    ...(q.gender ? { gender: q.gender } : {}),
+    ...(q.countryId ? { countryId: q.countryId } : {}),
+    ...(Object.keys(signupRange).length > 0 ? { createdDate: signupRange } : {}),
     ...statusWhere,
   };
 
