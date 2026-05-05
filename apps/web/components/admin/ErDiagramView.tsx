@@ -26,7 +26,7 @@ import { CategoryLegend } from "./CategoryLegend";
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 4;
 
-export function ErDiagramView() {
+export function ErDiagramView({ kioskMode = false }: { kioskMode?: boolean } = {}) {
   // Schema is build-time constant; layout never changes after mount.
   const layout = useMemo<LayoutResult>(
     () => layoutEr(ER_ENTITIES, ER_RELATIONSHIPS),
@@ -309,7 +309,7 @@ export function ErDiagramView() {
     <div
       ref={containerRef}
       tabIndex={0}
-      className="relative w-full h-[calc(100vh-12rem)] min-h-[600px] rounded-2xl border border-line bg-white overflow-hidden focus:outline-none focus:ring-2 focus:ring-mint/40 select-none"
+      className={`relative w-full ${kioskMode ? "h-full" : "h-[calc(100vh-12rem)] min-h-[600px]"} rounded-2xl border border-line bg-white overflow-hidden focus:outline-none focus:ring-2 focus:ring-mint/40 select-none`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -402,7 +402,9 @@ export function ErDiagramView() {
       {/* legend (top-left) */}
       <CategoryLegend />
 
-      {/* controls (top-right) */}
+      {/* controls (top-right). Hidden in kiosk mode — passers-by don't
+          need pan/zoom buttons; the diagram speaks for itself. */}
+      {!kioskMode && (
       <div className="absolute top-4 right-4 flex flex-col gap-1 bg-white border border-slate-300 rounded-lg shadow-sm p-1 text-slate-700">
         <button
           type="button"
@@ -449,8 +451,10 @@ export function ErDiagramView() {
           )}
         </button>
       </div>
+      )}
 
-      {/* export (bottom-right) */}
+      {/* export (bottom-right) — also hidden in kiosk mode. */}
+      {!kioskMode && (
       <div className="absolute bottom-4 right-4 flex gap-2">
         <button
           type="button"
@@ -469,16 +473,21 @@ export function ErDiagramView() {
           PNG
         </button>
       </div>
+      )}
 
-      {/* zoom indicator (bottom-left) */}
+      {/* zoom indicator (bottom-left) — kiosk mode hides the operator chrome. */}
+      {!kioskMode && (
       <div className="absolute bottom-4 left-4 rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-mono text-slate-600 shadow-sm">
         {Math.round(scale * 100)}%
       </div>
+      )}
 
-      {/* keyboard shortcut hint (bottom-center, fades on hover) */}
+      {/* keyboard shortcut hint (bottom-center, fades on hover). */}
+      {!kioskMode && (
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-md border border-slate-300 bg-white/90 backdrop-blur-sm px-3 py-1 text-[10px] text-slate-500 shadow-sm pointer-events-none opacity-70">
         <kbd className="font-mono">scroll</kbd> zoom · <kbd className="font-mono">drag anywhere</kbd> pan · <kbd className="font-mono">double-click</kbd> fit · <kbd className="font-mono">+</kbd> <kbd className="font-mono">-</kbd> <kbd className="font-mono">0</kbd> <kbd className="font-mono">f</kbd> · <kbd className="font-mono">Ctrl+Enter</kbd> fullscreen
       </div>
+      )}
     </div>
   );
 }
