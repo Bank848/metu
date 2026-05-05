@@ -82,22 +82,97 @@ export async function getFeaturedProducts(take = 8) {
   return (items as any[]).slice(0, take);
 }
 
+// Featured stores ranked by owner's sellerLevel, then store rating, then
+// recency. Promotes high-tier sellers on the landing page so newcomers
+// see established storefronts first.
 export async function getFeaturedStores(take = 4) {
-  return prisma.store.findMany({
-    where: { deletedAt: null },
-    take,
-    orderBy: { createdAt: "desc" },
-    select: {
-      storeId: true,
-      name: true,
-      profileImage: true,
-      coverImage: true,
-      description: true,
-      createdAt: true,
-      businessType: { select: { name: true } },
-      _count: { select: { products: true } },
-    },
-  });
+  type Row = {
+    store_id: number;
+    name: string;
+    profile_image: string | null;
+    cover_image: string | null;
+    description: string;
+    created_at: Date;
+    rating: number;
+    seller_level: number;
+    business_type_name: string;
+    product_count: bigint;
+  };
+  const rows = await prisma.$queryRaw<Row[]>`
+    SELECT
+      s.store_id, s.name, s.profile_image, s.cover_image,
+      s.description, s.created_at, s.rating,
+      COALESCE(us.seller_level, 0) AS seller_level,
+      bt.name AS business_type_name,
+      (SELECT COUNT(*)::int FROM "product" p
+        WHERE p.store_id = s.store_id AND p.deleted_at IS NULL) AS product_count
+    FROM "store" s
+    JOIN "business_type" bt ON bt.business_type_id = s.business_type_id
+    LEFT JOIN "user_stats" us ON us.user_id = s.owner_id
+    WHERE s.deleted_at IS NULL AND s.suspended_at IS NULL
+    ORDER BY us.seller_level DESC NULLS LAST,
+             s.rating DESC,
+             s.created_at DESC
+    LIMIT ${take}
+  `;
+  return rows.map((r) => ({
+    storeId: r.store_id,
+    name: r.name,
+    profileImage: r.profile_image,
+    coverImage: r.cover_image,
+    description: r.description,
+    createdAt: r.created_at,
+    rating: r.rating,
+    sellerLevel: Number(r.seller_level),
+    businessType: { name: r.business_type_name },
+    _count: { products: Number(r.product_count) },
+  }));
+}
+
+// Featured coupons surfaced on the landing page — almost-expiring + scarce
+// ones first, master coupons get a yellow ring (storeId IS NULL).
+export async function getFeaturedCoupons(take = 6) {
+  type Row = {
+    coupon_id: number;
+    code: string;
+    store_id: number | null;
+    store_name: string | null;
+    discount_type: string;
+    discount_value: number;
+    usage_limit: number;
+    used_count: bigint;
+    end_date: Date;
+  };
+  const rows = await prisma.$queryRaw<Row[]>`
+    SELECT
+      c.coupon_id, c.code, c.store_id,
+      s.name AS store_name,
+      c.discount_type, c.discount_value, c.usage_limit, c.end_date,
+      (SELECT COUNT(*)::int FROM "coupon_usage" cu WHERE cu.coupon_id = c.coupon_id) AS used_count
+    FROM "coupon" c
+    LEFT JOIN "store" s ON s.store_id = c.store_id
+    WHERE c.is_active = true
+      AND c.start_date <= NOW()
+      AND c.end_date   >= NOW()
+      AND (s.suspended_at IS NULL OR s.store_id IS NULL)
+    ORDER BY (c.usage_limit - (
+      SELECT COUNT(*) FROM "coupon_usage" cu WHERE cu.coupon_id = c.coupon_id
+    )) ASC,
+             c.end_date ASC
+    LIMIT ${take}
+  `;
+  return rows.map((r) => ({
+    couponId: r.coupon_id,
+    code: r.code,
+    storeId: r.store_id,
+    storeName: r.store_name,
+    discountType: r.discount_type as "percent" | "fixed",
+    discountValue: r.discount_value,
+    usageLimit: r.usage_limit,
+    usedCount: Number(r.used_count),
+    endDate: r.end_date,
+    isMaster: r.store_id == null,
+  }));
 }
 
 // Public store page envelope.

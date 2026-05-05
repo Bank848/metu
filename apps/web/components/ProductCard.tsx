@@ -18,6 +18,8 @@ export type ProductCardProduct = {
   storeName?: string;
   /** When set, store attribution becomes a StoreNameLink. */
   storeId?: number;
+  /** Owner's sellerLevel from user_stats — drives the chip beside store name. */
+  sellerLevel?: number;
   avgRating?: number;
   reviewCount?: number;
   discountPercent?: number;
@@ -117,15 +119,19 @@ export function ProductCard({
       {/* body */}
       <div className={isFeature ? "p-5 md:p-6" : "p-4"}>
         {product.storeName && (
-          <div className="mb-1">
+          <div className="mb-1 flex items-center gap-1.5 flex-wrap">
             {product.storeId ? (
               <StoreNameLink storeId={product.storeId} storeName={product.storeName} />
             ) : (
-              // Fallback when there's no store yet (form preview).
               <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-dim">
                 <BadgeCheck className="h-3 w-3 text-metu-yellow/80" />
                 {product.storeName}
               </span>
+            )}
+            {product.sellerLevel != null && product.sellerLevel > 0 && (
+              <Badge variant="gold" className="text-[9px] !px-1.5 !py-0">
+                ⭐ Lv.{product.sellerLevel}
+              </Badge>
             )}
           </div>
         )}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Package, ShoppingBag, Star, Sparkles, ShieldCheck, Zap, ArrowRight } from "lucide-react";
+import { Users, Package, ShoppingBag, Star, Sparkles, ShieldCheck, Zap, ArrowRight, Ticket, Clock } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { StarField } from "@/components/DotGrid";
@@ -10,22 +10,25 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { LightSweepText } from "@/components/visual/LightSweepText";
 import { BrandMark } from "@/components/illustrations/BrandMark";
-import { getStats, getFeaturedProducts, getFeaturedStores, getCategories, getFavoriteSet } from "@/lib/server/queries";
+import { getStats, getFeaturedProducts, getFeaturedStores, getFeaturedCoupons, getCategories, getFavoriteSet } from "@/lib/server/queries";
+import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { getMe } from "@/lib/session";
 import { isDataUrl, cn } from "@/lib/utils";
 
 type Stats = { sellers: number; products: number; orders: number; reviews: number };
 type Store = Awaited<ReturnType<typeof getFeaturedStores>>[number];
+type Coupon = Awaited<ReturnType<typeof getFeaturedCoupons>>[number];
 type Category = Awaited<ReturnType<typeof getCategories>>[number];
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const me = await getMe();
-  const [stats, products, stores, categories, favSet] = await Promise.all([
+  const [stats, products, stores, coupons, categories, favSet] = await Promise.all([
     getStats(),
     getFeaturedProducts(8),
     getFeaturedStores(4),
+    getFeaturedCoupons(6),
     getCategories(),
     getFavoriteSet(me?.user.userId),
   ]);
@@ -36,12 +39,71 @@ export default async function Home() {
       <main>
         <Hero stats={stats} />
         <TrendingProducts products={products} favSet={favSet} />
+        <FeaturedCoupons coupons={coupons} />
         <FeaturedStores stores={stores} />
         <CategoryTiles categories={categories} />
         <WhyMetu />
       </main>
       <Footer />
     </>
+  );
+}
+
+function FeaturedCoupons({ coupons }: { coupons: Coupon[] }) {
+  if (coupons.length === 0) return null;
+  return (
+    <section className="px-6 md:px-10 py-12 max-w-[1400px] mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-display text-2xl md:text-3xl font-extrabold text-white flex items-center gap-2">
+            <Ticket className="h-6 w-6 text-metu-yellow" />
+            Featured coupons
+          </h2>
+          <p className="text-sm text-ink-secondary mt-1">
+            Almost-out-of-stock or expiring soon — grab them before they're gone.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {coupons.map((c) => {
+          const remaining = c.usageLimit - c.usedCount;
+          return (
+            <div
+              key={c.couponId}
+              className={cn(
+                "rounded-2xl border p-5 bg-space-900 transition hover:scale-[1.02]",
+                c.isMaster
+                  ? "border-metu-yellow/60 ring-2 ring-metu-yellow/30"
+                  : "border-line",
+              )}
+            >
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <Badge variant={c.isMaster ? "gold" : "mist"} className="uppercase text-[10px]">
+                  {c.isMaster ? "Master coupon" : c.storeName ?? "Store"}
+                </Badge>
+                <span className="text-xs text-ink-dim flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {fmtDate(c.endDate)}
+                </span>
+              </div>
+              <div className="font-display text-2xl font-extrabold text-gold-gradient mb-1">
+                {c.discountType === "percent"
+                  ? `${c.discountValue}% off`
+                  : `${coins(thbToCoins(c.discountValue))} off`}
+              </div>
+              <code className="block font-mono text-sm text-metu-yellow bg-metu-yellow/10 border border-metu-yellow/30 rounded-lg px-3 py-1.5 mb-3 select-all">
+                {c.code}
+              </code>
+              <div className="text-xs text-ink-dim">
+                {remaining > 0
+                  ? `${remaining} of ${c.usageLimit} left`
+                  : "Sold out"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -218,8 +280,18 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium text-ink-dim">
-                    {lead.businessType?.name}
+                  <div className="flex items-center gap-2 text-xs font-medium text-ink-dim">
+                    <span>{lead.businessType?.name}</span>
+                    {lead.sellerLevel > 0 && (
+                      <Badge variant="gold" className="text-[10px]">
+                        ⭐ Lv.{lead.sellerLevel} Seller
+                      </Badge>
+                    )}
+                    {lead.rating > 0 && (
+                      <span className="font-mono text-metu-yellow">
+                        {(lead.rating / 10).toFixed(1)}★
+                      </span>
+                    )}
                   </div>
                   <div className="font-display font-bold text-xl text-white truncate">
                     {lead.name}
@@ -258,8 +330,13 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
                     )}
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[10px] font-medium text-ink-dim uppercase tracking-wider">
-                      {s.businessType?.name}
+                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-ink-dim uppercase tracking-wider">
+                      <span>{s.businessType?.name}</span>
+                      {s.sellerLevel > 0 && (
+                        <Badge variant="gold" className="text-[9px] !px-1.5 !py-0">
+                          Lv.{s.sellerLevel}
+                        </Badge>
+                      )}
                     </div>
                     <div className="font-display font-bold text-white truncate">
                       {s.name}

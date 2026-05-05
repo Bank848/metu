@@ -25,13 +25,22 @@ async function listProducts(
     take,
     skip,
     include: {
-      store: { select: { name: true, storeId: true } },
+      store: { select: { name: true, storeId: true, ownerId: true } },
       items: { select: { price: true, discountPercent: true } },
       images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
       productNTags: { include: { tag: { select: { tagName: true } } } },
       reviews: { select: { rating: true } },
     },
   });
+  // Fetch seller_level for the owners of the included stores in one round
+  // trip; cheap because it's a tiny lookup table.
+  const ownerIds = [...new Set(products.map((p) => p.store.ownerId))];
+  const sellerLevels = ownerIds.length === 0 ? new Map<number, number>() : new Map(
+    (await prisma.userStats.findMany({
+      where: { userId: { in: ownerIds } },
+      select: { userId: true, sellerLevel: true },
+    })).map((u) => [u.userId, u.sellerLevel]),
+  );
   return products.map((p) => {
     const prices = p.items.map((i) => Number(i.price));
     const minPrice = prices.length ? Math.min(...prices) : 0;
@@ -48,6 +57,7 @@ async function listProducts(
       maxPrice,
       storeName: p.store.name,
       storeId: p.store.storeId,
+      sellerLevel: sellerLevels.get(p.store.ownerId) ?? 0,
       avgRating,
       reviewCount: ratings.length,
       discountPercent: maxDiscount || undefined,
