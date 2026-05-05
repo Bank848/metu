@@ -128,10 +128,28 @@ const BASE_URL =
   process.env.BETTER_AUTH_URL ??
   "http://localhost:3000";
 
+// Hosts the browser is allowed to call sign-in / OAuth from. better-auth
+// rejects POST /api/auth/better/* with 403 when the request's Origin header
+// doesn't match baseURL or one of these. Includes metu.online (canonical
+// custom domain), metu.fly.dev (legacy Fly host that we 301 from), and
+// localhost for local dev. Additional hosts can be added via the
+// BETTER_AUTH_TRUSTED_ORIGINS env var (comma-separated).
+const TRUSTED_ORIGINS = [
+  "https://metu.online",
+  "https://www.metu.online",
+  "https://metu.fly.dev",
+  "http://localhost:3000",
+  ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+];
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   secret: SECRET,
   baseURL: BASE_URL,
+  trustedOrigins: TRUSTED_ORIGINS,
   // Same path on the BFF and Express so routes resolve identically.
   basePath: "/api/auth/better",
 
