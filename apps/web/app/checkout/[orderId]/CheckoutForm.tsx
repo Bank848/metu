@@ -5,6 +5,25 @@ import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/Button";
 import { Loader2 } from "lucide-react";
 
+// bfcache + Stripe Elements quirk: when the buyer hits browser-back
+// from the Stripe-hosted 3DS flow, browsers may restore the page from
+// the back-forward cache with the Stripe iframe state half-attached —
+// leaving an orphaned floating "Pay" / wallet button visible above
+// the page. Easiest fix: detect a bfcache restore (event.persisted)
+// and force a full reload so Stripe Elements re-mounts cleanly.
+function useReloadOnBfcacheRestore() {
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        // Bfcache restore — reload to wipe any orphaned Stripe DOM.
+        window.location.reload();
+      }
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+}
+
 /**
  * Stripe Payment Element host. Renders inside the buyer's
  * checkout page, confirms via stripe.js, then redirects back to
@@ -31,6 +50,8 @@ export function CheckoutForm({
    */
   stripeAccount: string | null;
 }) {
+  useReloadOnBfcacheRestore();
+
   const stripePromise = useMemo<Promise<Stripe | null>>(
     () =>
       stripeAccount

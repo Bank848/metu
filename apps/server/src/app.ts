@@ -128,4 +128,25 @@ if (isMainModule) {
     // eslint-disable-next-line no-console
     console.log(`[metu-server] CORS origin: ${CORS_ORIGIN}`);
   });
+
+  // Business Rule 4j — pending orders auto-cancel after 15 minutes.
+  // Cheap in-process sweep every 60 seconds; the underlying SQL is one
+  // indexed pass over orders WHERE status='pending' AND expiredAt < now.
+  // .unref() so the timer doesn't block process exit during graceful
+  // shutdown / hot reloads.
+  const SWEEP_INTERVAL_MS = 60_000;
+  setInterval(() => {
+    import("./services/orders.service.js")
+      .then(({ sweepExpiredOrders }) => sweepExpiredOrders())
+      .then((n) => {
+        if (n > 0) {
+          // eslint-disable-next-line no-console
+          console.log(`[metu-server] sweepExpiredOrders cancelled ${n} pending order(s)`);
+        }
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error("[metu-server] sweepExpiredOrders error:", err);
+      });
+  }, SWEEP_INTERVAL_MS).unref();
 }

@@ -289,6 +289,10 @@ export async function checkout(
         // All orders start `pending`. Stripe webhook flips to `paid`;
         // demo orders require admin approval.
         status: "pending",
+        // Business Rule 4j — payment session lasts 15 minutes. The
+        // sweepExpiredOrders cron flips status='cancelled' once
+        // expiredAt slips into the past.
+        expiredAt: new Date(Date.now() + 15 * 60_000),
         stripePaymentIntentId,
         transactionId: txn.transactionId,
         giftRecipientEmail: input.giftRecipientEmail || null,
@@ -745,6 +749,56 @@ export async function findByIdForUser(
  * now retrying doesn't end up with two pending orders fighting for the same
  * inventory.
  */
+/**
+ * Per CPE241 Business Rule 4j, a pending order's payment session
+ * lasts 15 minutes — past that, the order auto-cancels. Order.expiredAt
+ * is set to createdAt + 15 minutes; this sweep finds every pending
+ * order whose expiredAt has slipped into the past and cancels them in
+ * one batch (releasing limited-stock variants the same way
+ * cancelUserPendingOrders does).
+ *
+ * Called from a setInterval at server startup — see app.ts. Returns
+ * the count cancelled so the caller can log non-zero sweeps.
+ */
+export async function sweepExpiredOrders(): Promise<number> {
+  const expired = await prisma.order.findMany({
+    where: {
+      status: "pending",
+      expiredAt: { lt: new Date(), not: null },
+    },
+    select: { orderId: true },
+    take: 200, // cap per sweep so a backlog can't lock the server
+  });
+  if (expired.length === 0) return 0;
+  const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
+  for (const order of expired) {
+    await prisma.$transaction(async (tx) => {
+      const fresh = await tx.order.findUnique({
+        where: { orderId: order.orderId },
+        select: { status: true, items: { select: { productItemId: true, quantity: true } } },
+      });
+      if (!fresh || fresh.status !== "pending") return;
+      for (const item of fresh.items) {
+        if (item.productItemId == null) continue;
+        const pi = await tx.productItem.findUnique({
+          where: { productItemId: item.productItemId },
+          select: { deliveryMethod: true },
+        });
+        if (!pi || DIGITAL_METHODS.has(pi.deliveryMethod)) continue;
+        await tx.productItem.update({
+          where: { productItemId: item.productItemId },
+          data: { quantity: { increment: item.quantity } },
+        });
+      }
+      await tx.order.update({
+        where: { orderId: order.orderId },
+        data: { status: "cancelled" },
+      });
+    });
+  }
+  return expired.length;
+}
+
 export async function cancelUserPendingOrders(userId: number): Promise<void> {
   const pending = await prisma.order.findMany({
     where: { userId, status: "pending" },
