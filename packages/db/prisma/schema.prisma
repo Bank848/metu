@@ -97,6 +97,10 @@ model User {
   // TOTP 2FA. NULL secret = never enrolled.
   totpSecret           String?   @map("totp_secret") @db.VarChar(64)
   totpEnabled          Boolean   @default(false) @map("totp_enabled")
+  // Single-use TOTP backup codes (SHA-256 hashes of the plaintext).
+  // 10 codes generated at enrol time; each consume removes its hash.
+  // Plaintext shown to the user once and never persisted.
+  totpBackupCodes      String[]  @map("totp_backup_codes")
   // Admin-imposed force-reset flag. While true, the BFF redirects
   // every authed page to /profile/edit until the user changes pwd.
   requirePasswordReset Boolean   @default(false) @map("require_password_reset")

@@ -683,25 +683,80 @@ export const totpEnrollVerify: RequestHandler = async (req, res, next) => {
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
-    await service.totpEnrollVerify(auth.uid, parsed.data.code);
-    res.json({ ok: true });
+    // Returns the freshly-minted backup codes ONCE. Client must save
+    // them — there's no way to retrieve afterwards (only regenerate,
+    // which invalidates the previous set).
+    const result = await service.totpEnrollVerify(auth.uid, parsed.data.code);
+    res.json({ ok: true, backupCodes: result.backupCodes });
   } catch (err) {
     next(err);
   }
 };
 
-/** POST /auth/totp/step-up. Stamps Session.lastTotpAt for requireRecent2FA. */
+/** POST /auth/totp/step-up. Accepts either { code } (TOTP) or
+ *  { backupCode } (single-use recovery). */
 export const totpStepUp: RequestHandler = async (req, res, next) => {
   try {
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
+    const sessionId = await readBetterAuthSessionId(req);
+    const backupCode = typeof req.body?.backupCode === "string" ? req.body.backupCode.trim() : "";
+    if (backupCode) {
+      await service.totpStepUp(auth.uid, sessionId, "", backupCode);
+      res.json({ ok: true, via: "backup" });
+      return;
+    }
     const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
     if (!/^[0-9]{6}$/.test(code)) {
       throw new AppError(400, "ValidationError", "Code must be 6 digits.");
     }
-    const sessionId = await readBetterAuthSessionId(req);
     await service.totpStepUp(auth.uid, sessionId, code);
-    res.json({ ok: true });
+    res.json({ ok: true, via: "totp" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** POST /auth/totp/backup-codes/regenerate — returns 10 plaintext
+ *  codes once. Requires current password + a live TOTP code. */
+export const totpRegenerateBackupCodes: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const totpCode = typeof req.body?.totpCode === "string" ? req.body.totpCode.trim() : "";
+    if (!password) throw new AppError(400, "ValidationError", "Current password is required.");
+    if (!/^[0-9]{6}$/.test(totpCode)) {
+      throw new AppError(400, "ValidationError", "TOTP code must be 6 digits.");
+    }
+    const result = await service.totpRegenerateBackupCodes(auth.uid, password, totpCode);
+    res.json({ ok: true, backupCodes: result.backupCodes });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** POST /auth/request-email-otp — issues a 6-digit code to the
+ *  user's email for sensitive password ops when phone isn't verified. */
+export const requestEmailOtp: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    await service.requestEmailOtpForSensitive(auth.uid);
+    res.json({ ok: true, transport: "email" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** GET /auth/me/otp-channel — tells the change-password UI which
+ *  second-factor channel to render (totp / sms / email). */
+export const getOtpChannel: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const channel = await service.getSensitiveOtpChannel(auth.uid);
+    res.json(channel);
   } catch (err) {
     next(err);
   }

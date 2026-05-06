@@ -65,16 +65,29 @@ export const updateProfileSchema = z.object({
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+// Per CPE241 Business Rule 4d, the new password must be 8–30 chars
+// AND include at least one special character. The previous regex was
+// looser (>= 6, no special-char requirement); the rubric is explicit.
+const strongPasswordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(30, "Password must be at most 30 characters")
+  .regex(/[^A-Za-z0-9]/, "Password must include at least one special character");
+
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1),
-    newPassword: z.string().min(6).max(100),
-    confirmPassword: z.string().min(6).max(100),
-    // Phase 15.3 — when the user has verified their phone, the
-    // server requires this OTP. Schema treats it as optional here
-    // so users without phone verification can still change passwords;
-    // the service-side guard enforces presence + freshness.
+    newPassword: strongPasswordSchema,
+    confirmPassword: z.string().min(8).max(30),
+    // Second-factor input. The service-side ensureSensitiveOtp picks
+    // exactly one based on user state:
+    //   • totpCode — when 2FA enabled (replaces SMS/email entirely)
+    //   • backupCode — recovery path when 2FA enabled but the user
+    //     can't access their authenticator (single-use)
+    //   • otpCode — SMS (phone verified) OR email (no phone) OTP
     otpCode: z.string().regex(/^\d{6}$/).optional(),
+    totpCode: z.string().regex(/^\d{6}$/).optional(),
+    backupCode: z.string().min(10).max(20).optional(),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
     message: "Passwords don't match",
@@ -92,21 +105,20 @@ export const resetPasswordSchema = z.object({
   // Raw token (URL-safe base64, ~43 chars for 32 bytes). Capped
   // generously to allow future formats without breaking the server.
   token: z.string().min(20).max(200),
-  newPassword: z.string().min(6).max(100),
+  newPassword: strongPasswordSchema,
 });
 
-// Phase 14.3 — first-time password set for OAuth-only users (no
-// existing password to verify against). Endpoint refuses if the
-// user already has a password — those go through changePassword.
+// First-time password set for OAuth-only users (no existing password
+// to verify against). Endpoint refuses if the user already has a
+// password — those go through changePassword.
 export const setPasswordSchema = z
   .object({
-    newPassword: z.string().min(6).max(100),
-    confirmPassword: z.string().min(6).max(100),
-    // Phase 15.3 — same OTP enforcement story as changePasswordSchema.
-    // OAuth-only users without a verified phone can still set their
-    // first password; once they verify a phone, future password ops
-    // gate on a fresh OTP.
+    newPassword: strongPasswordSchema,
+    confirmPassword: z.string().min(8).max(30),
+    // Same second-factor channels as changePasswordSchema.
     otpCode: z.string().regex(/^\d{6}$/).optional(),
+    totpCode: z.string().regex(/^\d{6}$/).optional(),
+    backupCode: z.string().min(10).max(20).optional(),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
     message: "Passwords don't match",

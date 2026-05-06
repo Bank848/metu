@@ -287,7 +287,7 @@ describe("GET /auth/me", () => {
     (prisma.passwordResetToken.findUnique as any).mockResolvedValue(null);
     const res = await request(buildApp())
       .post("/auth/reset-password")
-      .send({ token: "x".repeat(40), newPassword: "newpass1" });
+      .send({ token: "x".repeat(40), newPassword: "Newpass1!" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("InvalidToken");
   });
@@ -319,7 +319,7 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
   it("returns 401 without auth", async () => {
     const res = await request(buildApp())
       .post("/auth/set-password")
-      .send({ newPassword: "newpass1", confirmPassword: "newpass1" });
+      .send({ newPassword: "Newpass1!", confirmPassword: "Newpass1!" });
     expect(res.status).toBe(401);
   });
 
@@ -339,27 +339,53 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
     const res = await request(buildApp())
       .post("/auth/set-password")
       .set("Cookie", await cookieFor(7))
-      .send({ newPassword: "newpass1", confirmPassword: "newpass1" });
+      .send({ newPassword: "Newpass1!", confirmPassword: "Newpass1!" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("PasswordAlreadySet");
   });
 
-  it("happy: hashes + persists + writes audit row when password was NULL", async () => {
+  it("happy: hashes + persists + writes audit row when password was NULL (with email OTP)", async () => {
+    // OAuth-only first-time set-password now requires SOME second
+    // factor — for users with no phone + no 2FA the path is email
+    // OTP. The test mocks the verification row that matches the
+    // hashed OTP so the happy path completes.
+    const code = "123456";
+    const cryptoMod = await import("node:crypto");
+    const expectedHash = cryptoMod.default
+      .createHash("sha256")
+      .update(`7:buyer@metu.dev:${code}`)
+      .digest("hex");
     (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
-      if (select?.password) return Promise.resolve({ password: null });
+      if (select?.password) {
+        return Promise.resolve({
+          password: null,
+          phone: null,
+          phoneVerifiedAt: null,
+          email: "buyer@metu.dev",
+          totpEnabled: false,
+          totpSecret: null,
+        });
+      }
       return Promise.resolve({
         userId: where.userId,
         stats: { role: "buyer" },
         store: null,
       });
     });
+    (prisma.verification.findFirst as any).mockResolvedValue({
+      id: 99,
+      identifier: "phone-otp:7",
+      value: expectedHash,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    (prisma.verification.delete as any).mockResolvedValue({});
     (prisma.user.update as any).mockResolvedValue({});
     (prisma.auditLog.create as any).mockResolvedValue({});
 
     const res = await request(buildApp())
       .post("/auth/set-password")
       .set("Cookie", await cookieFor(7))
-      .send({ newPassword: "newpass1", confirmPassword: "newpass1" });
+      .send({ newPassword: "Newpass1!", confirmPassword: "Newpass1!", otpCode: code });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
 
@@ -387,7 +413,7 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
     const res = await request(buildApp())
       .post("/auth/set-password")
       .set("Cookie", await cookieFor(7))
-      .send({ newPassword: "newpass1", confirmPassword: "different" });
+      .send({ newPassword: "Newpass1!", confirmPassword: "different" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("ValidationError");
   });
@@ -607,7 +633,7 @@ describe("Phase 14.4 — phone + OTP", () => {
         const res = await request(buildApp())
           .post("/auth/change-password")
           .set("Cookie", await cookieFor(7))
-          .send({ currentPassword: "old", newPassword: "newpass1", confirmPassword: "newpass1" });
+          .send({ currentPassword: "old", newPassword: "Newpass1!", confirmPassword: "Newpass1!" });
         expect(res.status).toBe(400);
         expect(res.body.error).toBe("OtpRequired");
       });
@@ -640,8 +666,8 @@ describe("Phase 14.4 — phone + OTP", () => {
           .set("Cookie", await cookieFor(7))
           .send({
             currentPassword: "old",
-            newPassword: "newpass1",
-            confirmPassword: "newpass1",
+            newPassword: "Newpass1!",
+            confirmPassword: "Newpass1!",
             otpCode: "999999",
           });
         expect(res.status).toBe(400);
@@ -684,8 +710,8 @@ describe("Phase 14.4 — phone + OTP", () => {
           .set("Cookie", await cookieFor(7))
           .send({
             currentPassword: "old",
-            newPassword: "newpass1",
-            confirmPassword: "newpass1",
+            newPassword: "Newpass1!",
+            confirmPassword: "Newpass1!",
             otpCode: code,
           });
         expect(res.status).toBe(200);
@@ -693,13 +719,21 @@ describe("Phase 14.4 — phone + OTP", () => {
         expect(prisma.verification.delete).toHaveBeenCalledWith({ where: { id: 99 } });
       });
 
-      it("change-password: still works WITHOUT otpCode when phone is NOT verified (no-op gate)", async () => {
+      it("change-password: now requires email-OTP when phone is NOT verified (closes the no-second-factor hole)", async () => {
+        // Behaviour change: ensureSensitiveOtp now requires SOME second
+        // factor on every change-password. When the user has no
+        // verified phone and no 2FA, the path falls through to email
+        // OTP — which means an empty body returns OtpRequired instead
+        // of silently succeeding.
         (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
           if (select?.password)
             return Promise.resolve({
               password: "$2a$10$existinghash",
               phone: null,
               phoneVerifiedAt: null,
+              email: "buyer@metu.dev",
+              totpEnabled: false,
+              totpSecret: null,
             });
           return Promise.resolve({
             userId: where.userId,
@@ -715,8 +749,9 @@ describe("Phase 14.4 — phone + OTP", () => {
         const res = await request(buildApp())
           .post("/auth/change-password")
           .set("Cookie", await cookieFor(7))
-          .send({ currentPassword: "old", newPassword: "newpass1", confirmPassword: "newpass1" });
-        expect(res.status).toBe(200);
+          .send({ currentPassword: "old", newPassword: "Newpass1!", confirmPassword: "Newpass1!" });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe("OtpRequired");
       });
     });
 
@@ -914,10 +949,15 @@ describe("Phase 16.2 — TOTP 2FA", () => {
         .set("Cookie", await cookieFor(7))
         .send({ code });
       expect(res.status).toBe(200);
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { userId: 7 },
-        data: { totpEnabled: true },
-      });
+      // Enrol now mints backup codes alongside flipping totpEnabled.
+      // Response carries 10 plaintext codes ONCE; DB stores 10 hashes.
+      expect(Array.isArray(res.body.backupCodes)).toBe(true);
+      expect(res.body.backupCodes).toHaveLength(10);
+      const updateArg = (prisma.user.update as any).mock.calls[0][0];
+      expect(updateArg.where).toEqual({ userId: 7 });
+      expect(updateArg.data.totpEnabled).toBe(true);
+      expect(Array.isArray(updateArg.data.totpBackupCodes)).toBe(true);
+      expect(updateArg.data.totpBackupCodes).toHaveLength(10);
       expect(prisma.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           action: "user.totp_enabled",

@@ -69,6 +69,14 @@ router.post("/me/phone-change/start",  requireAuth(), ctrl.startPhoneChange);
 router.post("/me/phone-change/verify", requireAuth(), ctrl.verifyPhoneChange);
 router.post("/request-otp",       requireAuth(), requestOtpLimiter, ctrl.requestOtp);
 router.post("/verify-otp",        requireAuth(), ctrl.verifyOtp);
+// Email-OTP fallback for sensitive password ops when the user has no
+// verified phone. Same Verification row + identifier as SMS so only
+// one pending code per user across channels.
+router.post("/request-email-otp", requireAuth(), requestOtpLimiter, ctrl.requestEmailOtp);
+// Tells the client which channel the change-password / change-email /
+// change-phone form should render (totp / sms / email) + a redacted
+// hint of the destination.
+router.get( "/me/otp-channel",    requireAuth(), ctrl.getOtpChannel);
 
 // Sessions UI. /all-others must mount before /:id so the literal path wins.
 router.get("/sessions",                requireAuth(), ctrl.listSessions);
@@ -80,6 +88,9 @@ router.post("/totp/enroll-start",  requireAuth(), ctrl.totpEnrollStart);
 router.post("/totp/enroll-verify", requireAuth(), ctrl.totpEnrollVerify);
 router.post("/totp/disable",       requireAuth(), ctrl.totpDisable);
 router.post("/totp/step-up",       requireAuth(), ctrl.totpStepUp);
+// Backup-code regeneration. Requires current password + a fresh TOTP
+// code so a stolen session alone can't rotate the backup set.
+router.post("/totp/backup-codes/regenerate", requireAuth(), ctrl.totpRegenerateBackupCodes);
 
 // Connected social accounts. Linking goes through better-auth's
 // /auth/better/sign-in/google flow inside an active session.

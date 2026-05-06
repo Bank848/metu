@@ -10,6 +10,7 @@ import { firebaseConfigured } from "@/lib/firebase";
 import { fmtDate } from "@/lib/format";
 import { ChangeContactPanel } from "./ChangeContactPanel";
 import { DateOfBirthPicker } from "@/components/forms/DateOfBirthPicker";
+import { BackupCodesReveal } from "@/components/auth/BackupCodesReveal";
 
 // Active session entry from GET /auth/sessions.
 type SessionRow = {
@@ -69,6 +70,48 @@ export function EditProfileForm({
   const [totpVerifyCode, setTotpVerifyCode] = useState("");
   const [totpDisablePw, setTotpDisablePw] = useState("");
   const [totpMsg, setTotpMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Backup codes shown ONCE after TOTP enrol-verify or regenerate.
+  const [revealedBackupCodes, setRevealedBackupCodes] = useState<string[] | null>(null);
+
+  // Sensitive OTP channel for change-password — auto-detects TOTP vs SMS
+  // vs email based on the user's state. The form swaps copy + the input
+  // type accordingly.
+  const [otpChannel, setOtpChannel] = useState<{
+    channel: "totp" | "sms" | "email";
+    hint: string;
+    hasBackupCodes: boolean;
+  } | null>(null);
+  const [pwBackupCode, setPwBackupCode] = useState("");
+  const [useBackupForPw, setUseBackupForPw] = useState(false);
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me/otp-channel", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setOtpChannel(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [initial.totpEnabled, initial.phoneVerified]);
+
+  async function sendEmailOtp() {
+    setPasswordMsg(null);
+    try {
+      const res = await fetch("/api/auth/request-email-otp", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setEmailOtpSent(true);
+        setPasswordMsg({ ok: true, text: "Code sent — check your email inbox." });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPasswordMsg({ ok: false, text: data?.message ?? "Couldn't send the code." });
+      }
+    } catch {
+      setPasswordMsg({ ok: false, text: "Network error." });
+    }
+  }
 
   async function totpEnrollStart() {
     setTotpMsg(null);
@@ -113,7 +156,13 @@ export function EditProfileForm({
         setTotpMsg({ ok: false, text: hint });
         return;
       }
-      setTotpMsg({ ok: true, text: "2FA enabled. You'll need a code at next sign-in." });
+      // Pull the freshly-minted backup codes from the response and
+      // surface them in a one-time modal. The user MUST acknowledge
+      // saving before the modal will close — these never come back.
+      const data = await res.json().catch(() => ({}));
+      const codes = Array.isArray(data?.backupCodes) ? data.backupCodes : [];
+      if (codes.length > 0) setRevealedBackupCodes(codes);
+      setTotpMsg({ ok: true, text: "2FA enabled. Save your backup codes — they appear only once." });
       setTotpEnrollment(null);
       setTotpVerifyCode("");
       router.refresh();
@@ -390,7 +439,15 @@ export function EditProfileForm({
       const body: Record<string, unknown> = initial.hasPassword
         ? { ...pw }
         : { newPassword: pw.newPassword, confirmPassword: pw.confirmPassword };
-      if (initial.phoneVerified && pwOtp) body.otpCode = pwOtp;
+      // Pick the right field by channel. ensureSensitiveOtp on the
+      // server picks: TOTP if 2FA on, else SMS if phone verified, else
+      // email OTP. The form stashes the same code in pwOtp regardless;
+      // we route it to totpCode/otpCode based on otpChannel.
+      if (pwOtp) {
+        if (otpChannel?.channel === "totp") body.totpCode = pwOtp;
+        else body.otpCode = pwOtp;
+      }
+      if (pwBackupCode) body.backupCode = pwBackupCode;
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -433,6 +490,15 @@ export function EditProfileForm({
 
   return (
     <div className="space-y-8">
+      {/* One-shot backup-codes reveal modal. Mounted at the top so it
+          overlays everything; user must acknowledge before dismissing. */}
+      {revealedBackupCodes && (
+        <BackupCodesReveal
+          codes={revealedBackupCodes}
+          onClose={() => setRevealedBackupCodes(null)}
+        />
+      )}
+
       {/* ───── Profile fields ───── */}
       <form onSubmit={saveProfile} className="rounded-2xl glass-morphism p-6 space-y-4">
         <h2 className="font-display font-bold text-white flex items-center gap-2">
@@ -684,33 +750,75 @@ export function EditProfileForm({
           </label>
         </div>
 
-        {/* OTP gate, only shown for phone-verified users. */}
-        {initial.phoneVerified && (
+        {/* Second-factor gate. The channel auto-detects:
+              • TOTP — when 2FA is enabled (replaces SMS/email)
+              • SMS  — when phone verified (existing flow)
+              • Email — fallback for users with no phone + no 2FA */}
+        {otpChannel && (
           <div className="rounded-xl border border-white/10 bg-surface-2 p-3 space-y-2">
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs font-semibold text-white flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-                SMS code required (phone verified)
+                {otpChannel.channel === "totp" && "Authenticator code required (2FA on)"}
+                {otpChannel.channel === "sms" && "SMS code required (phone verified)"}
+                {otpChannel.channel === "email" && "Email code required"}
               </span>
+              {otpChannel.channel === "sms" && (
+                <button
+                  type="button"
+                  onClick={requestOtp}
+                  disabled={busy !== null}
+                  className="text-xs font-semibold text-metu-yellow hover:underline disabled:opacity-50"
+                >
+                  {busy === "otp-request" ? "Sending…" : "Send code"}
+                </button>
+              )}
+              {otpChannel.channel === "email" && (
+                <button
+                  type="button"
+                  onClick={sendEmailOtp}
+                  disabled={busy !== null}
+                  className="text-xs font-semibold text-metu-yellow hover:underline disabled:opacity-50"
+                >
+                  {emailOtpSent ? "Resend code" : "Send code"}
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-ink-dim">{otpChannel.hint}</p>
+            {!useBackupForPw && (
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                value={pwOtp}
+                onChange={(e) => setPwOtp(e.target.value.replace(/\D/g, ""))}
+                placeholder="123456"
+                className={`text-center font-mono tracking-widest ${inputCls}`}
+              />
+            )}
+            {useBackupForPw && (
+              <input
+                type="text"
+                value={pwBackupCode}
+                onChange={(e) => setPwBackupCode(e.target.value.toUpperCase())}
+                placeholder="ABCD-EFGH-IJ"
+                className={`text-center font-mono ${inputCls}`}
+              />
+            )}
+            {otpChannel.channel === "totp" && otpChannel.hasBackupCodes && (
               <button
                 type="button"
-                onClick={requestOtp}
-                disabled={busy !== null}
-                className="text-xs font-semibold text-metu-yellow hover:underline disabled:opacity-50"
+                onClick={() => {
+                  setUseBackupForPw((p) => !p);
+                  setPwOtp("");
+                  setPwBackupCode("");
+                }}
+                className="text-[11px] text-ink-dim hover:text-white underline"
               >
-                {busy === "otp-request" ? "Sending…" : "Send code"}
+                {useBackupForPw ? "Use authenticator code instead" : "Use a backup code instead"}
               </button>
-            </div>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="\d{6}"
-              maxLength={6}
-              value={pwOtp}
-              onChange={(e) => setPwOtp(e.target.value.replace(/\D/g, ""))}
-              placeholder="123456"
-              className={`text-center font-mono tracking-widest ${inputCls}`}
-            />
+            )}
           </div>
         )}
 

@@ -30,7 +30,14 @@ import {
   otpIdentifier,
   otpTransport,
 } from "../utils/otp.js";
-import { buildOtpauthUri, generateSecret, verifyCode as verifyTotpCode } from "../utils/totp.js";
+import {
+  buildOtpauthUri,
+  canonicalBackupCode,
+  generateSecret,
+  hashBackupCode,
+  mintBackupCodes,
+  verifyCode as verifyTotpCode,
+} from "../utils/totp.js";
 
 // Strip the bcrypt hash before returning a user object.
 function sanitize(user: any): SafeUser {
@@ -850,7 +857,10 @@ export async function changePassword(
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { userId },
-    select: { password: true, phone: true, phoneVerifiedAt: true },
+    select: {
+      password: true, phone: true, phoneVerifiedAt: true, email: true,
+      totpEnabled: true, totpSecret: true,
+    },
   });
   if (!user) throw new AppError(404, "UserNotFound");
   // Google-only users must use /auth/set-password instead.
@@ -859,8 +869,13 @@ export async function changePassword(
   const ok = await bcrypt.compare(input.currentPassword, user.password);
   if (!ok) throw new AppError(401, "InvalidCurrentPassword");
 
-  // Require a fresh OTP if the user has verified their phone.
-  await ensureSensitiveOtpIfVerified(userId, user.phone, user.phoneVerifiedAt, input.otpCode);
+  // Three-channel second factor — TOTP (with backup-code fallback) /
+  // SMS / email. See ensureSensitiveOtp for the priority order.
+  await ensureSensitiveOtp(userId, user, {
+    otpCode: (input as any).otpCode,
+    totpCode: (input as any).totpCode,
+    backupCode: (input as any).backupCode,
+  });
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
   const updated = await prisma.user.update({
@@ -887,12 +902,19 @@ export async function setPassword(
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { userId },
-    select: { password: true, phone: true, phoneVerifiedAt: true },
+    select: {
+      password: true, phone: true, phoneVerifiedAt: true, email: true,
+      totpEnabled: true, totpSecret: true,
+    },
   });
   if (!user) throw new AppError(404, "UserNotFound");
   if (user.password) throw new AppError(400, "PasswordAlreadySet");
 
-  await ensureSensitiveOtpIfVerified(userId, user.phone, user.phoneVerifiedAt, input.otpCode);
+  await ensureSensitiveOtp(userId, user, {
+    otpCode: (input as any).otpCode,
+    totpCode: (input as any).totpCode,
+    backupCode: (input as any).backupCode,
+  });
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
   const updated = await prisma.user.update({
@@ -910,19 +932,56 @@ export async function setPassword(
 }
 
 /**
- * Require a fresh OTP for sensitive password ops when the user has a
- * verified phone. No-op otherwise. Consumes the verification row on
- * success. Throws 400 OtpRequired/InvalidOtp/NoPendingOtp/OtpExpired.
+ * Require a fresh second factor for sensitive password ops. Three
+ * channels in priority order:
+ *
+ *   1. TOTP (when totpEnabled) — replaces SMS/email entirely. The
+ *      caller can also pass a `backupCode` to use a single-use recovery
+ *      code in place of a live TOTP.
+ *   2. SMS OTP (when phone is verified) — same flow as before, code
+ *      from /auth/request-otp.
+ *   3. Email OTP (when no phone verified) — code from
+ *      /auth/request-email-otp, sent to user.email. NEW: closes the
+ *      hole where a phoneless user could change password without any
+ *      second factor.
+ *
+ * Consumes the verification row on success. Throws 400 OtpRequired /
+ * TotpRequired / InvalidOtp / InvalidTotp / InvalidBackupCode /
+ * NoPendingOtp / OtpExpired.
  */
-async function ensureSensitiveOtpIfVerified(
+async function ensureSensitiveOtp(
   userId: number,
-  phone: string | null,
-  phoneVerifiedAt: Date | null,
-  otpCode: string | undefined,
+  user: {
+    phone: string | null;
+    phoneVerifiedAt: Date | null;
+    email: string;
+    totpEnabled: boolean;
+    totpSecret: string | null;
+  },
+  input: {
+    otpCode?: string;
+    totpCode?: string;
+    backupCode?: string;
+  },
 ): Promise<void> {
-  if (!phone || !phoneVerifiedAt) return;
+  // Path 1 — TOTP-as-primary
+  if (user.totpEnabled && user.totpSecret) {
+    if (input.backupCode) {
+      const ok = await consumeBackupCode(userId, input.backupCode);
+      if (!ok) throw new AppError(400, "InvalidBackupCode");
+      return;
+    }
+    if (!input.totpCode) throw new AppError(400, "TotpRequired");
+    const ok = await verifyTotpCode(input.totpCode, user.totpSecret);
+    if (!ok) throw new AppError(400, "InvalidTotp");
+    return;
+  }
 
-  if (!otpCode) throw new AppError(400, "OtpRequired");
+  // Path 2 + 3 — OTP via Verification table. Hash target is phone for
+  // SMS, email for email-OTP. Identifier is the same so only one
+  // pending OTP per user across channels (avoids replay across paths).
+  if (!input.otpCode) throw new AppError(400, "OtpRequired");
+  const target = (user.phone && user.phoneVerifiedAt) ? user.phone : user.email;
 
   const identifier = otpIdentifier(userId);
   const pending = await prisma.verification.findFirst({
@@ -935,11 +994,91 @@ async function ensureSensitiveOtpIfVerified(
     throw new AppError(400, "OtpExpired");
   }
 
-  const expected = hashCode(userId, phone, otpCode);
+  const expected = hashCode(userId, target, input.otpCode);
   if (expected !== pending.value) throw new AppError(400, "InvalidOtp");
 
   // Consume so the same code can't be replayed against another action.
   await prisma.verification.delete({ where: { id: pending.id } });
+}
+
+/** Issue an email OTP for sensitive password ops when the user has no
+ *  verified phone. Uses the same Verification row as SMS OTP — only
+ *  one pending per user — so the same /auth/request-otp UX works
+ *  except the code lands in their email inbox.  */
+export async function requestEmailOtpForSensitive(userId: number): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { email: true, firstName: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+  const hash = hashCode(userId, user.email, code);
+  const identifier = otpIdentifier(userId);
+  await prisma.verification.deleteMany({ where: { identifier } });
+  await prisma.verification.create({
+    data: { identifier, value: hash, expiresAt: new Date(Date.now() + 5 * 60_000) },
+  });
+
+  const body = renderEmailLayout({
+    heading: "Your METU verification code",
+    intro: `Hi ${escapeHtml(user.firstName)}, here's the 6-digit code you asked for. It expires in 5 minutes. If you didn't request this, ignore the email and consider changing your password.`,
+    bodyHtml: `<p style="text-align:center;font-family:monospace;font-size:32px;letter-spacing:8px;color:#facc15;font-weight:bold;margin:24px 0;">${code}</p>`,
+  });
+  await sendEmail({
+    to: user.email,
+    subject: `METU verification code — ${code}`,
+    html: body,
+  }).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error("[email-otp] send failed:", err);
+  });
+}
+
+/** Tell the client which second-factor channel the form should render. */
+export async function getSensitiveOtpChannel(userId: number): Promise<{
+  channel: "totp" | "sms" | "email";
+  hint: string;
+  hasBackupCodes: boolean;
+}> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: {
+      email: true,
+      phone: true,
+      phoneVerifiedAt: true,
+      totpEnabled: true,
+      totpBackupCodes: true,
+    },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+
+  if (user.totpEnabled) {
+    return {
+      channel: "totp",
+      hint: "Enter the 6-digit code from your authenticator app.",
+      hasBackupCodes: (user.totpBackupCodes?.length ?? 0) > 0,
+    };
+  }
+  if (user.phone && user.phoneVerifiedAt) {
+    // Redact: keep last 4 digits, mask the rest.
+    const tail = user.phone.slice(-4);
+    return {
+      channel: "sms",
+      hint: `We'll text a 6-digit code to ${user.phone.replace(/.(?=.{4})/g, "•")} (••••${tail}).`,
+      hasBackupCodes: false,
+    };
+  }
+  // Redact email for hint: j****@example.com
+  const [local, domain] = user.email.split("@");
+  const redacted = local && domain
+    ? `${local[0] ?? ""}${"•".repeat(Math.max(1, local.length - 1))}@${domain}`
+    : user.email;
+  return {
+    channel: "email",
+    hint: `We'll email a 6-digit code to ${redacted}.`,
+    hasBackupCodes: false,
+  };
 }
 
 /**
@@ -1320,7 +1459,7 @@ export async function totpEnrollStart(
 export async function totpEnrollVerify(
   userId: number,
   code: string,
-): Promise<void> {
+): Promise<{ backupCodes: string[] }> {
   const user = await prisma.user.findUnique({
     where: { userId },
     select: { totpSecret: true, totpEnabled: true },
@@ -1330,16 +1469,23 @@ export async function totpEnrollVerify(
   if (!user.totpSecret) throw new AppError(400, "NoEnrollmentInProgress");
   const ok = await verifyTotpCode(code, user.totpSecret);
   if (!ok) throw new AppError(400, "InvalidTotp");
+
+  // Mint 10 backup codes alongside the enable. Plaintext is returned
+  // ONCE so the UI can render the BackupCodesReveal modal; only the
+  // hashes are persisted.
+  const { plaintext, hashes } = mintBackupCodes(userId);
   await prisma.user.update({
     where: { userId },
-    data: { totpEnabled: true },
+    data: { totpEnabled: true, totpBackupCodes: hashes },
   });
   await audit({
     actorId: userId,
     action: "user.totp_enabled",
     targetType: "user",
     targetId: userId,
+    meta: { backupCodes: 10 },
   });
+  return { backupCodes: plaintext };
 }
 
 /**
@@ -1362,7 +1508,9 @@ export async function totpDisable(
 
   await prisma.user.update({
     where: { userId },
-    data: { totpEnabled: false, totpSecret: null },
+    // Wipe backup codes alongside the secret — re-enabling 2FA later
+    // mints a fresh set. Don't leave dead hashes on a disabled user.
+    data: { totpEnabled: false, totpSecret: null, totpBackupCodes: [] },
   });
   await audit({
     actorId: userId,
@@ -1373,6 +1521,80 @@ export async function totpDisable(
 }
 
 /**
+ * POST /auth/totp/backup-codes/regenerate. Invalidates all existing
+ * backup codes and mints 10 new ones. Requires:
+ *   • the user's current password (proves possession of session)
+ *   • a fresh TOTP code (proves possession of the authenticator)
+ * Returns the plaintext codes once.
+ */
+export async function totpRegenerateBackupCodes(
+  userId: number,
+  password: string,
+  totpCode: string,
+): Promise<{ backupCodes: string[] }> {
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { password: true, totpEnabled: true, totpSecret: true },
+  });
+  if (!user) throw new AppError(404, "UserNotFound");
+  if (!user.totpEnabled || !user.totpSecret) {
+    throw new AppError(400, "NotEnrolled", "TOTP isn't enabled.");
+  }
+  if (!user.password) throw new AppError(400, "NoPasswordSet");
+
+  const passwordOk = await bcrypt.compare(password, user.password);
+  if (!passwordOk) throw new AppError(401, "InvalidPassword");
+
+  const totpOk = await verifyTotpCode(totpCode, user.totpSecret);
+  if (!totpOk) throw new AppError(400, "InvalidTotp");
+
+  const { plaintext, hashes } = mintBackupCodes(userId);
+  await prisma.user.update({
+    where: { userId },
+    data: { totpBackupCodes: hashes },
+  });
+  await audit({
+    actorId: userId,
+    action: "user.totp_backup_regenerated",
+    targetType: "user",
+    targetId: userId,
+    meta: { backupCodes: 10 },
+  });
+  return { backupCodes: plaintext };
+}
+
+/**
+ * Consume a backup code in place of a live TOTP. Removes the matching
+ * hash from `totpBackupCodes` (single-use). Returns true on success.
+ */
+async function consumeBackupCode(userId: number, raw: string): Promise<boolean> {
+  const canonical = canonicalBackupCode(raw);
+  if (canonical.length !== 10) return false;
+  const candidate = hashBackupCode(userId, canonical);
+  const user = await prisma.user.findUnique({
+    where: { userId },
+    select: { totpBackupCodes: true },
+  });
+  if (!user || !user.totpBackupCodes || user.totpBackupCodes.length === 0) {
+    return false;
+  }
+  if (!user.totpBackupCodes.includes(candidate)) return false;
+  const next = user.totpBackupCodes.filter((h) => h !== candidate);
+  await prisma.user.update({
+    where: { userId },
+    data: { totpBackupCodes: next },
+  });
+  await audit({
+    actorId: userId,
+    action: "user.totp_backup_consumed",
+    targetType: "user",
+    targetId: userId,
+    meta: { remaining: next.length },
+  });
+  return true;
+}
+
+/**
  * TOTP step-up. Verifies a fresh code and stamps Session.lastTotpAt
  * so requireRecent2FA lets the user proceed with the sensitive action.
  */
@@ -1380,6 +1602,9 @@ export async function totpStepUp(
   userId: number,
   sessionId: number | null,
   code: string,
+  // optional. When supplied (instead of `code`), the live TOTP
+  // path is skipped and the backup code is consumed single-use.
+  backupCode?: string,
 ): Promise<void> {
   if (sessionId === null) {
     throw new AppError(
@@ -1400,15 +1625,22 @@ export async function totpStepUp(
       "TOTP isn't enabled on this account.",
     );
   }
-  const ok = await verifyTotpCode(code, user.totpSecret);
-  if (!ok) throw new AppError(400, "InvalidTotp");
+
+  if (backupCode) {
+    const ok = await consumeBackupCode(userId, backupCode);
+    if (!ok) throw new AppError(400, "InvalidBackupCode");
+  } else {
+    const ok = await verifyTotpCode(code, user.totpSecret);
+    if (!ok) throw new AppError(400, "InvalidTotp");
+  }
+
   await prisma.session.update({
     where: { id: sessionId },
     data: { lastTotpAt: new Date() },
   });
   await audit({
     actorId: userId,
-    action: "auth.totp.step_up",
+    action: backupCode ? "auth.totp.step_up_backup" : "auth.totp.step_up",
     targetType: "session",
     targetId: sessionId,
   });

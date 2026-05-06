@@ -50,3 +50,54 @@ export async function verifyCode(code: string, secret: string): Promise<boolean>
     return false;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// Backup codes — single-use TOTP recovery codes
+// ─────────────────────────────────────────────────────────────────────
+
+import crypto from "node:crypto";
+
+const BACKUP_CODE_COUNT = 10;
+// Format: 4-4-2 chars from a friendly base32-ish alphabet (no 0/O, 1/I).
+// Total 10 chars, plain text shown to the user as "ABCD-EFGH-IJ".
+const BACKUP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** Pretty-print a 10-char raw code as ABCD-EFGH-IJ. */
+function formatBackupCode(raw: string): string {
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 10)}`;
+}
+
+/** Strip dashes + uppercase so input matches stored canonical form. */
+export function canonicalBackupCode(input: string): string {
+  return String(input ?? "").replace(/[\s-]/g, "").toUpperCase();
+}
+
+/** SHA-256 of "<userId>:backup:<canonical>". Includes the user ID so a
+    leaked code can't be replayed against another account. */
+export function hashBackupCode(userId: number, canonical: string): string {
+  return crypto
+    .createHash("sha256")
+    .update(`${userId}:backup:${canonical}`)
+    .digest("hex");
+}
+
+/**
+ * Generate `BACKUP_CODE_COUNT` fresh codes. Returns both the plaintext
+ * (to show the user once) and the hashes (to store in DB).
+ */
+export function mintBackupCodes(
+  userId: number,
+): { plaintext: string[]; hashes: string[] } {
+  const plaintext: string[] = [];
+  const hashes: string[] = [];
+  for (let i = 0; i < BACKUP_CODE_COUNT; i++) {
+    let raw = "";
+    const bytes = crypto.randomBytes(10);
+    for (let j = 0; j < 10; j++) {
+      raw += BACKUP_ALPHABET[bytes[j]! % BACKUP_ALPHABET.length];
+    }
+    plaintext.push(formatBackupCode(raw));
+    hashes.push(hashBackupCode(userId, raw));
+  }
+  return { plaintext, hashes };
+}
