@@ -363,7 +363,7 @@ export function LoginForm({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         readOnly={step !== "credentials"}
-        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-4 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none transition ${
+        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 mb-4 text-white placeholder:text-ink-dim focus:border-metu-yellow focus:ring-2 focus:ring-metu-yellow/25 outline-none transition ${
           step !== "credentials" ? "opacity-60 cursor-not-allowed" : ""
         }`}
         required
@@ -379,7 +379,7 @@ export function LoginForm({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         readOnly={step !== "credentials"}
-        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-2.5 mb-2 text-white focus:border-metu-yellow outline-none transition ${
+        className={`w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 mb-2 text-white focus:border-metu-yellow focus:ring-2 focus:ring-metu-yellow/25 outline-none transition ${
           step !== "credentials" ? "opacity-60 cursor-not-allowed" : ""
         }`}
         required

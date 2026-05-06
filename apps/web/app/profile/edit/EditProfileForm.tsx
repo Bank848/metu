@@ -289,8 +289,11 @@ export function EditProfileForm({
   // OTP code for sensitive password ops. Only surfaced when phoneVerified.
   const [pwOtp, setPwOtp] = useState("");
 
+  // py-3 (was py-2.5) lifts the tap target above the iOS-HIG 44px floor
+  // on phone. The mint focus ring is more visible than border-only on
+  // the dark surface — pairs the input visual language with SearchPill.
   const inputCls =
-    "w-full rounded-xl border border-white/10 bg-surface-2 px-4 py-2.5 text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none";
+    "w-full rounded-xl border border-white/10 bg-surface-2 px-4 py-3 text-white placeholder:text-ink-dim focus:border-metu-yellow focus:ring-2 focus:ring-metu-yellow/25 outline-none transition";
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();

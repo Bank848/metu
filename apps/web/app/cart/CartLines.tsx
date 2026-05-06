@@ -431,7 +431,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                         >
                           {l.productName}
                         </Link>
-                        <div className="text-xs text-ink-dim capitalize mt-0.5 inline-flex items-center gap-2">
+                        <div className="text-xs text-ink-dim capitalize mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span>{l.deliveryMethod.replace("_", " ")}</span>
                           {l.discountPercent > 0 && (
                             <span className="text-metu-yellow font-semibold">−{l.discountPercent}%</span>
@@ -441,13 +441,28 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                           )}
                           {isDigital && <span className="text-ink-dim/80">· single-use</span>}
                         </div>
-                        <div className="flex items-center gap-3 mt-2">
+                        {/* Price moves inside the body block at <sm so the
+                            qty controls don't fight a right-aligned price
+                            column for 375px screen real estate. At sm+
+                            the price sticks to its own column on the right
+                            (see the dedicated price div below). */}
+                        <div className="sm:hidden mt-2 flex items-baseline gap-2">
+                          <span className="font-display text-base font-bold text-gold-gradient">
+                            {coins(thbToCoins(l.lineTotal))}
+                          </span>
+                          {l.quantity > 1 && (
+                            <span className="text-[11px] text-ink-dim tabular-nums">
+                              {coins(thbToCoins(l.unitPrice))} ea
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 sm:gap-3 mt-2 flex-wrap">
                           <div className="flex items-center border border-white/10 rounded-full overflow-hidden bg-surface-2">
                             <button
                               type="button"
                               onClick={() => updateQty(l.cartItemId, Math.max(1, l.quantity - 1))}
                               disabled={isDigital || l.quantity <= 1}
-                              className="px-2 py-1 text-white hover:bg-white/5 disabled:opacity-30"
+                              className="px-3 py-1.5 text-white hover:bg-white/5 disabled:opacity-30"
                               aria-label="Decrease"
                             >
                               −
@@ -463,14 +478,14 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                                 if (!Number.isFinite(n) || n < 1) return;
                                 updateQty(l.cartItemId, Math.min(max, Math.max(1, Math.floor(n))));
                               }}
-                              className="w-12 bg-transparent text-center text-sm font-semibold text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:text-ink-dim"
+                              className="w-10 bg-transparent text-center text-sm font-semibold text-white outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:text-ink-dim"
                               aria-label="Quantity"
                             />
                             <button
                               type="button"
                               onClick={() => updateQty(l.cartItemId, Math.min(max, l.quantity + 1))}
                               disabled={isDigital || l.quantity >= max}
-                              className="px-2 py-1 text-white hover:bg-white/5 disabled:opacity-30"
+                              className="px-3 py-1.5 text-white hover:bg-white/5 disabled:opacity-30"
                               aria-label="Increase"
                             >
                               +
@@ -479,7 +494,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                           <button
                             type="button"
                             onClick={() => saveForLater(l)}
-                            className="text-ink-dim hover:text-metu-red transition"
+                            className="p-2 -m-2 text-ink-dim hover:text-metu-red transition"
                             aria-label="Save for later"
                             title="Move to favorites"
                           >
@@ -488,7 +503,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                           <button
                             type="button"
                             onClick={() => remove(l.cartItemId)}
-                            className="text-ink-dim hover:text-metu-red transition"
+                            className="p-2 -m-2 text-ink-dim hover:text-metu-red transition"
                             aria-label="Remove"
                             title="Remove from cart"
                           >
@@ -503,7 +518,10 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                         )}
                       </div>
 
-                      <div className="text-right">
+                      {/* Right-side price column — desktop / tablet only.
+                          On phone the price renders inline above the qty
+                          row (see the .sm:hidden block above). */}
+                      <div className="hidden sm:block text-right shrink-0">
                         <div className="font-display text-lg font-bold text-gold-gradient">
                           {coins(thbToCoins(l.lineTotal))}
                         </div>

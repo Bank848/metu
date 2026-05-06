@@ -110,6 +110,15 @@ export default async function AdminOverview({
     );
   }
 
+  // AOV — last value of the trend, or 0 if the series is empty. Pulled
+  // out of the JSX so the KPI grid stays a flat list of <ClickableStatCard>
+  // siblings. An inline IIFE wrapper used to live inside the grid; that
+  // shape was harmless on its own but combined with an invalid <Link>
+  // inside <svg> in the donut below, hydration errors cascaded and
+  // suppressed click handlers on the Orders / AOV / Pending KPI cards.
+  const aovTrend = dashboard.aovTrend ?? [];
+  const lastAov = aovTrend.length > 0 ? aovTrend[aovTrend.length - 1] : 0;
+
   return (
     <>
       {/* Wave-3: editorial hero card mirrors the seller dashboard — gives
@@ -180,23 +189,17 @@ export default async function AdminOverview({
             tell whether the average is climbing or sagging. AVG over
             paid+fulfilled orders only — pending/cancelled don't move
             the line. */}
-        {(() => {
-          const aov = dashboard.aovTrend ?? [];
-          const lastAov = aov.length > 0 ? aov[aov.length - 1] : 0;
-          return (
-            <ClickableStatCard
-              href="/admin/orders"
-              icon={<Wallet className="h-3.5 w-3.5" />}
-              label="AOV (14d)"
-              value={coinsCompact(thbToCoins(lastAov))}
-              countUpTo={thbToCoins(lastAov)}
-              countUpFormat="compact-coins"
-              valueTooltip={coins(thbToCoins(lastAov))}
-              sparkline={aov}
-              sparkColor="rgb(192 139 255)"
-            />
-          );
-        })()}
+        <ClickableStatCard
+          href="/admin/orders"
+          icon={<Wallet className="h-3.5 w-3.5" />}
+          label="AOV (14d)"
+          value={coinsCompact(thbToCoins(lastAov))}
+          countUpTo={thbToCoins(lastAov)}
+          countUpFormat="compact-coins"
+          valueTooltip={coins(thbToCoins(lastAov))}
+          sparkline={aovTrend}
+          sparkColor="rgb(192 139 255)"
+        />
         <ClickableStatCard
           href="/admin/orders?status=pending"
           icon={<Clock className="h-3.5 w-3.5" />}
