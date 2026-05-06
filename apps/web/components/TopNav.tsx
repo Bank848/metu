@@ -61,10 +61,18 @@ export async function TopNav({ q }: { q?: string } = {}) {
 
   return (
     <header className="sticky top-0 z-40 glass-morphism-strong border-b border-white/6">
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 md:gap-5 md:px-6">
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-2 px-3 sm:gap-3 sm:px-4 md:gap-5 md:px-6">
         <Logo size="md" />
 
         <SearchPill defaultValue={q ?? ""} />
+
+        {/* Cart is promoted OUTSIDE the md-only action stack — buyers
+            on phone need to see their cart count at all times.
+            Favourites + reviews + theme cluster stay desktop-only since
+            those reroll into the avatar dropdown / language pages. */}
+        <div className="md:hidden shrink-0">
+          <CartNavIcon />
+        </div>
 
         {/* Action stack: activity icons | control cluster | primary CTA. */}
         <div className="hidden md:flex items-center gap-3 shrink-0">

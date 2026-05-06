@@ -52,11 +52,11 @@ export default async function Home() {
 function FeaturedCoupons({ coupons }: { coupons: Coupon[] }) {
   if (coupons.length === 0) return null;
   return (
-    <section className="px-6 md:px-10 py-12 max-w-[1400px] mx-auto">
-      <div className="flex items-center justify-between mb-6">
+    <section className="px-5 sm:px-6 md:px-10 py-10 sm:py-12 max-w-[1400px] mx-auto">
+      <div className="flex items-center justify-between mb-5 sm:mb-6 gap-3 flex-wrap">
         <div>
-          <h2 className="font-display text-2xl md:text-3xl font-extrabold text-white flex items-center gap-2">
-            <Ticket className="h-6 w-6 text-metu-yellow" />
+          <h2 className="font-display text-xl sm:text-2xl md:text-3xl font-extrabold text-white flex items-center gap-2">
+            <Ticket className="h-5 w-5 sm:h-6 sm:w-6 text-metu-yellow" />
             Featured coupons
           </h2>
           <p className="text-sm text-ink-secondary mt-1">
@@ -132,16 +132,16 @@ function Hero({ stats }: { stats: Stats }) {
       {/* Stars */}
       <StarField density="high" />
 
-      <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pt-20 md:pt-28 pb-24 grid md:grid-cols-2 gap-10 items-center min-h-[600px]">
+      <div className="relative mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10 pt-14 sm:pt-20 md:pt-28 pb-16 sm:pb-24 grid md:grid-cols-2 gap-8 md:gap-10 items-center min-h-[520px] md:min-h-[600px]">
         {/* Stagger delays cascade hero copy on first paint. */}
         <div>
           <div className="animate-stagger-rise" style={{ animationDelay: "0ms" }}>
-            <Badge variant="yellow" className="mb-6 !px-3 !py-1 inline-flex items-center gap-1.5">
+            <Badge variant="yellow" className="mb-4 sm:mb-6 !px-3 !py-1 inline-flex items-center gap-1.5">
               <BrandMark className="h-3 w-3 text-metu-yellow" title="" />
               CPE241 · Group 8
             </Badge>
           </div>
-          <h1 className="font-display text-6xl md:text-8xl font-black tracking-tighter leading-[0.92] mb-6">
+          <h1 className="font-display text-5xl sm:text-6xl md:text-8xl font-black tracking-tighter leading-[0.92] mb-5 sm:mb-6">
             <span
               className="block text-white animate-stagger-rise"
               style={{ animationDelay: "80ms" }}
@@ -156,7 +156,7 @@ function Hero({ stats }: { stats: Stats }) {
             </span>
           </h1>
           <p
-            className="text-base md:text-lg text-ink-secondary max-w-lg mb-10 leading-relaxed animate-stagger-rise"
+            className="text-sm sm:text-base md:text-lg text-ink-secondary max-w-lg mb-6 sm:mb-10 leading-relaxed animate-stagger-rise"
             style={{ animationDelay: "240ms" }}
           >
             The marketplace for Thai digital creators. Templates, music, courses, art —
@@ -196,17 +196,17 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
   // First product is the feature card (spans 2 cols on desktop).
   const [feature, ...rest] = products;
   return (
-    <section className="mx-auto max-w-[1440px] px-6 md:px-10 py-16">
-      <div className="flex items-end justify-between mb-8">
+    <section className="mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10 py-10 sm:py-16">
+      <div className="flex items-end justify-between mb-6 sm:mb-8 gap-3 flex-wrap">
         <div>
           <div className="mb-2 inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-mint">
             <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />
             This week
           </div>
-          <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">
             Trending now
           </h2>
-          <p className="text-ink-secondary mt-1">
+          <p className="text-sm sm:text-base text-ink-secondary mt-1">
             The digital products creators are loving this week.
           </p>
         </div>
@@ -253,13 +253,13 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
   // Lead store gets the larger accent card; others are flat side cards.
   const [lead, ...others] = stores;
   return (
-    <section className="bg-surface-2/60 py-16 border-y border-white/6">
-      <div className="mx-auto max-w-[1440px] px-6 md:px-10">
-        <div className="mb-8">
-          <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+    <section className="bg-surface-2/60 py-10 sm:py-16 border-y border-white/6">
+      <div className="mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10">
+        <div className="mb-6 sm:mb-8">
+          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">
             Featured creators
           </h2>
-          <p className="text-ink-secondary mt-1">
+          <p className="text-sm sm:text-base text-ink-secondary mt-1">
             Independent studios and makers on METU.
           </p>
         </div>
@@ -324,13 +324,13 @@ function FeaturedStores({ stores }: { stores: Store[] }) {
                 href={`/store/${s.storeId}`}
                 className="group surface-flat rounded-xl overflow-hidden lift-on-hover hover:shadow-raised hover:border-metu-yellow/40 flex"
               >
-                <div className="relative w-32 sm:w-40 shrink-0 bg-surface-2 overflow-hidden">
+                <div className="relative w-24 sm:w-32 md:w-40 shrink-0 bg-surface-2 overflow-hidden">
                   {s.coverImage && (
                     <Image
                       src={s.coverImage}
                       alt={s.name}
                       fill
-                      sizes="160px"
+                      sizes="(max-width: 640px) 96px, 160px"
                       className="object-cover group-hover:scale-105 transition-transform"
                       unoptimized={isDataUrl(s.coverImage)}
                     />
@@ -381,11 +381,11 @@ const TILE_TONES = [
 function CategoryTiles({ categories }: { categories: Category[] }) {
   if (!categories.length) return null;
   return (
-    <section className="mx-auto max-w-[1440px] px-6 md:px-10 py-16">
-      <h2 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-8">
+    <section className="mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10 py-10 sm:py-16">
+      <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white mb-6 sm:mb-8">
         Shop by category
       </h2>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {categories.map((c, i) => {
           const radius = TILE_RADII[i % TILE_RADII.length];
           const tone = TILE_TONES[i % TILE_TONES.length];
@@ -435,15 +435,15 @@ function WhyMetu() {
     },
   ];
   return (
-    <section className="mx-auto max-w-[1440px] px-6 md:px-10 py-16">
-      <div className="grid gap-6 md:grid-cols-3">
+    <section className="mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10 py-10 sm:py-16">
+      <div className="grid gap-5 sm:gap-6 sm:grid-cols-2 md:grid-cols-3">
         {items.map((it) => {
           const isAccent = it.tone === "accent";
           return (
             <div
               key={it.title}
               className={cn(
-                "rounded-2xl p-8 lift-on-hover hover:shadow-raised",
+                "rounded-2xl p-6 sm:p-8 lift-on-hover hover:shadow-raised",
                 isAccent ? "surface-accent" : "surface-flat",
               )}
             >

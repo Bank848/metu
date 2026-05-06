@@ -29,13 +29,13 @@ export default async function LoginPage({ searchParams }: { searchParams: { next
         className="pointer-events-none absolute -left-32 bottom-0 h-[420px] w-[420px] rounded-full opacity-30"
         style={{ background: "radial-gradient(circle, rgba(78,201,176,0.22), transparent 65%)" }}
       />
-      <div className="relative mx-auto max-w-5xl px-6 py-12">
+      <div className="relative mx-auto max-w-5xl px-4 sm:px-6 py-8 sm:py-12">
         <Logo size="lg" />
 
-        <div className="mt-10 grid md:grid-cols-5 gap-8">
+        <div className="mt-8 sm:mt-10 grid md:grid-cols-5 gap-6 md:gap-8">
           <div className="md:col-span-3">
             <h1
-              className="font-display text-4xl font-extrabold tracking-tight text-white mb-2 animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
+              className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-2 animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
               style={{ animationDelay: "0ms" }}
             >
               Welcome back.

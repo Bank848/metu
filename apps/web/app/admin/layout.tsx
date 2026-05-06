@@ -11,9 +11,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // letting them act on the dashboard.
   requireResetGuard(me, "/admin");
   return (
-    <div className="flex min-h-screen bg-space-black">
+    <div className="flex flex-col md:flex-row min-h-screen bg-space-black">
       <AdminSidebar />
-      <main id="main" className="flex-1 px-8 py-10">{children}</main>
+      <main id="main" className="flex-1 min-w-0 px-4 sm:px-6 md:px-8 py-6 md:py-10">{children}</main>
     </div>
   );
 }

@@ -73,7 +73,7 @@ export default async function CheckoutPage({
     return (
       <>
         <TopNav />
-        <main id="main" className="mx-auto max-w-2xl px-6 py-16">
+        <main id="main" className="mx-auto max-w-2xl px-4 sm:px-6 py-10 sm:py-16">
           <h1 className="font-display text-2xl font-bold text-white mb-3">Stripe not configured</h1>
           <p className="text-ink-secondary">
             The deployment is missing <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>. Set it via flyctl secrets to enable card payments.
@@ -86,8 +86,8 @@ export default async function CheckoutPage({
   return (
     <>
       <TopNav />
-      <main id="main" className="mx-auto max-w-2xl px-6 py-12">
-        <h1 className="font-display text-3xl font-bold text-white mb-2">
+      <main id="main" className="mx-auto max-w-2xl px-4 sm:px-6 py-8 sm:py-12">
+        <h1 className="font-display text-2xl sm:text-3xl font-bold text-white mb-2">
           Confirm your payment
         </h1>
         <p className="text-ink-secondary mb-8">

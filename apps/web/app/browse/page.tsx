@@ -99,7 +99,7 @@ export default async function BrowsePage({
   return (
     <>
       <TopNav q={activeQ} />
-      <main id="main" className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
+      <main id="main" className="mx-auto max-w-[1440px] px-4 sm:px-6 md:px-10 py-6 sm:py-10">
         <PageHeader
           title={activeQ ? `Results for “${activeQ}”` : "Browse the marketplace"}
           subtitle={
@@ -117,7 +117,7 @@ export default async function BrowsePage({
             was pushing the right column past the viewport edge.
             `minmax(0,1fr)` floors the minimum at 0 so the column
             constrains and the inner grid wraps to the actual width. */}
-        <div className="grid md:grid-cols-[260px_minmax(0,1fr)] gap-8">
+        <div className="grid md:grid-cols-[260px_minmax(0,1fr)] gap-6 md:gap-8">
           {/* Phase 11 / F19 — sidebar is desktop-only. Mobile users
               see the <BrowseFiltersSheet> trigger at the top of the
               section (next to Sort) and open filters in a bottom-sheet

@@ -75,27 +75,27 @@ export default async function ProductPage({ params }: { params: { id: string } }
       <TopNav />
       {/* Records this product into the user's recently-viewed history. */}
       <RecentPing productId={product.productId} />
-      <main id="main" className="mx-auto max-w-[1440px] px-6 md:px-10 py-10">
-        <nav className="text-sm text-ink-dim mb-6 flex items-center gap-2">
-          <Link href="/browse" className="hover:text-metu-yellow">Browse</Link>
-          <span className="text-ink-mute">/</span>
-          <span>{product.category.categoryName}</span>
-          <span className="text-ink-mute">/</span>
-          <span className="text-white font-medium truncate max-w-[400px]">{product.name}</span>
+      <main id="main" className="mx-auto max-w-[1440px] px-4 sm:px-6 md:px-10 py-6 sm:py-10">
+        <nav className="text-xs sm:text-sm text-ink-dim mb-4 sm:mb-6 flex items-center gap-2 overflow-hidden">
+          <Link href="/browse" className="hover:text-metu-yellow shrink-0">Browse</Link>
+          <span className="text-ink-mute shrink-0">/</span>
+          <span className="shrink-0">{product.category.categoryName}</span>
+          <span className="text-ink-mute shrink-0">/</span>
+          <span className="text-white font-medium truncate">{product.name}</span>
         </nav>
 
-        <div className="grid md:grid-cols-[1.15fr_1fr] gap-10">
+        <div className="grid md:grid-cols-[1.15fr_1fr] gap-6 md:gap-10">
           <Gallery images={product.images.map((i) => i.productImage)} alt={product.name} />
 
           <div>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
               <Badge variant="yellow">{product.category.categoryName}</Badge>
               {product.productNTags.slice(0, 3).map((nt) => (
                 <Badge key={nt.tag.tagId} variant="mist">{nt.tag.tagName}</Badge>
               ))}
             </div>
-            <div className="flex items-start gap-3 mb-3">
-              <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white flex-1">
+            <div className="flex items-start gap-2 sm:gap-3 mb-3">
+              <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white flex-1 min-w-0">
                 {product.name}
               </h1>
               <FavoriteButton productId={product.productId} initial={isFavorited} size="md" />

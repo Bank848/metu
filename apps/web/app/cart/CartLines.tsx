@@ -331,7 +331,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
     !selectedItems.some((l) => l.storeId === couponResult.store.storeId);
 
   return (
-    <div className="grid md:grid-cols-[1fr_360px] gap-8 items-start">
+    <div className="grid md:grid-cols-[1fr_360px] gap-6 md:gap-8 items-start">
       {/* ───── Lines ───── */}
       <div className="space-y-6">
         {[...byStore.entries()].map(([storeId, { name: storeName, lines }]) => {
@@ -388,7 +388,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                   const isDigital = DIGITAL_DELIVERY_METHODS.has(l.deliveryMethod);
                   const err = lineError[l.cartItemId];
                   return (
-                    <li key={l.cartItemId} className={cn("flex items-center gap-4 p-4 transition", !isChecked && "opacity-55")}>
+                    <li key={l.cartItemId} className={cn("flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 transition", !isChecked && "opacity-55")}>
                       <input
                         type="checkbox"
                         checked={isChecked}
@@ -396,11 +396,11 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                           setSelected((prev) => ({ ...prev, [l.cartItemId]: e.target.checked }))
                         }
                         aria-label={`Select ${l.productName}`}
-                        className="h-4 w-4 accent-metu-yellow cursor-pointer shrink-0"
+                        className="h-4 w-4 accent-metu-yellow cursor-pointer shrink-0 mt-1 sm:mt-0"
                       />
                       <Link
                         href={`/product/${l.productId}`}
-                        className="relative h-20 w-20 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8 hover:border-metu-yellow/40 transition"
+                        className="relative h-16 w-16 sm:h-20 sm:w-20 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8 hover:border-metu-yellow/40 transition"
                       >
                         {l.image && (
                           // / F10 (originally `priority` on every

@@ -50,7 +50,7 @@ export default async function EditProfilePage({
   return (
     <>
       <TopNav />
-      <main id="main" className="mx-auto max-w-3xl px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-3xl px-4 sm:px-6 md:px-8 py-6 sm:py-10">
         <Link
           href="/profile"
           className="inline-flex items-center gap-1.5 text-sm text-ink-dim hover:text-metu-yellow mb-3"
@@ -61,30 +61,30 @@ export default async function EditProfilePage({
         <PageHeader title="Edit profile" subtitle="Update your name, contact, and password." />
 
         {emailUnverified && (
-          <div className="mb-4 rounded-xl border border-red-400/40 bg-red-500/10 p-4 flex items-start gap-3">
+          <div className="mb-4 rounded-xl border border-red-400/40 bg-red-500/10 p-4 flex flex-col sm:flex-row items-start gap-3">
             <MailWarning className="h-5 w-5 text-red-300 mt-0.5 shrink-0" />
-            <div className="text-sm flex-1">
+            <div className="text-sm flex-1 min-w-0">
               <div className="font-semibold text-red-100 mb-0.5">
                 Email not verified
               </div>
               <div className="text-red-100/80">
                 Confirm your email address so you can sign in normally and
                 receive purchase receipts. We sent a link to{" "}
-                <strong className="text-white">{me.user.email}</strong>.
+                <strong className="text-white break-all">{me.user.email}</strong>.
               </div>
             </div>
             <Link
               href="/verify-pending"
-              className="self-center rounded-lg bg-red-400 text-space-950 px-4 py-2 text-sm font-semibold hover:bg-red-300 whitespace-nowrap"
+              className="self-stretch sm:self-center text-center rounded-lg bg-red-400 text-space-950 px-4 py-2 text-sm font-semibold hover:bg-red-300 whitespace-nowrap shrink-0"
             >
               Resend link →
             </Link>
           </div>
         )}
         {phoneUnverified && (
-          <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 flex items-start gap-3">
+          <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 flex flex-col sm:flex-row items-start gap-3">
             <PhoneCall className="h-5 w-5 text-amber-300 mt-0.5 shrink-0" />
-            <div className="text-sm flex-1">
+            <div className="text-sm flex-1 min-w-0">
               <div className="font-semibold text-amber-100 mb-0.5">
                 Phone not verified
               </div>
@@ -96,7 +96,7 @@ export default async function EditProfilePage({
             </div>
             <Link
               href="/verify-phone"
-              className="self-center rounded-lg bg-amber-400 text-space-950 px-4 py-2 text-sm font-semibold hover:bg-amber-300 whitespace-nowrap"
+              className="self-stretch sm:self-center text-center rounded-lg bg-amber-400 text-space-950 px-4 py-2 text-sm font-semibold hover:bg-amber-300 whitespace-nowrap shrink-0"
             >
               Verify now →
             </Link>
