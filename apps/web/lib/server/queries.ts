@@ -643,10 +643,14 @@ export async function getRelatedProducts(productId: number, take = 4) {
       SELECT
         p.product_id,
         CASE WHEN p.category_id = (SELECT category_id FROM source) THEN 1 ELSE 0 END AS category_match,
+        -- Use IN + unnest to flatten the int[] subquery — Postgres is
+        -- strict about ANY((subquery)) when the subquery returns one
+        -- row containing an array (parses as integer = integer[]).
+        -- IN + unnest sidesteps that ambiguity entirely.
         COALESCE(
           (SELECT COUNT(*)::int FROM "product_n_tag" x
             WHERE x.product_id = p.product_id
-              AND x.tag_id = ANY((SELECT tag_ids FROM source))),
+              AND x.tag_id IN (SELECT unnest(tag_ids) FROM source)),
           0
         ) AS shared_tags,
         (SELECT COUNT(*)::int FROM "product_review" r

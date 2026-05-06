@@ -103,7 +103,7 @@ candidates AS (
     COALESCE(
       (SELECT COUNT(*)::int FROM "product_n_tag" x
         WHERE x.product_id = p.product_id
-          AND x.tag_id = ANY((SELECT tag_ids FROM source))),
+          AND x.tag_id IN (SELECT unnest(tag_ids) FROM source)),
       0
     ) AS shared_tags,
     (SELECT COUNT(*)::int FROM "product_review" r
