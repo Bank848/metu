@@ -14,6 +14,24 @@ import { apiFetch, ApiError } from "./server/api";
 // promise. Same trick applied to safeGetSettings (called by TopNav +
 // admin guards). Net win: ~600-800ms TTFB on the homepage.
 export const getMe = cache(async () => {
+  // Short-circuit for guests. If there's no session cookie at all,
+  // we know the API will return 401 — skip the round trip entirely.
+  // The homepage is the most-trafficked surface and most visitors are
+  // logged-out browsers; skipping /auth/me for them saves ~150-300ms
+  // on every page render.
+  // Better-auth uses cookies starting with "better-auth." (and
+  // sometimes "metu-trusted-device" for 2FA bypass); presence of
+  // either implies an authenticated session worth checking.
+  const cookieJar = cookies();
+  const all = cookieJar.getAll();
+  const hasSession = all.some((c) =>
+    c.name.startsWith("better-auth.") ||
+    c.name === "metu-trusted-device" ||
+    c.name === "session" ||
+    c.name === "auth",
+  );
+  if (!hasSession) return null;
+
   try {
     const data = await apiFetch<{
       user: any;
