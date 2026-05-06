@@ -25,6 +25,7 @@ export default async function EditProductPage({ params }: { params: { id: string
       items: { orderBy: { productItemId: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
+      details: { orderBy: { productDetailId: "asc" } },
     },
   });
   if (!product) return notFound();
@@ -67,6 +68,10 @@ export default async function EditProductPage({ params }: { params: { id: string
             sampleUrl: it.sampleUrl ?? "",
             deliveryUrl: it.deliveryUrl ?? "",
             licenseKeyTemplate: it.licenseKeyTemplate ?? "",
+          })),
+          details: (product.details ?? []).map((d) => ({
+            detailName: d.detailName,
+            detailValue: d.detailValue,
           })),
         }}
         categories={categories}

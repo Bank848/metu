@@ -61,6 +61,7 @@ export async function getProduct(productId: number, storeId: number) {
       items: { orderBy: { productItemId: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
+      details: { orderBy: { productDetailId: "asc" } },
     },
   });
   if (!product) throw new AppError(404, "NotFound");
@@ -483,6 +484,13 @@ export async function createProduct(storeId: number, input: ProductInput) {
       productNTags: {
         create: input.tagIds.map((tagId) => ({ tagId })),
       },
+      // CPE241 Business Rule 4g — additional info rows.
+      details: {
+        create: (input.details ?? []).map((d) => ({
+          detailName: d.detailName,
+          detailValue: d.detailValue,
+        })),
+      },
     },
   });
 }
@@ -544,6 +552,18 @@ export async function updateProduct(
     if (input.tagIds.length) {
       await tx.productNTag.createMany({
         data: input.tagIds.map((tagId) => ({ productId, tagId })),
+      });
+    }
+    // Replace ProductDetail rows (Business Rule 4g). Replace-all is
+    // safe — these aren't FK targets, no cart/order references them.
+    await tx.productDetail.deleteMany({ where: { productId } });
+    if ((input.details ?? []).length > 0) {
+      await tx.productDetail.createMany({
+        data: input.details.map((d) => ({
+          productId,
+          detailName: d.detailName,
+          detailValue: d.detailValue,
+        })),
       });
     }
     const existing = await tx.productItem.findMany({

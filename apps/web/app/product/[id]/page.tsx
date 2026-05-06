@@ -31,6 +31,8 @@ type Product = {
   items: Array<{ productItemId: number; deliveryMethod: string; price: string | number; discountPercent: number; quantity: number }>;
   images: Array<{ productImage: string }>;
   productNTags: Array<{ tag: { tagName: string; tagId: number } }>;
+  // CPE241 Business Rule 4g — up to 7 freeform key/value rows.
+  details?: Array<{ productDetailId: number; detailName: string; detailValue: string }>;
   reviews: Array<{ reviewId: number; rating: number; comment: string; createdAt: string; user: { userId: number; firstName: string; lastName: string; profileImage?: string | null; username: string } }>;
 };
 
@@ -118,6 +120,25 @@ export default async function ProductPage({ params }: { params: { id: string } }
               </div>
             )}
             <ExpandableText text={product.description} className="mb-6" />
+
+            {/* CPE241 Business Rule 4g — additional info rows.
+                Renders as a definition list (label / value pairs) so
+                buyers see specs / file format / license terms cleanly. */}
+            {product.details && product.details.length > 0 && (
+              <div className="mb-6 rounded-2xl border border-line bg-space-900 px-5 py-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
+                  Details
+                </h3>
+                <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+                  {product.details.map((d) => (
+                    <div key={d.productDetailId} className="contents">
+                      <dt className="text-ink-secondary">{d.detailName}</dt>
+                      <dd className="text-white font-medium">{d.detailValue}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
 
             <Link
               href={`/store/${product.store.storeId}`}

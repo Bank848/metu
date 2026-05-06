@@ -29,6 +29,7 @@ export default async function AdminProductEditPage({
       items: { orderBy: { productItemId: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
+      details: { orderBy: { productDetailId: "asc" } },
       store: { select: { storeId: true, name: true } },
     },
   });
@@ -70,6 +71,10 @@ export default async function AdminProductEditPage({
             sampleUrl: it.sampleUrl ?? "",
             deliveryUrl: it.deliveryUrl ?? "",
             licenseKeyTemplate: it.licenseKeyTemplate ?? "",
+          })),
+          details: (product.details ?? []).map((d) => ({
+            detailName: d.detailName,
+            detailValue: d.detailValue,
           })),
         }}
         categories={categories}

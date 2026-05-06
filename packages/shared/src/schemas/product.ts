@@ -48,6 +48,15 @@ export const productItemInputSchema = z.object({
     .or(z.literal("").transform(() => undefined)),
 });
 
+// CPE241 Business Rule 4g — up to 7 freeform key/value pairs per
+// product. detailName is the label (e.g. "File format", "License"),
+// detailValue is the data (e.g. "PNG/JPG", "Personal use only"). The
+// existing ProductDetail Prisma model already maps to product_detail.
+export const productAddDetailInputSchema = z.object({
+  detailName: z.string().min(1).max(80),
+  detailValue: z.string().min(1).max(255),
+});
+
 export const productInputSchema = z.object({
   name: z.string().min(2).max(100),
   description: z.string().min(2).max(255),
@@ -60,6 +69,8 @@ export const productInputSchema = z.object({
   // default based on the first variant's delivery method
   // (license_key → true, others → false).
   isStackable: z.boolean().optional(),
+  // CPE241 Business Rule 4g — up to 7 freeform key/value rows.
+  details: z.array(productAddDetailInputSchema).max(7).default([]),
 });
 
 export const reviewInputSchema = z.object({

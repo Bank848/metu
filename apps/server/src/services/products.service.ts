@@ -293,6 +293,7 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
       items: { orderBy: { price: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
+      details: { orderBy: { productDetailId: "asc" } },
       reviews: {
         orderBy: { createdAt: "desc" },
         take: 20,

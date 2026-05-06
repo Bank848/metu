@@ -25,6 +25,10 @@ type Initial = {
   tagIds: number[];
   items: Variant[];
   isStackable: boolean;
+  // CPE241 Business Rule 4g — up to 7 freeform key/value rows
+  // (e.g. "Format" / "PNG/JPG", "License" / "Personal use"). Optional;
+  // empty array means the seller didn't fill any in.
+  details: { detailName: string; detailValue: string }[];
 };
 
 const DEFAULT_VARIANT: Variant = {
@@ -92,6 +96,21 @@ export function EditProductForm({
   const [categoryId, setCategoryId] = useState<number>(initial.categoryId);
   const [images, setImages] = useState<string[]>(initial.images.length ? initial.images : [""]);
   const [tagIds, setTagIds] = useState<number[]>(initial.tagIds);
+  const [details, setDetails] = useState<{ detailName: string; detailValue: string }[]>(
+    initial.details ?? [],
+  );
+
+  function addDetail() {
+    if (details.length < 7) {
+      setDetails((prev) => [...prev, { detailName: "", detailValue: "" }]);
+    }
+  }
+  function updateDetail(i: number, patch: Partial<{ detailName: string; detailValue: string }>) {
+    setDetails((prev) => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
+  }
+  function removeDetail(i: number) {
+    setDetails((prev) => prev.filter((_, idx) => idx !== i));
+  }
   const [variants, setVariants] = useState<Variant[]>(initial.items.length ? initial.items : [{ ...DEFAULT_VARIANT }]);
   // when false, buyers can't re-purchase this product.
   // Default seeded from props; the checkbox lets the seller override
@@ -155,6 +174,12 @@ export function EditProductForm({
           images: cleanImages,
           tagIds,
           isStackable,
+          details: details
+            .filter((d) => d.detailName.trim() && d.detailValue.trim())
+            .map((d) => ({
+              detailName: d.detailName.trim().slice(0, 80),
+              detailValue: d.detailValue.trim().slice(0, 255),
+            })),
           items: variants.map((v) => ({
             ...v,
             discountAmount: (v.price * v.discountPercent) / 100,
@@ -270,6 +295,56 @@ export function EditProductForm({
               );
             })}
           </div>
+        </FormSection>
+
+        {/* CPE241 Business Rule 4g — up to 7 freeform key/value rows
+            for product specs, license terms, file formats, etc. Empty
+            rows are filtered out at submit. */}
+        <FormSection
+          title={`Additional details (${details.length}/7)`}
+          description="Optional spec sheet — name + value pairs. Buyers see this on the product page (e.g. Format · PNG/JPG)."
+        >
+          {details.length > 0 && (
+            <div className="space-y-2">
+              {details.map((d, i) => (
+                <div key={i} className="flex gap-2 items-start">
+                  <input
+                    type="text"
+                    value={d.detailName}
+                    onChange={(e) => updateDetail(i, { detailName: e.target.value.slice(0, 80) })}
+                    placeholder="Format"
+                    className="flex-[1] rounded-xl border border-line bg-space-900 px-3 py-2 text-sm text-white outline-none focus:border-metu-yellow"
+                    maxLength={80}
+                  />
+                  <input
+                    type="text"
+                    value={d.detailValue}
+                    onChange={(e) => updateDetail(i, { detailValue: e.target.value.slice(0, 255) })}
+                    placeholder="PNG / JPG · 300 DPI · sRGB"
+                    className="flex-[2] rounded-xl border border-line bg-space-900 px-3 py-2 text-sm text-white outline-none focus:border-metu-yellow"
+                    maxLength={255}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeDetail(i)}
+                    className="text-ink-dim hover:text-coral p-2 shrink-0"
+                    aria-label="Remove detail row"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {details.length < 7 && (
+            <button
+              type="button"
+              onClick={addDetail}
+              className="inline-flex items-center gap-1.5 text-sm text-mint hover:underline"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add row
+            </button>
+          )}
         </FormSection>
 
         {/* Phase 48 — purchase rule: stackable products (license keys
