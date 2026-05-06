@@ -150,6 +150,22 @@ export function LoginForm({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        // 401 NeedsVerify — the universal verify gate. Server has the
+        // pre-auth state under data.preAuthToken; bounce to the
+        // /login/verify page which posts back to /auth/login/verify.
+        if (data?.error === "NeedsVerify" && typeof data?.preAuthToken === "string") {
+          const params = new URLSearchParams({
+            token: data.preAuthToken,
+            channels: (data?.channels ?? [])
+              .map((c: { id: string; hint?: string }) =>
+                c.hint ? `${c.id}:${c.hint}` : c.id,
+              )
+              .join(","),
+          });
+          if (next) params.set("next", next);
+          router.push(`/login/verify?${params.toString()}`);
+          return;
+        }
         // 401 NeedsTotp -> flip to step 2 instead of treating as a hard error.
         if (data?.error === "NeedsTotp") {
           setStep("totp");

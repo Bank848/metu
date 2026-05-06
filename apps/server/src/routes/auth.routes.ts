@@ -13,6 +13,10 @@ const router = Router();
 
 // Public, rate-limited.
 router.post("/login",            loginLimiter,           ctrl.login);
+// Two-step login verify. Both endpoints rate-limited under the OTP
+// budget so a leaked pre-auth token can't be brute-forced.
+router.post("/login/request-otp", requestOtpLimiter,     ctrl.loginRequestOtp);
+router.post("/login/verify",      loginLimiter,          ctrl.loginVerify);
 router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
 router.post("/forgot-password",  forgotPasswordLimiter,  ctrl.forgotPassword);

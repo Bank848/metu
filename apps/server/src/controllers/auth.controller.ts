@@ -135,6 +135,49 @@ export const login: RequestHandler = async (req, res, next) => {
       }
     }
 
+    // Step 2.5 — universal verify gate. Every credential login that
+    // isn't 2FA-protected and isn't on a trusted device pauses here
+    // for a second-factor confirmation (SMS or email OTP). 2FA-on
+    // users already passed the TOTP gate inside service.login. The
+    // admin-OTP path above is independent — it gates admin accounts
+    // even when 2FA is off — and falls through to here for any user
+    // that's already cleared admin-OTP but still needs the universal
+    // verify (i.e. admins without 2FA on a fresh device).
+    {
+      const trusted = await isTrustedDevice(req, user.userId);
+      const userTotpEnabled = (user as any).totpEnabled === true;
+      const userPhone = (user as any).phone as string | null;
+      if (!userTotpEnabled && !trusted) {
+        const { issueLoginPreAuthToken } = await import("../utils/login-verify.js");
+        const token = await issueLoginPreAuthToken({
+          userId: user.userId,
+          email: parsed.data.email,
+          password: parsed.data.password,
+        });
+        // Build redacted hints for the channel picker. service.login
+        // enforced phoneVerifiedAt > 0 already, so phone is non-null.
+        const phoneTail = userPhone ? userPhone.slice(-4) : "????";
+        const emailParts = parsed.data.email.split("@");
+        const local = emailParts[0] ?? "";
+        const domain = emailParts[1] ?? "";
+        const emailRedacted = local.length > 0 && domain
+          ? `${local[0]}${"•".repeat(Math.max(1, local.length - 1))}@${domain}`
+          : parsed.data.email;
+        throw new AppError(
+          401,
+          "NeedsVerify",
+          "Confirm it's you with a one-time code.",
+          {
+            preAuthToken: token,
+            channels: [
+              ...(userPhone ? [{ id: "sms", hint: `••••${phoneTail}` }] : []),
+              { id: "email", hint: emailRedacted },
+            ],
+          },
+        );
+      }
+    }
+
     // Step 3 — issue the better-auth session cookie.
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
 
@@ -154,6 +197,149 @@ export const login: RequestHandler = async (req, res, next) => {
     }
 
     res.json({ user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/login/request-otp — request an OTP for the universal
+ * verify step. Body: { token, channel: "sms" | "email" }. The token
+ * comes from the preAuthToken returned alongside the 401 NeedsVerify
+ * response from /auth/login.
+ *
+ * Reuses the same Verification identifier (`phone-otp:<userId>`) as
+ * the in-session OTP request, so only one pending OTP per user
+ * across channels (avoids replay across paths).
+ */
+export const loginRequestOtp: RequestHandler = async (req, res, next) => {
+  try {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const channel =
+      req.body?.channel === "sms" || req.body?.channel === "email"
+        ? (req.body.channel as "sms" | "email")
+        : "sms";
+    const { resolveLoginPreAuthToken } = await import("../utils/login-verify.js");
+    const payload = await resolveLoginPreAuthToken(token);
+
+    const { prisma } = await import("../db/prisma.js");
+    const user = await prisma.user.findUnique({
+      where: { userId: payload.userId },
+      select: { phone: true, email: true, firstName: true },
+    });
+    if (!user) throw new AppError(400, "InvalidPreAuth", "User not found.");
+
+    if (channel === "sms") {
+      if (!user.phone) {
+        throw new AppError(400, "NoPhone", "This account has no phone on file. Use the email channel.");
+      }
+      // Reuse the in-session SMS OTP path (utils/otp). Same hash
+      // function so the verify step can use either channel uniformly.
+      const { generateCode, hashCode, otpIdentifier, expiresAt: otpExpiresAt, deliverCode } =
+        await import("../utils/otp.js");
+      const code = generateCode();
+      const hash = hashCode(payload.userId, user.phone, code);
+      const identifier = otpIdentifier(payload.userId);
+      await prisma.verification.deleteMany({ where: { identifier } });
+      await prisma.verification.create({
+        data: { identifier, value: hash, expiresAt: otpExpiresAt() },
+      });
+      await deliverCode(user.phone, code).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error("[login-verify] sms send failed:", err);
+      });
+      res.json({ ok: true, channel: "sms" });
+      return;
+    }
+
+    // Email channel.
+    const { generateCode, hashCode, otpIdentifier, expiresAt: otpExpiresAt } =
+      await import("../utils/otp.js");
+    const { sendEmail } = await import("../utils/email.js");
+    const { renderEmailLayout, escapeHtml } = await import("../utils/email-template.js");
+    const code = generateCode();
+    const hash = hashCode(payload.userId, user.email, code);
+    const identifier = otpIdentifier(payload.userId);
+    await prisma.verification.deleteMany({ where: { identifier } });
+    await prisma.verification.create({
+      data: { identifier, value: hash, expiresAt: otpExpiresAt() },
+    });
+    const body = renderEmailLayout({
+      heading: "Confirm your METU sign-in",
+      intro: `Hi ${escapeHtml(user.firstName)}, here's the 6-digit code to finish signing in. It expires in 5 minutes. If you didn't try to sign in, change your password now.`,
+      bodyHtml: `<p style="text-align:center;font-family:monospace;font-size:32px;letter-spacing:8px;color:#facc15;font-weight:bold;margin:24px 0;">${code}</p>`,
+    });
+    await sendEmail({
+      to: user.email,
+      subject: `METU sign-in code — ${code}`,
+      html: body,
+    }).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("[login-verify] email send failed:", err);
+    });
+    res.json({ ok: true, channel: "email" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /auth/login/verify — finishes the two-step login. Body: {
+ * token, code, trustDevice? }. On success, mints the better-auth
+ * session cookie and (optionally) the trusted-device cookie for 7d.
+ */
+export const loginVerify: RequestHandler = async (req, res, next) => {
+  try {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+    const trustDevice = req.body?.trustDevice === true;
+
+    const { resolveLoginPreAuthToken, consumeLoginPreAuthToken } = await import(
+      "../utils/login-verify.js"
+    );
+    const payload = await resolveLoginPreAuthToken(token);
+
+    const { prisma } = await import("../db/prisma.js");
+    const user = await prisma.user.findUnique({
+      where: { userId: payload.userId },
+      select: { phone: true, email: true },
+    });
+    if (!user) throw new AppError(400, "InvalidPreAuth", "User not found.");
+
+    // Verify the code against the Verification row. Hash target is
+    // phone for SMS, email for email — same as ensureSensitiveOtp.
+    const { hashCode, otpIdentifier } = await import("../utils/otp.js");
+    const identifier = otpIdentifier(payload.userId);
+    const pending = await prisma.verification.findFirst({
+      where: { identifier },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!pending) throw new AppError(400, "NoPendingOtp", "Request a code first.");
+    if (pending.expiresAt.getTime() < Date.now()) {
+      await prisma.verification.delete({ where: { id: pending.id } });
+      throw new AppError(400, "OtpExpired", "Code expired. Request a new one.");
+    }
+    const phoneOk = user.phone && hashCode(payload.userId, user.phone, code) === pending.value;
+    const emailOk = hashCode(payload.userId, user.email, code) === pending.value;
+    if (!phoneOk && !emailOk) {
+      throw new AppError(400, "InvalidOtp", "Wrong code. Try again.");
+    }
+
+    // Consume the OTP + the pre-auth token so neither replays.
+    await prisma.verification.delete({ where: { id: pending.id } });
+    await consumeLoginPreAuthToken(token);
+
+    // Mint the better-auth session by replaying signInEmail with the
+    // credentials we held under the pre-auth token.
+    await issueBetterAuthCookie(req, res, payload.email, payload.password);
+    await enforceSingleSession(payload.userId);
+
+    if (trustDevice) {
+      const { trustThisDevice } = await import("../utils/trusted-device.js");
+      await trustThisDevice(req, res, payload.userId);
+    }
+
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

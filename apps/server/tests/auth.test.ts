@@ -84,29 +84,35 @@ beforeEach(async () => {
 });
 
 describe("POST /auth/login", () => {
-  it("returns 200 + sets cookie on valid credentials", async () => {
+  it("returns 401 NeedsVerify on valid credentials when device isn't trusted (universal verify gate)", async () => {
+    // Behaviour change: every credential login now passes through a
+    // second-factor confirmation unless the device is already trusted
+    // (cookie + DB row) OR 2FA is on. Without a trust cookie or
+    // totpCode, the response is 401 + a preAuthToken the client
+    // hands back to /auth/login/verify.
     const hash = await bcrypt.hash("Buyer#123", 4);
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
       email: "buyer@metu.dev",
       password: hash,
+      phone: "+66812345678",
       emailVerified: true,
       phoneVerifiedAt: new Date(),
+      totpEnabled: false,
       stats: { role: "buyer" },
       carts: [{ cartId: 1 }],
     });
+    (prisma.verification.create as any).mockResolvedValue({});
 
     const res = await request(buildApp())
       .post("/auth/login")
       .send({ email: "buyer@metu.dev", password: "Buyer#123" });
 
-    expect(res.status).toBe(200);
-    expect(res.body.user.userId).toBe(7);
-    expect(res.body.user.password).toBeUndefined();
-    // Phase 16.3 — Mode A: better-auth's session cookie is forwarded
-    // by the controller via forwardSetCookieHeaders (the auth module
-    // mock returns a Web Response with a fake Set-Cookie attached).
-    expect(res.headers["set-cookie"]?.[0]).toMatch(/^better-auth\.session_token=/);
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("NeedsVerify");
+    expect(typeof res.body.preAuthToken).toBe("string");
+    expect(Array.isArray(res.body.channels)).toBe(true);
+    expect(res.body.channels.map((c: { id: string }) => c.id)).toContain("email");
   });
 
   it("returns 401 on wrong password", async () => {
