@@ -72,9 +72,21 @@ export function RevenueChart({ data }: { data: Point[] }) {
           const x = PAD_X + i * slot + (slot - barW) / 2;
           const y = H - PAD_Y - h;
           const dayLabel = new Date(d.day).getDate();
+          // Stagger bars left → right so the chart "rolls in" instead of
+          // popping all at once. 35ms per bar * 14 bars = ~490ms total.
+          const delayMs = i * 35;
           return (
             <g key={d.day}>
-              <rect x={x} y={y} width={barW} height={Math.max(2, h)} rx="2" fill="url(#bar-gradient)">
+              <rect
+                x={x}
+                y={y}
+                width={barW}
+                height={Math.max(2, h)}
+                rx="2"
+                fill="url(#bar-gradient)"
+                className="animate-bar-grow"
+                style={{ animationDelay: `${delayMs}ms` }}
+              >
                 <title>{d.day} · {coins(thbToCoins(d.revenue))} · {d.orderCount} orders</title>
               </rect>
               <text x={x + barW / 2} y={H - 1} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.4)" fontFamily="JetBrains Mono, monospace">

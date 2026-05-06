@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { SqlTechniqueBadge } from "./SqlTechniqueBadge";
 
 interface Slice {
   status: string;
@@ -53,12 +54,15 @@ export function OrdersByStatusDonut({
 
   return (
     <div className="rounded-2xl border border-line bg-space-900 p-5">
-      <header className="flex items-center justify-between mb-3">
-        <div>
+      <header className="flex items-center justify-between mb-3 gap-3">
+        <div className="min-w-0">
           <h3 className="font-display font-bold text-white">Orders by status</h3>
-          <p className="text-xs text-ink-dim">
-            {total.toLocaleString()} order{total === 1 ? "" : "s"} · click a slice to filter
-          </p>
+          <div className="flex items-center gap-2 flex-wrap mt-1">
+            <p className="text-xs text-ink-dim">
+              {total.toLocaleString()} order{total === 1 ? "" : "s"} · click a slice to filter
+            </p>
+            <SqlTechniqueBadge technique="join-group" label="GROUP BY status" />
+          </div>
         </div>
       </header>
 
@@ -68,10 +72,13 @@ export function OrdersByStatusDonut({
               the donut shape rather than collapsing. */}
           <circle cx={radius} cy={radius} r={radius} fill="rgba(255,255,255,0.04)" />
 
-          {segments.map((seg) => {
+          {segments.map((seg, i) => {
             const isHovered = hovered === seg.status;
             const r = isHovered ? radius : radius * 0.96;
             const pulled = isHovered ? polarToCart(seg.midAngle, 4) : { x: 0, y: 0 };
+            // Clockwise stagger so the eye follows the donut as it
+            // assembles. 80ms per slice * up to 6 statuses ≈ 480ms.
+            const delayMs = 90 + i * 80;
             return (
               <Link
                 key={seg.status}
@@ -84,7 +91,12 @@ export function OrdersByStatusDonut({
                   d={arcPath(radius, radius, r, inner, seg.startAngle, seg.endAngle)}
                   fill={STATUS_COLOURS[seg.status] ?? FALLBACK}
                   transform={`translate(${pulled.x} ${pulled.y})`}
-                  style={{ transition: "transform 200ms ease-out", cursor: "pointer" }}
+                  className="animate-slice-pop"
+                  style={{
+                    transition: "transform 200ms ease-out",
+                    cursor: "pointer",
+                    animationDelay: `${delayMs}ms`,
+                  }}
                 />
               </Link>
             );

@@ -506,3 +506,91 @@ input:-webkit-autofill {
 .animate-sheet-rise {
   animation: sheet-rise 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
+
+/* ───────────── Admin dashboard data-viz animations ─────────────
+   On-mount entrance for the /admin Overview's charts. The reveal is
+   intentionally short (450-650ms) and stagger-light so the page doesn't
+   feel lazy after a refresh — and the reduced-motion block at the top of
+   this file neutralises everything for users who opt out. */
+
+/* Bars grow up from the baseline. We rely on `transform-box: fill-box;
+   transform-origin: bottom` so SVG <rect>s scale around their own base
+   instead of the SVG viewport's 0,0 origin. */
+@keyframes bar-grow {
+  0%   { transform: scaleY(0); opacity: 0.4; }
+  100% { transform: scaleY(1); opacity: 1;   }
+}
+.animate-bar-grow {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: bar-grow 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Sparkline / chart stroke draws itself. Pair with SVG attribute
+   `pathLength="1"` so stroke-dasharray + dashoffset can be expressed in
+   normalized units regardless of the actual path length. */
+@keyframes stroke-draw {
+  0%   { stroke-dashoffset: 1; }
+  100% { stroke-dashoffset: 0; }
+}
+.animate-stroke-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: stroke-draw 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+/* Donut / pie slice pops in: scales from 0.7 → 1 around the SVG centre
+   while fading. Each slice gets its own `style="animation-delay: …ms"`
+   for a clockwise reveal. */
+@keyframes slice-pop {
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.animate-slice-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: slice-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* KPI count-up numbers — purely a fade+rise wrapper, the actual digit
+   tween happens in <CountUpNumber> via requestAnimationFrame. */
+@keyframes count-up-rise {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0);  }
+}
+.animate-count-up-rise {
+  animation: count-up-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* "Live data" dashed border that travels around the matview pill,
+   so the audience sees this surface is recomputed (not static). */
+@keyframes dash-flow {
+  0%   { stroke-dashoffset: 0;  }
+  100% { stroke-dashoffset: 24; }
+}
+.animate-dash-flow {
+  stroke-dasharray: 4 4;
+  animation: dash-flow 1.6s linear infinite;
+}
+
+/* Subtle glow-pulse for "fresh" indicators (matview just refreshed,
+   new order arrived, etc.). Two-second cadence so it never feels noisy. */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(110, 231, 183, 0.0); }
+  50%      { box-shadow: 0 0 0 6px rgba(110, 231, 183, 0.18); }
+}
+.animate-glow-pulse {
+  animation: glow-pulse 2.2s ease-in-out infinite;
+}
+
+/* Inline-bar (category row, age groups) growth. Width grows from 0 →
+   target on mount; the row's inline `style="--target-w:…"` carries the
+   final percentage so we can drive the keyframe with a CSS variable. */
+@keyframes bar-extend {
+  0%   { width: 0;             }
+  100% { width: var(--target-w, 100%); }
+}
+.animate-bar-extend {
+  animation: bar-extend 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

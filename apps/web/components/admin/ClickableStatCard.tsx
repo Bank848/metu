@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowUpRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { MiniSparkline } from "./MiniSparkline";
+import { CountUpNumber } from "./CountUpNumber";
 
 // Drill-in variant of StatCard with optional sparkline + click-through
 // link. The bare StatCard (components/StatCard) stays for screens
@@ -21,6 +22,13 @@ interface Props {
   icon: ReactNode;
   label: string;
   value: string | number;
+  /** When set, the card renders a <CountUpNumber> tween from 0 → this
+      number on mount, formatted via `countUpFormat`. The static `value`
+      acts as the SSR fallback (and the post-tween display). */
+  countUpTo?: number;
+  /** Formatter for the count-up tween. Defaults to comma-separated
+      integer. Pass e.g. coinsCompact for the GMV card. */
+  countUpFormat?: (n: number) => string;
   /** Optional 7-day series for an inline sparkline. */
   sparkline?: number[];
   /** Sparkline tint. Falls back to the card's accent. */
@@ -39,6 +47,8 @@ export function ClickableStatCard({
   icon,
   label,
   value,
+  countUpTo,
+  countUpFormat,
   sparkline,
   sparkColor,
   valueTooltip,
@@ -65,10 +75,14 @@ export function ClickableStatCard({
             <span>{label}</span>
           </div>
           <div
-            className="font-display text-3xl md:text-4xl font-extrabold text-white mt-2 tabular-nums leading-none"
+            className="font-display text-3xl md:text-4xl font-extrabold text-white mt-2 tabular-nums leading-none animate-count-up-rise"
             title={valueTooltip}
           >
-            {value}
+            {typeof countUpTo === "number" ? (
+              <CountUpNumber value={countUpTo} format={countUpFormat} />
+            ) : (
+              value
+            )}
           </div>
         </div>
         <ArrowUpRight className="h-4 w-4 text-ink-dim opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />

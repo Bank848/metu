@@ -11,6 +11,7 @@ import { QueryTimingsBar } from "@/components/admin/QueryTimingsBar";
 import { RefreshMatviewButton } from "@/components/admin/RefreshMatviewButton";
 import { ClickableStatCard } from "@/components/admin/ClickableStatCard";
 import { OrdersByStatusDonut } from "@/components/admin/OrdersByStatusDonut";
+import { SqlTechniqueBadge } from "@/components/admin/SqlTechniqueBadge";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiFetch, ApiError } from "@/lib/server/api";
 import { coins, thbToCoins, coinsCompact, fmtDateTime } from "@/lib/format";
@@ -126,6 +127,8 @@ export default async function AdminOverview({
           icon={<Banknote className="h-3.5 w-3.5" />}
           label="GMV (paid)"
           value={coinsCompact(thbToCoins(stats.gmv))}
+          countUpTo={thbToCoins(stats.gmv)}
+          countUpFormat={(n) => coinsCompact(n)}
           valueTooltip={coins(thbToCoins(stats.gmv))}
           sparkline={dashboard.kpiSparklines?.gmv ?? []}
           sparkColor="rgb(244 192 79)"
@@ -136,6 +139,7 @@ export default async function AdminOverview({
           icon={<Users className="h-3.5 w-3.5" />}
           label="Users"
           value={stats.users.toLocaleString()}
+          countUpTo={stats.users}
           sparkline={dashboard.kpiSparklines?.users ?? []}
           sparkColor="rgb(98 182 255)"
           deltaPct={dashboard.kpiDeltas?.users.pct ?? undefined}
@@ -145,6 +149,7 @@ export default async function AdminOverview({
           icon={<Store className="h-3.5 w-3.5" />}
           label="Stores"
           value={stats.stores.toLocaleString()}
+          countUpTo={stats.stores}
           sparkColor="rgb(192 139 255)"
         />
         <ClickableStatCard
@@ -152,6 +157,7 @@ export default async function AdminOverview({
           icon={<Package className="h-3.5 w-3.5" />}
           label="Products"
           value={stats.products.toLocaleString()}
+          countUpTo={stats.products}
           sparkColor="rgb(98 182 255)"
         />
         <ClickableStatCard
@@ -159,6 +165,7 @@ export default async function AdminOverview({
           icon={<ShoppingBag className="h-3.5 w-3.5" />}
           label="Orders"
           value={stats.orders.toLocaleString()}
+          countUpTo={stats.orders}
           sparkline={dashboard.kpiSparklines?.orders ?? []}
           sparkColor="rgb(61 220 151)"
           deltaPct={dashboard.kpiDeltas?.orders.pct ?? undefined}
@@ -168,6 +175,7 @@ export default async function AdminOverview({
           icon={<Clock className="h-3.5 w-3.5" />}
           label="Pending orders"
           value={stats.pendingOrders.toLocaleString()}
+          countUpTo={stats.pendingOrders}
           tone={stats.pendingOrders === 0 ? "zero" : "default"}
           sparkColor="rgb(244 192 79)"
         />
@@ -187,10 +195,14 @@ export default async function AdminOverview({
           ?range= URL param which getStats(days) on the server reads.
           Sticky title row keeps the toggle aligned with the chart. */}
       <div className="rounded-2xl border border-line bg-space-900 p-5 mb-6">
-        <header className="flex items-center justify-between mb-3">
-          <div>
+        <header className="flex items-center justify-between mb-3 gap-3">
+          <div className="min-w-0">
             <h3 className="font-display font-bold text-white">Revenue (paid + fulfilled)</h3>
-            <p className="text-xs text-ink-dim">Daily revenue series · zero-revenue days kept via generate_series</p>
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              <p className="text-xs text-ink-dim">Daily revenue series · zero-revenue days kept</p>
+              <SqlTechniqueBadge technique="generate-series" />
+              <SqlTechniqueBadge technique="left-join" />
+            </div>
           </div>
           <RangeToggle activeDays={days} />
         </header>
@@ -208,10 +220,13 @@ export default async function AdminOverview({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {dashboard.growth && (
           <div className="rounded-2xl border border-line bg-space-900 p-5">
-            <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+            <h3 className="font-display font-bold text-white flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-mint" />
               User growth
             </h3>
+            <div className="mb-3 mt-1">
+              <SqlTechniqueBadge technique="count-filter" />
+            </div>
             <ul className="space-y-1.5 text-sm">
               <li className="flex justify-between"><span className="text-ink-secondary">Buyers</span><span className="font-mono text-white">{dashboard.growth.buyers.toLocaleString()}</span></li>
               <li className="flex justify-between"><span className="text-ink-secondary">Sellers</span><span className="font-mono text-white">{dashboard.growth.sellers.toLocaleString()}</span></li>
@@ -222,10 +237,13 @@ export default async function AdminOverview({
         )}
         {dashboard.couponImpact && (
           <div className="rounded-2xl border border-line bg-space-900 p-5">
-            <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+            <h3 className="font-display font-bold text-white flex items-center gap-2">
               <Ticket className="h-4 w-4 text-metu-yellow" />
               Coupon impact
             </h3>
+            <div className="mb-3 mt-1">
+              <SqlTechniqueBadge technique="left-join" />
+            </div>
             <ul className="space-y-1.5 text-sm">
               <li className="flex justify-between"><span className="text-ink-secondary">Total coupons</span><span className="font-mono text-white">{dashboard.couponImpact.totalCoupons}</span></li>
               <li className="flex justify-between"><span className="text-ink-secondary">Active</span><span className="font-mono text-mint">{dashboard.couponImpact.activeCoupons}</span></li>
@@ -237,10 +255,13 @@ export default async function AdminOverview({
         )}
         {dashboard.reviewMonitor && (
           <div className="rounded-2xl border border-line bg-space-900 p-5">
-            <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+            <h3 className="font-display font-bold text-white flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-info" />
               Review monitor
             </h3>
+            <div className="mb-3 mt-1">
+              <SqlTechniqueBadge technique="trigger" label="TRIGGER → store.rating" />
+            </div>
             <ul className="space-y-1.5 text-sm">
               <li className="flex justify-between"><span className="text-ink-secondary">Avg rating</span><span className="font-mono text-metu-yellow">{dashboard.reviewMonitor.avgRating.toFixed(2)}★</span></li>
               <li className="flex justify-between"><span className="text-ink-secondary">Total reviews</span><span className="font-mono text-white">{dashboard.reviewMonitor.totalReviews.toLocaleString()}</span></li>
@@ -260,15 +281,18 @@ export default async function AdminOverview({
                 <Store className="h-4 w-4 text-metu-yellow" />
                 Top stores by revenue (30d)
               </h3>
-              <p className="text-[11px] text-ink-dim font-mono mt-0.5 inline-flex items-center gap-1.5">
-                <Database className="h-3 w-3" />
-                source: top_stores_30d matview
-                {dashboard.topStoresComputedAt && (
-                  <span className="text-mint">
-                    · refreshed {fmtDateTime(dashboard.topStoresComputedAt)}
-                  </span>
-                )}
-              </p>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                <SqlTechniqueBadge technique="matview" />
+                <p className="text-[11px] text-ink-dim font-mono inline-flex items-center gap-1.5">
+                  <Database className="h-3 w-3" />
+                  top_stores_30d
+                  {dashboard.topStoresComputedAt && (
+                    <span className="text-mint">
+                      · refreshed {fmtDateTime(dashboard.topStoresComputedAt)}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
             <RefreshMatviewButton computedAt={dashboard.topStoresComputedAt} />
           </header>
@@ -287,10 +311,14 @@ export default async function AdminOverview({
           </ol>
         </div>
         <div className="rounded-2xl border border-line bg-space-900 p-5">
-          <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+          <h3 className="font-display font-bold text-white flex items-center gap-2">
             <Package className="h-4 w-4 text-mint" />
             Top products by revenue
           </h3>
+          <div className="flex items-center gap-1.5 mb-3 mt-1">
+            <SqlTechniqueBadge technique="join-group" />
+            <span className="text-[10px] text-ink-dim font-mono">order_item × product · SUM(price × qty)</span>
+          </div>
           <ol className="space-y-2 text-sm">
             {dashboard.topProducts.length === 0 && <li className="text-ink-dim">No product sales yet.</li>}
             {dashboard.topProducts.map((p, i) => (
@@ -312,9 +340,13 @@ export default async function AdminOverview({
           dashboard reads as a navigation surface, not just stats. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="rounded-2xl border border-line bg-space-900 p-5">
-          <h3 className="font-display font-bold text-white mb-3">Category analytics</h3>
+          <h3 className="font-display font-bold text-white">Category analytics</h3>
+          <div className="flex items-center gap-1.5 mb-3 mt-1">
+            <SqlTechniqueBadge technique="left-join" />
+            <SqlTechniqueBadge technique="join-group" label="GROUP BY category" />
+          </div>
           <ul className="space-y-1 text-sm">
-            {dashboard.categories.slice(0, 8).map((c) => {
+            {dashboard.categories.slice(0, 8).map((c, i) => {
               const max = Math.max(...dashboard.categories.map((x) => x.revenue), 1);
               const pct = max > 0 ? (c.revenue / max) * 100 : 0;
               return (
@@ -325,9 +357,16 @@ export default async function AdminOverview({
                   >
                     <span className="flex items-center gap-2 min-w-0 flex-1">
                       <span className="text-ink-secondary truncate group-hover:text-white">{c.name}</span>
-                      {/* Inline bar so the eye sees rank-by-revenue. */}
+                      {/* Inline bar so the eye sees rank-by-revenue —
+                          stagger-extends on mount per row. */}
                       <span className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden">
-                        <span className="block h-full bg-mint" style={{ width: `${pct}%` }} />
+                        <span
+                          className="block h-full bg-mint animate-bar-extend"
+                          style={{
+                            ["--target-w" as string]: `${pct}%`,
+                            animationDelay: `${i * 40}ms`,
+                          }}
+                        />
                       </span>
                     </span>
                     <span className="font-mono text-xs text-ink-dim shrink-0 tabular-nums">
@@ -340,10 +379,13 @@ export default async function AdminOverview({
           </ul>
         </div>
         <div className="rounded-2xl border border-line bg-space-900 p-5">
-          <h3 className="font-display font-bold text-white mb-3 flex items-center gap-2">
+          <h3 className="font-display font-bold text-white flex items-center gap-2">
             <TagIcon className="h-4 w-4 text-info" />
             Top tags
           </h3>
+          <div className="flex items-center gap-1.5 mb-3 mt-1">
+            <SqlTechniqueBadge technique="join-group" label="JOIN product_tag" />
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {dashboard.tags.slice(0, 12).map((t) => (
               <Link
@@ -360,10 +402,14 @@ export default async function AdminOverview({
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-space-900 p-5">
-          <h3 className="font-display font-bold text-white mb-3">Age groups</h3>
+          <h3 className="font-display font-bold text-white">Age groups</h3>
+          <div className="flex items-center gap-1.5 mb-3 mt-1">
+            <SqlTechniqueBadge technique="case-bucket" />
+            <span className="text-[10px] text-ink-dim font-mono">CASE WHEN age &lt; 18 THEN '&lt;18' …</span>
+          </div>
           <ul className="space-y-1.5 text-sm">
             {dashboard.ageGroups.length === 0 && <li className="text-ink-dim text-xs">No buyers with DOB on file.</li>}
-            {dashboard.ageGroups.map((a) => {
+            {dashboard.ageGroups.map((a, i) => {
               const max = Math.max(...dashboard.ageGroups.map((x) => x.buyers), 1);
               const pct = max > 0 ? (a.buyers / max) * 100 : 0;
               return (
@@ -375,7 +421,13 @@ export default async function AdminOverview({
                     <span className="flex items-center gap-2 min-w-0 flex-1">
                       <span className="text-ink-secondary group-hover:text-white">{a.bucket}</span>
                       <span className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden">
-                        <span className="block h-full bg-purple-400" style={{ width: `${pct}%` }} />
+                        <span
+                          className="block h-full bg-purple-400 animate-bar-extend"
+                          style={{
+                            ["--target-w" as string]: `${pct}%`,
+                            animationDelay: `${i * 50}ms`,
+                          }}
+                        />
                       </span>
                     </span>
                     <span className="font-mono text-white tabular-nums">{a.buyers}</span>

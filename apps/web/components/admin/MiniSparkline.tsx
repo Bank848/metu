@@ -45,8 +45,16 @@ export function MiniSparkline({
       aria-hidden
     >
       {/* Soft area fill — currentColor at 18% so it picks up the
-          card's accent automatically. */}
-      <path d={areaPath} fill="currentColor" opacity={0.18} />
+          card's accent automatically. Fades in alongside the line. */}
+      <path
+        d={areaPath}
+        fill="currentColor"
+        opacity={0.18}
+        style={{ animation: "count-up-rise 0.6s cubic-bezier(0.22,1,0.36,1) 0.4s both" }}
+      />
+      {/* `pathLength="1"` normalizes the dasharray space to [0,1] so we
+          can set `stroke-dasharray: 1` in CSS and animate dashoffset
+          1→0 to "draw" the line regardless of actual path length. */}
       <path
         d={linePath}
         fill="none"
@@ -54,13 +62,17 @@ export function MiniSparkline({
         strokeWidth={1.5}
         strokeLinecap="round"
         strokeLinejoin="round"
+        pathLength={1}
+        className="animate-stroke-draw"
       />
-      {/* Endpoint dot — picks the eye on the latest value. */}
+      {/* Endpoint dot — picks the eye on the latest value. Pops in
+          right after the stroke finishes. */}
       <circle
         cx={pts[pts.length - 1]?.[0] ?? 0}
         cy={pts[pts.length - 1]?.[1] ?? 0}
         r={2.5}
         fill="currentColor"
+        style={{ animation: "count-up-rise 0.4s cubic-bezier(0.22,1,0.36,1) 0.85s both" }}
       />
     </svg>
   );

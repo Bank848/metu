@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { SqlTechniqueBadge } from "./SqlTechniqueBadge";
 
 // 7×24 grid of order counts (DoW × hour) computed in
 // Asia/Bangkok time. Each cell shades by intensity (mint scale).
@@ -46,9 +47,12 @@ export function OrderHeatmap({
           <h3 className="font-display text-base font-bold text-white">
             When buyers actually shop
           </h3>
-          <p className="text-xs text-ink-dim">
-            Orders by day-of-week × hour · last {days} days · Asia/Bangkok time · darker = more activity
-          </p>
+          <div className="flex items-center gap-2 flex-wrap mt-1">
+            <p className="text-xs text-ink-dim">
+              Day-of-week × hour · last {days} days · Asia/Bangkok · darker = more activity
+            </p>
+            <SqlTechniqueBadge technique="extract" label="EXTRACT(DOW × HOUR)" />
+          </div>
         </div>
         {hover && (
           <div className="text-xs font-mono text-mint tabular-nums">
@@ -99,6 +103,11 @@ export function OrderHeatmap({
               const fill = orders === 0
                 ? "#1a1f26"
                 : `rgba(80, 220, 180, ${intensity.toFixed(3)})`;
+              // Diagonal stagger: cells with the same (dow + hour) sum
+              // light up together, so the heatmap "sweeps" from top-left
+              // to bottom-right rather than popping all at once.
+              // Cap delay at 720ms so the last cell isn't slow.
+              const delayMs = Math.min(720, (dow + hour) * 12);
               return (
                 <rect
                   key={`${dow}-${hour}`}
@@ -112,7 +121,12 @@ export function OrderHeatmap({
                   strokeWidth={1}
                   onMouseEnter={() => setHover({ dow, hour, orders })}
                   onMouseLeave={() => setHover(null)}
-                  style={{ cursor: orders > 0 ? "pointer" : "default" }}
+                  className="animate-count-up-rise"
+                  style={{
+                    cursor: orders > 0 ? "pointer" : "default",
+                    animationDelay: `${delayMs}ms`,
+                    animationDuration: "0.35s",
+                  }}
                 />
               );
             }),
