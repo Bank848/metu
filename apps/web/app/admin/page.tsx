@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Users, Store, Package, ShoppingBag, Banknote, Clock, Ticket, MessageSquare, TrendingUp, Tag as TagIcon, Database } from "lucide-react";
+import { Users, Store, Package, ShoppingBag, Banknote, Clock, Ticket, MessageSquare, TrendingUp, Tag as TagIcon, Database, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -12,6 +12,8 @@ import { RefreshMatviewButton } from "@/components/admin/RefreshMatviewButton";
 import { ClickableStatCard } from "@/components/admin/ClickableStatCard";
 import { OrdersByStatusDonut } from "@/components/admin/OrdersByStatusDonut";
 import { SqlTechniqueBadge } from "@/components/admin/SqlTechniqueBadge";
+import { TopBuyersList } from "@/components/admin/TopBuyersList";
+import { OrdersByCountryList } from "@/components/admin/OrdersByCountryList";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiFetch, ApiError } from "@/lib/server/api";
 import { coins, thbToCoins, coinsCompact, fmtDateTime } from "@/lib/format";
@@ -47,6 +49,9 @@ type Dashboard = {
     orders: { thisWeek: number; prevWeek: number; pct: number | null };
     gmv:    { thisWeek: number; prevWeek: number; pct: number | null };
   } | null;
+  topBuyers: Array<{ userId: number; firstName: string; lastName: string; username: string; profileImage: string | null; orders: number; spend: number }>;
+  ordersByCountry: Array<{ countryId: number | null; countryName: string; orders: number; spend: number }>;
+  aovTrend: number[];
   queryStats: Array<{ name: string; ms: number }>;
 };
 
@@ -170,6 +175,28 @@ export default async function AdminOverview({
           sparkColor="rgb(61 220 151)"
           deltaPct={dashboard.kpiDeltas?.orders.pct ?? undefined}
         />
+        {/* AOV — average order value over the last 14 days. The
+            sparkline shows the day-by-day series so the operator can
+            tell whether the average is climbing or sagging. AVG over
+            paid+fulfilled orders only — pending/cancelled don't move
+            the line. */}
+        {(() => {
+          const aov = dashboard.aovTrend ?? [];
+          const lastAov = aov.length > 0 ? aov[aov.length - 1] : 0;
+          return (
+            <ClickableStatCard
+              href="/admin/orders"
+              icon={<Wallet className="h-3.5 w-3.5" />}
+              label="AOV (14d)"
+              value={coinsCompact(thbToCoins(lastAov))}
+              countUpTo={thbToCoins(lastAov)}
+              countUpFormat="compact-coins"
+              valueTooltip={coins(thbToCoins(lastAov))}
+              sparkline={aov}
+              sparkColor="rgb(192 139 255)"
+            />
+          );
+        })()}
         <ClickableStatCard
           href="/admin/orders?status=pending"
           icon={<Clock className="h-3.5 w-3.5" />}
@@ -333,6 +360,16 @@ export default async function AdminOverview({
             ))}
           </ol>
         </div>
+      </div>
+
+      {/* Top buyers (lifetime spend) + Geographic distribution. Two
+          new "who's buying" widgets so the dashboard isn't only about
+          sellers + products. Both panels lean on JOIN + GROUP BY
+          aggregations — surfaced via the technique chips inside each
+          card. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <TopBuyersList buyers={dashboard.topBuyers ?? []} />
+        <OrdersByCountryList rows={dashboard.ordersByCountry ?? []} />
       </div>
 
       {/* Categories + Tags + Age groups. Categories + tags are now

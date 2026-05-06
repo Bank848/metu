@@ -691,7 +691,7 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
  */
 export async function getDashboardMetrics() {
   const queryStats: QueryStat[] = [];
-  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows] = await Promise.all([
+  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows, topBuyersRows, ordersByCountryRows, aovTrendRows] = await Promise.all([
     timed("growth", queryStats, () => prisma.$queryRaw<Array<{
       total_users: bigint; buyers: bigint; sellers: bigint; admins: bigint;
       active_7d: bigint;
@@ -885,6 +885,58 @@ export async function getDashboardMetrics() {
             AND created_at  >= NOW() - INTERVAL '14 days'
             AND created_at  <  NOW() - INTERVAL '7 days')::text                               AS gmv_prev
     `),
+    // Top buyers by lifetime spend (paid + fulfilled). LEFT JOIN users
+    // so we can render avatar + name. ORDER BY total spend DESC, LIMIT 5.
+    // Only counts settled orders so abandoned carts can't game the
+    // leaderboard.
+    timed("topBuyers", queryStats, () => prisma.$queryRaw<Array<{
+      user_id: number; first_name: string; last_name: string; username: string;
+      profile_image: string | null; orders: bigint; spend: string;
+    }>>`
+      SELECT u.user_id, u.first_name, u.last_name, u.username, u.profile_image,
+             COUNT(o.order_id)::bigint        AS orders,
+             COALESCE(SUM(o.total_price), 0)::text AS spend
+      FROM "users" u
+      JOIN "orders" o ON o.user_id = u.user_id
+      WHERE o.status IN ('paid', 'fulfilled')
+      GROUP BY u.user_id, u.first_name, u.last_name, u.username, u.profile_image
+      ORDER BY SUM(o.total_price) DESC
+      LIMIT 5
+    `),
+    // Orders by buyer country. Joins users → country and aggregates
+    // settled orders so admin can see geographic distribution. Top 8
+    // countries + a single "Other" bucket if there's a long tail.
+    timed("ordersByCountry", queryStats, () => prisma.$queryRaw<Array<{
+      country_id: number | null; country_name: string; orders: bigint; spend: string;
+    }>>`
+      SELECT
+        u.country_id,
+        COALESCE(c.name, 'Unknown')                  AS country_name,
+        COUNT(*)::bigint                             AS orders,
+        COALESCE(SUM(o.total_price), 0)::text        AS spend
+      FROM "orders" o
+      JOIN "users"   u ON u.user_id    = o.user_id
+      LEFT JOIN "country" c ON c.country_id = u.country_id
+      WHERE o.status IN ('paid', 'fulfilled')
+      GROUP BY u.country_id, c.name
+      ORDER BY orders DESC
+      LIMIT 8
+    `),
+    // 14-day average order value (AOV) for a tiny KPI sparkline. Each
+    // day shows AVG(total_price) over orders settled that day, with
+    // generate_series filling zero days so the sparkline is honest.
+    // CASE NULLIF guards against divide-by-zero when no orders settled.
+    timed("aovTrend", queryStats, () => prisma.$queryRaw<Array<{ day: string; aov: string }>>`
+      SELECT TO_CHAR(d::date, 'YYYY-MM-DD')                          AS day,
+             COALESCE((
+               SELECT AVG(total_price)::numeric(20,2)
+                 FROM "orders" o
+                WHERE DATE(o.created_at) = d::date
+                  AND o.status IN ('paid', 'fulfilled')
+             ), 0)::text                                             AS aov
+      FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') d
+      ORDER BY d ASC
+    `),
   ]);
 
 
@@ -963,6 +1015,26 @@ export async function getDashboardMetrics() {
         gmv:    { thisWeek: g_now, prevWeek: g_prev, pct: pct(g_now, g_prev) },
       };
     })(),
+    // Top 5 buyers by lifetime spend.
+    topBuyers: topBuyersRows.map((b) => ({
+      userId: b.user_id,
+      firstName: b.first_name,
+      lastName: b.last_name,
+      username: b.username,
+      profileImage: b.profile_image,
+      orders: Number(b.orders),
+      spend: Number(b.spend),
+    })),
+    // Orders by buyer country — top 8 (with "Unknown" rolled in when
+    // the buyer hasn't set a country).
+    ordersByCountry: ordersByCountryRows.map((c) => ({
+      countryId: c.country_id,
+      countryName: c.country_name,
+      orders: Number(c.orders),
+      spend: Number(c.spend),
+    })),
+    // 14-day AOV trend — used as a sparkline on the AOV KPI card.
+    aovTrend: aovTrendRows.map((r) => Number(r.aov)),
     // Per-query timing surfaced on /admin so the rubric shows the
     // panel knows what each block cost. Each entry is parallel
     // duration, not wall-clock — see `timed()` helper at top of file.
