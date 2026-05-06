@@ -161,7 +161,11 @@ export default async function AdminStores({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <Link href={`/store/${s.storeId}`} className="font-display font-bold text-sm text-white hover:text-metu-yellow truncate">
+                      {/* Now points to the admin store detail page rather
+                          than the public storefront. The detail page has
+                          a "View public page" CTA so the public store is
+                          one click away. */}
+                      <Link href={`/admin/stores/${s.storeId}`} className="font-display font-bold text-sm text-white hover:text-metu-yellow truncate">
                         {s.name}
                       </Link>
                       {s.suspendedAt && (

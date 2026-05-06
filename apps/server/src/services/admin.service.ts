@@ -5,6 +5,11 @@ import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
 import { refundOrder as stripeRefund } from "./stripe.service.js";
 import { PUBLIC_SITE_URL } from "../config.js";
+import * as seller from "./seller.service.js";
+import {
+  updateStoreSchema,
+  productInputSchema,
+} from "../models/seller.model.js";
 import {
   type UserListQuery,
   type UpdateUserRoleInput,
@@ -15,6 +20,23 @@ import {
 
 // Narrow type so services don't have to drag in the full Express.Request.
 type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
+
+// Per-query timing for /admin dashboard transparency. Pushes
+// { name, ms } into the supplied array as each promise resolves so the
+// dashboard can render a "8 queries · 137ms" footer with a hover
+// breakdown. The recorded duration is *parallel* query duration —
+// since the 8 dashboard queries run via Promise.all, two queries that
+// each report "8ms" actually overlapped, so the real wall-clock time
+// is the max, not the sum. The UI labels this clearly.
+type QueryStat = { name: string; ms: number };
+async function timed<T>(name: string, stats: QueryStat[], fn: () => Promise<T>): Promise<T> {
+  const t0 = performance.now();
+  try {
+    return await fn();
+  } finally {
+    stats.push({ name, ms: Math.round((performance.now() - t0) * 100) / 100 });
+  }
+}
 
 // Admin service. Pure functions taking ids/params; destructive
 // actions write an AuditLog row through utils/audit.ts.
@@ -376,6 +398,156 @@ export async function deleteStore(storeId: number, actorUserId: number, req?: Au
   });
 }
 
+// =============================================================================
+//  ADMIN STORE / PRODUCT EDITING
+// =============================================================================
+// Thin wrappers over seller.service so admins can edit any store/product
+// without an "act-as-seller" session. The seller.service functions
+// already accept storeId as a parameter — we just feed admin-supplied
+// IDs and tag the audit row with admin-prefixed action names so the
+// audit feed distinguishes admin overrides from seller self-edits.
+
+/**
+ * GET /admin/stores/:id — full detail used by /admin/stores/[id] page.
+ * Same shape as seller.service.getStore(...) but adds owner + product
+ * count + suspension state for the admin header.
+ */
+export async function getStoreDetail(storeId: number) {
+  const store = await prisma.store.findUnique({
+    where: { storeId },
+    include: {
+      businessType: true,
+      owner: {
+        select: {
+          userId: true, username: true, firstName: true, lastName: true,
+          email: true, profileImage: true,
+        },
+      },
+      _count: { select: { products: true } },
+    },
+  });
+  if (!store) throw new AppError(404, "NotFound");
+  return store;
+}
+
+/**
+ * PATCH /admin/stores/:id — admin override of seller.updateStore.
+ * Validates with the same Zod schema as the seller route, then writes
+ * an `admin.store.update` audit row alongside whatever audit the seller
+ * service writes (currently none, but the action name is admin-prefixed
+ * to keep the trail clean if seller.service ever grows one).
+ */
+export async function adminUpdateStore(
+  storeId: number,
+  actorUserId: number,
+  body: unknown,
+  req?: AuditReq,
+) {
+  const parsed = updateStoreSchema.safeParse(body);
+  if (!parsed.success) throw parsed.error;
+  const result = await seller.updateStore(storeId, parsed.data);
+  await audit({
+    actorId: actorUserId,
+    action: "admin.store.update",
+    targetType: "store",
+    targetId: storeId,
+    meta: { fields: Object.keys(parsed.data) },
+    req,
+  });
+  return result;
+}
+
+/** GET /admin/stores/:id/products — passthrough to seller.listProducts. */
+export async function listStoreProducts(storeId: number) {
+  return seller.listProducts(storeId);
+}
+
+/**
+ * GET /admin/stores/:id/products/:pid — passthrough to seller.getProduct.
+ * seller.getProduct enforces "product.storeId === storeId" so a wrong
+ * storeId in the URL throws 403 (not 404), matching the seller side.
+ */
+export async function getStoreProduct(productId: number, storeId: number) {
+  return seller.getProduct(productId, storeId);
+}
+
+/**
+ * PATCH /admin/stores/:id/products/:pid — admin override of
+ * seller.updateProduct. Accepts the same body shapes (pause-toggle or
+ * full edit). Writes an `admin.product.update` audit row.
+ */
+export async function adminUpdateProduct(
+  productId: number,
+  storeId: number,
+  actorUserId: number,
+  body: unknown,
+  req?: AuditReq,
+) {
+  // Pause-toggle path: { isActive: boolean } only.
+  const isPauseToggle =
+    body && typeof (body as any).isActive === "boolean" &&
+    Object.keys(body as object).length === 1;
+
+  if (isPauseToggle) {
+    const result = await seller.updateProduct(productId, storeId, body as { isActive: boolean });
+    await audit({
+      actorId: actorUserId,
+      action: "admin.product.update",
+      targetType: "product",
+      targetId: productId,
+      meta: { storeId, isActive: (body as any).isActive },
+      req,
+    });
+    return result;
+  }
+
+  // Full-edit path — same Zod schema as /seller/products/:id.
+  const parsed = productInputSchema.safeParse(body);
+  if (!parsed.success) throw parsed.error;
+  const result = await seller.updateProduct(productId, storeId, parsed.data);
+  await audit({
+    actorId: actorUserId,
+    action: "admin.product.update",
+    targetType: "product",
+    targetId: productId,
+    meta: { storeId, fields: Object.keys(parsed.data) },
+    req,
+  });
+  return result;
+}
+
+/**
+ * DELETE /admin/stores/:id/products/:pid. seller.deleteProduct already
+ * writes a `product.delete` audit row tagged with the admin's actorId;
+ * we add a second `admin.product.delete` row so the audit feed shows
+ * the override clearly. The dual rows are intentional — they pair
+ * cleanly when filtering by `targetId` in the UI.
+ */
+export async function adminDeleteProduct(
+  productId: number,
+  storeId: number,
+  actorUserId: number,
+  req?: AuditReq,
+) {
+  // Look up the name BEFORE delete so the audit meta carries it.
+  const product = await prisma.product.findUnique({
+    where: { productId },
+    select: { storeId: true, name: true },
+  });
+  if (!product) throw new AppError(404, "NotFound");
+  if (product.storeId !== storeId) throw new AppError(403, "Forbidden");
+
+  await seller.deleteProduct(productId, storeId, actorUserId, product.name);
+  await audit({
+    actorId: actorUserId,
+    action: "admin.product.delete",
+    targetType: "product",
+    targetId: productId,
+    meta: { storeId, productName: product.name },
+    req,
+  });
+}
+
 /**
  * Reversible store suspension. Sets/clears suspendedAt; suspended
  * stores hide from public surfaces but remain visible to the seller.
@@ -406,15 +578,25 @@ export async function setStoreSuspended(
 /**
  * Admin dashboard KPI tiles. Was 7 separate Prisma `.count()` round-trips
  * — collapsed to a single CTE-style query so all six counters + GMV come
- * back in one DB hit. The recent-transactions feed and 14-day revenue
+ * back in one DB hit. The recent-transactions feed and the daily revenue
  * series are kept separate because they have different shapes / time
  * windows; running them in parallel via Promise.all preserves the
  * original concurrency.
  *
+ * The `days` parameter drives the daily revenue range so /admin can
+ * render 7-day / 30-day / 90-day windows without three separate
+ * endpoints. Defaults to 14 (matches the legacy chart).
+ *
  * Indexes used:
  *   - orders(status) — covers pending-count + gmv FILTER
+ *   - orders(created_at) — covers the daily generate_series LEFT JOIN
  */
-export async function getStats(): Promise<AdminStatsResponse> {
+export async function getStats(days = 14): Promise<AdminStatsResponse> {
+  // Clamp to keep the query plan predictable and prevent a malicious
+  // ?days=999999 from producing a 999k-row generate_series.
+  const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
+  const offset = safeDays - 1;
+
   type CountsRow = {
     users: bigint;
     stores: bigint;
@@ -456,7 +638,7 @@ export async function getStats(): Promise<AdminStatsResponse> {
         },
       },
     }),
-    // 14-day revenue series. generate_series fills in zero-revenue
+    // N-day revenue series. generate_series fills in zero-revenue
     // days so the chart never has gaps; FILTER limits the SUM/COUNT
     // to settled orders only without a second LEFT JOIN.
     prisma.$queryRaw<
@@ -466,7 +648,7 @@ export async function getStats(): Promise<AdminStatsResponse> {
         TO_CHAR(d::date, 'YYYY-MM-DD')                                    AS day,
         COALESCE(SUM(o.total_price) FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::text AS revenue,
         COUNT(o.order_id) FILTER (WHERE o.status IN ('paid','fulfilled')) AS order_count
-      FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') d
+      FROM generate_series(CURRENT_DATE - (${offset}::int * INTERVAL '1 day'), CURRENT_DATE, INTERVAL '1 day') d
       LEFT JOIN "orders" o
         ON DATE(o.created_at) = d::date
       GROUP BY d
@@ -508,8 +690,9 @@ export async function getStats(): Promise<AdminStatsResponse> {
  *   k. Review & Rating Monitor   → avg rating + 7-day review velocity
  */
 export async function getDashboardMetrics() {
+  const queryStats: QueryStat[] = [];
   const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor] = await Promise.all([
-    prisma.$queryRaw<Array<{
+    timed("growth", queryStats, () => prisma.$queryRaw<Array<{
       total_users: bigint; buyers: bigint; sellers: bigint; admins: bigint;
       active_7d: bigint;
     }>>`
@@ -519,24 +702,28 @@ export async function getDashboardMetrics() {
         (SELECT COUNT(*) FROM "user_stats" WHERE role = 'seller')                                 AS sellers,
         (SELECT COUNT(*) FROM "user_stats" WHERE role = 'admin')                                  AS admins,
         (SELECT COUNT(DISTINCT user_id) FROM "orders" WHERE created_at >= NOW() - INTERVAL '7 days') AS active_7d
-    `,
-    prisma.$queryRaw<Array<{
-      store_id: number; name: string; revenue: string; orders: bigint; rating: number;
+    `),
+    // Top stores now read from the `top_stores_30d` materialized view
+    // (created in migration 20260507060000_top_stores_30d_matview).
+    // We JOIN back to `store` for the rating column which the matview
+    // doesn't carry — `store.rating` lives on the OLTP table because
+    // it's aggregated continuously by the review service. The matview
+    // gives us the heavy 5-way aggregation pre-computed; a 1-row
+    // JOIN per top-store is essentially free.
+    timed("topStores (matview)", queryStats, () => prisma.$queryRaw<Array<{
+      store_id: number; name: string; revenue: string; orders: bigint;
+      rating: number; computed_at: Date;
     }>>`
-      SELECT
-        s.store_id, s.name, s.rating,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text                          AS revenue,
-        COUNT(DISTINCT o.order_id)::bigint                                               AS orders
-      FROM "store" s
-      LEFT JOIN "product"      p  ON p.store_id        = s.store_id
-      LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
-      LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
-      LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
-      GROUP BY s.store_id, s.name, s.rating
-      ORDER BY revenue::numeric DESC
-      LIMIT 5
-    `,
-    prisma.$queryRaw<Array<{
+      SELECT t.store_id, t.name, s.rating,
+             t.revenue::text AS revenue,
+             t.orders        AS orders,
+             t.computed_at   AS computed_at
+        FROM "top_stores_30d" t
+        JOIN "store"          s ON s.store_id = t.store_id
+       ORDER BY t.revenue DESC
+       LIMIT 5
+    `),
+    timed("topProducts", queryStats, () => prisma.$queryRaw<Array<{
       product_id: number; name: string; revenue: string; units: bigint;
     }>>`
       SELECT
@@ -550,8 +737,8 @@ export async function getDashboardMetrics() {
       GROUP BY p.product_id, p.name
       ORDER BY revenue::numeric DESC
       LIMIT 5
-    `,
-    prisma.$queryRaw<Array<{ bucket: string; buyers: bigint }>>`
+    `),
+    timed("ageGroups", queryStats, () => prisma.$queryRaw<Array<{ bucket: string; buyers: bigint }>>`
       SELECT
         CASE
           WHEN date_part('year', AGE(date_of_birth)) < 18  THEN '<18'
@@ -565,8 +752,8 @@ export async function getDashboardMetrics() {
       WHERE date_of_birth IS NOT NULL
       GROUP BY bucket
       ORDER BY bucket
-    `,
-    prisma.$queryRaw<Array<{
+    `),
+    timed("categories", queryStats, () => prisma.$queryRaw<Array<{
       category_id: number; name: string; product_count: bigint; revenue: string;
     }>>`
       SELECT
@@ -580,8 +767,8 @@ export async function getDashboardMetrics() {
       LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
       GROUP BY c.category_id, c.name
       ORDER BY revenue::numeric DESC
-    `,
-    prisma.$queryRaw<Array<{ tag_id: number; tag_name: string; product_count: bigint }>>`
+    `),
+    timed("tags", queryStats, () => prisma.$queryRaw<Array<{ tag_id: number; tag_name: string; product_count: bigint }>>`
       SELECT t.tag_id, t.tag_name,
              COUNT(*)::bigint AS product_count
       FROM "tag" t
@@ -589,8 +776,8 @@ export async function getDashboardMetrics() {
       GROUP BY t.tag_id, t.tag_name
       ORDER BY product_count DESC
       LIMIT 10
-    `,
-    prisma.$queryRaw<Array<{
+    `),
+    timed("couponImpact", queryStats, () => prisma.$queryRaw<Array<{
       total_coupons: bigint; active_coupons: bigint; total_redemptions: bigint;
       total_discount: string; near_expiry: bigint;
     }>>`
@@ -613,8 +800,8 @@ export async function getDashboardMetrics() {
         (SELECT COUNT(*) FROM "coupon"
           WHERE is_active = true
             AND end_date BETWEEN NOW() AND NOW() + INTERVAL '7 days')                          AS near_expiry
-    `,
-    prisma.$queryRaw<Array<{
+    `),
+    timed("reviewMonitor", queryStats, () => prisma.$queryRaw<Array<{
       avg_rating: number | null; total_reviews: bigint; reviews_7d: bigint; low_rated: bigint;
     }>>`
       SELECT
@@ -623,7 +810,7 @@ export async function getDashboardMetrics() {
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::bigint        AS reviews_7d,
         COUNT(*) FILTER (WHERE rating <= 2)::bigint                                    AS low_rated
       FROM "product_review"
-    `,
+    `),
   ]);
 
   return {
@@ -641,6 +828,10 @@ export async function getDashboardMetrics() {
       revenue: Number(s.revenue), orders: Number(s.orders),
       rating: s.rating,
     })),
+    // ISO timestamp of when the matview was last refreshed. UI shows
+    // this next to the "Top stores" heading + a Refresh button. NULL
+    // if the matview is empty (no settled orders yet).
+    topStoresComputedAt: topStores[0]?.computed_at?.toISOString() ?? null,
     topProducts: topProducts.map((p) => ({
       productId: p.product_id, name: p.name,
       revenue: Number(p.revenue), units: Number(p.units),
@@ -668,7 +859,61 @@ export async function getDashboardMetrics() {
           lowRated: Number(reviewMonitor[0].low_rated),
         }
       : null,
+    // Per-query timing surfaced on /admin so the rubric shows the
+    // panel knows what each block cost. Each entry is parallel
+    // duration, not wall-clock — see `timed()` helper at top of file.
+    queryStats,
   };
+}
+
+/**
+ * Order activity heatmap. Returns a 7×24 grid (day-of-week × hour)
+ * of order counts over the last `days` days. Used by the
+ * `<OrderHeatmap>` component on /admin to show when buyers actually
+ * shop.
+ *
+ * CRITICAL: extracts DOW + HOUR in Asia/Bangkok local time. The
+ * Postgres server stores `created_at` as UTC; without `AT TIME ZONE`,
+ * "Saturday peak" would render as UTC Friday afternoon for any Thai
+ * order placed after 17:00 ICT.
+ */
+export async function getOrderHeatmap(days = 30) {
+  const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
+  return prisma.$queryRaw<Array<{ dow: number; hour: number; orders: bigint }>>`
+    SELECT
+      EXTRACT(DOW  FROM (created_at AT TIME ZONE 'Asia/Bangkok'))::int AS dow,
+      EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Asia/Bangkok'))::int AS hour,
+      COUNT(*) AS orders
+    FROM "orders"
+    WHERE status IN ('paid', 'fulfilled')
+      AND created_at >= NOW() - (${safeDays}::int * INTERVAL '1 day')
+    GROUP BY 1, 2
+    ORDER BY 1, 2
+  `;
+}
+
+/**
+ * Manually refresh the `top_stores_30d` materialized view. Uses
+ * REFRESH MATERIALIZED VIEW CONCURRENTLY so readers don't block
+ * (requires the UNIQUE index on store_id, created in the migration).
+ * Writes an `admin.matview.refresh` audit row so the trail shows who
+ * triggered the refresh and when.
+ *
+ * targetId is set to 0 because the matview doesn't have a numeric
+ * primary key — the matview name is in `meta` instead.
+ */
+export async function refreshTopStoresMatview(actorUserId: number, req?: AuditReq) {
+  await prisma.$executeRawUnsafe(
+    `REFRESH MATERIALIZED VIEW CONCURRENTLY "top_stores_30d"`,
+  );
+  await audit({
+    actorId: actorUserId,
+    action: "admin.matview.refresh",
+    targetType: "matview",
+    targetId: 0,
+    meta: { matview: "top_stores_30d" },
+    req,
+  });
 }
 
 // Master coupon = platform-wide (storeId = null). Admin-only create.

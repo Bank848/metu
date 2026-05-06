@@ -22,21 +22,25 @@ type StoreForm = {
 };
 
 /**
- * / Step 3a — refactored against Step 2 primitives.
- * The original form hand-rolled a live preview block at the top of the
- * page. We now lean on `<PreviewPane variant="store">` (which lifted that
- * exact markup at component-build time) so future changes to the store
- * card propagate automatically.
- * Two `<FormSection>` blocks: Store details (default surface) and Imagery
- * (mint surface-accent — same accent the new product form uses for its
- * imagery block, so the seller flow has a consistent visual language).
+ * Edit form for a store. Two consumers:
+ *   - seller flow at /seller/store/edit (default `mode="seller"`)
+ *   - admin override at /admin/stores/[id]/edit (`mode="admin"`)
+ *
+ * `mode` swaps the API endpoint, the success copy, and the secondary
+ * CTA so the admin context reads as "back to admin" rather than
+ * "view your storefront". Form layout, validation, and primitives
+ * stay identical so the two screens render the same.
  */
+type Mode = "seller" | "admin";
+
 export function EditStoreForm({
   store,
   businessTypes,
+  mode = "seller",
 }: {
   store: StoreForm;
   businessTypes: BusinessType[];
+  mode?: Mode;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -50,13 +54,28 @@ export function EditStoreForm({
     coverImage: store.coverImage,
   });
 
+  // Endpoint + post-save copy keyed off mode. Admin variant routes
+  // through the new admin-scoped PATCH which audits with action
+  // "admin.store.update" instead of "store.update".
+  const endpoint =
+    mode === "admin"
+      ? `/api/admin/stores/${store.storeId}`
+      : "/api/seller/store";
+  const backHref =
+    mode === "admin" ? `/admin/stores/${store.storeId}` : `/store/${store.storeId}`;
+  const backLabel = mode === "admin" ? "Back to admin store" : "View storefront";
+  const successCopy =
+    mode === "admin"
+      ? "Saved. The store now reflects your changes."
+      : "Saved. Visit your storefront to see the changes.";
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setOk(false);
     setBusy(true);
     try {
-      const res = await fetch("/api/seller/store", {
+      const res = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -76,7 +95,6 @@ export function EditStoreForm({
       }
       setOk(true);
       setBusy(false);
-      // Refresh server components so the new info shows up across the app
       router.refresh();
     } catch {
       setError("Network error");
@@ -86,8 +104,6 @@ export function EditStoreForm({
 
   return (
     <form onSubmit={submit} className="space-y-6 max-w-3xl">
-      {/* Live preview — the same `<PreviewPane variant="store">` the
-          become-seller flow uses, so the two screens stay in lockstep. */}
       <PreviewPane
         variant="store"
         state={{
@@ -152,13 +168,13 @@ export function EditStoreForm({
       {ok && (
         <p className="text-sm text-mint inline-flex items-center gap-1.5">
           <StoreIcon className="h-3.5 w-3.5" />
-          Saved. Visit your storefront to see the changes.
+          {successCopy}
         </p>
       )}
 
       <div className="flex gap-3 justify-end">
-        <GlassButton tone="glass" size="lg" href={`/store/${store.storeId}`}>
-          View storefront
+        <GlassButton tone="glass" size="lg" href={backHref}>
+          {backLabel}
         </GlassButton>
         <GlassButton tone="gold" size="lg" type="submit" disabled={busy}>
           {busy ? "Saving…" : "Save changes"}

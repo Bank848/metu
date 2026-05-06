@@ -16,6 +16,15 @@ router.post("/users/:id/require-password-reset", ctrl.setRequirePasswordReset);
 
 // Stores
 router.get("/stores",                 ctrl.listStores);
+// Specific sub-paths must register before the generic /:id GET so Express
+// matches /:id/products/:pid first. Both verbs (GET / PATCH / DELETE)
+// disambiguate, but keeping ordering explicit avoids surprises.
+router.get("/stores/:id/products",                 ctrl.listStoreProducts);
+router.get("/stores/:id/products/:pid",            ctrl.getStoreProduct);
+router.patch("/stores/:id/products/:pid",          ctrl.updateStoreProduct);
+router.delete("/stores/:id/products/:pid",         ctrl.deleteStoreProduct);
+router.get("/stores/:id",             ctrl.getStoreDetail);
+router.patch("/stores/:id",           ctrl.updateStore);
 router.delete("/stores/:id",          ctrl.deleteStore);
 // Reversible "freeze" alternative to DELETE. Body: { value: boolean }.
 router.post("/stores/:id/suspend",    ctrl.setStoreSuspended);
@@ -23,6 +32,9 @@ router.post("/stores/:id/suspend",    ctrl.setStoreSuspended);
 // Stats
 router.get("/stats",                  ctrl.getStats);
 router.get("/dashboard",              ctrl.getDashboard);
+// Heatmap + manual matview refresh — same /dashboard family.
+router.get("/dashboard/heatmap",      ctrl.getOrderHeatmap);
+router.post("/dashboard/refresh-matview", ctrl.refreshTopStoresMatview);
 
 // Master coupons (platform-wide).
 router.post("/coupons",               ctrl.createMasterCoupon);

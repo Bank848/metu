@@ -51,17 +51,39 @@ const DEFAULT_VARIANT: Variant = {
  *     surface-accent + Info icon, matching the success/positive
  *     palette role mint plays elsewhere in the seller flow.
  */
+type Mode = "seller" | "admin";
+
 export function EditProductForm({
   productId,
   initial,
   categories,
   tags,
+  mode = "seller",
+  storeId,
 }: {
   productId: number;
   initial: Initial;
   categories: Category[];
   tags: Tag[];
+  /** "admin" routes through /api/admin/stores/:storeId/products/:productId
+      and writes an admin-prefixed audit row; default "seller" hits the
+      session-scoped /api/seller/products/:productId. */
+  mode?: Mode;
+  /** Required when mode="admin" — used to build the admin endpoint URL
+      and the cancel-button href. Ignored for seller mode. */
+  storeId?: number;
 }) {
+  // Endpoint + cancel target keyed off mode. The form layout is the
+  // same in both contexts; only the API target and the secondary CTA
+  // differ.
+  const endpoint =
+    mode === "admin"
+      ? `/api/admin/stores/${storeId}/products/${productId}`
+      : `/api/seller/products/${productId}`;
+  const cancelHref =
+    mode === "admin" ? `/admin/stores/${storeId}` : "/seller/products";
+  const onSavedHref =
+    mode === "admin" ? `/admin/stores/${storeId}` : "/seller/products";
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +144,7 @@ export function EditProductForm({
     }
     setBusy(true);
     try {
-      const res = await fetch(`/api/seller/products/${productId}`, {
+      const res = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -149,7 +171,7 @@ export function EditProductForm({
         return;
       }
       setBusy(false);
-      router.push("/seller/products");
+      router.push(onSavedHref);
       router.refresh();
     } catch {
       setError("Network error");
@@ -325,7 +347,7 @@ export function EditProductForm({
         {error && <p className="text-sm text-coral">{error}</p>}
 
         <div className="flex gap-3 justify-end">
-          <GlassButton tone="glass" size="lg" href="/seller/products">Cancel</GlassButton>
+          <GlassButton tone="glass" size="lg" href={cancelHref}>Cancel</GlassButton>
           <GlassButton tone="gold" size="lg" type="submit" disabled={busy}>
             {busy ? "Saving…" : "Save changes →"}
           </GlassButton>

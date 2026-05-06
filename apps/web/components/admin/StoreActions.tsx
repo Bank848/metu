@@ -1,6 +1,7 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Trash2, PauseCircle, PlayCircle } from "lucide-react";
+import { Trash2, PauseCircle, PlayCircle, Edit3 } from "lucide-react";
 import { ActionRow, type ActionRowItem } from "./ActionRow";
 
 /**
@@ -33,6 +34,7 @@ export function StoreActions({
   name: string;
   suspended?: boolean;
 }) {
+  const router = useRouter();
   const [busy, setBusy] = useState<"suspend" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,6 +83,16 @@ export function StoreActions({
   }
 
   const actions: ActionRowItem[] = [
+    {
+      // New: drill into the admin store detail page (which exposes
+      // store info edit + per-product edit). Edit is the primary
+      // operational action so it sits at the top of the dropdown.
+      label: "Edit store + products",
+      icon: Edit3,
+      tone: "primary",
+      onClick: () => router.push(`/admin/stores/${storeId}`),
+      disabled: busy !== null,
+    },
     {
       label: suspended ? "Resume store" : "Suspend store",
       icon: suspended ? PlayCircle : PauseCircle,

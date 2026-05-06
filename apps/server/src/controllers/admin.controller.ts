@@ -99,9 +99,12 @@ export const deleteStore: RequestHandler<{ id: string }> = async (req, res, next
 
 // ── Stats ───────────────────────────────────────────────────────────
 
-export const getStats: RequestHandler = async (_req, res, next) => {
+export const getStats: RequestHandler = async (req, res, next) => {
   try {
-    const stats = await service.getStats();
+    // ?days= drives the daily revenue series window. Default 14 to
+    // keep the legacy chart unchanged when no param is sent.
+    const days = Number(req.query.days);
+    const stats = await service.getStats(Number.isFinite(days) ? days : 14);
     res.json(stats);
   } catch (err) {
     next(err);
@@ -113,6 +116,28 @@ export const getDashboard: RequestHandler = async (_req, res, next) => {
   try {
     const metrics = await service.getDashboardMetrics();
     res.json(metrics);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** GET /admin/dashboard/heatmap?days=30 — 7×24 order activity grid. */
+export const getOrderHeatmap: RequestHandler = async (req, res, next) => {
+  try {
+    const days = Number(req.query.days ?? 30);
+    const grid = await service.getOrderHeatmap(Number.isFinite(days) ? days : 30);
+    res.json(grid.map((r) => ({ dow: r.dow, hour: r.hour, orders: Number(r.orders) })));
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** POST /admin/dashboard/refresh-matview — manual top-stores refresh. */
+export const refreshTopStoresMatview: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    await service.refreshTopStoresMatview(auth.uid, req);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -166,6 +191,84 @@ export const refundTransaction: RequestHandler<{ id: string }> = async (req, res
     const transactionId = Number(req.params.id);
     if (!Number.isFinite(transactionId)) throw new AppError(400, "BadId");
     await service.refundTransaction(transactionId, auth.uid, req);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** GET /admin/stores/:id — full detail for the admin store page. */
+export const getStoreDetail: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const storeId = Number(req.params.id);
+    if (!Number.isFinite(storeId)) throw new AppError(400, "BadId");
+    const store = await service.getStoreDetail(storeId);
+    res.json(store);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** PATCH /admin/stores/:id — admin-side store edit. */
+export const updateStore: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const storeId = Number(req.params.id);
+    if (!Number.isFinite(storeId)) throw new AppError(400, "BadId");
+    const result = await service.adminUpdateStore(storeId, auth.uid, req.body ?? {}, req);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** GET /admin/stores/:id/products — list every product under a store. */
+export const listStoreProducts: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const storeId = Number(req.params.id);
+    if (!Number.isFinite(storeId)) throw new AppError(400, "BadId");
+    const products = await service.listStoreProducts(storeId);
+    res.json(products);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** GET /admin/stores/:id/products/:pid — single product detail (admin scope). */
+export const getStoreProduct: RequestHandler<{ id: string; pid: string }> = async (req, res, next) => {
+  try {
+    const storeId = Number(req.params.id);
+    const productId = Number(req.params.pid);
+    if (!Number.isFinite(storeId) || !Number.isFinite(productId)) throw new AppError(400, "BadId");
+    const product = await service.getStoreProduct(productId, storeId);
+    res.json(product);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** PATCH /admin/stores/:id/products/:pid — admin-side product edit. */
+export const updateStoreProduct: RequestHandler<{ id: string; pid: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const storeId = Number(req.params.id);
+    const productId = Number(req.params.pid);
+    if (!Number.isFinite(storeId) || !Number.isFinite(productId)) throw new AppError(400, "BadId");
+    const result = await service.adminUpdateProduct(productId, storeId, auth.uid, req.body ?? {}, req);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** DELETE /admin/stores/:id/products/:pid — admin-side hard-delete. */
+export const deleteStoreProduct: RequestHandler<{ id: string; pid: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const storeId = Number(req.params.id);
+    const productId = Number(req.params.pid);
+    if (!Number.isFinite(storeId) || !Number.isFinite(productId)) throw new AppError(400, "BadId");
+    await service.adminDeleteProduct(productId, storeId, auth.uid, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);
