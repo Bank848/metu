@@ -1,54 +1,19 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
 import { ShoppingBag } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
+import { useCartCount } from "@/lib/useCartCount";
 
 /**
- * run #2 / F8 — TopNav cart pill with a live count badge.
- * The previous static `<Link>` showed only the bag icon, so a buyer
- * couldn't tell whether their `Add to cart` click registered until they
- * navigated to `/cart`. We mirror the MessagesNavIcon pattern: client
- * component that polls `/api/cart` on a slow tick (60s, same cadence
- * as MessagesNavIcon), and refreshes immediately whenever AddToCart
- * dispatches a `cart:update` window event.
- * Renders for guests too — guests get a silent zero badge so the
- * entry point stays visible. The 401 branch swallows the error and
- * leaves the count at 0.
+ * TopNav cart pill with a live count badge. Earlier rev did its own
+ * /api/cart polling, but MobileBottomNav also polls — duplicate
+ * requests doubled the load. Both now subscribe to the shared
+ * `useCartCount` hook which maintains a single polling loop +
+ * cart:update / focus listeners across the whole page.
  */
 export function CartNavIcon() {
   const { t } = useI18n();
-  const [count, setCount] = useState(0);
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch("/api/cart", { credentials: "include" });
-      if (!res.ok) return;
-      const data = await res.json();
-      const lines: Array<{ quantity: number }> = Array.isArray(data?.items) ? data.items : [];
-      const next = lines.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
-      setCount(next);
-    } catch {
-      /* swallow — keep the previous count visible */
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    const id = window.setInterval(refresh, 60_000);
-    // PDP `Add to cart` dispatches this window event after a successful
-    // POST so the badge updates without waiting for the 60s poll. We
-    // also listen on `focus` so switching back from another tab picks
-    // up out-of-band changes (e.g. a checkout completed elsewhere).
-    const onUpdate = () => refresh();
-    window.addEventListener("cart:update", onUpdate);
-    window.addEventListener("focus", onUpdate);
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener("cart:update", onUpdate);
-      window.removeEventListener("focus", onUpdate);
-    };
-  }, [refresh]);
+  const count = useCartCount();
 
   const label = t("nav.cart");
   return (

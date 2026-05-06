@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
 import { Home, Search, ShoppingBag, Heart, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCartCount } from "@/lib/useCartCount";
 
 // Mobile-only bottom tab bar (5 destinations: Home, Browse, Cart,
 // Favorites, Account). Shows below md, hidden on desktop where the
@@ -78,33 +78,10 @@ const TABS: Tab[] = [
 
 export function MobileBottomNav({ favoritesEnabled = true }: { favoritesEnabled?: boolean }) {
   const pathname = usePathname();
-  const [cartCount, setCartCount] = useState(0);
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch("/api/cart", { credentials: "include" });
-      if (!res.ok) return;
-      const data = await res.json();
-      const lines: Array<{ quantity: number }> = Array.isArray(data?.items) ? data.items : [];
-      const next = lines.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
-      setCartCount(next);
-    } catch {
-      /* swallow — keep prev count */
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    const id = window.setInterval(refresh, 60_000);
-    const onUpdate = () => refresh();
-    window.addEventListener("cart:update", onUpdate);
-    window.addEventListener("focus", onUpdate);
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener("cart:update", onUpdate);
-      window.removeEventListener("focus", onUpdate);
-    };
-  }, [refresh]);
+  // Shared store. CartNavIcon (top nav) subscribes to the same value,
+  // so the page only ever has one /api/cart polling loop running —
+  // not two simultaneous requests every 60s.
+  const cartCount = useCartCount();
 
   // Hide entire bar on auth pages + checkout + admin to keep those
   // flows distraction-free. Bottom nav re-emerges on the buyer path.
