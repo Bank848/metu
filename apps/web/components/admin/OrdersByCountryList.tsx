@@ -27,7 +27,7 @@ export function OrdersByCountryList({ rows }: { rows: CountryRow[] }) {
     <div className="rounded-2xl border border-line bg-space-900 p-5">
       <header className="mb-3">
         <h3 className="font-display font-bold text-white flex items-center gap-2">
-          <Globe className="h-4 w-4 text-info" />
+          <Globe className="h-4 w-4 text-sky-400" />
           Orders by country
         </h3>
         <div className="flex items-center gap-1.5 flex-wrap mt-1">
@@ -45,9 +45,21 @@ export function OrdersByCountryList({ rows }: { rows: CountryRow[] }) {
           {rows.map((r, i) => {
             const pct = (r.orders / max) * 100;
             const sharePct = totalOrders > 0 ? ((r.orders / totalOrders) * 100).toFixed(1) : "0.0";
-            // Color rotates through 4 hues so adjacent rows are
-            // visually distinct (mint → info → purple → coral cycle).
-            const tones = ["bg-mint", "bg-info", "bg-purple-400", "bg-coral"];
+            // 8 distinct hues — all chosen to read clearly on the
+            // dark surface (no muted tones that "sink"). Earlier rev
+            // used `bg-info` which isn't a defined token in
+            // tailwind.config.ts, so the Singapore bar rendered
+            // transparent + got swallowed by the panel background.
+            const tones = [
+              "bg-mint",          // 1. Thailand-class — bright green
+              "bg-sky-400",       // 2. clear bright blue (was "info")
+              "bg-purple-400",    // 3. lavender
+              "bg-coral",         // 4. warm pink
+              "bg-amber-400",     // 5. brand-adjacent gold
+              "bg-rose-400",      // 6. soft red
+              "bg-emerald-400",   // 7. another mint-family for >7 rows
+              "bg-violet-400",    // 8. deep purple
+            ];
             const tone = tones[i % tones.length];
             return (
               <li key={r.countryName} className="rounded-lg px-2 py-1 hover:bg-white/[0.04] transition">
