@@ -1,10 +1,32 @@
 import { headers } from "next/headers";
+import { Agent, setGlobalDispatcher } from "undici";
 import { INTERNAL_API_URL } from "../config";
 
 // BFF -> API server fetch wrapper. Forwards the request's cookie header
 // so authed endpoints work. Throws ApiError on non-2xx.
 
 const API_BASE = INTERNAL_API_URL;
+
+// Connection pooling. Without this, every apiFetch() call opens a
+// fresh TCP+TLS connection to the API host — 100-300ms of pure
+// handshake overhead PER CALL. The homepage fires ~7 calls per
+// SSR; that's up to ~2 seconds of avoidable handshake latency.
+//
+// undici's Agent keeps connections open across requests within the
+// Node process. setGlobalDispatcher hooks fetch's transport so this
+// applies to every fetch() call, not just direct dispatch.
+//
+// Module-level singleton — runs once at first import inside the
+// Next.js BFF process; does nothing in the browser.
+if (typeof window === "undefined" && !(globalThis as { __metuFetchAgent?: Agent }).__metuFetchAgent) {
+  const agent = new Agent({
+    keepAliveTimeout: 30_000,        // hold connections 30s after last use
+    keepAliveMaxTimeout: 600_000,    // hard upper bound 10 min
+    connections: 32,                 // up to 32 concurrent per origin
+  });
+  setGlobalDispatcher(agent);
+  (globalThis as { __metuFetchAgent?: Agent }).__metuFetchAgent = agent;
+}
 
 export class ApiError extends Error {
   constructor(
