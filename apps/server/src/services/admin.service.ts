@@ -691,7 +691,7 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
  */
 export async function getDashboardMetrics() {
   const queryStats: QueryStat[] = [];
-  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows] = await Promise.all([
+  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows] = await Promise.all([
     timed("growth", queryStats, () => prisma.$queryRaw<Array<{
       total_users: bigint; buyers: bigint; sellers: bigint; admins: bigint;
       active_7d: bigint;
@@ -858,6 +858,33 @@ export async function getDashboardMetrics() {
       GROUP BY status
       ORDER BY count DESC
     `),
+    // Week-over-week deltas for the headline KPIs. Compares last 7
+    // days to the 7 days before that. Single round-trip — six
+    // FILTER aggregates over two windows.
+    timed("kpiDeltas", queryStats, () => prisma.$queryRaw<Array<{
+      users_this: bigint; users_prev: bigint;
+      orders_this: bigint; orders_prev: bigint;
+      gmv_this: string; gmv_prev: string;
+    }>>`
+      SELECT
+        (SELECT COUNT(*) FROM "users"
+          WHERE created_date >= NOW() - INTERVAL '7 days')::bigint                            AS users_this,
+        (SELECT COUNT(*) FROM "users"
+          WHERE created_date >= NOW() - INTERVAL '14 days'
+            AND created_date <  NOW() - INTERVAL '7 days')::bigint                            AS users_prev,
+        (SELECT COUNT(*) FROM "orders"
+          WHERE created_at  >= NOW() - INTERVAL '7 days')::bigint                             AS orders_this,
+        (SELECT COUNT(*) FROM "orders"
+          WHERE created_at  >= NOW() - INTERVAL '14 days'
+            AND created_at  <  NOW() - INTERVAL '7 days')::bigint                             AS orders_prev,
+        (SELECT COALESCE(SUM(total_price), 0) FROM "orders"
+          WHERE status IN ('paid','fulfilled')
+            AND created_at  >= NOW() - INTERVAL '7 days')::text                               AS gmv_this,
+        (SELECT COALESCE(SUM(total_price), 0) FROM "orders"
+          WHERE status IN ('paid','fulfilled')
+            AND created_at  >= NOW() - INTERVAL '14 days'
+            AND created_at  <  NOW() - INTERVAL '7 days')::text                               AS gmv_prev
+    `),
   ]);
 
 
@@ -919,6 +946,23 @@ export async function getDashboardMetrics() {
     ordersByStatus: ordersByStatusRows.map((r) => ({
       status: r.status, count: Number(r.count),
     })),
+    // Week-over-week deltas for the headline KPIs. Each entry has the
+    // last-7-days value, the prior-7-days value, and a percent change
+    // pre-computed (Infinity guarded → null when prev=0).
+    kpiDeltas: (() => {
+      const r = kpiDeltaRows[0];
+      if (!r) return null;
+      const pct = (now: number, prev: number): number | null =>
+        prev === 0 ? null : ((now - prev) / prev) * 100;
+      const u_now = Number(r.users_this), u_prev = Number(r.users_prev);
+      const o_now = Number(r.orders_this), o_prev = Number(r.orders_prev);
+      const g_now = Number(r.gmv_this), g_prev = Number(r.gmv_prev);
+      return {
+        users:  { thisWeek: u_now, prevWeek: u_prev, pct: pct(u_now, u_prev) },
+        orders: { thisWeek: o_now, prevWeek: o_prev, pct: pct(o_now, o_prev) },
+        gmv:    { thisWeek: g_now, prevWeek: g_prev, pct: pct(g_now, g_prev) },
+      };
+    })(),
     // Per-query timing surfaced on /admin so the rubric shows the
     // panel knows what each block cost. Each entry is parallel
     // duration, not wall-clock — see `timed()` helper at top of file.

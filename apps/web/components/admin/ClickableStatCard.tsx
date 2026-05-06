@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { MiniSparkline } from "./MiniSparkline";
 
 // Drill-in variant of StatCard with optional sparkline + click-through
@@ -23,6 +23,10 @@ interface Props {
   /** Hover tooltip on the value (e.g. exact ฿ for a compact format). */
   valueTooltip?: string;
   tone?: Tone;
+  /** Week-over-week percent change. null = previous period was 0. */
+  deltaPct?: number | null;
+  /** Tooltip for the delta (e.g. "vs prior 7 days"). */
+  deltaLabel?: string;
 }
 
 export function ClickableStatCard({
@@ -34,6 +38,8 @@ export function ClickableStatCard({
   sparkColor,
   valueTooltip,
   tone = "default",
+  deltaPct,
+  deltaLabel = "vs prior 7 days",
 }: Props) {
   const toneClass =
     tone === "highlight"
@@ -63,14 +69,61 @@ export function ClickableStatCard({
         <ArrowUpRight className="h-4 w-4 text-ink-dim opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
       </div>
 
-      {sparkline && sparkline.length > 0 && (
-        <div
-          className="mt-3"
-          style={{ color: sparkColor ?? "rgb(244 192 79)" }}
-        >
-          <MiniSparkline data={sparkline} height={28} width={140} />
+      {/* Delta + sparkline row. Both optional so cards without
+          historical data degrade gracefully. */}
+      {(typeof deltaPct === "number" || deltaPct === null || (sparkline && sparkline.length > 0)) && (
+        <div className="mt-3 flex items-end justify-between gap-3">
+          {(typeof deltaPct === "number" || deltaPct === null) ? (
+            <DeltaBadge pct={deltaPct} title={deltaLabel} />
+          ) : (
+            <span />
+          )}
+          {sparkline && sparkline.length > 0 && (
+            <div style={{ color: sparkColor ?? "rgb(244 192 79)" }}>
+              <MiniSparkline data={sparkline} height={28} width={120} />
+            </div>
+          )}
         </div>
       )}
     </Link>
+  );
+}
+
+function DeltaBadge({ pct, title }: { pct: number | null; title: string }) {
+  if (pct === null) {
+    return (
+      <span
+        title={title + " (no prior data)"}
+        className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-mono text-ink-dim"
+      >
+        <Minus className="h-3 w-3" />
+        new
+      </span>
+    );
+  }
+  if (pct === 0) {
+    return (
+      <span
+        title={title}
+        className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-mono text-ink-dim"
+      >
+        <Minus className="h-3 w-3" />
+        flat
+      </span>
+    );
+  }
+  const up = pct > 0;
+  return (
+    <span
+      title={title}
+      className={
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono tabular-nums " +
+        (up ? "bg-mint/15 text-mint" : "bg-coral/15 text-coral")
+      }
+    >
+      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {up ? "+" : ""}
+      {pct.toFixed(1)}%
+    </span>
   );
 }

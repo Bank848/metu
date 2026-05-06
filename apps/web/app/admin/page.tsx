@@ -41,6 +41,11 @@ type Dashboard = {
   reviewMonitor: { avgRating: number; totalReviews: number; reviews7d: number; lowRated: number } | null;
   kpiSparklines: { users: number[]; orders: number[]; gmv: number[]; reviews: number[] };
   ordersByStatus: Array<{ status: string; count: number }>;
+  kpiDeltas: {
+    users:  { thisWeek: number; prevWeek: number; pct: number | null };
+    orders: { thisWeek: number; prevWeek: number; pct: number | null };
+    gmv:    { thisWeek: number; prevWeek: number; pct: number | null };
+  } | null;
   queryStats: Array<{ name: string; ms: number }>;
 };
 
@@ -124,6 +129,7 @@ export default async function AdminOverview({
           valueTooltip={coins(thbToCoins(stats.gmv))}
           sparkline={dashboard.kpiSparklines?.gmv ?? []}
           sparkColor="rgb(244 192 79)"
+          deltaPct={dashboard.kpiDeltas?.gmv.pct ?? undefined}
         />
         <ClickableStatCard
           href="/admin/users"
@@ -132,6 +138,7 @@ export default async function AdminOverview({
           value={stats.users.toLocaleString()}
           sparkline={dashboard.kpiSparklines?.users ?? []}
           sparkColor="rgb(98 182 255)"
+          deltaPct={dashboard.kpiDeltas?.users.pct ?? undefined}
         />
         <ClickableStatCard
           href="/admin/stores"
@@ -154,6 +161,7 @@ export default async function AdminOverview({
           value={stats.orders.toLocaleString()}
           sparkline={dashboard.kpiSparklines?.orders ?? []}
           sparkColor="rgb(61 220 151)"
+          deltaPct={dashboard.kpiDeltas?.orders.pct ?? undefined}
         />
         <ClickableStatCard
           href="/admin/orders?status=pending"
@@ -299,19 +307,36 @@ export default async function AdminOverview({
         </div>
       </div>
 
-      {/* Categories + Tags + Age groups */}
+      {/* Categories + Tags + Age groups. Categories + tags are now
+          clickable into /browse?category=… / /admin/tags?q=… so the
+          dashboard reads as a navigation surface, not just stats. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="rounded-2xl border border-line bg-space-900 p-5">
           <h3 className="font-display font-bold text-white mb-3">Category analytics</h3>
-          <ul className="space-y-1.5 text-sm">
-            {dashboard.categories.slice(0, 8).map((c) => (
-              <li key={c.categoryId} className="flex items-center justify-between">
-                <span className="text-ink-secondary truncate max-w-[140px]">{c.name}</span>
-                <span className="font-mono text-xs text-ink-dim">
-                  {c.productCount}p · {coins(thbToCoins(c.revenue))}
-                </span>
-              </li>
-            ))}
+          <ul className="space-y-1 text-sm">
+            {dashboard.categories.slice(0, 8).map((c) => {
+              const max = Math.max(...dashboard.categories.map((x) => x.revenue), 1);
+              const pct = max > 0 ? (c.revenue / max) * 100 : 0;
+              return (
+                <li key={c.categoryId}>
+                  <Link
+                    href={`/browse?categoryId=${c.categoryId}`}
+                    className="group flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-white/[0.04] transition"
+                  >
+                    <span className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="text-ink-secondary truncate group-hover:text-white">{c.name}</span>
+                      {/* Inline bar so the eye sees rank-by-revenue. */}
+                      <span className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden">
+                        <span className="block h-full bg-mint" style={{ width: `${pct}%` }} />
+                      </span>
+                    </span>
+                    <span className="font-mono text-xs text-ink-dim shrink-0 tabular-nums">
+                      {c.productCount}p · {coinsCompact(thbToCoins(c.revenue))}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
         <div className="rounded-2xl border border-line bg-space-900 p-5">
@@ -321,9 +346,15 @@ export default async function AdminOverview({
           </h3>
           <div className="flex flex-wrap gap-1.5">
             {dashboard.tags.slice(0, 12).map((t) => (
-              <Badge key={t.tagId} variant="mist" className="text-xs">
-                {t.tagName} · {t.productCount}
-              </Badge>
+              <Link
+                key={t.tagId}
+                href={`/admin/tags?q=${encodeURIComponent(t.tagName)}`}
+                className="hover:scale-105 transition-transform"
+              >
+                <Badge variant="mist" className="text-xs">
+                  {t.tagName} · {t.productCount}
+                </Badge>
+              </Link>
             ))}
             {dashboard.tags.length === 0 && <span className="text-xs text-ink-dim">No tags yet.</span>}
           </div>
@@ -332,12 +363,26 @@ export default async function AdminOverview({
           <h3 className="font-display font-bold text-white mb-3">Age groups</h3>
           <ul className="space-y-1.5 text-sm">
             {dashboard.ageGroups.length === 0 && <li className="text-ink-dim text-xs">No buyers with DOB on file.</li>}
-            {dashboard.ageGroups.map((a) => (
-              <li key={a.bucket} className="flex items-center justify-between">
-                <span className="text-ink-secondary">{a.bucket}</span>
-                <span className="font-mono text-white">{a.buyers}</span>
-              </li>
-            ))}
+            {dashboard.ageGroups.map((a) => {
+              const max = Math.max(...dashboard.ageGroups.map((x) => x.buyers), 1);
+              const pct = max > 0 ? (a.buyers / max) * 100 : 0;
+              return (
+                <li key={a.bucket}>
+                  <Link
+                    href={`/admin/users?ageBucket=${encodeURIComponent(a.bucket)}`}
+                    className="group flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-white/[0.04] transition"
+                  >
+                    <span className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="text-ink-secondary group-hover:text-white">{a.bucket}</span>
+                      <span className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden">
+                        <span className="block h-full bg-purple-400" style={{ width: `${pct}%` }} />
+                      </span>
+                    </span>
+                    <span className="font-mono text-white tabular-nums">{a.buyers}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </div>
