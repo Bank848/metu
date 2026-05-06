@@ -65,17 +65,19 @@ function FeaturedCoupons({ coupons }: { coupons: Coupon[] }) {
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {coupons.map((c) => {
+        {coupons.map((c, i) => {
           const remaining = c.usageLimit - c.usedCount;
           return (
             <div
               key={c.couponId}
               className={cn(
                 "rounded-2xl border p-5 bg-space-900 transition hover:scale-[1.02]",
+                "animate-[stagger-rise_0.55s_cubic-bezier(0.22,1,0.36,1)_both]",
                 c.isMaster
                   ? "border-metu-yellow/60 ring-2 ring-metu-yellow/30"
                   : "border-line",
               )}
+              style={{ animationDelay: `${i * 70}ms` }}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
                 <Badge variant={c.isMaster ? "gold" : "mist"} className="uppercase text-[10px]">
@@ -213,7 +215,13 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
         </Link>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
-        <div className="col-span-2 md:col-span-2 row-span-1">
+        {/* Feature card lights up first; rest cascade behind it. The
+            stagger uses globals.css `stagger-rise` (60ms apart, capped
+            via inline animationDelay so the cascade is bounded). */}
+        <div
+          className="col-span-2 md:col-span-2 row-span-1 animate-[stagger-rise_0.6s_cubic-bezier(0.22,1,0.36,1)_both]"
+          style={{ animationDelay: "0ms" }}
+        >
           <ProductCard
             product={feature}
             isFavorited={favSet.has(feature.productId)}
@@ -224,11 +232,16 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
         {rest.slice(0, 7).map((p, i) => (
           // Feature card is the LCP element; rest stay lazy to dodge
           // Next 14's multi-priority hydration mismatch warnings.
-          <ProductCard
+          <div
             key={p.productId}
-            product={p}
-            isFavorited={favSet.has(p.productId)}
-          />
+            className="animate-[stagger-rise_0.6s_cubic-bezier(0.22,1,0.36,1)_both]"
+            style={{ animationDelay: `${80 + i * 60}ms` }}
+          >
+            <ProductCard
+              product={p}
+              isFavorited={favSet.has(p.productId)}
+            />
+          </div>
         ))}
       </div>
     </section>

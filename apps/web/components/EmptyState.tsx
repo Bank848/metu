@@ -50,24 +50,47 @@ export function EmptyState({
       )}
     >
       <div className="relative mx-auto flex max-w-xl flex-col items-center gap-5">
-        {variant === "cart" ? (
-          <EmptyCart className="h-32 w-32 text-mint" title={title} />
-        ) : variant === "noResults" ? (
-          <NoResults className="h-32 w-32 text-coral" title={title} />
-        ) : (
-          icon && (
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-metu-yellow/15 text-metu-yellow">
-              {icon}
-            </div>
-          )
-        )}
-        <h3 className="font-display text-2xl font-bold text-white">{title}</h3>
+        {/* Children stagger in on mount so the empty state never feels
+            like a blank panel — illustration first, then heading,
+            description, action. Reduced-motion is honoured globally. */}
+        <div
+          className="animate-[stagger-rise_0.55s_cubic-bezier(0.22,1,0.36,1)_both]"
+          style={{ animationDelay: "0ms" }}
+        >
+          {variant === "cart" ? (
+            <EmptyCart className="h-32 w-32 text-mint" title={title} />
+          ) : variant === "noResults" ? (
+            <NoResults className="h-32 w-32 text-coral" title={title} />
+          ) : (
+            icon && (
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-metu-yellow/15 text-metu-yellow">
+                {icon}
+              </div>
+            )
+          )}
+        </div>
+        <h3
+          className="font-display text-2xl font-bold text-white animate-[stagger-rise_0.55s_cubic-bezier(0.22,1,0.36,1)_both]"
+          style={{ animationDelay: "120ms" }}
+        >
+          {title}
+        </h3>
         {description && (
-          <p className="max-w-md text-sm text-ink-secondary leading-relaxed">
+          <p
+            className="max-w-md text-sm text-ink-secondary leading-relaxed animate-[stagger-rise_0.55s_cubic-bezier(0.22,1,0.36,1)_both]"
+            style={{ animationDelay: "200ms" }}
+          >
             {description}
           </p>
         )}
-        {action && <div className="mt-2">{action}</div>}
+        {action && (
+          <div
+            className="mt-2 animate-[stagger-rise_0.55s_cubic-bezier(0.22,1,0.36,1)_both]"
+            style={{ animationDelay: "280ms" }}
+          >
+            {action}
+          </div>
+        )}
       </div>
     </div>
   );

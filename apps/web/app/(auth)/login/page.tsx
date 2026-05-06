@@ -34,13 +34,24 @@ export default async function LoginPage({ searchParams }: { searchParams: { next
 
         <div className="mt-10 grid md:grid-cols-5 gap-8">
           <div className="md:col-span-3">
-            <h1 className="font-display text-4xl font-extrabold tracking-tight text-white mb-2">
+            <h1
+              className="font-display text-4xl font-extrabold tracking-tight text-white mb-2 animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
+              style={{ animationDelay: "0ms" }}
+            >
               Welcome back.
             </h1>
-            <p className="text-ink-secondary mb-6 max-w-md">
+            <p
+              className="text-ink-secondary mb-6 max-w-md animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
+              style={{ animationDelay: "80ms" }}
+            >
               Sign in to browse the marketplace, manage your store, or check on your orders. Two-factor codes are required after the password if you've turned 2FA on in your profile.
             </p>
-            <LoginForm next={searchParams.next} googleEnabled={settings.googleEnabled} />
+            <div
+              className="animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
+              style={{ animationDelay: "160ms" }}
+            >
+              <LoginForm next={searchParams.next} googleEnabled={settings.googleEnabled} />
+            </div>
             <p className="mt-4 text-sm text-ink-secondary">
               New to METU?{" "}
               <Link href="/register" className="font-semibold text-brand-yellow hover:underline">

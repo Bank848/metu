@@ -123,17 +123,24 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
             {/* CPE241 Business Rule 4g — additional info rows.
                 Renders as a definition list (label / value pairs) so
-                buyers see specs / file format / license terms cleanly. */}
+                buyers see specs / file format / license terms cleanly.
+                Mint accent bar on the left + tinted background give it
+                visual rhythm vs. the plain description block above. */}
             {product.details && product.details.length > 0 && (
-              <div className="mb-6 rounded-2xl border border-line bg-space-900 px-5 py-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
-                  Details
+              <div className="mb-6 rounded-2xl border border-mint/20 bg-mint/[0.04] px-5 py-4 border-l-4 border-l-mint">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-mint mb-3 flex items-center gap-1.5">
+                  <span aria-hidden className="h-1 w-1 rounded-full bg-mint" />
+                  Specifications
                 </h3>
                 <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
-                  {product.details.map((d) => (
-                    <div key={d.productDetailId} className="contents">
+                  {product.details.map((d, i) => (
+                    <div
+                      key={d.productDetailId}
+                      className="contents animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
+                      style={{ animationDelay: `${i * 50}ms` }}
+                    >
                       <dt className="text-ink-secondary">{d.detailName}</dt>
-                      <dd className="text-white font-medium">{d.detailValue}</dd>
+                      <dd className="text-white font-medium tabular-nums">{d.detailValue}</dd>
                     </div>
                   ))}
                 </dl>

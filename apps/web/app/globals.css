@@ -594,3 +594,70 @@ input:-webkit-autofill {
 .animate-bar-extend {
   animation: bar-extend 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* ───────────── Card hover gloss sweep ─────────────
+   A diagonal light bar sweeps across the card surface when hovered.
+   Used by ProductCard to give every grid tile a premium tactile feel
+   without adding more shadow-pop noise. The bar is built from a 45°
+   linear gradient masked into a thin band; on hover it slides from
+   off-screen-left to off-screen-right in 700ms. */
+@keyframes card-gloss-sweep {
+  0%   { transform: translateX(-150%) rotate(20deg); opacity: 0; }
+  20%  { opacity: 0.55; }
+  100% { transform: translateX(150%) rotate(20deg);  opacity: 0; }
+}
+.card-gloss::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -40%;
+  width: 30%;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 220, 120, 0.0) 20%,
+    rgba(255, 220, 120, 0.18) 50%,
+    rgba(255, 220, 120, 0.0) 80%,
+    transparent 100%
+  );
+  transform: translateX(-150%) rotate(20deg);
+  opacity: 0;
+}
+.card-gloss:hover::before {
+  animation: card-gloss-sweep 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ───────────── Skeleton shimmer ─────────────
+   For loading-skeleton blocks. A horizontal gradient band slides
+   across the rounded surface to signal "loading" without a spinner.
+   Use: <div className="skeleton-shimmer rounded-xl h-20" /> */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0;  }
+}
+.skeleton-shimmer {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 0%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.04) 100%
+    );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+}
+
+/* ───────────── Heart pulse for FavoriteButton ─────────────
+   One-shot 360ms pulse fired when a user clicks the heart and the
+   filled state lands. Pairs with the fill-mint colour change so the
+   "saved!" feedback is unmistakable. */
+@keyframes heart-pop {
+  0%   { transform: scale(1);    }
+  35%  { transform: scale(1.35); }
+  70%  { transform: scale(0.92); }
+  100% { transform: scale(1);    }
+}
+.animate-heart-pop {
+  animation: heart-pop 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

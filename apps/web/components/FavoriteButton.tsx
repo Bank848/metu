@@ -26,6 +26,10 @@ export function FavoriteButton({
   const { t } = useI18n();
   const [favorited, setFavorited] = useState(initial);
   const [busy, setBusy] = useState(false);
+  // `pop` is a one-shot key used to retrigger the heart-pop CSS keyframe
+  // each time the user adds. We bump it on every successful add so the
+  // animation replays even if React reconciles the same Heart node.
+  const [pop, setPop] = useState(0);
 
   const dims = size === "md" ? "h-9 w-9" : "h-8 w-8";
   const iconDims = size === "md" ? "h-4 w-4" : "h-3.5 w-3.5";
@@ -40,6 +44,7 @@ export function FavoriteButton({
     const prev = favorited;
     const next = !favorited;
     setFavorited(next);
+    if (next) setPop((n) => n + 1); // trigger heart-pop only on add
     setBusy(true);
     try {
       const res = await fetch(`/api/favorites/${productId}`, {
@@ -75,7 +80,19 @@ export function FavoriteButton({
         className,
       )}
     >
-      <Heart className={cn(iconDims, favorited && "fill-current")} strokeWidth={2} />
+      <Heart
+        // `key={pop}` forces React to remount the icon every time the
+        // user re-adds, so the CSS keyframe replays — without `key`,
+        // react would reuse the same DOM node and the animation would
+        // only run once per session.
+        key={pop}
+        className={cn(
+          iconDims,
+          favorited && "fill-current",
+          favorited && pop > 0 && "animate-heart-pop",
+        )}
+        strokeWidth={2}
+      />
     </button>
   );
 }

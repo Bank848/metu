@@ -62,7 +62,9 @@ export function ProductCard({
       className={cn(
         // `transform-gpu` promotes each card onto its own GPU layer so the
         // hover lift doesn't trigger a full-page repaint of all cards.
-        "group relative overflow-hidden transform-gpu lift-on-hover hover:shadow-raised",
+        // `card-gloss` adds a diagonal light sweep on hover (see
+        // globals.css). Pure CSS — no extra DOM, no JS handlers.
+        "group relative overflow-hidden transform-gpu lift-on-hover hover:shadow-raised card-gloss",
         isFeature
           ? "rounded-2xl surface-accent hover:border-mint/45"
           : "rounded-xl surface-flat hover:border-metu-yellow/40",
@@ -156,7 +158,11 @@ export function ProductCard({
           <div>
             <span
               className={cn(
-                "font-display font-bold text-gold-gradient tabular-nums",
+                // Tactile feedback: price scales up on hover so the
+                // primary CTA (the price) feels alive. transform-origin
+                // left so the price expands rightward, not centre-out.
+                "inline-block font-display font-bold text-gold-gradient tabular-nums origin-left",
+                "transition-transform duration-200 group-hover:scale-110",
                 isFeature ? "text-2xl md:text-3xl" : "text-lg",
               )}
             >

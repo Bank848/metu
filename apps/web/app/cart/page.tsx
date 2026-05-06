@@ -98,8 +98,14 @@ export default async function CartPage() {
                     </GlassButton>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                    {recommended.map((p) => (
-                      <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
+                    {recommended.map((p, i) => (
+                      <div
+                        key={p.productId}
+                        className="animate-[stagger-rise_0.55s_cubic-bezier(0.22,1,0.36,1)_both]"
+                        style={{ animationDelay: `${i * 60}ms` }}
+                      >
+                        <ProductCard product={p} isFavorited={favSet.has(p.productId)} />
+                      </div>
                     ))}
                   </div>
                 </section>
