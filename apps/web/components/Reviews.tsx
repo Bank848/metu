@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useMemo, useState } from "react";
-import { Star, Pencil, MessageSquare, Trash2, Shield } from "lucide-react";
+import { Star, Pencil, MessageSquare, Trash2 } from "lucide-react";
 import { GlassButton } from "./visual/GlassButton";
 import { EmptyState } from "./EmptyState";
 import { WriteReviewDialog } from "./WriteReviewDialog";
@@ -254,39 +254,55 @@ export function Reviews({
                     </div>
                   </div>
                   {/* Moderation cluster: edit + delete. Visible to the
-                      review's author OR any admin. Admin gets a small
-                      coral "Admin" pip so the action is clearly a
-                      moderation event, not a self-edit. */}
-                  {canModerate && !isEditing && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isAdmin && !isOwner && (
-                        <span
-                          className="inline-flex items-center gap-1 rounded-md bg-coral/10 border border-coral/30 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-coral"
-                          title="Admin moderation — actions are audit-logged"
+                      review's author OR any admin.
+                      Earlier rev rendered an inline "MOD" coral pill
+                      next to the reviewer's name when an admin viewed
+                      someone else's review — it read like a role badge
+                      ("this reviewer is a Moderator") which is the
+                      opposite of the intent. Now the admin-acting-on-
+                      another-user signal moves onto the action buttons
+                      themselves: coral background + coral icon ring
+                      when admin is moderating. The buyer's own
+                      edit/delete keeps the neutral hover (yellow for
+                      edit, coral on hover for delete). */}
+                  {canModerate && !isEditing && (() => {
+                    const adminModerating = isAdmin && !isOwner;
+                    const moderationTitle = adminModerating
+                      ? " (admin moderation — audit-logged)"
+                      : "";
+                    return (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(r.reviewId)}
+                          aria-label={`Edit review${moderationTitle}`}
+                          title={`Edit review${moderationTitle}`}
+                          className={cn(
+                            "p-1.5 rounded-md transition",
+                            adminModerating
+                              ? "text-coral bg-coral/10 ring-1 ring-coral/30 hover:bg-coral/20"
+                              : "text-ink-dim hover:text-metu-yellow hover:bg-white/5",
+                          )}
                         >
-                          <Shield className="h-3 w-3" /> mod
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(r.reviewId)}
-                        aria-label="Edit review"
-                        title="Edit review"
-                        className="p-1.5 rounded-md text-ink-dim hover:text-metu-yellow hover:bg-white/5 transition"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDeleteId(r.reviewId)}
-                        aria-label="Delete review"
-                        title="Delete review"
-                        className="p-1.5 rounded-md text-ink-dim hover:text-coral hover:bg-coral/5 transition"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteId(r.reviewId)}
+                          aria-label={`Delete review${moderationTitle}`}
+                          title={`Delete review${moderationTitle}`}
+                          className={cn(
+                            "p-1.5 rounded-md transition",
+                            adminModerating
+                              ? "text-coral bg-coral/10 ring-1 ring-coral/30 hover:bg-coral/20"
+                              : "text-ink-dim hover:text-coral hover:bg-coral/5",
+                          )}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
                 {isEditing ? (
                   <InlineEditForm
