@@ -95,6 +95,14 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 # against Neon each deploy.
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
+# 3d. Sharp for Next.js Image optimization. Without it, /next/image
+# requests fall back to a slow JavaScript image pipeline + spam the
+# logs with "'sharp' is required" warnings. Install just sharp + its
+# alpine native deps directly into the runner — bypasses standalone's
+# tracing which doesn't pick up sharp reliably.
+RUN apk add --no-cache vips-dev \
+ && npm install --omit=dev --no-save sharp@0.33.5
+
 # Non-root user is a Fly best practice.
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs \
