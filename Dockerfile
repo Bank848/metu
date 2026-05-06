@@ -106,15 +106,23 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 # `cp -rn` (no-clobber so we never overwrite an existing module).
 # `apk add vips` brings in libvips at runtime; sharp's npm package
 # ships prebuilt binaries for alpine/musl so no compile step needed.
-RUN apk add --no-cache vips \
- && mkdir -p /tmp/sharp-install \
+#
+# Sharp 0.33+ ships its prebuilt native binary as @img/sharp-libvips-
+# linuxmusl-x64, declared in sharp's `optionalDependencies` (because
+# it varies per platform). The previous `--omit=optional` SKIPPED
+# that platform package — sharp installed but couldn't find its
+# native binary at runtime, so the `'sharp' is required' warning
+# kept firing in production. Now `--include=optional` makes sure
+# the platform binary lands in node_modules.
+RUN mkdir -p /tmp/sharp-install \
  && cd /tmp/sharp-install \
  && echo '{"name":"sharp-install","version":"1.0.0","private":true}' > package.json \
- && npm install --omit=optional sharp@0.33.5 \
+ && npm install --include=optional sharp@0.33.5 \
  && mkdir -p /app/node_modules \
  && cp -rn /tmp/sharp-install/node_modules/. /app/node_modules/ \
  && rm -rf /tmp/sharp-install \
- && node -e "require('sharp')" && echo "✓ sharp loadable"
+ && cd /app \
+ && node -e "const s = require('sharp'); console.log('sharp ok, libvips=' + s.versions.vips);"
 
 # Non-root user is a Fly best practice.
 RUN addgroup --system --gid 1001 nodejs \
