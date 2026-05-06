@@ -730,16 +730,24 @@ export async function getDashboardMetrics() {
     timed("topProducts", queryStats, () => prisma.$queryRaw<Array<{
       product_id: number; name: string; revenue: string; units: bigint;
     }>>`
-      SELECT
-        p.product_id, p.name,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text  AS revenue,
-        COALESCE(SUM(oi.quantity), 0)::bigint                    AS units
-      FROM "product" p
-      LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
-      LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
-      LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
-      GROUP BY p.product_id, p.name
-      ORDER BY revenue::numeric DESC
+      -- Same alias-collision quirk that /admin/coupons + topStores
+      -- hit: Postgres rejects "ORDER BY revenue::numeric DESC" when
+      -- the SELECT list also has "AS revenue" (text). Wrap the
+      -- aggregation in a subquery so the alias becomes a real column
+      -- on the outer SELECT and the cast resolves cleanly.
+      SELECT product_id, name, revenue::text AS revenue, units
+      FROM (
+        SELECT
+          p.product_id, p.name,
+          COALESCE(SUM(oi.price_per_unit * oi.quantity), 0) AS revenue,
+          COALESCE(SUM(oi.quantity), 0)::bigint             AS units
+        FROM "product" p
+        LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
+        LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
+        LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
+        GROUP BY p.product_id, p.name
+      ) ranked
+      ORDER BY revenue DESC
       LIMIT 5
     `),
     timed("ageGroups", queryStats, () => prisma.$queryRaw<Array<{ bucket: string; buyers: bigint }>>`
@@ -762,20 +770,24 @@ export async function getDashboardMetrics() {
     }>>`
       -- Schema model maps Category.categoryName → category_name column,
       -- so the raw SQL must reference category_name (not the camelCase
-      -- name from the Prisma model). Alias as "name" so the TS type +
-      -- consumer mapping below can stay unchanged.
-      SELECT
-        c.category_id,
-        c.category_name AS name,
-        COUNT(DISTINCT p.product_id)::bigint                                AS product_count,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text             AS revenue
-      FROM "category" c
-      LEFT JOIN "product"      p  ON p.category_id     = c.category_id
-      LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
-      LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
-      LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
-      GROUP BY c.category_id, c.category_name
-      ORDER BY revenue::numeric DESC
+      -- name from the Prisma model). Wrap the aggregation in a
+      -- subquery so revenue::text alias doesn't collide with the
+      -- ORDER BY (same fix as topStores + topProducts).
+      SELECT category_id, name, product_count, revenue::text AS revenue
+      FROM (
+        SELECT
+          c.category_id,
+          c.category_name AS name,
+          COUNT(DISTINCT p.product_id)::bigint                                AS product_count,
+          COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)                   AS revenue
+        FROM "category" c
+        LEFT JOIN "product"      p  ON p.category_id     = c.category_id
+        LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
+        LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
+        LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
+        GROUP BY c.category_id, c.category_name
+      ) ranked
+      ORDER BY revenue DESC
     `),
     timed("tags", queryStats, () => prisma.$queryRaw<Array<{ tag_id: number; tag_name: string; product_count: bigint }>>`
       SELECT t.tag_id, t.tag_name,
