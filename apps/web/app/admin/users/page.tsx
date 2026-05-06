@@ -81,8 +81,9 @@ export default async function AdminUsers({
   // operator can scan recent bans + tap "Unban" without sifting.
   const showingBanned = searchParams.status === "banned";
 
-  // Server-friendly pagination — mirrors the buildHref pattern used on
-  // /admin/audit so navigation works without JS.
+  // Server-friendly pagination — query-string-only so the page works
+  // without JS hydration, same buildHref pattern used on the other
+  // admin list pages (stores, coupons, tags).
   const buildHref = (next: number) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(searchParams)) if (v && k !== "page") p.set(k, v);

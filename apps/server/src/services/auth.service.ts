@@ -872,9 +872,9 @@ export async function changePassword(
   // Three-channel second factor — TOTP (with backup-code fallback) /
   // SMS / email. See ensureSensitiveOtp for the priority order.
   await ensureSensitiveOtp(userId, user, {
-    otpCode: (input as any).otpCode,
-    totpCode: (input as any).totpCode,
-    backupCode: (input as any).backupCode,
+    otpCode: input.otpCode,
+    totpCode: input.totpCode,
+    backupCode: input.backupCode,
   });
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
@@ -911,9 +911,9 @@ export async function setPassword(
   if (user.password) throw new AppError(400, "PasswordAlreadySet");
 
   await ensureSensitiveOtp(userId, user, {
-    otpCode: (input as any).otpCode,
-    totpCode: (input as any).totpCode,
-    backupCode: (input as any).backupCode,
+    otpCode: input.otpCode,
+    totpCode: input.totpCode,
+    backupCode: input.backupCode,
   });
 
   const hash = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
