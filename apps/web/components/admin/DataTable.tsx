@@ -74,7 +74,8 @@ export function DataTable<T>({
 
   return (
     <div className={cn("space-y-4", className)}>
-      <div className="surface-flat rounded-xl overflow-hidden">
+      {/* ─── Desktop / tablet (md+): traditional table view ─── */}
+      <div className="hidden md:block surface-flat rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm" aria-label={ariaLabel}>
             <thead>
@@ -130,6 +131,51 @@ export function DataTable<T>({
           </table>
         </div>
       </div>
+
+      {/* ─── Mobile (<md): card-collapse view ───
+          Tables don't fit on phones — even with `overflow-x-auto`, the
+          horizontal scroll is awkward and hides actions. Each row
+          becomes a stacked card showing column-header → value pairs.
+          The first column (usually identity/avatar) gets prominent
+          treatment as the card header; remaining columns become a
+          two-column meta grid below; actions row sits at the bottom.
+          aria-label declares the surface as a list, not a table, so
+          screen readers don't try to apply table semantics. */}
+      <ul aria-label={ariaLabel} className="md:hidden space-y-2.5">
+        {rows.map((row) => {
+          const [first, ...restCols] = columns;
+          return (
+            <li
+              key={getRowKey(row)}
+              className="surface-flat rounded-xl p-4 space-y-3"
+            >
+              {first && (
+                <div className="text-sm">{renderCell(row, first)}</div>
+              )}
+              {restCols.length > 0 && (
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs border-t border-white/6 pt-3">
+                  {restCols.map((col) => (
+                    <div key={col.key} className="min-w-0">
+                      <dt className="text-[10px] uppercase tracking-wider text-ink-dim mb-0.5">
+                        {col.header}
+                      </dt>
+                      <dd className="text-ink-secondary truncate">
+                        {renderCell(row, col)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {actions && (
+                <div className="flex justify-end pt-2 border-t border-white/6">
+                  {actions(row)}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
       {pagination && pagination.totalPages > 1 && (
         <DataTablePaginationFooter pagination={pagination} />
       )}

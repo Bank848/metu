@@ -27,19 +27,19 @@ export default async function ProfilePage() {
   return (
     <>
       <TopNav />
-      <main id="main" className="mx-auto max-w-5xl px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-5xl px-4 sm:px-6 md:px-8 py-6 sm:py-10">
         <PageHeader
           title="Your profile"
           subtitle="Manage your account, orders, and store."
           action={
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button href="/profile/edit" variant="outline" size="sm">Edit profile</Button>
               <LogoutButton />
             </div>
           }
         />
 
-        <div className="grid md:grid-cols-[280px_1fr] gap-8 items-start">
+        <div className="grid md:grid-cols-[280px_1fr] gap-6 md:gap-8 items-start">
           <aside className="rounded-2xl surface-flat p-6 text-center shadow-flat">
             {/* Phase 11 / F15 — Avatar primitive renders the photo OR
                 initials over a deterministic colour for the empty state. */}

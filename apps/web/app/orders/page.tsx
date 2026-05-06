@@ -89,7 +89,7 @@ export default async function OrdersPage({
   return (
     <>
       <TopNav />
-      <main id="main" className="mx-auto max-w-5xl px-6 md:px-8 py-10">
+      <main id="main" className="mx-auto max-w-5xl px-4 sm:px-6 md:px-8 py-6 sm:py-10">
         <PageHeader title="My orders" subtitle={subtitle} />
 
         {orders.length === 0 ? (

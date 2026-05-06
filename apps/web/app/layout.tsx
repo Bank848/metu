@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Manrope, JetBrains_Mono, Prompt } from "next/font/go
 import "./globals.css";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { CompareDrawer } from "@/components/CompareDrawer";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { themeBootstrapScript } from "@/components/ThemeToggle";
 import { PlausibleScript } from "@/components/PlausibleScript";
 import { I18nProvider } from "@/lib/i18n/client";
@@ -123,6 +124,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <KeyboardShortcuts />
           <CompareDrawer />
+          {/* Mobile-only thumb-reach nav. Auto-hides on auth /
+              checkout / kiosk pages. Settings.favoritesEnabled isn't
+              read here (root layout is RSC and we'd need an extra
+              fetch); the nav itself just always renders the heart. */}
+          <MobileBottomNav />
         </I18nProvider>
         <PlausibleScript />
       </body>

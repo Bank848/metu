@@ -20,14 +20,14 @@ export async function Footer() {
         aria-hidden
         className="absolute inset-0 bg-dot-grid opacity-[0.04]"
       />
-      <div className="relative mx-auto max-w-[1440px] px-6 md:px-8 py-14">
-        <div className="grid gap-12 md:grid-cols-12">
+      <div className="relative mx-auto max-w-[1440px] px-5 sm:px-6 md:px-8 py-10 sm:py-14">
+        <div className="grid gap-8 sm:gap-12 md:grid-cols-12">
           <div className="md:col-span-5 max-w-md">
             <div className="flex items-center gap-3">
               <Logo size="lg" asLink={false} showMark={false} />
               <BrandMark className="h-8 w-8 text-metu-yellow" />
             </div>
-            <p className="mt-5 text-base text-ink-secondary leading-relaxed">
+            <p className="mt-4 sm:mt-5 text-sm sm:text-base text-ink-secondary leading-relaxed">
               {t("footer.tagline")}
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -39,7 +39,7 @@ export async function Footer() {
             </div>
           </div>
 
-          <div className="md:col-span-7 grid grid-cols-2 md:grid-cols-3 gap-8">
+          <div className="md:col-span-7 grid grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
             <FooterColumn
               title="Marketplace"
               titleHref="/browse"
