@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { ArrowUpRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { MiniSparkline } from "./MiniSparkline";
 
@@ -13,7 +13,12 @@ type Tone = "default" | "highlight" | "zero";
 
 interface Props {
   href: string;
-  icon: LucideIcon;
+  /** Pre-rendered JSX for the icon. Caller passes e.g. <Banknote
+      className="h-3.5 w-3.5" />. We can't accept LucideIcon as a
+      component reference because the /admin page is a server
+      component — Next.js refuses to serialise function references
+      across the RSC boundary into a client component. */
+  icon: ReactNode;
   label: string;
   value: string | number;
   /** Optional 7-day series for an inline sparkline. */
@@ -31,7 +36,7 @@ interface Props {
 
 export function ClickableStatCard({
   href,
-  icon: Icon,
+  icon,
   label,
   value,
   sparkline,
@@ -56,7 +61,7 @@ export function ClickableStatCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-ink-dim">
-            <Icon className="h-3.5 w-3.5" />
+            {icon}
             <span>{label}</span>
           </div>
           <div

@@ -123,7 +123,7 @@ export default async function AdminOverview({
         <ClickableStatCard
           tone="highlight"
           href="/admin/refunds"
-          icon={Banknote}
+          icon={<Banknote className="h-3.5 w-3.5" />}
           label="GMV (paid)"
           value={coinsCompact(thbToCoins(stats.gmv))}
           valueTooltip={coins(thbToCoins(stats.gmv))}
@@ -133,7 +133,7 @@ export default async function AdminOverview({
         />
         <ClickableStatCard
           href="/admin/users"
-          icon={Users}
+          icon={<Users className="h-3.5 w-3.5" />}
           label="Users"
           value={stats.users.toLocaleString()}
           sparkline={dashboard.kpiSparklines?.users ?? []}
@@ -142,21 +142,21 @@ export default async function AdminOverview({
         />
         <ClickableStatCard
           href="/admin/stores"
-          icon={Store}
+          icon={<Store className="h-3.5 w-3.5" />}
           label="Stores"
           value={stats.stores.toLocaleString()}
           sparkColor="rgb(192 139 255)"
         />
         <ClickableStatCard
           href="/browse"
-          icon={Package}
+          icon={<Package className="h-3.5 w-3.5" />}
           label="Products"
           value={stats.products.toLocaleString()}
           sparkColor="rgb(98 182 255)"
         />
         <ClickableStatCard
           href="/admin/orders"
-          icon={ShoppingBag}
+          icon={<ShoppingBag className="h-3.5 w-3.5" />}
           label="Orders"
           value={stats.orders.toLocaleString()}
           sparkline={dashboard.kpiSparklines?.orders ?? []}
@@ -165,7 +165,7 @@ export default async function AdminOverview({
         />
         <ClickableStatCard
           href="/admin/orders?status=pending"
-          icon={Clock}
+          icon={<Clock className="h-3.5 w-3.5" />}
           label="Pending orders"
           value={stats.pendingOrders.toLocaleString()}
           tone={stats.pendingOrders === 0 ? "zero" : "default"}
