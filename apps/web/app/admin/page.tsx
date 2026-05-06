@@ -16,7 +16,7 @@ import { TopBuyersList } from "@/components/admin/TopBuyersList";
 import { OrdersByCountryList } from "@/components/admin/OrdersByCountryList";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiFetch, ApiError } from "@/lib/server/api";
-import { coins, thbToCoins, coinsCompact, fmtDateTime } from "@/lib/format";
+import { coins, thbToCoins, coinsCompact, fmtDateTime, money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
 type Stats = {
@@ -283,7 +283,11 @@ export default async function AdminOverview({
               <li className="flex justify-between"><span className="text-ink-secondary">Total coupons</span><span className="font-mono text-white">{dashboard.couponImpact.totalCoupons}</span></li>
               <li className="flex justify-between"><span className="text-ink-secondary">Active</span><span className="font-mono text-mint">{dashboard.couponImpact.activeCoupons}</span></li>
               <li className="flex justify-between"><span className="text-ink-secondary">Redemptions</span><span className="font-mono text-white">{dashboard.couponImpact.totalRedemptions}</span></li>
-              <li className="flex justify-between"><span className="text-ink-secondary">Total discount</span><span className="font-mono text-metu-yellow">{coins(thbToCoins(dashboard.couponImpact.totalDiscount))}</span></li>
+              {/* Use money() not coins() here because coins(0) renders
+                  "Free" — correct for product price cells but wrong for
+                  a "total discount" stat (should read ฿0 when no
+                  coupons have been redeemed yet). */}
+              <li className="flex justify-between"><span className="text-ink-secondary">Total discount</span><span className="font-mono text-metu-yellow">{money(thbToCoins(dashboard.couponImpact.totalDiscount))}</span></li>
               <li className="flex justify-between border-t border-line pt-1.5"><span className="text-ink-dim text-xs">Near expiry (≤7d)</span><span className="font-mono text-coral">{dashboard.couponImpact.nearExpiry}</span></li>
             </ul>
           </div>
