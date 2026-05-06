@@ -885,10 +885,10 @@ export async function getDashboardMetrics() {
             AND created_at  >= NOW() - INTERVAL '14 days'
             AND created_at  <  NOW() - INTERVAL '7 days')::text                               AS gmv_prev
     `),
-    // Top buyers by lifetime spend (paid + fulfilled). LEFT JOIN users
-    // so we can render avatar + name. ORDER BY total spend DESC, LIMIT 5.
-    // Only counts settled orders so abandoned carts can't game the
-    // leaderboard.
+    // Top buyers by lifetime spend (paid + fulfilled). INNER JOIN users
+    // (every order has a user — FK enforces it) and avatars come along
+    // for free. ORDER BY total spend DESC, LIMIT 5. Only counts settled
+    // orders so abandoned carts can't game the leaderboard.
     timed("topBuyers", queryStats, () => prisma.$queryRaw<Array<{
       user_id: number; first_name: string; last_name: string; username: string;
       profile_image: string | null; orders: bigint; spend: string;

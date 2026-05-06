@@ -110,14 +110,19 @@ export default async function AdminOverview({
     );
   }
 
-  // AOV — last value of the trend, or 0 if the series is empty. Pulled
-  // out of the JSX so the KPI grid stays a flat list of <ClickableStatCard>
-  // siblings. An inline IIFE wrapper used to live inside the grid; that
-  // shape was harmless on its own but combined with an invalid <Link>
-  // inside <svg> in the donut below, hydration errors cascaded and
-  // suppressed click handlers on the Orders / AOV / Pending KPI cards.
+  // AOV — TRUE 14-day average, not the most recent day. The card label
+  // says "AOV (14d)" so it has to actually be the trailing 14-day avg.
+  // We average over days that had at least one settled order — including
+  // zero-revenue days would dilute the headline figure (a marketplace
+  // with one ฿1000 order on day 1 of 14 should read ฿1000 AOV, not
+  // ฿71).
+  // Pulled out of the JSX so the KPI grid stays a flat list of
+  // <ClickableStatCard> siblings.
   const aovTrend = dashboard.aovTrend ?? [];
-  const lastAov = aovTrend.length > 0 ? aovTrend[aovTrend.length - 1] : 0;
+  const aovNonZero = aovTrend.filter((v) => v > 0);
+  const aov14d = aovNonZero.length > 0
+    ? aovNonZero.reduce((a, b) => a + b, 0) / aovNonZero.length
+    : 0;
 
   return (
     <>
@@ -193,10 +198,10 @@ export default async function AdminOverview({
           href="/admin/orders"
           icon={<Wallet className="h-3.5 w-3.5" />}
           label="AOV (14d)"
-          value={coinsCompact(thbToCoins(lastAov))}
-          countUpTo={thbToCoins(lastAov)}
+          value={coinsCompact(thbToCoins(aov14d))}
+          countUpTo={thbToCoins(aov14d)}
           countUpFormat="compact-coins"
-          valueTooltip={coins(thbToCoins(lastAov))}
+          valueTooltip={coins(thbToCoins(aov14d))}
           sparkline={aovTrend}
           sparkColor="rgb(192 139 255)"
         />

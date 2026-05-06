@@ -1,9 +1,23 @@
 "use client";
+import { useEffect, useState } from "react";
 import { Activity, Crown, ShoppingBag, TrendingUp } from "lucide-react";
 import { coins, coinsCompact, thbToCoins } from "@/lib/format";
 import type { KioskData } from "@/lib/server/kiosk";
 
 export function LiveMetricsSlide({ data }: { data: KioskData }) {
+  // `now` stays null during SSR + initial hydration so the server-
+  // rendered HTML and the first client paint agree on the relative-
+  // time labels (both render an empty string). After mount, `now`
+  // populates and the labels switch on. Without this the kiosk slide
+  // logged a hydration mismatch on every minute boundary, and per
+  // the Link-in-SVG lesson, hydration errors can cascade and kill
+  // click handlers on neighbouring components.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   return (
     <div className="relative h-full w-full px-12 py-8 flex flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -115,7 +129,7 @@ export function LiveMetricsSlide({ data }: { data: KioskData }) {
                     </span>
                   </div>
                   <div className="text-[11px] text-ink-dim truncate">
-                    {o.storeName ?? "—"} · {relativeTime(o.createdAt)}
+                    {o.storeName ?? "—"} {now !== null && `· ${relativeTime(o.createdAt, now)}`}
                   </div>
                 </li>
               ))}
@@ -133,8 +147,7 @@ function EmptyHint({ label }: { label: string }) {
   );
 }
 
-function relativeTime(iso: string): string {
-  const now = Date.now();
+function relativeTime(iso: string, now: number): string {
   const t = new Date(iso).getTime();
   const diff = Math.max(0, now - t);
   const m = Math.floor(diff / 60_000);

@@ -64,11 +64,15 @@ const TABS: Tab[] = [
     href: "/profile",
     label: "Account",
     icon: User,
+    // /admin is intentionally NOT in this match set — the bottom nav
+    // sends the user to /profile which is a *different* destination
+    // from /admin. Highlighting "Account" while sitting on /admin
+    // implied tapping it would keep the operator on the admin
+    // dashboard, which it doesn't.
     match: (p) =>
       p.startsWith("/profile") ||
       p.startsWith("/orders") ||
-      p.startsWith("/seller") ||
-      p.startsWith("/admin"),
+      p.startsWith("/seller"),
   },
 ];
 
@@ -102,9 +106,12 @@ export function MobileBottomNav({ favoritesEnabled = true }: { favoritesEnabled?
     };
   }, [refresh]);
 
-  // Hide entire bar on auth pages + checkout to keep those flows
-  // distraction-free. Bottom nav re-emerges everywhere else.
-  const HIDE_ON = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-pending", "/verify-phone", "/feature-tour"];
+  // Hide entire bar on auth pages + checkout + admin to keep those
+  // flows distraction-free. Bottom nav re-emerges on the buyer path.
+  // /admin is hidden because the bottom-nav destinations are
+  // buyer-oriented and the admin already has the strip-nav at the
+  // top of the layout.
+  const HIDE_ON = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-pending", "/verify-phone", "/feature-tour", "/admin"];
   if (HIDE_ON.some((p) => pathname?.startsWith(p))) return null;
 
   const visible = TABS.filter((t) => favoritesEnabled || t.label !== "Saved");

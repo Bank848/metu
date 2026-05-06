@@ -62,7 +62,15 @@ export function OrdersByCountryList({ rows }: { rows: CountryRow[] }) {
             ];
             const tone = tones[i % tones.length];
             return (
-              <li key={r.countryName} className="rounded-lg px-2 py-1 hover:bg-white/[0.04] transition">
+              <li
+                // Use country_id (the actual FK) as the React key, not
+                // country_name. NULLs fall back to a stable "unknown"
+                // sentinel — the GROUP BY collapses all NULL country_ids
+                // into one row anyway, so there's only ever one
+                // "Unknown" item.
+                key={r.countryId ?? "unknown"}
+                className="rounded-lg px-2 py-1 hover:bg-white/[0.04] transition"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <span className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="text-ink-dim text-xs font-mono w-5 shrink-0">{i + 1}.</span>

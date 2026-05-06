@@ -82,6 +82,30 @@ const config: Config = {
           dim:     "#F43F5E",
           deep:    "#881337",
         },
+        // Late-add: `info` was being used as `text-info` / `bg-info` /
+        // `ring-info` across /admin (review monitor icon, top-tags
+        // icon, several SqlTechniqueBadge variants) without ever
+        // being defined here, so those tokens silently rendered
+        // transparent on dark mode. Maps to a sky-400 hue — distinct
+        // from mint (success) and coral (alert), reads as "data /
+        // information" same as the rest of the marketplace's
+        // database-flavour cues.
+        info: {
+          DEFAULT: "#62B6FF",
+          dim:     "#38BDF8",
+          deep:    "#0369A1",
+        },
+        // Late-add: `purple` aliased to the Tailwind purple-300 family
+        // so `text-purple` (used on /admin/queries) resolves to a
+        // visible color. We could drop the alias and use
+        // `text-purple-300` directly, but keeping the token preserves
+        // the design-system pattern (mint/coral/info/purple as named
+        // semantic tokens, not Tailwind defaults).
+        purple: {
+          DEFAULT: "#C08BFF",
+          dim:     "#A78BFA",
+          deep:    "#6D28D9",
+        },
       },
       fontFamily: {
         // Use CSS-vars set by next/font in layout.tsx, fall back to system stack.
