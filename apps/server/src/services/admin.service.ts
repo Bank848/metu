@@ -771,7 +771,7 @@ export async function getDashboardMetrics() {
     timed("tags", queryStats, () => prisma.$queryRaw<Array<{ tag_id: number; tag_name: string; product_count: bigint }>>`
       SELECT t.tag_id, t.tag_name,
              COUNT(*)::bigint AS product_count
-      FROM "tag" t
+      FROM "product_tag" t
       JOIN "product_n_tag" pnt ON pnt.tag_id = t.tag_id
       GROUP BY t.tag_id, t.tag_name
       ORDER BY product_count DESC

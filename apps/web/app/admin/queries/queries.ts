@@ -302,13 +302,13 @@ LIMIT 20 OFFSET 0;`,
      FROM product_n_tag pnt
      JOIN product p ON p.product_id = pnt.product_id
     WHERE pnt.tag_id = t.tag_id) AS last_used_at
-FROM tag t
+FROM product_tag t
 WHERE t.tag_name ILIKE '%' || $1 || '%'
 ORDER BY product_count DESC, t.tag_name ASC
 LIMIT 20 OFFSET 0;`,
     indexes: [
       { name: "product_n_tag_tag_id_idx", on: "product_n_tag(tag_id)", why: "subquery scans by tag" },
-      { name: "tag_pkey", on: "tag(tag_id)", why: "outer join key" },
+      { name: "product_tag_pkey", on: "product_tag(tag_id)", why: "outer join key" },
     ],
     rationale:
       "Two aggregates per tag (count + max date) hand-written so the planner can use the tag_id index for both, instead of Prisma generating two round trips per tag.",

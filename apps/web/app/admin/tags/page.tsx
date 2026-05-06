@@ -44,14 +44,14 @@ export default async function AdminTagsPage({
           FROM product_n_tag pnt
           JOIN product p ON p.product_id = pnt.product_id
          WHERE pnt.tag_id = t.tag_id) AS last_used_at
-     FROM tag t
+     FROM product_tag t
      ${where}
      ORDER BY product_count DESC, t.tag_name ASC
      LIMIT ${PAGE_SIZE} OFFSET ${offset}`,
     ...params,
   );
   const totalRow = await prisma.$queryRawUnsafe<Array<{ total: bigint }>>(
-    `SELECT COUNT(*)::int AS total FROM tag t ${where}`,
+    `SELECT COUNT(*)::int AS total FROM product_tag t ${where}`,
     ...params,
   );
   const total = Number(totalRow[0]?.total ?? 0);
