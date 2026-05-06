@@ -136,6 +136,17 @@ export function RevenueChart({ data }: { data: Point[] }) {
             <stop offset="0%" stopColor="#A7F3D0" stopOpacity="1" />
             <stop offset="100%" stopColor="#10B981" stopOpacity="0.85" />
           </linearGradient>
+          {/* Peak-on-hover gradient — keeps the gold hue family but
+              brightens it so the peak bar "lifts" the same way mint
+              bars do. Earlier rev mapped peak-on-hover to bar-hover
+              (mint), which made the peak appear to flip to a totally
+              different color when the user pointed at it — confusing
+              ("which one IS the peak?"). Distinct token preserves the
+              gold identity through hover. */}
+          <linearGradient id="bar-spike-hover" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#FFE08A" stopOpacity="1" />
+            <stop offset="100%" stopColor="#D48F20" stopOpacity="0.85" />
+          </linearGradient>
         </defs>
 
         {/* horizontal gridlines (drawn first so bars cover them) */}
@@ -169,12 +180,18 @@ export function RevenueChart({ data }: { data: Point[] }) {
           const h = (b.revenue / max) * innerH;
           const x = PAD_X + i * slot + (slot - barW) / 2;
           const y = H - PAD_BOTTOM - h;
-          // Pick fill: hover > spike > weekend > weekday
-          const fill =
-            hoverIdx === i
-              ? "url(#bar-hover)"
-              : i === maxIdx && b.revenue > 0
-                ? "url(#bar-spike)"
+          // Pick fill. Priority: hover-on-peak > peak > hover > weekend
+          // > weekday. The peak bar keeps its gold hue when hovered
+          // (just brightens) so the user never wonders "which one is
+          // the peak again?" mid-hover.
+          const isPeak = i === maxIdx && b.revenue > 0;
+          const isHover = hoverIdx === i;
+          const fill = isHover && isPeak
+            ? "url(#bar-spike-hover)"
+            : isPeak
+              ? "url(#bar-spike)"
+              : isHover
+                ? "url(#bar-hover)"
                 : b.isWeekend
                   ? "url(#bar-weekend)"
                   : "url(#bar-weekday)";
