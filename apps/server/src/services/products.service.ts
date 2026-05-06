@@ -135,11 +135,20 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
   if (sort === "price_asc" || sort === "price_desc") {
     return findProductsOrderedByPrice(where, page, pageSize, sort);
   }
+  if (sort === "rating") {
+    // "Top rated" used to use Prisma's `reviews: { _count: "desc" }`,
+    // which sorts by *review count*, not *average rating*. A 1-star
+    // product with 200 reviews would outrank a 5-star product with 5
+    // reviews — exactly the inverse of what the UI label promises.
+    // Switch to a raw-SQL ORDER BY AVG(rating) with NULLS LAST so
+    // unreviewed products fall to the bottom (consistent with how
+    // findProductsOrderedByPrice handles items without variants).
+    return findProductsOrderedByRating(where, page, pageSize);
+  }
 
   const orderBy: Prisma.ProductOrderByWithRelationInput = (() => {
     switch (sort) {
       case "newest":     return { createdAt: "desc" };
-      case "rating":     return { reviews: { _count: "desc" } };
       default:           return { createdAt: "desc" };
     }
   })();
@@ -219,6 +228,69 @@ async function findProductsOrderedByPrice(
   // Load the page of cards. Prisma can't preserve the explicit id
   // order from the IN clause so we re-sort in JS — but this is only
   // sorting `pageSize` rows (typically ≤ 24), not the full set.
+  const cards = await listProducts({ productId: { in: pageIds } }, { productId: "asc" }, pageSize, 0);
+  const orderIndex = new Map(pageIds.map((id, i) => [id, i]));
+  cards.sort(
+    (a, b) => (orderIndex.get(a.productId) ?? 0) - (orderIndex.get(b.productId) ?? 0),
+  );
+
+  return {
+    items: cards,
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+/**
+ * DB-level rating sort. Mirrors `findProductsOrderedByPrice`'s
+ * candidate-ids → raw-SQL aggregate → page-by-id strategy, but the
+ * aggregate is `AVG(rating)` over `product_review` instead of
+ * `MIN(price)` over `product_item`. NULLS LAST so unreviewed products
+ * fall to the bottom of "Top rated" rather than the top.
+ *
+ * Tie-break by review count desc — when two products have the same
+ * average rating, the one with more reviews ranks higher. This is a
+ * standard pattern for "popular + good" rankings (Amazon, IMDb).
+ */
+async function findProductsOrderedByRating(
+  where: Prisma.ProductWhereInput,
+  page: number,
+  pageSize: number,
+): Promise<ProductBrowseResponse> {
+  const candidates = await prisma.product.findMany({
+    where,
+    select: { productId: true },
+  });
+  if (candidates.length === 0) {
+    return { items: [], page, pageSize, total: 0, totalPages: 1 };
+  }
+  const candidateIds = candidates.map((c) => c.productId);
+
+  const orderedRows = await prisma.$queryRaw<
+    Array<{ product_id: number }>
+  >(Prisma.sql`
+    SELECT p.product_id
+      FROM product p
+      LEFT JOIN LATERAL (
+        SELECT AVG(rating)::float AS avg_rating, COUNT(*) AS review_count
+          FROM product_review
+         WHERE product_id = p.product_id
+      ) r ON true
+     WHERE p.product_id IN (${Prisma.join(candidateIds)})
+     ORDER BY r.avg_rating DESC NULLS LAST,
+              r.review_count DESC NULLS LAST,
+              p.product_id ASC
+  `);
+
+  const total = orderedRows.length;
+  const start = (page - 1) * pageSize;
+  const pageIds = orderedRows.slice(start, start + pageSize).map((r) => r.product_id);
+  if (pageIds.length === 0) {
+    return { items: [], page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
   const cards = await listProducts({ productId: { in: pageIds } }, { productId: "asc" }, pageSize, 0);
   const orderIndex = new Map(pageIds.map((id, i) => [id, i]));
   cards.sort(

@@ -116,4 +116,64 @@ export async function consumeLoginPreAuthToken(token: string): Promise<void> {
   await prisma.verification
     .deleteMany({ where: { identifier: `login-verify:${token}` } })
     .catch(() => {});
+  // Also clear any attempt-counter row for this token so we don't
+  // leave per-token DB litter.
+  await prisma.verification
+    .deleteMany({ where: { identifier: `login-verify-attempts:${token}` } })
+    .catch(() => {});
+}
+
+/**
+ * Per-token OTP attempt limiter. Login two-step verify accepts a
+ * 6-digit code — without a counter, an attacker who already has the
+ * password could brute-force the OTP via repeated /auth/login/verify
+ * POSTs (the loginLimiter caps requests/min per IP, but the same IP
+ * can keep guessing). Cap at 5 wrong codes per pre-auth token; on
+ * the 5th miss we burn the token entirely so the attacker has to
+ * start over from the password screen.
+ *
+ * State lives in a sibling Verification row keyed on
+ * `login-verify-attempts:<token>` whose `value` is a JSON
+ * `{ count: N }`. Same TTL as the pre-auth token (auto-cleanup via
+ * the Verification cron sweep).
+ */
+const MAX_OTP_ATTEMPTS = 5;
+
+export async function recordFailedLoginAttempt(
+  token: string,
+): Promise<{ remaining: number; locked: boolean }> {
+  const identifier = `login-verify-attempts:${token}`;
+  const existing = await prisma.verification.findFirst({
+    where: { identifier },
+    orderBy: { createdAt: "desc" },
+  });
+  let count = 1;
+  if (existing) {
+    try {
+      const parsed = JSON.parse(existing.value) as { count?: number };
+      count = (parsed.count ?? 0) + 1;
+    } catch {
+      count = 1;
+    }
+    await prisma.verification.update({
+      where: { id: existing.id },
+      data: { value: JSON.stringify({ count }) },
+    });
+  } else {
+    await prisma.verification.create({
+      data: {
+        identifier,
+        value: JSON.stringify({ count }),
+        expiresAt: new Date(Date.now() + TTL_MS),
+      },
+    });
+  }
+  const remaining = Math.max(0, MAX_OTP_ATTEMPTS - count);
+  const locked = count >= MAX_OTP_ATTEMPTS;
+  if (locked) {
+    // Burn the pre-auth token so the attacker has to re-enter the
+    // password before they can guess again.
+    await consumeLoginPreAuthToken(token);
+  }
+  return { remaining, locked };
 }

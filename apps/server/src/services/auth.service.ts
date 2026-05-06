@@ -163,6 +163,17 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
     );
   }
 
+  // Normalise phone to E.164 BEFORE persisting so the firebase SMS
+  // cross-account guard (`gateFirebaseSmsRequest`) can do an exact
+  // string match. Earlier rev stored the raw input — an attacker
+  // could register one phone in three formats (`+66812345678`,
+  // `66812345678`, `0812345678`) across three accounts and bypass
+  // the per-phone cooldown, SMS-bombing the victim 5 times faster.
+  // Returns null if the input is not a valid Thai number; we keep
+  // the (validated by zod) input as a fallback so register doesn't
+  // 500 on edge inputs the regex passed.
+  const normalizedPhone = normalizeThaiPhone(input.phone) ?? input.phone;
+
   const hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
   // wrap create in try/catch for the race where two
   // concurrent registers slip past the dup pre-check above. The DB
@@ -178,7 +189,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
         lastName: input.lastName,
         countryId: input.countryId,
         gender: input.gender,
-        phone: input.phone,
+        phone: normalizedPhone,
         // Pin DOB to UTC midnight so it doesn't drift across timezones.
         dateOfBirth: input.dateOfBirth
           ? new Date(`${input.dateOfBirth}T00:00:00.000Z`)
@@ -1089,8 +1100,14 @@ export async function updatePhone(
   userId: number,
   input: UpdatePhoneInput,
 ): Promise<void> {
-  const normalised = input.phone.replace(/[^\d+]/g, "");
-  if (normalised.length < 7) throw new AppError(400, "PhoneTooShort");
+  // Strip non-digits / non-plus-sign first to clean up paste-from-Word
+  // garbage, then run through Thai E.164 normalisation so the stored
+  // string is canonical (`+66812345678` regardless of how the user
+  // typed it). Same fix the register() path got — keeps the firebase
+  // SMS cross-account guard's exact-match working.
+  const cleaned = input.phone.replace(/[^\d+]/g, "");
+  if (cleaned.length < 7) throw new AppError(400, "PhoneTooShort");
+  const normalised = normalizeThaiPhone(cleaned) ?? cleaned;
 
   await prisma.user.update({
     where: { userId },

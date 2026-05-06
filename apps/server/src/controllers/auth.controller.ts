@@ -294,7 +294,7 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
     const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
     const trustDevice = req.body?.trustDevice === true;
 
-    const { resolveLoginPreAuthToken, consumeLoginPreAuthToken } = await import(
+    const { resolveLoginPreAuthToken, consumeLoginPreAuthToken, recordFailedLoginAttempt } = await import(
       "../utils/login-verify.js"
     );
     const payload = await resolveLoginPreAuthToken(token);
@@ -322,7 +322,25 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
     const phoneOk = user.phone && hashCode(payload.userId, user.phone, code) === pending.value;
     const emailOk = hashCode(payload.userId, user.email, code) === pending.value;
     if (!phoneOk && !emailOk) {
-      throw new AppError(400, "InvalidOtp", "Wrong code. Try again.");
+      // Brute-force gate: each wrong code increments the attempt
+      // counter for this pre-auth token. After 5 misses the token is
+      // burned and the attacker has to re-enter the password (and
+      // pass loginLimiter again, capped 5/min) before they can guess
+      // a fresh OTP. The 1M-space 6-digit OTP becomes infeasible to
+      // brute force across the 5-min token TTL.
+      const { remaining, locked } = await recordFailedLoginAttempt(token);
+      if (locked) {
+        throw new AppError(
+          400,
+          "TooManyAttempts",
+          "Too many wrong codes. Sign in again to retry.",
+        );
+      }
+      throw new AppError(
+        400,
+        "InvalidOtp",
+        `Wrong code. ${remaining} attempt${remaining === 1 ? "" : "s"} left.`,
+      );
     }
 
     // Consume the OTP + the pre-auth token so neither replays.

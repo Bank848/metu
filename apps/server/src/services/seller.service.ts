@@ -878,22 +878,43 @@ export async function refundOrder(
     }
   }
 
-  await prisma.$transaction([
-    prisma.order.update({
+  // Restore non-digital stock so a refund un-burns the inventory the
+  // checkout consumed. All current delivery methods (download / email
+  // / license_key / streaming) are digital so this loop is a no-op
+  // today, but the moment a non-digital method ships (physical /
+  // print-on-demand) the refund flow MUST restock or the unit stays
+  // sold-but-paid-back. Same DIGITAL_METHODS set the
+  // payment_intent.payment_failed webhook + sweepExpiredOrders use —
+  // keep them in sync.
+  const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
+  await prisma.$transaction(async (tx) => {
+    for (const item of order.items) {
+      if (item.productItemId == null) continue;
+      const pIt = await tx.productItem.findUnique({
+        where: { productItemId: item.productItemId },
+        select: { deliveryMethod: true },
+      });
+      if (!pIt || DIGITAL_METHODS.has(pIt.deliveryMethod)) continue;
+      await tx.productItem.update({
+        where: { productItemId: item.productItemId },
+        data: { quantity: { increment: item.quantity } },
+      });
+    }
+    await tx.order.update({
       where: { orderId },
       data: {
         status: "refunded",
         ...(stripeRefundId ? { stripeRefundId } : {}),
       },
-    }),
-    prisma.transaction.create({
+    });
+    await tx.transaction.create({
       data: {
         userId: order.userId,
         transactionType: "payout",
         totalAmount: new Prisma.Decimal(order.totalPrice).neg(),
       },
-    }),
-  ]);
+    });
+  });
   await audit({
     actorId,
     action: "order.refund",

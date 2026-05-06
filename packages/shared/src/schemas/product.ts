@@ -3,7 +3,14 @@ import { DELIVERY_METHOD } from "../enums.js";
 
 export const browseQuerySchema = z.object({
   category: z.coerce.number().int().positive().optional(),
-  tags: z.string().optional(), // comma-separated tag ids
+  // Comma-separated tag ids — only digits + commas. Earlier rev was
+  // `z.string().optional()` which accepted anything; the service layer
+  // then did `tags.split(",").map(Number).filter(Boolean)` and silently
+  // dropped non-numeric tokens. Net effect: a typo'd `?tags=foo,3`
+  // showed all products in tag 3 (correct) but `?tags=foo,bar` showed
+  // ALL products with no warning. Tightening the regex catches typos
+  // at the schema layer.
+  tags: z.string().regex(/^\d+(,\d+)*$/, "tags must be comma-separated ids").optional(),
   minPrice: z.coerce.number().nonnegative().optional(),
   maxPrice: z.coerce.number().nonnegative().optional(),
   delivery: z.enum(DELIVERY_METHOD).optional(),
