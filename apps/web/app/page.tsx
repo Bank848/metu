@@ -60,7 +60,7 @@ function FeaturedCoupons({ coupons }: { coupons: Coupon[] }) {
             Featured coupons
           </h2>
           <p className="text-sm text-ink-secondary mt-1">
-            Almost-out-of-stock or expiring soon — grab them before they're gone.
+            Codes that expire this week or are running low on uses.
           </p>
         </div>
       </div>
@@ -167,11 +167,11 @@ function Hero({ stats }: { stats: Stats }) {
             style={{ animationDelay: "320ms" }}
           >
             <GlassButton href="/browse" tone="gold" size="lg">
-              Explore Now
+              Browse the catalog
               <ArrowRight className="h-4 w-4" />
             </GlassButton>
             <GlassButton href="/become-seller" tone="glass" size="lg">
-              Sell your work
+              Open a store
             </GlassButton>
           </div>
         </div>
@@ -207,7 +207,7 @@ function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]
             Trending now
           </h2>
           <p className="text-sm sm:text-base text-ink-secondary mt-1">
-            The digital products creators are loving this week.
+            Most-bought items in the last 7 days, ranked by units sold.
           </p>
         </div>
         <Link href="/browse" className="text-sm font-semibold text-metu-yellow hover:underline">
@@ -414,23 +414,25 @@ function CategoryTiles({ categories }: { categories: Category[] }) {
 
 function WhyMetu() {
   // First card uses the accent surface so it outranks the other two.
+  // Copy reworked so the three cards don't all share the same "X
+  // verb" parallel structure — each one now has its own rhythm.
   const items = [
     {
       icon: Zap,
-      title: "Instant delivery",
-      desc: "Digital products download or stream the moment you pay.",
+      title: "Buy at midnight, download by 00:01",
+      desc: "Every product on METU ships as a file or a license key. No couriers, no Bangkok traffic, no \"out for delivery\".",
       tone: "accent" as const,
     },
     {
       icon: ShieldCheck,
-      title: "Built for trust",
-      desc: "Store reviews, seller stats, and buyer protection baked in.",
+      title: "Reviews you can actually trust",
+      desc: "Only buyers who paid can leave a review. Seller stats — refund rate, response time, fulfilment — sit one tap from every product page.",
       tone: "flat" as const,
     },
     {
       icon: Sparkles,
-      title: "Beautifully designed",
-      desc: "A marketplace that actually feels nice to browse and sell on.",
+      title: "Made for creators, not enterprises",
+      desc: "Open a store in five minutes. Stripe payouts arrive in two days. The fee is one number, posted on the seller dashboard.",
       tone: "flat" as const,
     },
   ];
