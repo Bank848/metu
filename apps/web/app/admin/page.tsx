@@ -128,7 +128,7 @@ export default async function AdminOverview({
           label="GMV (paid)"
           value={coinsCompact(thbToCoins(stats.gmv))}
           countUpTo={thbToCoins(stats.gmv)}
-          countUpFormat={(n) => coinsCompact(n)}
+          countUpFormat="compact-coins"
           valueTooltip={coins(thbToCoins(stats.gmv))}
           sparkline={dashboard.kpiSparklines?.gmv ?? []}
           sparkColor="rgb(244 192 79)"

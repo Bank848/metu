@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowUpRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { MiniSparkline } from "./MiniSparkline";
-import { CountUpNumber } from "./CountUpNumber";
+import { CountUpNumber, type CountUpFormat } from "./CountUpNumber";
 
 // Drill-in variant of StatCard with optional sparkline + click-through
 // link. The bare StatCard (components/StatCard) stays for screens
@@ -26,9 +26,12 @@ interface Props {
       number on mount, formatted via `countUpFormat`. The static `value`
       acts as the SSR fallback (and the post-tween display). */
   countUpTo?: number;
-  /** Formatter for the count-up tween. Defaults to comma-separated
-      integer. Pass e.g. coinsCompact for the GMV card. */
-  countUpFormat?: (n: number) => string;
+  /** Formatter name for the count-up tween. Defaults to "int" (comma-
+      separated integer). Use "compact-coins" for ฿-amount cards. The
+      prop is a string enum, NOT a function, because Next.js refuses
+      to serialise function references across the RSC boundary into a
+      client component (see CountUpNumber for the full story). */
+  countUpFormat?: CountUpFormat;
   /** Optional 7-day series for an inline sparkline. */
   sparkline?: number[];
   /** Sparkline tint. Falls back to the card's accent. */
