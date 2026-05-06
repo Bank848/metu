@@ -711,11 +711,15 @@ export async function getDashboardMetrics() {
     // gives us the heavy 5-way aggregation pre-computed; a 1-row
     // JOIN per top-store is essentially free.
     timed("topStores (matview)", queryStats, () => prisma.$queryRaw<Array<{
-      store_id: number; name: string; revenue: string; orders: bigint;
+      store_id: number; name: string; revenue_text: string; orders: bigint;
       rating: number; computed_at: Date;
     }>>`
+      -- Postgres rejects "ORDER BY t.revenue" when the SELECT list also
+      -- has "AS revenue" (alias collision masks the qualified column);
+      -- alias the text-cast as revenue_text and ORDER BY the underlying
+      -- numeric column instead.
       SELECT t.store_id, t.name, s.rating,
-             t.revenue::text AS revenue,
+             t.revenue::text AS revenue_text,
              t.orders        AS orders,
              t.computed_at   AS computed_at
         FROM "top_stores_30d" t
@@ -756,8 +760,13 @@ export async function getDashboardMetrics() {
     timed("categories", queryStats, () => prisma.$queryRaw<Array<{
       category_id: number; name: string; product_count: bigint; revenue: string;
     }>>`
+      -- Schema model maps Category.categoryName → category_name column,
+      -- so the raw SQL must reference category_name (not the camelCase
+      -- name from the Prisma model). Alias as "name" so the TS type +
+      -- consumer mapping below can stay unchanged.
       SELECT
-        c.category_id, c.name,
+        c.category_id,
+        c.category_name AS name,
         COUNT(DISTINCT p.product_id)::bigint                                AS product_count,
         COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text             AS revenue
       FROM "category" c
@@ -765,7 +774,7 @@ export async function getDashboardMetrics() {
       LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
       LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
       LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
-      GROUP BY c.category_id, c.name
+      GROUP BY c.category_id, c.category_name
       ORDER BY revenue::numeric DESC
     `),
     timed("tags", queryStats, () => prisma.$queryRaw<Array<{ tag_id: number; tag_name: string; product_count: bigint }>>`
@@ -825,7 +834,7 @@ export async function getDashboardMetrics() {
       : null,
     topStores: topStores.map((s) => ({
       storeId: s.store_id, name: s.name,
-      revenue: Number(s.revenue), orders: Number(s.orders),
+      revenue: Number(s.revenue_text), orders: Number(s.orders),
       rating: s.rating,
     })),
     // ISO timestamp of when the matview was last refreshed. UI shows
