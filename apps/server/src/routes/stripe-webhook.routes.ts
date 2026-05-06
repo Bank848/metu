@@ -50,23 +50,56 @@ router.post(
       return res.status(400).json({ error: "InvalidSignature" });
     }
 
-    // Skip events already processed.
-    const existing = await prisma.auditLog.findFirst({
-      where: { action: "stripe.event.processed", meta: { path: ["eventId"], equals: event.id } },
-      select: { logId: true },
-    });
-    if (existing) return res.json({ received: true, idempotent: true });
-
+    // Idempotency: a previous version of this handler did
+    // findFirst → handleEvent → create as separate steps, which left a
+    // TOCTOU window — two concurrent Stripe retries for the same
+    // event.id (e.g. our first response was slow, Stripe re-fired)
+    // could both pass the existence check and both run handleEvent,
+    // double-finalising an order or double-refunding a charge.
+    //
+    // Fix: serialise per-event with a Postgres advisory transaction
+    // lock keyed on a 32-bit hash of event.id, then re-check existence
+    // inside the same transaction. The lock auto-releases on commit /
+    // rollback so there's no leak if handleEvent throws. We don't need
+    // a unique index migration on auditLog.meta — the lock alone
+    // serialises the check + write for any given event.id, and the
+    // two-phase (findFirst → create) becomes safe as long as both
+    // calls share the locked transaction.
     try {
-      await handleEvent(event);
-      await prisma.auditLog.create({
-        data: {
-          action: "stripe.event.processed",
-          targetType: "stripe_event",
-          targetId: 0,
-          meta: { eventId: event.id, type: event.type } as never,
-        },
+      const result = await prisma.$transaction(async (tx) => {
+        // Lock key derived from event.id (FNV-1a 32-bit). Any 32-bit
+        // signed integer works for pg_advisory_xact_lock(int).
+        const lockKey = fnv1a32(event!.id);
+        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${lockKey})`);
+
+        const existing = await tx.auditLog.findFirst({
+          where: { action: "stripe.event.processed", meta: { path: ["eventId"], equals: event!.id } },
+          select: { logId: true },
+        });
+        if (existing) {
+          // Concurrent retry won the lock first; bail out cleanly.
+          return { idempotent: true as const };
+        }
+        await handleEvent(event!);
+        await tx.auditLog.create({
+          data: {
+            action: "stripe.event.processed",
+            targetType: "stripe_event",
+            targetId: 0,
+            meta: { eventId: event!.id, type: event!.type } as never,
+          },
+        });
+        return { idempotent: false as const };
+      }, {
+        // Webhook handlers can take a few seconds (especially refund
+        // processing). Bump the default 5s timeout so the lock-holding
+        // transaction doesn't get killed mid-handler.
+        timeout: 30_000,
+        maxWait: 10_000,
       });
+      if (result.idempotent) {
+        return res.json({ received: true, idempotent: true });
+      }
       res.json({ received: true });
     } catch (err) {
       // 500 so Stripe retries.
@@ -219,6 +252,27 @@ async function onAccountUpdated(event: Stripe.Event) {
 
 async function onPayoutPaid(_event: Stripe.Event) {
   // No-op: seller-wallet UI fetches payout history live from Stripe.
+}
+
+/**
+ * FNV-1a 32-bit hash. Used to derive a stable advisory-lock key from a
+ * Stripe event.id. Postgres `pg_advisory_xact_lock(int)` takes a
+ * 32-bit signed int, so we mask down to that range. Returning a
+ * positive int is fine — Postgres treats both signs as distinct slots.
+ *
+ * Why FNV-1a and not crypto.createHash: we don't need cryptographic
+ * properties, just a fast, deterministic, well-distributed 32-bit
+ * digest. The whole call runs in microseconds and stays in the same
+ * Node process — no extra round-trip.
+ */
+function fnv1a32(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  // Force into 32-bit signed range.
+  return h | 0;
 }
 
 export default router;

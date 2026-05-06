@@ -9,9 +9,18 @@ import { play } from "@/lib/sound";
 // `metu-sound-muted` localStorage flag if the user has muted sounds.
 export function Confetti() {
   useEffect(() => {
-    // Audio first — Web Audio scheduling is more sensitive to lag than
-    // DOM mutation, so kick the cue before we start spawning 120 divs.
-    play("purchase");
+    // Defer audio one tick so a parent that unmounts on the same
+    // render frame (e.g. router replace mid-effect) skips the cue
+    // entirely. Without this guard a buyer who navigates away within
+    // ~10ms of /orders/[id]?success still hears the celebratory tone
+    // from the abandoned page. Web Audio scheduling can't be cancelled
+    // from outside the play() call without refactoring lib/sound.ts,
+    // so the cleanest mitigation is a "still mounted" check before
+    // the call fires at all.
+    let cancelled = false;
+    const audioTimer = window.setTimeout(() => {
+      if (!cancelled) play("purchase");
+    }, 0);
     const colors = ["#FBBF24", "#F59E0B", "#1F2937", "#FEF3C7"];
     const container = document.createElement("div");
     container.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:9999;";
@@ -40,6 +49,8 @@ export function Confetti() {
       style.remove();
     }, 8000);
     return () => {
+      cancelled = true;
+      window.clearTimeout(audioTimer);
       clearTimeout(t);
       container.remove();
       style.remove();

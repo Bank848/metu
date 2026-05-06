@@ -1649,6 +1649,30 @@ export async function runAdminSql(rawSql: string): Promise<{
       "Multiple statements aren't allowed — run one query at a time.",
     );
   }
+  // Defence-in-depth keyword denylist. The SET LOCAL transaction_read_only
+  // below already blocks writes at the Postgres level, but Postgres
+  // supports write-CTEs (`WITH x AS (DELETE FROM t RETURNING *) SELECT
+  // FROM x;`) which only error AT EXECUTION TIME — and the friendly
+  // error from Postgres ("cannot execute DELETE in a read-only
+  // transaction") is less specific than what we want to show. Reject
+  // any write keyword as a token (word-boundary regex so column names
+  // like "delete_count" or "update_at" pass).
+  const WRITE_KEYWORDS = [
+    "insert", "update", "delete", "merge", "truncate",
+    "drop", "alter", "create",
+    "grant", "revoke",
+    "copy", "vacuum", "reindex",
+  ];
+  for (const kw of WRITE_KEYWORDS) {
+    const re = new RegExp(`\\b${kw}\\b`, "i");
+    if (re.test(sql)) {
+      throw new AppError(
+        400,
+        "WriteKeywordBlocked",
+        `\`${kw.toUpperCase()}\` isn't allowed in the SQL playground — read-only.`,
+      );
+    }
+  }
   const ROW_CAP = 200;
   const started = Date.now();
   const rows = await prisma.$transaction(async (tx) => {

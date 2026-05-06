@@ -37,6 +37,11 @@ export function OrdersByStatusDonut({
 }) {
   const router = useRouter();
   const [hovered, setHovered] = useState<string | null>(null);
+  // Track keyboard focus separately from hover so a tabbing user always
+  // sees a visible ring on the focused slice — the prior rev set
+  // `outline: none` on the path with no replacement, which hid the
+  // focus indicator entirely (a11y violation).
+  const [focused, setFocused] = useState<string | null>(null);
   const total = useMemo(() => data.reduce((sum, s) => sum + s.count, 0), [data]);
 
   if (total === 0) {
@@ -90,15 +95,23 @@ export function OrdersByStatusDonut({
             // calls router.push directly. `pointer-events: auto` on
             // the path is implicit; the surrounding <svg> doesn't
             // intercept.
+            const isFocused = focused === seg.status;
             return (
               <path
                 key={seg.status}
                 d={arcPath(radius, radius, r, inner, seg.startAngle, seg.endAngle)}
                 fill={STATUS_COLOURS[seg.status] ?? FALLBACK}
+                // Keyboard focus visual: a 2px white stroke around the
+                // focused slice. Hidden when not focused so it doesn't
+                // compete with the hover transform animation.
+                stroke={isFocused ? "rgba(255,255,255,0.85)" : "none"}
+                strokeWidth={isFocused ? 2 : 0}
                 transform={`translate(${pulled.x} ${pulled.y})`}
                 className="animate-slice-pop"
                 onMouseEnter={() => setHovered(seg.status)}
                 onMouseLeave={() => setHovered(null)}
+                onFocus={() => setFocused(seg.status)}
+                onBlur={() => setFocused(null)}
                 onClick={() => router.push(`/admin/orders?status=${seg.status}`)}
                 role="link"
                 aria-label={`Filter orders by ${seg.status}`}
@@ -110,7 +123,7 @@ export function OrdersByStatusDonut({
                   }
                 }}
                 style={{
-                  transition: "transform 200ms ease-out",
+                  transition: "transform 200ms ease-out, stroke-width 120ms ease-out",
                   cursor: "pointer",
                   outline: "none",
                   animationDelay: `${delayMs}ms`,

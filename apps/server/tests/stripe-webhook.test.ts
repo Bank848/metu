@@ -23,16 +23,25 @@ vi.mock("../src/services/stripe.service.js", async () => {
   };
 });
 
-vi.mock("../src/db/prisma.js", () => ({
-  prisma: {
-    auditLog: { findFirst: vi.fn(), create: vi.fn() },
-    order: {
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      update: vi.fn(),
-    },
-    store: { updateMany: vi.fn() },
+// Build a single prisma mock object so $transaction can re-use the same
+// auditLog/order/store mocks when the route runs `prisma.$transaction(
+// async (tx) => { tx.auditLog.findFirst(...) })`. Without this the
+// route-side advisory-lock transaction couldn't see the same `findFirst`
+// vi.fn the tests configure in beforeEach.
+const prismaMock: any = {
+  auditLog: { findFirst: vi.fn(), create: vi.fn() },
+  order: {
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    update: vi.fn(),
   },
+  store: { updateMany: vi.fn() },
+  $executeRawUnsafe: vi.fn(async () => 0),
+};
+prismaMock.$transaction = vi.fn(async (cb: (tx: any) => Promise<unknown>) => cb(prismaMock));
+
+vi.mock("../src/db/prisma.js", () => ({
+  prisma: prismaMock,
 }));
 
 vi.mock("../src/services/orders.service.js", () => ({
