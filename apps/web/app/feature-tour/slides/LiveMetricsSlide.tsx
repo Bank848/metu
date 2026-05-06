@@ -34,8 +34,8 @@ export function LiveMetricsSlide({ data }: { data: KioskData }) {
         The marketplace, live
       </h2>
       <p className="text-base text-ink-secondary mb-8">
-        Top sellers, biggest sales, and the latest activity — refreshed every
-        few minutes from the actual database.
+        Top sellers. Biggest sales. Latest activity. The numbers below
+        are pulled from the live database, not a screenshot.
       </p>
 
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">

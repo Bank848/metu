@@ -108,12 +108,11 @@ export function TechStackSlide() {
       </div>
 
       <h2 className="font-display text-4xl md:text-5xl font-bold text-white mb-3 leading-tight">
-        Built on a modern stack
+        The pieces that run METU
       </h2>
       <p className="text-base text-ink-secondary max-w-3xl mb-8">
-        Every piece of the marketplace is wired to a real database, a real
-        payment processor, and a real CDN — running on the same code that
-        powers metu.online.
+        Eight tools, one codebase. The database is Postgres. The payment
+        processor is Stripe. The deploy is Fly. Nothing here is a mock.
       </p>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">

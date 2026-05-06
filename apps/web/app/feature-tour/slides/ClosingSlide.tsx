@@ -44,8 +44,9 @@ export function ClosingSlide() {
         It's a real database.
       </h2>
       <p className="mt-6 text-xl text-ink-secondary max-w-3xl">
-        Every screen on metu.online is wired to live Postgres — schema,
-        migrations, raw SQL, views, and a matview, all defended end-to-end.
+        Every screen reads from live Postgres. Schema lives in Prisma.
+        Migrations are version-controlled. Raw SQL where it earns its
+        keep, ORM where it doesn&apos;t.
       </p>
 
       <div className="mt-12 grid grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-5xl">

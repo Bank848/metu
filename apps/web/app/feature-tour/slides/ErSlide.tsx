@@ -23,8 +23,9 @@ export function ErSlide() {
         How everything connects
       </h2>
       <p className="text-sm text-ink-secondary mb-4">
-        Each box is one kind of thing we keep track of. Each line shows how
-        two of them are linked together — drawn straight from the live system.
+        Each box is a table in the schema. Each line is a foreign key
+        between two of them. The diagram is generated from the live
+        Prisma schema, not hand-drawn.
       </p>
 
       <div className="flex-1 rounded-2xl border border-white/10 bg-white/[0.02] p-2 overflow-hidden">

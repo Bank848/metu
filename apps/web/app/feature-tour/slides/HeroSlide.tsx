@@ -16,9 +16,9 @@ export function HeroSlide({ data, active }: { data: KioskData; active: boolean }
         METU
       </h1>
       <p className="mt-6 text-2xl md:text-3xl text-ink-secondary max-w-3xl">
-        A digital marketplace for Thai creators —
+        A digital marketplace for Thai creators.
         <br />
-        live payments, license keys, and a real database.
+        Live payments. Real license keys. Postgres underneath.
       </p>
 
       <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-5 w-full max-w-5xl">
