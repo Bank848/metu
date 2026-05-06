@@ -95,34 +95,19 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 # against Neon each deploy.
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-# 3d. Sharp for Next.js Image optimization. Without it, /next/image
-# requests fall back to a slow JavaScript image pipeline + spam the
-# logs with "'sharp' is required" warnings.
+# 3d. Sharp for Next.js Image optimization — REVERTED.
 #
-# Earlier rev did `npm install --no-save sharp` in /app — the
-# standalone bundle's package.json shape made that silently no-op.
-# This rev installs sharp in an isolated /tmp directory and merges
-# its node_modules into the standalone bundle's node_modules with
-# `cp -rn` (no-clobber so we never overwrite an existing module).
-# `apk add vips` brings in libvips at runtime; sharp's npm package
-# ships prebuilt binaries for alpine/musl so no compile step needed.
+# Multiple attempts to install sharp into the standalone runner all
+# failed in production: `npm install --no-save` in /app silently no-
+# op'd; isolated install + cp -rn with --omit=optional skipped the
+# native binary; --include=optional broke the build. The 'sharp is
+# required' warnings continue but Next falls back to its JS image
+# pipeline which works (just slower per request — first paint is
+# unaffected, only subsequent image transforms are).
 #
-# Sharp 0.33+ ships its prebuilt native binary as @img/sharp-libvips-
-# linuxmusl-x64, declared in sharp's `optionalDependencies` (because
-# it varies per platform). The previous `--omit=optional` SKIPPED
-# that platform package — sharp installed but couldn't find its
-# native binary at runtime, so the `'sharp' is required' warning
-# kept firing in production. Now `--include=optional` makes sure
-# the platform binary lands in node_modules.
-RUN mkdir -p /tmp/sharp-install \
- && cd /tmp/sharp-install \
- && echo '{"name":"sharp-install","version":"1.0.0","private":true}' > package.json \
- && npm install --include=optional sharp@0.33.5 \
- && mkdir -p /app/node_modules \
- && cp -rn /tmp/sharp-install/node_modules/. /app/node_modules/ \
- && rm -rf /tmp/sharp-install \
- && cd /app \
- && node -e "const s = require('sharp'); console.log('sharp ok, libvips=' + s.versions.vips);"
+# Tracking this for post-defense: see if upgrading the apps/web
+# package.json to add sharp directly + dropping --ignore-scripts on
+# the deps stage gets it traced into the standalone output.
 
 # Non-root user is a Fly best practice.
 RUN addgroup --system --gid 1001 nodejs \
