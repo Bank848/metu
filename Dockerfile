@@ -97,11 +97,24 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # 3d. Sharp for Next.js Image optimization. Without it, /next/image
 # requests fall back to a slow JavaScript image pipeline + spam the
-# logs with "'sharp' is required" warnings. Install just sharp + its
-# alpine native deps directly into the runner — bypasses standalone's
-# tracing which doesn't pick up sharp reliably.
-RUN apk add --no-cache vips-dev \
- && npm install --omit=dev --no-save sharp@0.33.5
+# logs with "'sharp' is required" warnings.
+#
+# Earlier rev did `npm install --no-save sharp` in /app — the
+# standalone bundle's package.json shape made that silently no-op.
+# This rev installs sharp in an isolated /tmp directory and merges
+# its node_modules into the standalone bundle's node_modules with
+# `cp -rn` (no-clobber so we never overwrite an existing module).
+# `apk add vips` brings in libvips at runtime; sharp's npm package
+# ships prebuilt binaries for alpine/musl so no compile step needed.
+RUN apk add --no-cache vips \
+ && mkdir -p /tmp/sharp-install \
+ && cd /tmp/sharp-install \
+ && echo '{"name":"sharp-install","version":"1.0.0","private":true}' > package.json \
+ && npm install --omit=optional sharp@0.33.5 \
+ && mkdir -p /app/node_modules \
+ && cp -rn /tmp/sharp-install/node_modules/. /app/node_modules/ \
+ && rm -rf /tmp/sharp-install \
+ && node -e "require('sharp')" && echo "✓ sharp loadable"
 
 # Non-root user is a Fly best practice.
 RUN addgroup --system --gid 1001 nodejs \
