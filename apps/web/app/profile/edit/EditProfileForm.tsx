@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { User, Lock, Save, Phone, ShieldCheck, Monitor, Trash2, Smartphone, Copy } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
@@ -8,6 +9,7 @@ import { FirebasePhoneVerify } from "@/components/auth/FirebasePhoneVerify";
 import { firebaseConfigured } from "@/lib/firebase";
 import { fmtDate } from "@/lib/format";
 import { ChangeContactPanel } from "./ChangeContactPanel";
+import { DateOfBirthPicker } from "@/components/forms/DateOfBirthPicker";
 
 // Active session entry from GET /auth/sessions.
 type SessionRow = {
@@ -480,16 +482,14 @@ export function EditProfileForm({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <label className="block">
+          <div className="block">
             <span className="text-sm font-semibold text-white">Date of birth</span>
-            <input
-              type="date"
+            <DateOfBirthPicker
               value={form.dateOfBirth}
-              onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-              max={MAX_DOB}
-              className={`mt-1 ${inputCls}`}
+              onChange={(v) => setForm({ ...form, dateOfBirth: v })}
+              className="mt-1"
             />
-          </label>
+          </div>
           <label className="block">
             <span className="text-sm font-semibold text-white">Gender</span>
             <select
@@ -784,38 +784,52 @@ export function EditProfileForm({
 
         {/* State 2 — mid-enrolment, show secret + verify form */}
         {!initial.totpEnabled && totpEnrollment && (
-          <div className="border-t border-white/10 pt-4 space-y-3">
+          <div className="border-t border-white/10 pt-4 space-y-4">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">
+              <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim mb-2">
                 Step 1 — add to your authenticator app
               </div>
-              <div className="text-sm text-white">
-                Open your app and either:
-                <ul className="list-disc list-inside text-ink-secondary mt-1 space-y-0.5">
-                  <li>
-                    Tap the URI on this device:{" "}
-                    <a
-                      href={totpEnrollment.otpauthUri}
-                      className="text-metu-yellow underline hover:no-underline break-all"
-                    >
-                      open in authenticator
-                    </a>
-                  </li>
-                  <li>
-                    Or paste this secret manually:{" "}
-                    <code className="font-mono text-xs bg-surface-3 px-2 py-0.5 rounded">
-                      {totpEnrollment.secret}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard?.writeText(totpEnrollment.secret)}
-                      className="ml-1 inline-flex items-center text-ink-dim hover:text-metu-yellow"
-                      title="Copy secret"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </button>
-                  </li>
-                </ul>
+              <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 items-start">
+                {/* QR — quickest path on mobile auth apps. White border so the
+                    QR's quiet zone reads against the dark surface. */}
+                <div className="rounded-xl bg-white p-3 inline-block">
+                  <QRCodeSVG
+                    value={totpEnrollment.otpauthUri}
+                    size={160}
+                    fgColor="#0b0d12"
+                    bgColor="#ffffff"
+                    level="M"
+                    marginSize={1}
+                  />
+                </div>
+                <div className="text-sm text-white">
+                  Scan the QR with Google Authenticator, Authy, 1Password, or any TOTP app. If you can&apos;t scan, choose one of these:
+                  <ul className="list-disc list-inside text-ink-secondary mt-2 space-y-1">
+                    <li>
+                      Tap the URI on this device:{" "}
+                      <a
+                        href={totpEnrollment.otpauthUri}
+                        className="text-metu-yellow underline hover:no-underline break-all"
+                      >
+                        open in authenticator
+                      </a>
+                    </li>
+                    <li>
+                      Or paste this secret manually:{" "}
+                      <code className="font-mono text-xs bg-surface-3 px-2 py-0.5 rounded">
+                        {totpEnrollment.secret}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(totpEnrollment.secret)}
+                        className="ml-1 inline-flex items-center text-ink-dim hover:text-metu-yellow"
+                        title="Copy secret"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </button>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
 

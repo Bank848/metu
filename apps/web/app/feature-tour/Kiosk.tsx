@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Pause, Play } from "lucide-react";
+import Link from "next/link";
+import { Pause, Play, X } from "lucide-react";
 import type { KioskData } from "@/lib/server/kiosk";
 import { HeroSlide } from "./slides/HeroSlide";
 import { ErSlide } from "./slides/ErSlide";
@@ -82,6 +83,13 @@ export function Kiosk({ data }: { data: KioskData }) {
       } else if (e.code === "KeyR") {
         e.preventDefault();
         router.refresh();
+      } else if (e.code === "Escape") {
+        // Esc bails out of the kiosk to the marketplace home. Useful
+        // when the operator is using the page on a real laptop and
+        // wants to demo something else without clicking the small
+        // Exit chip.
+        e.preventDefault();
+        router.push("/");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -163,9 +171,21 @@ export function Kiosk({ data }: { data: KioskData }) {
 
       {/* Tiny corner badge for the operator. Hidden in fullscreen mode
           but still discoverable when you mouse near it. */}
-      <div className="absolute top-3 right-3 text-[10px] font-mono text-ink-dim pointer-events-none select-none">
+      <div className="absolute top-3 left-3 text-[10px] font-mono text-ink-dim pointer-events-none select-none">
         space pause · ← → step · r refresh
       </div>
+
+      {/* Exit button (top-right). Hover-only so it doesn't pollute the
+          presentation surface, but always reachable when the user moves
+          a cursor. Also bound to Esc via the keyboard handler above. */}
+      <Link
+        href="/"
+        aria-label="Exit feature tour"
+        className="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-space-950/70 backdrop-blur px-3 py-1.5 text-xs font-mono text-ink-secondary hover:text-white hover:border-white/30 transition opacity-40 hover:opacity-100"
+      >
+        <X className="h-3.5 w-3.5" />
+        Exit
+      </Link>
 
       <style jsx global>{`
         @keyframes kiosk-progress {
