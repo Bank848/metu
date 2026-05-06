@@ -691,7 +691,7 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
  */
 export async function getDashboardMetrics() {
   const queryStats: QueryStat[] = [];
-  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor] = await Promise.all([
+  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows] = await Promise.all([
     timed("growth", queryStats, () => prisma.$queryRaw<Array<{
       total_users: bigint; buyers: bigint; sellers: bigint; admins: bigint;
       active_7d: bigint;
@@ -832,7 +832,34 @@ export async function getDashboardMetrics() {
         COUNT(*) FILTER (WHERE rating <= 2)::bigint                                    AS low_rated
       FROM "product_review"
     `),
+    // 7-day daily counts for the KPI-card sparklines. generate_series
+    // fills in zero days so the sparkline shape stays honest. Single
+    // round-trip: each metric becomes a column in the same series so
+    // there's only one query for the whole row.
+    timed("kpiSparklines", queryStats, () => prisma.$queryRaw<Array<{
+      day: string; users: bigint; orders: bigint; gmv: string; reviews: bigint;
+    }>>`
+      SELECT TO_CHAR(d::date, 'YYYY-MM-DD') AS day,
+             COALESCE((SELECT COUNT(*) FROM "users" u WHERE DATE(u.created_date) = d::date), 0)::bigint  AS users,
+             COALESCE((SELECT COUNT(*) FROM "orders" o WHERE DATE(o.created_at) = d::date), 0)::bigint   AS orders,
+             COALESCE((SELECT SUM(total_price) FROM "orders" o
+                        WHERE DATE(o.created_at) = d::date AND o.status IN ('paid','fulfilled')), 0)::text AS gmv,
+             COALESCE((SELECT COUNT(*) FROM "product_review" r WHERE DATE(r.created_at) = d::date), 0)::bigint AS reviews
+      FROM generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, INTERVAL '1 day') d
+      ORDER BY d ASC
+    `),
+    // Orders-by-status donut. Five-way breakdown so /admin can render
+    // a colour-coded donut + a "click status to filter" row.
+    timed("ordersByStatus", queryStats, () => prisma.$queryRaw<Array<{
+      status: string; count: bigint;
+    }>>`
+      SELECT status::text AS status, COUNT(*)::bigint AS count
+      FROM "orders"
+      GROUP BY status
+      ORDER BY count DESC
+    `),
   ]);
+
 
   return {
     growth: growth[0]
@@ -880,6 +907,18 @@ export async function getDashboardMetrics() {
           lowRated: Number(reviewMonitor[0].low_rated),
         }
       : null,
+    // Per-KPI 7-day sparklines for the clickable stat cards. Each
+    // array is 7 values, oldest → newest.
+    kpiSparklines: {
+      users:   kpiSparklineRows.map((r) => Number(r.users)),
+      orders:  kpiSparklineRows.map((r) => Number(r.orders)),
+      gmv:     kpiSparklineRows.map((r) => Number(r.gmv)),
+      reviews: kpiSparklineRows.map((r) => Number(r.reviews)),
+    },
+    // Orders-by-status breakdown for the donut chart.
+    ordersByStatus: ordersByStatusRows.map((r) => ({
+      status: r.status, count: Number(r.count),
+    })),
     // Per-query timing surfaced on /admin so the rubric shows the
     // panel knows what each block cost. Each entry is parallel
     // duration, not wall-clock — see `timed()` helper at top of file.

@@ -9,6 +9,8 @@ import { RangeToggle } from "@/components/admin/RangeToggle";
 import { OrderHeatmap } from "@/components/admin/OrderHeatmap";
 import { QueryTimingsBar } from "@/components/admin/QueryTimingsBar";
 import { RefreshMatviewButton } from "@/components/admin/RefreshMatviewButton";
+import { ClickableStatCard } from "@/components/admin/ClickableStatCard";
+import { OrdersByStatusDonut } from "@/components/admin/OrdersByStatusDonut";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiFetch, ApiError } from "@/lib/server/api";
 import { coins, thbToCoins, coinsCompact, fmtDateTime } from "@/lib/format";
@@ -37,6 +39,8 @@ type Dashboard = {
   tags: Array<{ tagId: number; tagName: string; productCount: number }>;
   couponImpact: { totalCoupons: number; activeCoupons: number; totalRedemptions: number; totalDiscount: number; nearExpiry: number } | null;
   reviewMonitor: { avgRating: number; totalReviews: number; reviews7d: number; lowRated: number } | null;
+  kpiSparklines: { users: number[]; orders: number[]; gmv: number[]; reviews: number[] };
+  ordersByStatus: Array<{ status: string; count: number }>;
   queryStats: Array<{ name: string; ms: number }>;
 };
 
@@ -107,25 +111,69 @@ export default async function AdminOverview({
         />
       </div>
 
-      {/* Wave-3: GMV is the lead stat — `highlight` variant pulls it out
-          of the row. Other stats stay default. */}
+      {/* KPI grid. Each tile is now a click-through to the matching
+          drill-in page + carries an inline 7-day sparkline. GMV gets
+          the `highlight` tone since it's the lead metric. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {/* Phase 11.2 — GMV is the lead admin KPI; same compact-format
-            treatment as /seller's Total revenue. Hover surfaces the
-            exact baht figure. */}
-        <StatCard
-          variant="highlight"
+        <ClickableStatCard
+          tone="highlight"
+          href="/admin/refunds"
           icon={Banknote}
           label="GMV (paid)"
           value={coinsCompact(thbToCoins(stats.gmv))}
           valueTooltip={coins(thbToCoins(stats.gmv))}
+          sparkline={dashboard.kpiSparklines?.gmv ?? []}
+          sparkColor="rgb(244 192 79)"
         />
-        <StatCard icon={Users} label="Users" value={stats.users} />
-        <StatCard icon={Store} label="Stores" value={stats.stores} />
-        <StatCard icon={Package} label="Products" value={stats.products} />
-        <StatCard icon={ShoppingBag} label="Orders" value={stats.orders} />
-        <StatCard icon={Clock} label="Pending orders" value={stats.pendingOrders} />
+        <ClickableStatCard
+          href="/admin/users"
+          icon={Users}
+          label="Users"
+          value={stats.users.toLocaleString()}
+          sparkline={dashboard.kpiSparklines?.users ?? []}
+          sparkColor="rgb(98 182 255)"
+        />
+        <ClickableStatCard
+          href="/admin/stores"
+          icon={Store}
+          label="Stores"
+          value={stats.stores.toLocaleString()}
+          sparkColor="rgb(192 139 255)"
+        />
+        <ClickableStatCard
+          href="/browse"
+          icon={Package}
+          label="Products"
+          value={stats.products.toLocaleString()}
+          sparkColor="rgb(98 182 255)"
+        />
+        <ClickableStatCard
+          href="/admin/orders"
+          icon={ShoppingBag}
+          label="Orders"
+          value={stats.orders.toLocaleString()}
+          sparkline={dashboard.kpiSparklines?.orders ?? []}
+          sparkColor="rgb(61 220 151)"
+        />
+        <ClickableStatCard
+          href="/admin/orders?status=pending"
+          icon={Clock}
+          label="Pending orders"
+          value={stats.pendingOrders.toLocaleString()}
+          tone={stats.pendingOrders === 0 ? "zero" : "default"}
+          sparkColor="rgb(244 192 79)"
+        />
       </div>
+
+      {/* Orders-by-status donut. Click any slice to filter
+          /admin/orders by that status. Lives at the top so the most
+          actionable view (refunds / cancellations / pending) is
+          always one click away. */}
+      {dashboard.ordersByStatus && dashboard.ordersByStatus.length > 0 && (
+        <div className="mb-6">
+          <OrdersByStatusDonut data={dashboard.ordersByStatus} />
+        </div>
+      )}
 
       {/* Revenue chart with date-range toggle. The toggle drives the
           ?range= URL param which getStats(days) on the server reads.
