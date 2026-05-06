@@ -10,7 +10,7 @@ import { OrderHeatmap } from "@/components/admin/OrderHeatmap";
 import { QueryTimingsBar } from "@/components/admin/QueryTimingsBar";
 import { RefreshMatviewButton } from "@/components/admin/RefreshMatviewButton";
 import { TransactionActions } from "@/components/admin/TransactionActions";
-import { apiAuth } from "@/lib/session";
+import { apiFetch, ApiError } from "@/lib/server/api";
 import { coins, thbToCoins, coinsCompact, fmtDateTime } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
@@ -46,6 +46,24 @@ export const dynamic = "force-dynamic";
 
 const ALLOWED_RANGES = [7, 14, 30, 90] as const;
 
+// Wrap apiFetch with null-on-error semantics so the page stays
+// renderable when one of the analytics queries trips. TS needs the
+// generic preserved in the catch return type or it widens to {}.
+async function safeFetch<T>(path: string): Promise<T | null> {
+  try {
+    return await apiFetch<T>(path);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      // eslint-disable-next-line no-console
+      console.error(`[admin] ${path} → ${err.status}`, err.body);
+      return null;
+    }
+    // eslint-disable-next-line no-console
+    console.error(`[admin] ${path} threw`, err);
+    return null;
+  }
+}
+
 export default async function AdminOverview({
   searchParams,
 }: {
@@ -56,12 +74,26 @@ export default async function AdminOverview({
   const requested = Number(searchParams.range);
   const days = (ALLOWED_RANGES as readonly number[]).includes(requested) ? requested : 14;
 
+  // Direct API calls (apiFetch) instead of BFF-proxied apiAuth — same
+  // pattern getMe/auth uses. apiAuth has been returning 401 on certain
+  // admin paths in production (cookie wasn't surviving the BFF proxy
+  // hop for some endpoints), so we hit the API directly here. The
+  // server-side runtime forwards the incoming request's cookies via
+  // headers().get("cookie") inside apiFetch.
   const [stats, dashboard, heatmap] = await Promise.all([
-    apiAuth<Stats>(`/admin/stats?days=${days}`),
-    apiAuth<Dashboard>("/admin/dashboard"),
-    apiAuth<HeatmapCell[]>("/admin/dashboard/heatmap?days=30"),
+    safeFetch<Stats>(`/admin/stats?days=${days}`),
+    safeFetch<Dashboard>("/admin/dashboard"),
+    safeFetch<HeatmapCell[]>("/admin/dashboard/heatmap?days=30"),
   ]);
-  if (!stats || !dashboard) return <p>Failed to load</p>;
+  if (!stats || !dashboard) {
+    // Surface which call failed so future regressions are debuggable
+    // straight from the rendered page instead of needing log access.
+    return (
+      <p className="text-coral text-sm">
+        Failed to load · stats={stats ? "ok" : "null"} · dashboard={dashboard ? "ok" : "null"} · heatmap={heatmap ? "ok" : "null"}
+      </p>
+    );
+  }
 
   return (
     <>

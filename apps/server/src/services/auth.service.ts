@@ -7,6 +7,7 @@ import { findFirstProfaneField } from "../utils/profanity.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout, escapeHtml } from "../utils/email-template.js";
 import { audit } from "../utils/audit.js";
+import { normalizeThaiPhone, isValidThaiE164 } from "../utils/phone.js";
 import { SITE_URL, DEMO_REVEAL_TOKENS } from "../config.js";
 import type {
   ChangePasswordInput,
@@ -768,27 +769,62 @@ export async function verifyEmailChange(userId: number, currentEmail: string, ne
 }
 
 export async function startPhoneChange(userId: number, currentEmail: string, newPhone: string): Promise<void> {
-  const trimmed = newPhone.trim();
-  if (!trimmed || !/^\+?[\d\s-]{6,}$/.test(trimmed)) {
-    throw new AppError(400, "InvalidPhone", "That phone number doesn't look right.");
+  // Accept Thai input in any format (0812345678, 812345678, +66812345678,
+  // "+66 81 234 5678") — normalise to E.164 (+66XXXXXXXXX) for storage
+  // + Firebase Phone Auth. Rejects anything that doesn't normalise to
+  // a valid 9-digit Thai number.
+  const normalized = normalizeThaiPhone(newPhone);
+  if (!isValidThaiE164(normalized)) {
+    throw new AppError(400, "InvalidPhone", "Phone must be a 9-digit Thai number (with or without +66 / leading 0).");
   }
-  await issueSensitiveOtp(userId, currentEmail, "phone", trimmed);
+  // Same-as-current short-circuit so the user gets a clear message
+  // instead of a successful OTP they can never act on.
+  const me = await prisma.user.findUnique({
+    where: { userId },
+    select: { phone: true },
+  });
+  if (me?.phone === normalized) {
+    throw new AppError(400, "SamePhone", "New phone is the same as the current one.");
+  }
+  // Dup-check against other users. phone is not @unique in the schema
+  // (legacy data has duplicates), so we enforce uniqueness here at the
+  // application layer for the change flow.
+  const dup = await prisma.user.findFirst({
+    where: { phone: normalized, userId: { not: userId } },
+    select: { userId: true },
+  });
+  if (dup) {
+    throw new AppError(409, "PhoneTaken", "Another account already uses that phone number.");
+  }
+  await issueSensitiveOtp(userId, currentEmail, "phone", normalized);
 }
 
 export async function verifyPhoneChange(userId: number, newPhone: string, code: string): Promise<SafeUser> {
-  const trimmed = newPhone.trim();
+  const normalized = normalizeThaiPhone(newPhone);
+  if (!isValidThaiE164(normalized)) {
+    throw new AppError(400, "InvalidPhone", "Phone must be a 9-digit Thai number.");
+  }
   const u = await prisma.user.findUnique({
     where: { userId },
     select: { phoneOtpHash: true, phoneOtpExpiresAt: true },
   });
   if (!u) throw new AppError(404, "UserNotFound");
-  if (!verifySensitiveOtp(u, "phone", trimmed, code)) {
+  if (!verifySensitiveOtp(u, "phone", normalized, code)) {
     throw new AppError(400, "InvalidOtp", "That code didn't match or has expired.");
+  }
+  // Re-check dup at verify time — the OTP may have been issued at T0
+  // and another user could have grabbed the number between T0 and now.
+  const dup = await prisma.user.findFirst({
+    where: { phone: normalized, userId: { not: userId } },
+    select: { userId: true },
+  });
+  if (dup) {
+    throw new AppError(409, "PhoneTaken", "Another account claimed that phone number while you were verifying. Try a different one.");
   }
   const updated = await prisma.user.update({
     where: { userId },
     data: {
-      phone: trimmed,
+      phone: normalized,
       // Flip phoneVerifiedAt to NULL — the buyer has to re-verify the
       // new number via the normal phone-OTP flow on next sign-in.
       phoneVerifiedAt: null,
@@ -802,7 +838,7 @@ export async function verifyPhoneChange(userId: number, newPhone: string, code: 
     action: "user.phone_change",
     targetType: "user",
     targetId: userId,
-    meta: { phone: trimmed },
+    meta: { phone: normalized },
   });
   return sanitize(updated);
 }

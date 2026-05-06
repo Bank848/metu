@@ -136,12 +136,17 @@ export function ChangeContactPanel({
               type={mode === "email" ? "email" : "tel"}
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
-              placeholder={mode === "email" ? "new@example.com" : "+66XXXXXXXXX"}
+              placeholder={mode === "email" ? "new@example.com" : "0812345678"}
               defaultValue={currentValue}
               required
               autoFocus
               className="w-full mt-1 rounded-lg border border-line bg-space-900 px-3 py-2 text-sm text-white focus:border-metu-yellow outline-none"
             />
+            {mode === "phone" && (
+              <span className="mt-1 block text-[11px] text-ink-dim">
+                เบอร์ไทย — ใส่ 0 นำหรือไม่ก็ได้ ระบบเปลี่ยนเป็น +66 อัตโนมัติ
+              </span>
+            )}
           </label>
           {error && <p className="text-xs text-coral">{error}</p>}
           <button
