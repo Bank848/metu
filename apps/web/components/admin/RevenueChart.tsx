@@ -61,49 +61,38 @@ export function RevenueChart({ data }: { data: Point[] }) {
   const labelStep = Math.max(1, Math.ceil(buckets.length / 10));
 
   const hovered = hoverIdx != null ? buckets[hoverIdx] : null;
-  // Tooltip x-anchor (centred over the bar) clamped to chart width so
-  // the tooltip never gets clipped at the edges.
-  const tooltipPct = hovered
-    ? ((PAD_X + (hoverIdx ?? 0) * slot + slot / 2) / W) * 100
-    : 50;
 
   return (
     <div className="rounded-2xl surface-flat p-5 shadow-flat relative">
+      {/* Header — when no bar is hovered, shows the period total. When
+          a bar IS hovered, the same slot shows that bar's date + value
+          + order count. This is the same pattern Stripe / Vercel use:
+          one fixed surface that morphs, instead of a floating tooltip
+          that can collide with anything around it (the previous
+          floating-tooltip rev was overlapping the big revenue number
+          for left-edge bars). */}
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">
-            {isWeekly
-              ? `Last ${buckets.length} weeks · paid revenue`
-              : `Last ${buckets.length} days · paid revenue`}
+            {hovered
+              ? hovered.label
+              : isWeekly
+                ? `Last ${buckets.length} weeks · paid revenue`
+                : `Last ${buckets.length} days · paid revenue`}
           </div>
-          <div className="font-display text-2xl font-extrabold text-mint mt-0.5">
-            {coins(thbToCoins(totalRevenue))}
+          <div className="font-display text-2xl font-extrabold text-mint mt-0.5 tabular-nums">
+            {coins(thbToCoins(hovered ? hovered.revenue : totalRevenue))}
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase tracking-wider text-ink-dim">Orders</div>
-          <div className="font-display text-2xl font-extrabold text-white mt-0.5">
-            {totalOrders.toLocaleString()}
+          <div className="text-[10px] uppercase tracking-wider text-ink-dim">
+            {hovered ? (hovered.orderCount === 1 ? "Order" : "Orders") : "Orders"}
+          </div>
+          <div className="font-display text-2xl font-extrabold text-white mt-0.5 tabular-nums">
+            {(hovered ? hovered.orderCount : totalOrders).toLocaleString()}
           </div>
         </div>
       </div>
-
-      {/* Floating hover tooltip — positioned above the chart in % so it
-          tracks the bar's x-position even after the SVG re-flows. */}
-      {hovered && (
-        <div
-          className="pointer-events-none absolute z-10 -translate-x-1/2 px-2.5 py-1.5 rounded-lg bg-space-950 border border-mint/30 shadow-lg text-xs whitespace-nowrap"
-          style={{ left: `${tooltipPct}%`, top: 56 }}
-        >
-          <div className="font-mono text-ink-dim text-[10px]">{hovered.label}</div>
-          <div className="font-bold text-mint tabular-nums">
-            {coins(thbToCoins(hovered.revenue))}
-          </div>
-          <div className="text-ink-secondary text-[10px] tabular-nums">
-            {hovered.orderCount} order{hovered.orderCount === 1 ? "" : "s"}
-          </div>
-        </div>
-      )}
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
@@ -260,7 +249,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
           peak
         </span>
         <span className="ml-auto text-ink-dim/70">
-          hover a bar for daily detail
+          {hovered ? "release to see totals" : "hover a bar to see daily detail"}
         </span>
       </div>
     </div>
