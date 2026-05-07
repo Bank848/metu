@@ -47,12 +47,20 @@ export async function checkout(
     input.selectedCartItemIds && input.selectedCartItemIds.length > 0
       ? new Set(input.selectedCartItemIds)
       : null;
-  const selectedItems = selectedSet
+  let selectedItems = selectedSet
     ? cart.items.filter((ci) => selectedSet.has(ci.cartItemId))
     : cart.items;
-  const unselectedItems = selectedSet
+  let unselectedItems = selectedSet
     ? cart.items.filter((ci) => !selectedSet.has(ci.cartItemId))
     : [];
+  // Stale-id fallback: a buyer who backed out of Stripe and clicked
+  // Checkout again sends the OLD cartItemIds (cart was recreated; ids
+  // changed). Filter would return zero — instead of 400'ing, treat
+  // a zero-match selection as "everything" so the retry just works.
+  if (selectedSet && selectedItems.length === 0 && cart.items.length > 0) {
+    selectedItems = cart.items;
+    unselectedItems = [];
+  }
   if (selectedItems.length === 0) {
     throw new AppError(400, "EmptyCart", "No items selected for checkout.");
   }
