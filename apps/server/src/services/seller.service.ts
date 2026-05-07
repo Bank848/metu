@@ -788,6 +788,20 @@ export async function updateOrderStatus(
     (it) => it.productItem?.product.storeId === storeId,
   );
   if (!hasOwnedItem) throw new AppError(403, "Forbidden");
+  // Same multi-store IDOR guard as refundOrder. The status field is
+  // a single column shared across all stores' lines on an order, so
+  // letting one seller flip the status would also flip it for the
+  // other store's items. Refuse cross-store mutation.
+  const otherStoreLines = order.items.filter(
+    (it) => it.productItem?.product.storeId !== storeId,
+  );
+  if (otherStoreLines.length > 0) {
+    throw new AppError(
+      409,
+      "MultiStoreOrder",
+      "This order spans multiple stores. Ask an admin to update the status.",
+    );
+  }
 
   if (order.status === "refunded") {
     throw new AppError(409, "AlreadyRefunded");
@@ -841,6 +855,27 @@ export async function refundOrder(
     (it) => it.productItem?.product.storeId === storeId,
   );
   if (!hasOwnedItem) throw new AppError(403, "Forbidden");
+
+  // Multi-store IDOR guard: earlier rev only required ONE matching
+  // line, then refunded the WHOLE order — flipping status, restocking
+  // every line (including other sellers' inventory), and writing a
+  // payout Transaction for the full order.totalPrice. Since the
+  // schema has a single order.status field with no per-line status,
+  // partial refunds across stores aren't representable. Refuse the
+  // operation instead. Stripe-paid checkouts already enforce single-
+  // store at checkout time, so this only fires on demo / pre-Stripe
+  // orders where the seller dashboard could theoretically reach a
+  // mixed-store order.
+  const otherStoreLines = order.items.filter(
+    (it) => it.productItem?.product.storeId !== storeId,
+  );
+  if (otherStoreLines.length > 0) {
+    throw new AppError(
+      409,
+      "MultiStoreOrder",
+      "This order spans multiple stores. Ask an admin to refund the buyer.",
+    );
+  }
 
   if (!["paid", "fulfilled"].includes(order.status)) {
     throw new AppError(

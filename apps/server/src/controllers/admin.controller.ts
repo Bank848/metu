@@ -9,6 +9,7 @@ import {
   REPORT_NAMES,
   type ReportName,
 } from "../models/admin.model.js";
+import { couponInputSchema } from "@metu/shared";
 
 // Admin controllers. requireAuth(["admin"]) is applied at the router level.
 
@@ -146,24 +147,28 @@ export const refreshTopStoresMatview: RequestHandler = async (req, res, next) =>
 export const createMasterCoupon: RequestHandler = async (req, res, next) => {
   try {
     const auth = currentAuth(req)!;
-    const body = req.body ?? {};
-    const code = String(body.code ?? "").trim();
-    const discountType = body.discountType === "percent" || body.discountType === "fixed"
-      ? body.discountType
-      : null;
-    const discountValue = Number(body.discountValue);
-    const startDate = String(body.startDate ?? "");
-    const endDate = String(body.endDate ?? "");
-    const usageLimit = Number(body.usageLimit);
-    if (!code || !discountType || !Number.isFinite(discountValue) || discountValue <= 0
-        || !startDate || !endDate || !Number.isFinite(usageLimit) || usageLimit < 1) {
-      throw new AppError(400, "InvalidCouponInput", "All coupon fields are required.");
+    // Validate via the shared couponInputSchema — already enforces:
+    //   - code: 3-50 chars, uppercase alphanumeric
+    //   - discountType: "percent" | "fixed"
+    //   - percent ≤ 100 (refine)
+    //   - startDate / endDate: ISO datetime
+    //   - endDate >= startDate (refine)
+    //   - usageLimit: positive int
+    // Earlier rev did ad-hoc Number()/String() coercion + new Date()
+    // in the service — bad input ("asdf" for startDate) fell through
+    // to Prisma which crashed with a 500 leaking schema info. Zod
+    // turns those into a clean 400 ValidationError.
+    const parsed = couponInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw parsed.error;
     }
-    if (discountType === "percent" && (discountValue < 1 || discountValue > 100)) {
-      throw new AppError(400, "InvalidPercent", "Percent discount must be 1-100.");
-    }
+    // Force the code to uppercase. Schema already enforces uppercase
+    // alphanumeric so this is just defence-in-depth in case the
+    // refine accepts mixed case in the future.
+    const code = parsed.data.code.toUpperCase();
     const created = await service.createMasterCoupon({
-      code, discountType, discountValue, startDate, endDate, usageLimit,
+      ...parsed.data,
+      code,
     }, auth.uid, req);
     res.json({ ok: true, couponId: created.couponId });
   } catch (err) {

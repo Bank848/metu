@@ -181,20 +181,48 @@ adminRouter.post(
         throw new AppError(400, "MissingStripeAccount",
           "Could not resolve the seller's Stripe Connect account for this order.");
       }
-      // amountBaht optional; omit for full refund.
-      const amountSatang = req.body?.amountBaht
-        ? Math.round(Number(req.body.amountBaht) * 100)
-        : undefined;
+      // amountBaht optional; omit for full refund. Earlier rev did
+      // `Math.round(Number(body.amountBaht) * 100)` with no NaN /
+      // negative guard — `Number("abc")` is NaN, `Number("-5")` is
+      // -5, both reached Stripe and returned a 500 with the raw
+      // Stripe error in the response body. Validate before the call.
+      let amountSatang: number | undefined;
+      if (req.body?.amountBaht !== undefined && req.body?.amountBaht !== null && req.body?.amountBaht !== "") {
+        const baht = Number(req.body.amountBaht);
+        if (!Number.isFinite(baht) || baht <= 0) {
+          throw new AppError(400, "InvalidAmount", "Refund amount must be a positive number.");
+        }
+        amountSatang = Math.round(baht * 100);
+        // Cap at the captured amount so a typo can't request more
+        // than was paid (Stripe rejects but we want the friendly 400).
+        if (order.stripeAmountReceived && amountSatang > order.stripeAmountReceived) {
+          throw new AppError(
+            400,
+            "RefundExceedsCapture",
+            `Refund (${amountSatang} satang) exceeds the captured amount (${order.stripeAmountReceived} satang).`,
+          );
+        }
+      }
 
       const refund = await refundOrder(order.stripePaymentIntentId, sellerStripeAccountId, amountSatang);
 
       // Optimistic local update so the admin UI updates immediately.
+      // CRITICAL: track CUMULATIVE refunded amount across multiple
+      // partial refunds. Earlier rev wrote `refund.amount` (just THIS
+      // refund) which obliterated prior partials and broke the
+      // status-flip comparison. Use the existing value + this refund
+      // as the source of truth; the webhook (`onChargeRefunded`)
+      // re-syncs from `charge.amount_refunded` shortly after, but
+      // until then the optimistic write must agree with reality.
+      const cumulative = (order.stripeAmountRefunded ?? 0) + refund.amount;
+      const fullyRefunded =
+        order.stripeAmountReceived != null && cumulative >= order.stripeAmountReceived;
       await prisma.order.update({
         where: { orderId },
         data: {
           stripeRefundId: refund.id,
-          stripeAmountRefunded: refund.amount,
-          status: refund.amount === order.stripeAmountReceived ? "refunded" : order.status,
+          stripeAmountRefunded: cumulative,
+          status: fullyRefunded ? "refunded" : order.status,
         },
       });
 

@@ -45,8 +45,16 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   // Unknown — log + generic 500.
   // eslint-disable-next-line no-console
   console.error("[unhandled]", err);
+  // CRITICAL: don't leak the raw err.message to the client in
+  // production. Prisma errors include schema info (table + column
+  // names + types), Stripe errors quote internal IDs, native module
+  // errors leak file paths. Earlier rev returned `err.message`
+  // verbatim, so any unhandled crash surfaced internals to whoever
+  // poked at the API. Keep raw messages in dev for debuggability.
+  const isProd = process.env.NODE_ENV === "production";
+  const rawMessage = err instanceof Error ? err.message : "Unknown error";
   res.status(500).json({
     error: "InternalServerError",
-    message: err instanceof Error ? err.message : "Unknown error",
+    message: isProd ? "Server error — please try again." : rawMessage,
   });
 };
