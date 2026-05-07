@@ -1,32 +1,54 @@
 import { prisma } from "../db/prisma.js";
 import type { CouponValidateResult } from "../models/coupons.model.js";
 
+// PENTEST-002/109: enumeration-resistant generic rejection. The four
+// distinct rejection reasons used to leak whether a code existed +
+// its lifecycle state, letting an attacker enumerate the coupon
+// namespace at scale. Now every failure mode collapses into one
+// public string. Precise reason still goes to server logs for
+// support / forensic use.
+const GENERIC_REJECTION = "Coupon is not valid";
+
 /**
  * Validate a coupon code. Always returns 200 — `valid: true|false` +
- * a `reason` string for the client to surface inline. We deliberately
+ * a generic `reason` for the client to surface inline. We deliberately
  * don't `throw AppError(404)` for "not found" because the cart UI
  * shows the rejection reason next to the input rather than treating
  * it as an HTTP error.
- * Failure ladder (matches the legacy BFF behaviour 1:1):
- *   1. row missing or `isActive=false` → "Coupon not found or inactive"
- *   2. now < startDate                  → "Coupon is not yet active"
- *   3. now > endDate                    → "Coupon has expired"
- *   4. usage >= usageLimit              → "Coupon usage limit reached"
+ * Internal failure ladder (logged to server, never surfaced):
+ *   1. row missing or `isActive=false` → "not_found_or_inactive"
+ *   2. now < startDate                  → "not_yet_active"
+ *   3. now > endDate                    → "expired"
+ *   4. usage >= usageLimit              → "usage_limit_reached"
  */
 export async function validateCoupon(code: string): Promise<CouponValidateResult> {
   const coupon = await prisma.coupon.findFirst({
     where: { code, isActive: true },
     include: { store: { select: { storeId: true, name: true } } },
   });
-  if (!coupon) return { valid: false, reason: "Coupon not found or inactive" };
+  if (!coupon) {
+    // eslint-disable-next-line no-console
+    console.info("[coupon.validate] reject", { code: code.slice(0, 32), reason: "not_found_or_inactive" });
+    return { valid: false, reason: GENERIC_REJECTION };
+  }
 
   const now = new Date();
-  if (now < coupon.startDate) return { valid: false, reason: "Coupon is not yet active" };
-  if (now > coupon.endDate) return { valid: false, reason: "Coupon has expired" };
+  if (now < coupon.startDate) {
+    // eslint-disable-next-line no-console
+    console.info("[coupon.validate] reject", { code: code.slice(0, 32), reason: "not_yet_active" });
+    return { valid: false, reason: GENERIC_REJECTION };
+  }
+  if (now > coupon.endDate) {
+    // eslint-disable-next-line no-console
+    console.info("[coupon.validate] reject", { code: code.slice(0, 32), reason: "expired" });
+    return { valid: false, reason: GENERIC_REJECTION };
+  }
 
   const used = await prisma.couponUsage.count({ where: { couponId: coupon.couponId } });
   if (used >= coupon.usageLimit) {
-    return { valid: false, reason: "Coupon usage limit reached" };
+    // eslint-disable-next-line no-console
+    console.info("[coupon.validate] reject", { code: code.slice(0, 32), reason: "usage_limit_reached" });
+    return { valid: false, reason: GENERIC_REJECTION };
   }
 
   return {
