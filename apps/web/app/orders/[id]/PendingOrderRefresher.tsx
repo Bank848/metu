@@ -4,50 +4,45 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * While an order is in `?new=1 + status=pending`, gently re-fetch the
- * RSC payload every 10s. After 15s without a flip, also POST
- * /orders/:id/sync to ask the server to re-pull the PI from Stripe
- * directly — covers the case where the Stripe webhook is slow or
- * dropped. Gives up the whole loop after 5 min.
+ * While an order is `?new=1 + status=pending`, fire one immediate
+ * Stripe sync (covers the slow-webhook case in <2s) then poll every
+ * 4s for an RSC re-fetch in case the webhook lands later. Gives up
+ * after 3 minutes.
  */
 export function PendingOrderRefresher({ orderId }: { orderId: number }) {
   const router = useRouter();
   useEffect(() => {
-    const POLL_MS = 10_000;
-    const SYNC_AFTER_MS = 15_000;
-    const GIVE_UP_AT = Date.now() + 5 * 60_000;
-    const startedAt = Date.now();
-    let syncInFlight = false;
-    let syncDone = false;
+    let cancelled = false;
+    const POLL_MS = 4_000;
+    const GIVE_UP_AT = Date.now() + 3 * 60_000;
 
-    const id = window.setInterval(async () => {
-      if (Date.now() > GIVE_UP_AT) {
+    // Immediate sync: the user just paid and Stripe almost always has
+    // the PI in `succeeded` by the time the browser redirects back.
+    // Calling /sync directly skips the webhook-delivery wait and lets
+    // the page flip to Paid in ~1-2s.
+    (async () => {
+      try {
+        const res = await fetch(`/api/orders/${orderId}/sync`, {
+          method: "POST",
+          credentials: "include",
+        });
+        if (res.ok && !cancelled) router.refresh();
+      } catch {
+        /* fall through to polling */
+      }
+    })();
+
+    const id = window.setInterval(() => {
+      if (cancelled || Date.now() > GIVE_UP_AT) {
         window.clearInterval(id);
         return;
       }
-      // After ~15s of waiting, kick a one-shot sync. If it succeeds,
-      // the next router.refresh() picks up the flipped status.
-      if (
-        !syncDone &&
-        !syncInFlight &&
-        Date.now() - startedAt >= SYNC_AFTER_MS
-      ) {
-        syncInFlight = true;
-        try {
-          const res = await fetch(`/api/orders/${orderId}/sync`, {
-            method: "POST",
-            credentials: "include",
-          });
-          if (res.ok) syncDone = true;
-        } catch {
-          // Best-effort — keep polling on failure.
-        } finally {
-          syncInFlight = false;
-        }
-      }
       router.refresh();
     }, POLL_MS);
-    return () => window.clearInterval(id);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, [router, orderId]);
   return null;
 }
