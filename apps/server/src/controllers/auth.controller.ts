@@ -530,22 +530,51 @@ export const logout: RequestHandler = async (req, res, next) => {
   }
 };
 
-export const me: RequestHandler = (req, res) => {
-  // Strip the bcrypt hash before responding.
-  const user = currentUser(req);
+export const me: RequestHandler = async (req, res) => {
   const auth = currentAuth(req);
+  if (!auth) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  // Targeted select — middleware now keeps req.user slim, so /auth/me
+  // does its own query for the BFF-consumed fields. Notably skips the
+  // full `store` relation (was responsible for ~54KB responses).
+  const { prisma } = await import("../db/prisma.js");
+  const user = await prisma.user.findUnique({
+    where: { userId: auth.uid },
+    select: {
+      userId: true,
+      email: true,
+      emailVerified: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      gender: true,
+      profileImage: true,
+      dateOfBirth: true,
+      phone: true,
+      phoneVerifiedAt: true,
+      countryId: true,
+      country: { select: { countryId: true, name: true } },
+      requirePasswordReset: true,
+      totpEnabled: true,
+      createdDate: true,
+      stats: { select: { buyerLevel: true, sellerLevel: true, role: true } },
+      store: { select: { storeId: true, name: true, profileImage: true } },
+      password: true,
+    },
+  });
   if (!user) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const { password, totpSecret, phoneOtpHash, phoneOtpExpiresAt, ...safe } = user as any;
-  // hasPassword + requirePasswordReset + totpEnabled drive UI flows.
+  const { password, ...safe } = user;
   res.json({
     user: safe,
-    role: auth?.role,
+    role: auth.role,
     hasPassword: Boolean(password),
-    requirePasswordReset: Boolean((user as any).requirePasswordReset),
-    totpEnabled: Boolean((user as any).totpEnabled),
+    requirePasswordReset: Boolean(user.requirePasswordReset),
+    totpEnabled: Boolean(user.totpEnabled),
   });
 };
 

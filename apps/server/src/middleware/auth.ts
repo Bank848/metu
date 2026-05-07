@@ -59,9 +59,22 @@ export function requireAuth(roles?: UserRole[]) {
       const uid = await readBetterAuthUserId(req);
       if (uid === null) throw new AppError(401, "Unauthorized");
 
+      // Slim shape — middleware only needs auth + role checks. Full
+      // user object (with store + bio + addresses) was 54KB on /auth/me
+      // and ran on every authed request. Endpoints that need more do
+      // their own targeted query.
       const user = await prisma.user.findUnique({
         where: { userId: uid },
-        include: { stats: true, store: true },
+        select: {
+          userId: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          profileImage: true,
+          bannedAt: true,
+          stats: { select: { role: true } },
+        },
       });
       // Banned users get treated as logged-out.
       if (!user || user.bannedAt) {
@@ -93,7 +106,16 @@ export function softAuth() {
     try {
       const user = await prisma.user.findUnique({
         where: { userId: uid },
-        include: { stats: true, store: true },
+        select: {
+          userId: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          profileImage: true,
+          bannedAt: true,
+          stats: { select: { role: true } },
+        },
       });
       if (user && !user.bannedAt) {
         const role = (user.stats?.role ?? "buyer") as UserRole;
