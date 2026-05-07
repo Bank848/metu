@@ -316,7 +316,6 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
       orderBy: { createdAt: "desc" },
     });
     if (!pending) {
-      // PENTEST-407: every failed verify increments the SOC alert.
       await audit({
         actorId: payload.userId,
         action: "auth.login.fail",
@@ -349,8 +348,6 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
       // a fresh OTP. The 1M-space 6-digit OTP becomes infeasible to
       // brute force across the 5-min token TTL.
       const { remaining, locked } = await recordFailedLoginAttempt(token);
-      // PENTEST-407: emit on every wrong-code attempt so SOC R6 catches
-      // distributed (per-email > 10 fails) credential-stuffing.
       await audit({
         actorId: payload.userId,
         action: "auth.login.fail",

@@ -5,11 +5,8 @@ import type {
   StoreListResponse,
 } from "../models/stores.model.js";
 
-// PENTEST-102/202/106: explicit public-store DTO allowlist. Internal
-// fields (stripeAccountId, stripePayoutsEnabled, stripeChargesEnabled,
-// ownerId) and seller PII (contactEmail, phone) MUST NEVER leave the
-// public /stores* surface. Buyers reach a seller through the in-app
-// support / order channels, not via direct email/phone.
+// Public store DTO allowlist — Stripe IDs and seller contact PII
+// must stay server-side. Buyers reach sellers via in-app channels.
 const PUBLIC_STORE_FIELDS = {
   storeId: true,
   businessTypeId: true,
@@ -52,9 +49,7 @@ export async function findStoreById(
     prisma.store.findFirst({
       // Suspended stores are hidden from public surfaces.
       where: { storeId, suspendedAt: null },
-      // PENTEST-102/202/106: same public allowlist as list. Owner
-      // exposes only display-name + avatar (no email / phone /
-      // userId).
+      // Same public allowlist as list. Owner exposes display fields only.
       select: {
         ...PUBLIC_STORE_FIELDS,
         owner: {

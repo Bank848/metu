@@ -4,16 +4,9 @@ import { auth as betterAuth } from "../lib/auth.js";
 import { AppError } from "../utils/errors.js";
 
 // TOTP step-up middleware: requires a recent TOTP code on top of a
-// valid session before sensitive actions go through.
-//
-// Default mode pass-throughs for users who have not enrolled TOTP yet
-// (so /change-password etc. don't lock out users without 2FA). For
-// admin-only endpoints that MUST require a fresh TOTP challenge
-// regardless of enrollment state, pass `{ requireTotpEnrolled: true }`
-// — this hard-fails with 403 TotpStepUpRequired when totpEnabled is
-// false. PENTEST-027 / PENTEST-025: closes the pass-through gap on
-// /admin/db/run + /admin/db/snapshot for admins who never enrolled
-// TOTP.
+// valid session before sensitive actions go through. Default mode
+// pass-throughs for users who have not enrolled TOTP yet. Admin-only
+// routes can pass `{ requireTotpEnrolled: true }` to hard-fail instead.
 
 async function readBetterAuthSessionId(req: Request): Promise<number | null> {
   try {
@@ -32,14 +25,7 @@ async function readBetterAuthSessionId(req: Request): Promise<number | null> {
 }
 
 export interface RequireRecent2FAOptions {
-  /**
-   * When true, the middleware HARD-FAILS with 403 TotpStepUpRequired
-   * if the caller has not enrolled TOTP. Default false preserves the
-   * legacy pass-through used by /auth/change-password etc. (so users
-   * without 2FA can still reach those flows). Admin-only routes that
-   * must require an actual fresh TOTP challenge — e.g. the /admin/db/*
-   * SQL playground — set this to true. (PENTEST-027 / PENTEST-025)
-   */
+  /** When true, hard-fail 403 if the caller has not enrolled TOTP. */
   requireTotpEnrolled?: boolean;
 }
 

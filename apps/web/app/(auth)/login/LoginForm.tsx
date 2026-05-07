@@ -12,17 +12,9 @@ const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 // admin email-OTP (Phase 49, only for guarded accounts like the
 // public admin demo).
 
-// PENTEST-001: validate the `?next=` query param so an attacker can't
-// trick us into redirecting to https://attacker.example after a valid
-// login (phishing pivot). Allow only single-leading-slash relative
-// paths; reject absolute URLs, protocol-relative `//`, and
-// backslash-prefixed `/\\` variants. Falls back to "/" for anything
-// else, including empty / undefined.
+// Open-redirect guard: only allow single-leading-slash relative paths.
 function safeNextPath(next: string | null | undefined): string {
   if (typeof next !== "string" || next.length === 0) return "/";
-  // Reject absolute URLs (http://, https://, javascript:, data:, etc.)
-  // by requiring the first char to be `/`. Then reject protocol-
-  // relative `//` and Windows-path `/\\`.
   if (next[0] !== "/") return "/";
   if (next.length >= 2 && (next[1] === "/" || next[1] === "\\")) return "/";
   return next;
@@ -178,7 +170,6 @@ export function LoginForm({
               )
               .join(","),
           });
-          // PENTEST-001: pass through ONLY the validated relative path.
           const safeNext = safeNextPath(next);
           if (safeNext !== "/") params.set("next", safeNext);
           router.push(`/login/verify?${params.toString()}`);
@@ -256,11 +247,8 @@ export function LoginForm({
         return;
       }
 
-      // Done — Mode A: better-auth's session cookie is now set by the
-      // server's /auth/login → signInEmail bridge. Force the
-      // destination's RSC re-render so TopNav reflects logged-in state.
-      // PENTEST-001: validate `next` so an attacker cannot supply a
-      // cross-origin URL that we'd then router.push() to.
+      // Done — better-auth's session cookie is now set by the server.
+      // Force RSC re-render so TopNav reflects logged-in state.
       router.push(safeNextPath(next));
       router.refresh();
     } catch {
@@ -271,9 +259,6 @@ export function LoginForm({
 
   // better-auth exposes social sign-in via POST /sign-in/social with
   // a JSON body; follow the {url} response to Google.
-  // PENTEST-001: validate so an attacker can't pivot the OAuth round
-  // trip into an off-domain redirect (better-auth would also reject,
-  // but defense-in-depth and consistent with the other consumers).
   const callbackURL = safeNextPath(next);
   // used to pre-decide "email-exists" for every OAuth
   // failure, which masked unrelated errors (state_mismatch, network,

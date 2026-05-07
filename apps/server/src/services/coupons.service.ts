@@ -1,25 +1,13 @@
 import { prisma } from "../db/prisma.js";
 import type { CouponValidateResult } from "../models/coupons.model.js";
 
-// PENTEST-002/109: enumeration-resistant generic rejection. The four
-// distinct rejection reasons used to leak whether a code existed +
-// its lifecycle state, letting an attacker enumerate the coupon
-// namespace at scale. Now every failure mode collapses into one
-// public string. Precise reason still goes to server logs for
-// support / forensic use.
+// All failure modes return the same generic string so an attacker
+// can't enumerate which codes exist. Precise reason goes to logs.
 const GENERIC_REJECTION = "Coupon is not valid";
 
 /**
  * Validate a coupon code. Always returns 200 — `valid: true|false` +
- * a generic `reason` for the client to surface inline. We deliberately
- * don't `throw AppError(404)` for "not found" because the cart UI
- * shows the rejection reason next to the input rather than treating
- * it as an HTTP error.
- * Internal failure ladder (logged to server, never surfaced):
- *   1. row missing or `isActive=false` → "not_found_or_inactive"
- *   2. now < startDate                  → "not_yet_active"
- *   3. now > endDate                    → "expired"
- *   4. usage >= usageLimit              → "usage_limit_reached"
+ * a generic `reason` for the cart UI to surface inline.
  */
 export async function validateCoupon(code: string): Promise<CouponValidateResult> {
   const coupon = await prisma.coupon.findFirst({

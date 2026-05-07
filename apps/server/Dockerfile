@@ -16,14 +16,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ───── Stage 1: deps ─────
-# PENTEST-505 (round 2) — pin to node:20.20-alpine instead of the
-# rolling :20-alpine tag so a Node 20 minor bump can't surprise the
-# build. Same digest as :20-alpine on 2026-05-07 (alpine 3.23.4).
+# Pinned base image + apk versions for reproducible builds.
 FROM node:20.20-alpine AS deps
-# PENTEST-504 (round 2) — pin alpine package versions so a poisoned
-# mirror or upstream compromise can't silently swap in a malicious
-# build. Versions verified against alpine 3.23 community repo on
-# 2026-05-07; libc6-compat is a virtual provided by gcompat.
 RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
 WORKDIR /app
 

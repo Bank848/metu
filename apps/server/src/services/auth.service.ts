@@ -1223,10 +1223,7 @@ export async function listSessions(userId: number) {
 }
 
 // DELETE /auth/sessions/:id. Ownership-checked via the userId predicate.
-// PENTEST-401: audit BOTH the success and the 404 path. A 404 from this
-// endpoint means the session id either doesn't exist or belongs to
-// someone else (IDOR probe) — SOC's R3 alert keys on a burst of denied
-// rows from a single actor.
+// Audits both the success and the 404 path (404 = potential IDOR probe).
 export async function revokeSession(
   userId: number,
   sessionId: number,

@@ -10,28 +10,14 @@ import { requireRecent2FA } from "../middleware/require-recent-2fa.js";
 
 const router = Router();
 
-// Public, rate-limited. PENTEST-031: each route gets a dedicated
-// limiter instance so a 5/min burst on /login doesn't drain the bucket
-// shared with /login/verify, /set-password, /verify-otp, the four
-// /totp/* verify routes, and the two /me/{email,phone}-change/verify
-// routes (10-route NAT-amplified DoS).
+// Public, per-route rate limits. Each makeLimiter() call mints its
+// own bucket so bursts on one route don't starve another.
 router.post("/login",            makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.login);
-// Two-step login verify. Both endpoints rate-limited under the OTP
-// budget so a leaked pre-auth token can't be brute-forced.
 router.post("/login/request-otp", requestOtpLimiter,     ctrl.loginRequestOtp);
 router.post("/login/verify",      makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.loginVerify);
 router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
-// PENTEST-112: each recovery / verify route gets its own limiter
-// instance so a burst on /forgot-password doesn't drain the bucket
-// shared with /verify-email / /resend-phone-otp etc. (cross-route DoS).
-// Caps are unchanged from the previous shared 3 / 5min for parity.
 router.post("/forgot-password",         makeLimiter({ max: 3,  windowMs: 5 * 60_000 }), ctrl.forgotPassword);
-// PENTEST-313/314: rate-limit reset-password to prevent leaked-token
-// brute-force / replay. Reset-password is the route an attacker with a
-// stolen token would actually grind, so allow a slightly higher max
-// (5/5min) than /forgot-password — legitimate users typically only
-// retry once or twice on validation errors.
 router.post("/reset-password",          makeLimiter({ max: 5,  windowMs: 5 * 60_000 }), ctrl.resetPassword);
 // POST keeps the token in the body so it never lands in
 // access logs. GET stays for backward compatibility.
@@ -74,25 +60,18 @@ router.patch("/me",               requireAuth(), ctrl.updateMe);
 router.delete("/me",              requireAuth(), ctrl.deleteMe);
 // Sensitive ops require a fresh TOTP step-up.
 router.post("/change-password",   requireAuth(), requireRecent2FA(15), ctrl.changePassword);
-// PENTEST-311/314: rate-limit set-password (no requireRecent2FA — service
-// gates this behind ensureSensitiveOtp + only allows users without an
-// existing password). PENTEST-031: own bucket per route so login bursts
-// don't lock legit users out of set-password.
+// /set-password — service gates this behind ensureSensitiveOtp and
+// only allows users without an existing password.
 router.post("/set-password",      requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.setPassword);
 
 router.patch("/phone",            requireAuth(), ctrl.updatePhone);
 
 // Sensitive change flows: OTP to current email first, then apply.
 router.post("/me/email-change/start",  requireAuth(), ctrl.startEmailChange);
-// PENTEST-313: throttle OTP-verify on identity-change flows. PENTEST-031:
-// per-route bucket so /me/email-change/verify can't be DoS'd by a
-// /login burst on the same IP.
 router.post("/me/email-change/verify", requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.verifyEmailChange);
 router.post("/me/phone-change/start",  requireAuth(), ctrl.startPhoneChange);
 router.post("/me/phone-change/verify", requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.verifyPhoneChange);
 router.post("/request-otp",       requireAuth(), requestOtpLimiter, ctrl.requestOtp);
-// PENTEST-312: rate-limit verify-otp so a stolen session can't grind
-// 6-digit codes at network speed. PENTEST-031: dedicated bucket.
 router.post("/verify-otp",        requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.verifyOtp);
 // Email-OTP fallback for sensitive password ops when the user has no
 // verified phone. Same Verification row + identifier as SMS so only
@@ -108,11 +87,7 @@ router.get("/sessions",                requireAuth(), ctrl.listSessions);
 router.delete("/sessions/all-others",  requireAuth(), requireRecent2FA(15), ctrl.revokeAllOtherSessions);
 router.delete("/sessions/:id",         requireAuth(), ctrl.revokeSession);
 
-// TOTP 2FA. PENTEST-312/314: every verify endpoint must be rate-limited
-// so a stolen session can't grind 6-digit TOTPs at network speed.
-// PENTEST-031: each /totp/* route gets a dedicated bucket — otherwise
-// a /login storm from the same NAT could lock a legit user out of
-// step-up TOTP entirely.
+// TOTP 2FA. Every verify endpoint is rate-limited per route.
 router.post("/totp/enroll-start",  requireAuth(), ctrl.totpEnrollStart);
 router.post("/totp/enroll-verify", requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.totpEnrollVerify);
 router.post("/totp/disable",       requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.totpDisable);

@@ -621,11 +621,6 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
           )}
           {couponResult && !couponResult.valid && (
             <p className="text-xs text-red-400">
-              {/* PENTEST-002/109: API now returns a single generic
-                  "Coupon is not valid" string for every failure mode
-                  (enumeration-resistant). Show the localised "not
-                  found" hint that nudges users to the active demo
-                  code regardless of the exact server reason. */}
               {t("cart.coupon.notFound")}
             </p>
           )}

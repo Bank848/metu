@@ -557,10 +557,8 @@ export async function getProduct(id: number) {
         },
       },
       category: true,
-      // PENTEST-210: explicit `select` (NOT `include` defaults) on
-      // ProductItem so deliveryUrl + licenseKeyTemplate never enter
-      // the RSC Flight payload. Round-2's API DTO strip plugged the
-      // direct-API leak; this plugs the SSR / direct-Prisma re-leak.
+      // Allowlist — keep deliveryUrl + licenseKeyTemplate out of the
+      // RSC Flight payload (mirrors the public API DTO).
       items: {
         orderBy: { price: "asc" },
         select: {
