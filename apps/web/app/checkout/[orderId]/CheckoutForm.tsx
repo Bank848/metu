@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/Button";
@@ -7,15 +8,12 @@ import { Loader2 } from "lucide-react";
 
 // bfcache + Stripe Elements quirk: when the buyer hits browser-back
 // from the Stripe-hosted 3DS flow, browsers may restore the page from
-// the back-forward cache with the Stripe iframe state half-attached —
-// leaving an orphaned floating "Pay" / wallet button visible above
-// the page. Easiest fix: detect a bfcache restore (event.persisted)
-// and force a full reload so Stripe Elements re-mounts cleanly.
+// the back-forward cache with the Stripe iframe state half-attached.
+// Force a full reload so Stripe Elements re-mounts cleanly.
 function useReloadOnBfcacheRestore() {
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
-        // Bfcache restore — reload to wipe any orphaned Stripe DOM.
         window.location.reload();
       }
     };
@@ -76,20 +74,41 @@ export function CheckoutForm({
 function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: string }) {
   const stripe = useStripe();
   const elements = useElements();
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Stripe.js sometimes lands its initial mount before the iframe is
-  // fully painted ; track readiness to disable the submit button until
-  // the user actually has fields to fill.
+  // True once <PaymentElement /> has actually mounted its iframe.
+  // Without this, Pay was clickable while Stripe was still loading and
+  // the button got stuck on "Confirming…" forever.
   const [ready, setReady] = useState(false);
+
+  // If the user navigated BACK to this page after a successful redirect
+  // (the PI is already succeeded/processing on Stripe), don't let them
+  // submit again — bounce to the receipt page where the webhook flip
+  // is awaited. Same for cancellations: surface the error rather than
+  // silently mounting a dead form.
   useEffect(() => {
-    if (stripe && elements) setReady(true);
-  }, [stripe, elements]);
+    if (!stripe) return;
+    let cancelled = false;
+    stripe.retrievePaymentIntent(clientSecret).then((res) => {
+      if (cancelled) return;
+      const pi = res.paymentIntent;
+      if (!pi) return;
+      if (pi.status === "succeeded" || pi.status === "processing") {
+        router.replace(`/orders/${orderId}?new=1`);
+      } else if (pi.status === "canceled") {
+        setError("This payment was cancelled. Start a new checkout from your cart.");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [stripe, clientSecret, orderId, router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe || !elements || !ready) return;
     setBusy(true);
     setError(null);
     // Validate the PaymentElement BEFORE asking Stripe to confirm. Without
@@ -121,7 +140,7 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
 
   return (
     <form onSubmit={onSubmit} className="rounded-2xl border border-line bg-space-900 p-6">
-      <PaymentElement />
+      <PaymentElement onReady={() => setReady(true)} />
       {error && (
         <p role="alert" className="mt-3 text-sm text-red-400">
           {error}
@@ -133,8 +152,8 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
         disabled={!ready || busy}
         className="mt-6 w-full"
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {busy ? "Confirming…" : "Pay now"}
+        {(busy || !ready) ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {busy ? "Confirming…" : !ready ? "Loading payment form…" : "Pay now"}
       </Button>
       <p className="mt-4 text-center text-xs text-ink-dim">
         Test mode &middot; use card <code>4242 4242 4242 4242</code>, any future expiry, any CVC.

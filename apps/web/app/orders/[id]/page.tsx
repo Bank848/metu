@@ -14,6 +14,7 @@ import { prisma } from "@/lib/server/prisma";
 import { Confetti } from "./Confetti";
 import { ReviewItemButton } from "./ReviewItemButton";
 import { RetryPaymentLink } from "./RetryPaymentLink";
+import { PendingOrderRefresher } from "./PendingOrderRefresher";
 
 type Order = {
   orderId: number;
@@ -106,11 +107,9 @@ export default async function OrderDetail({
     <>
       <TopNav />
       {isPaidHero && <Confetti />}
-      {/* Pending orders need to poll the server-side render until the webhook
-          flips status. Plain meta refresh is enough for our scale. */}
-      {isPendingHero && (
-        <meta httpEquiv="refresh" content="5" />
-      )}
+      {/* Pending orders silently re-fetch the RSC payload every 10s
+          (no jarring full-page reload) until the webhook flips status. */}
+      {isPendingHero && <PendingOrderRefresher />}
       <main id="main" className="relative">
         {/* radial gold glow background, dim */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-[640px] vibrant-mesh opacity-60 pointer-events-none" />
