@@ -608,7 +608,7 @@ export const revokeSession: RequestHandler<{ id: string }> = async (req, res, ne
     if (!auth) throw new AppError(401, "Unauthorized");
     const sessionId = Number(req.params.id);
     if (!Number.isFinite(sessionId)) throw new AppError(400, "BadId");
-    await service.revokeSession(auth.uid, sessionId);
+    await service.revokeSession(auth.uid, sessionId, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);

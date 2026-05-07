@@ -1,8 +1,12 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
+import type { Request } from "express";
 import { Prisma, type UserRole } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
+
+// Narrow Request alias for audit() so callers can pass Express's req.
+type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 import { findFirstProfaneField } from "../utils/profanity.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout, escapeHtml } from "../utils/email-template.js";
@@ -1219,11 +1223,36 @@ export async function listSessions(userId: number) {
 }
 
 // DELETE /auth/sessions/:id. Ownership-checked via the userId predicate.
-export async function revokeSession(userId: number, sessionId: number): Promise<void> {
+// PENTEST-401: audit BOTH the success and the 404 path. A 404 from this
+// endpoint means the session id either doesn't exist or belongs to
+// someone else (IDOR probe) — SOC's R3 alert keys on a burst of denied
+// rows from a single actor.
+export async function revokeSession(
+  userId: number,
+  sessionId: number,
+  req?: AuditReq,
+): Promise<void> {
   const result = await prisma.session.deleteMany({
     where: { id: sessionId, userId },
   });
-  if (result.count === 0) throw new AppError(404, "SessionNotFound");
+  if (result.count === 0) {
+    await audit({
+      actorId: userId,
+      action: "auth.session.revoke.denied",
+      targetType: "session",
+      targetId: sessionId,
+      meta: { reason: "NotFoundOrCrossUser" },
+      req,
+    });
+    throw new AppError(404, "SessionNotFound");
+  }
+  await audit({
+    actorId: userId,
+    action: "auth.session.revoke",
+    targetType: "session",
+    targetId: sessionId,
+    req,
+  });
 }
 
 /**
