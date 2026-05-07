@@ -19,6 +19,7 @@ import {
   resendPhoneOtpSchema,
 } from "../models/auth.model.js";
 import * as service from "../services/auth.service.js";
+import { audit } from "../utils/audit.js";
 import {
   currentAuth,
   currentUser,
@@ -314,9 +315,28 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
       where: { identifier },
       orderBy: { createdAt: "desc" },
     });
-    if (!pending) throw new AppError(400, "NoPendingOtp", "Request a code first.");
+    if (!pending) {
+      // PENTEST-407: every failed verify increments the SOC alert.
+      await audit({
+        actorId: payload.userId,
+        action: "auth.login.fail",
+        targetType: "user",
+        targetId: payload.userId,
+        meta: { reason: "no_pending_otp" },
+        req,
+      });
+      throw new AppError(400, "NoPendingOtp", "Request a code first.");
+    }
     if (pending.expiresAt.getTime() < Date.now()) {
       await prisma.verification.delete({ where: { id: pending.id } });
+      await audit({
+        actorId: payload.userId,
+        action: "auth.login.fail",
+        targetType: "user",
+        targetId: payload.userId,
+        meta: { reason: "otp_expired" },
+        req,
+      });
       throw new AppError(400, "OtpExpired", "Code expired. Request a new one.");
     }
     const phoneOk = user.phone && hashCode(payload.userId, user.phone, code) === pending.value;
@@ -329,6 +349,16 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
       // a fresh OTP. The 1M-space 6-digit OTP becomes infeasible to
       // brute force across the 5-min token TTL.
       const { remaining, locked } = await recordFailedLoginAttempt(token);
+      // PENTEST-407: emit on every wrong-code attempt so SOC R6 catches
+      // distributed (per-email > 10 fails) credential-stuffing.
+      await audit({
+        actorId: payload.userId,
+        action: "auth.login.fail",
+        targetType: "user",
+        targetId: payload.userId,
+        meta: { reason: "wrong_otp", remaining, locked },
+        req,
+      });
       if (locked) {
         throw new AppError(
           400,
