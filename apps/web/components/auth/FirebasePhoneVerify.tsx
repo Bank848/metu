@@ -48,6 +48,21 @@ export function FirebasePhoneVerify({
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState<null | "send" | "verify">(null);
   const [err, setErr] = useState<string | null>(null);
+  // 5-minute resend cooldown countdown (Firebase Phone Auth itself
+  // throttles around 60s; we keep a longer window so the user can't
+  // burn through the daily SMS quota by mashing resend).
+  const RESEND_COOLDOWN_MS = 5 * 60_000;
+  const [lastSentAt, setLastSentAt] = useState<number>(0);
+  const [cooldownLeft, setCooldownLeft] = useState<number>(0);
+  useEffect(() => {
+    const tick = () => {
+      const left = Math.max(0, RESEND_COOLDOWN_MS - (Date.now() - lastSentAt));
+      setCooldownLeft(Math.ceil(left / 1000));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [lastSentAt]);
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
   // Hold the firebase ConfirmationResult so we can call confirm(code).
   const confirmationRef = useRef<{
@@ -101,8 +116,19 @@ export function FirebasePhoneVerify({
   }
 
   async function sendCode() {
+    if (Date.now() - lastSentAt < RESEND_COOLDOWN_MS) {
+      const remainingS = Math.ceil(
+        (RESEND_COOLDOWN_MS - (Date.now() - lastSentAt)) / 1000,
+      );
+      setErr(`Please wait ${Math.ceil(remainingS / 60)} more minute${Math.ceil(remainingS / 60) === 1 ? "" : "s"} before requesting another code.`);
+      return;
+    }
     setErr(null);
     setBusy("send");
+    // Show the code-input UI immediately so the user can pre-type
+    // when their SMS arrives — Firebase still has to round-trip
+    // reCAPTCHA + dispatch which takes a couple of seconds.
+    setStep("enter-code");
     try {
       const { RecaptchaVerifier, signInWithPhoneNumber } = await import("firebase/auth");
       const auth = getFirebaseAuth();
@@ -118,9 +144,11 @@ export function FirebasePhoneVerify({
       const formatted = phone.startsWith("+") ? phone : `+${phone.replace(/[^0-9]/g, "")}`;
       const conf = await signInWithPhoneNumber(auth, formatted, verifier);
       confirmationRef.current = conf as any;
-      setStep("enter-code");
+      setLastSentAt(Date.now());
     } catch (e: any) {
       setErr(e?.message ?? "Couldn't send the SMS — check the phone number.");
+      // Drop back so user can retry / change number on register flow.
+      setStep("enter-phone");
     } finally {
       setBusy(null);
     }
@@ -194,7 +222,9 @@ export function FirebasePhoneVerify({
       {step === "enter-code" && (
         <>
           <p className="text-sm text-ink-secondary">
-            Enter the 6-digit code we just sent to <strong className="text-white">{phone}</strong>.
+            {busy === "send"
+              ? <>Sending a 6-digit code to <strong className="text-white">{phone}</strong>…</>
+              : <>Enter the 6-digit code we just sent to <strong className="text-white">{phone}</strong>.</>}
           </p>
           <input
             type="text"
@@ -203,12 +233,23 @@ export function FirebasePhoneVerify({
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             placeholder="123456"
+            autoFocus
             className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-center text-lg font-mono tracking-widest text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
           />
-          <div className="flex gap-2">
-            <GlassButton tone="gold" onClick={verifyCode} disabled={code.length !== 6 || busy !== null}>
+          <div className="flex flex-wrap items-center gap-2">
+            <GlassButton tone="gold" onClick={verifyCode} disabled={code.length !== 6 || busy !== null || !confirmationRef.current}>
               {busy === "verify" ? "Verifying…" : "Verify code"}
             </GlassButton>
+            <button
+              type="button"
+              onClick={sendCode}
+              disabled={busy !== null || cooldownLeft > 0}
+              className="text-xs text-metu-yellow hover:underline disabled:text-ink-dim disabled:no-underline"
+            >
+              {cooldownLeft > 0
+                ? `Resend in ${Math.ceil(cooldownLeft / 60)}m ${cooldownLeft % 60}s`
+                : "Resend code"}
+            </button>
             {!hideEnterPhone && (
               <button
                 type="button"
