@@ -405,7 +405,22 @@ export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
     // original can't be replayed for repeated phone disclosure
     // within the 5-minute window. The client must use the new
     // token on the subsequent /firebase-verify call.
-    await consumeLoginPreAuthToken(token);
+    const consumeResult = await consumeLoginPreAuthToken(token);
+    // deleted === 0 means a concurrent caller already burned this
+    // token between our resolve() and our delete(). That's the race
+    // window flagged by Black Hat in round 2 — emit a replay row so
+    // SOC's preauth-token-reuse rule can fire on the actual replay
+    // attempt instead of waiting for downstream churn.
+    if (consumeResult.deleted === 0) {
+      await audit({
+        actorId: payload.userId,
+        action: "auth.preauth.replay_blocked",
+        targetType: "user",
+        targetId: payload.userId,
+        meta: { reason: "already_consumed", route: "phone-for-sms" },
+        req,
+      });
+    }
     const nextToken = await issueLoginPreAuthToken(payload);
 
     // Mask the returned phone — only the last 4 digits + country
@@ -464,9 +479,50 @@ export const loginVerifyFirebase: RequestHandler = async (req, res, next) => {
     const payload = await resolveLoginPreAuthToken(token);
 
     const { verifyFirebaseIdToken } = await import("../lib/firebase-admin.js");
-    const decoded = await verifyFirebaseIdToken(idToken);
+    let decoded: Awaited<ReturnType<typeof verifyFirebaseIdToken>>;
+    try {
+      decoded = await verifyFirebaseIdToken(idToken);
+    } catch (verifyErr) {
+      // Bucket the firebase-admin error code into a coarse reason so
+      // SOC's firebase-verify-failure-burst rule can distinguish bad
+      // signatures from expired tokens. firebase-admin emits
+      // err.code = "auth/id-token-expired" | "auth/argument-error" |
+      // "auth/id-token-revoked" | "auth/invalid-id-token" | etc.
+      const code =
+        typeof (verifyErr as { code?: unknown })?.code === "string"
+          ? (verifyErr as { code: string }).code
+          : "unknown";
+      const reason = code.includes("expired")
+        ? "firebase_token_expired"
+        : code.includes("invalid") || code.includes("argument")
+          ? "firebase_token_invalid"
+          : code.includes("revoked")
+            ? "firebase_token_revoked"
+            : "firebase_token_other";
+      await audit({
+        actorId: payload.userId,
+        action: "auth.firebase.verify.fail",
+        targetType: "user",
+        targetId: payload.userId,
+        meta: { reason, code },
+        req,
+      });
+      throw new AppError(
+        401,
+        "InvalidFirebaseToken",
+        "Phone verification failed — please try again.",
+      );
+    }
     const firebasePhone = decoded.phone_number;
     if (!firebasePhone) {
+      await audit({
+        actorId: payload.userId,
+        action: "auth.firebase.verify.fail",
+        targetType: "user",
+        targetId: payload.userId,
+        meta: { reason: "missing_phone" },
+        req,
+      });
       throw new AppError(
         400,
         "FirebaseTokenMissingPhone",
