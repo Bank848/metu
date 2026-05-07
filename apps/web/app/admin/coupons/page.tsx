@@ -190,7 +190,7 @@ export default async function AdminCouponsPage({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {rows.map((r: Row) => {
                 const expired = new Date(r.end_date) < new Date();
                 return (
                   <tr key={r.coupon_id} className="border-t border-line hover:bg-white/[0.02]">
