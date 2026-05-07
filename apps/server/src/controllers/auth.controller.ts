@@ -390,6 +390,77 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /auth/login/firebase-verify — finishes the two-step login when
+ * the second factor is a Firebase Phone Auth ID token (client did the
+ * SMS round-trip via reCAPTCHA + signInWithPhoneNumber). Body:
+ * { token, firebaseIdToken, trustDevice? }. Mints the better-auth
+ * session and (optionally) the trusted-device cookie for 7d.
+ */
+export const loginVerifyFirebase: RequestHandler = async (req, res, next) => {
+  try {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const firebaseIdToken =
+      typeof req.body?.firebaseIdToken === "string" ? req.body.firebaseIdToken : "";
+    const trustDevice = req.body?.trustDevice === true;
+
+    if (!firebaseIdToken) {
+      throw new AppError(400, "InvalidFirebaseToken", "Phone token is missing.");
+    }
+
+    const { resolveLoginPreAuthToken, consumeLoginPreAuthToken } = await import(
+      "../utils/login-verify.js"
+    );
+    const payload = await resolveLoginPreAuthToken(token);
+
+    const { verifyFirebaseIdToken } = await import("../lib/firebase-admin.js");
+    const decoded = await verifyFirebaseIdToken(firebaseIdToken);
+    const firebasePhone = decoded.phone_number;
+    if (!firebasePhone) {
+      throw new AppError(
+        400,
+        "FirebaseTokenMissingPhone",
+        "Firebase token did not include a phone number — try again.",
+      );
+    }
+
+    const { prisma } = await import("../db/prisma.js");
+    const user = await prisma.user.findUnique({
+      where: { userId: payload.userId },
+      select: { phone: true },
+    });
+    if (!user) throw new AppError(400, "InvalidPreAuth", "User not found.");
+    if (user.phone !== firebasePhone) {
+      await audit({
+        actorId: payload.userId,
+        action: "auth.login.fail",
+        targetType: "user",
+        targetId: payload.userId,
+        meta: { reason: "phone_mismatch" },
+        req,
+      });
+      throw new AppError(
+        403,
+        "PhoneMismatch",
+        "The verified phone doesn't match the account on file.",
+      );
+    }
+
+    await consumeLoginPreAuthToken(token);
+    await issueBetterAuthCookie(req, res, payload.email, payload.password);
+    await enforceSingleSession(payload.userId);
+
+    if (trustDevice) {
+      const { trustThisDevice } = await import("../utils/trusted-device.js");
+      await trustThisDevice(req, res, payload.userId);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const register: RequestHandler = async (req, res, next) => {
   try {
     // CAPTCHA before zod so bot floods burn Cloudflare quota, not Neon.
