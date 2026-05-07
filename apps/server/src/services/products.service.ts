@@ -362,11 +362,8 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
         },
       },
       category: true,
-      // PENTEST-101/201: explicit allowlist on items so deliveryUrl
-      // and licenseKeyTemplate (post-purchase fulfilment payload)
-      // never reach the public product page. Buyers receive them via
-      // /orders/:id/items after the Stripe webhook stamps the order
-      // paid; anonymous + non-buyer responses must omit them entirely.
+      // Allowlist — deliveryUrl + licenseKeyTemplate stay out of the
+      // public DTO. Buyers see them via /orders/:id/items post-payment.
       items: {
         orderBy: { price: "asc" },
         select: {

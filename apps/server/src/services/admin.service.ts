@@ -96,12 +96,7 @@ export async function listUsers(q: UserListQuery) {
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
       orderBy: { createdDate: "desc" },
-      // PENTEST-103: explicit allowlist — never spread the full row.
-      // password, totpSecret, totpBackupCodes, phoneOtpHash, and any
-      // future credential column must NEVER reach the admin UI (which
-      // is itself an attack target via session theft / XSS). A future
-      // schema add will be invisible here unless it is added on
-      // purpose.
+      // Explicit allowlist — credential fields must never reach the UI.
       select: {
         userId: true,
         username: true,
@@ -137,9 +132,7 @@ export async function listUsers(q: UserListQuery) {
     prisma.user.count({ where }),
   ]);
 
-  // Belt-and-suspenders: also strip credential-shaped fields in code so
-  // even a misconfigured `include` (or a test mock that returns the
-  // raw row) cannot leak them. PENTEST-103.
+  // Belt-and-suspenders: strip credential-shaped fields in code too.
   const SENSITIVE = [
     "password",
     "totpSecret",
@@ -1752,10 +1745,7 @@ export async function getDatabaseSnapshot(): Promise<DatabaseSnapshot> {
  *     is rejected before it touches the connection.
  *   - 30s server timeout via Postgres SET LOCAL statement_timeout.
  *   - 200-row hard cap so a runaway SELECT can't OOM the API process.
- *
- * PENTEST-405: every invocation (success OR rejection) writes an
- * `admin.sql.run` audit row. The privileged escape hatch should leave
- * a trail every operator can review and SOC's R1 alert can page on.
+ *   - Every invocation writes an `admin.sql.run` audit row.
  */
 export async function runAdminSql(
   rawSql: string,

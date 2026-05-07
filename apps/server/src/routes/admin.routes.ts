@@ -47,14 +47,8 @@ router.post("/transactions/:id/refund", ctrl.refundTransaction);
 // Reports
 router.get("/reports/:name",          ctrl.runReport);
 
-// Database inspector. PENTEST-302: gated by requireRecent2FA(15) so a
-// stolen admin cookie alone cannot read the full DB. Defense-in-depth on
-// top of the WRITE_KEYWORDS denylist + transaction_read_only.
-//
-// PENTEST-027: `requireTotpEnrolled: true` closes the pass-through
-// gap that let an admin without TOTP enrolled hit /db/run on cookie
-// alone. Strict mode hard-fails 403 in that case — admin must enroll
-// TOTP and complete a step-up before reaching the SQL playground.
+// Database inspector — strict step-up: admin must have TOTP enrolled
+// AND have completed a fresh challenge within the last 15 minutes.
 router.get(
   "/db/snapshot",
   requireRecent2FA(15, { requireTotpEnrolled: true }),

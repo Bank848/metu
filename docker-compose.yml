@@ -1,9 +1,5 @@
-# PENTEST-509 (round 2, 2026-05-07) — DEV-ONLY local Postgres + Adminer.
-# This file is NEVER deployed to production (Neon hosts the prod DB).
-# The metu/metu credential below is a documented dev-only placeholder —
-# port mappings are bound to 127.0.0.1 so a developer running
-# `docker compose up` on a machine connected to a LAN/coffee-shop
-# Wi-Fi can't have the DB / Adminer probed by another host.
+# DEV-ONLY local Postgres + Adminer. Production uses Neon, never this.
+# Credentials below are placeholders; ports bind to 127.0.0.1 only.
 services:
   db:
     image: postgres:16-alpine

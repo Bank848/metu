@@ -344,8 +344,6 @@ export const dbRunSql: RequestHandler = async (req, res, next) => {
   try {
     const auth = currentAuth(req)!;
     const sql = String(req.body?.sql ?? "");
-    // PENTEST-405: pass actorId + req so runAdminSql can record an
-    // admin.sql.run audit row for both success and rejection paths.
     const result = await service.runAdminSql(sql, auth.uid, req);
     res.json(result);
   } catch (err) {

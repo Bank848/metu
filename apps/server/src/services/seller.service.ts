@@ -788,7 +788,6 @@ export async function updateOrderStatus(
     (it) => it.productItem?.product.storeId === storeId,
   );
   if (!hasOwnedItem) {
-    // PENTEST-404: cross-store IDOR probe — log before throwing.
     await audit({
       actorId,
       action: "seller.order.write.denied",
@@ -798,16 +797,12 @@ export async function updateOrderStatus(
     });
     throw new AppError(403, "Forbidden");
   }
-  // Same multi-store IDOR guard as refundOrder. The status field is
-  // a single column shared across all stores' lines on an order, so
-  // letting one seller flip the status would also flip it for the
-  // other store's items. Refuse cross-store mutation.
+  // Multi-store IDOR guard: order.status is shared across all lines,
+  // so cross-store mutation would flip another seller's items too.
   const otherStoreLines = order.items.filter(
     (it) => it.productItem?.product.storeId !== storeId,
   );
   if (otherStoreLines.length > 0) {
-    // PENTEST-404: log the multi-store-denial signal — SOC R4 alerts
-    // on any row here.
     await audit({
       actorId,
       action: "seller.order.status.denied_cross_store",
@@ -874,7 +869,6 @@ export async function refundOrder(
     (it) => it.productItem?.product.storeId === storeId,
   );
   if (!hasOwnedItem) {
-    // PENTEST-404: cross-store IDOR probe via the refund surface.
     await audit({
       actorId,
       action: "seller.order.refund.denied",
@@ -885,21 +879,12 @@ export async function refundOrder(
     throw new AppError(403, "Forbidden");
   }
 
-  // Multi-store IDOR guard: earlier rev only required ONE matching
-  // line, then refunded the WHOLE order — flipping status, restocking
-  // every line (including other sellers' inventory), and writing a
-  // payout Transaction for the full order.totalPrice. Since the
-  // schema has a single order.status field with no per-line status,
-  // partial refunds across stores aren't representable. Refuse the
-  // operation instead. Stripe-paid checkouts already enforce single-
-  // store at checkout time, so this only fires on demo / pre-Stripe
-  // orders where the seller dashboard could theoretically reach a
-  // mixed-store order.
+  // Multi-store guard: order.status is shared, so a partial refund
+  // across stores can't be represented. Refuse instead of corrupting.
   const otherStoreLines = order.items.filter(
     (it) => it.productItem?.product.storeId !== storeId,
   );
   if (otherStoreLines.length > 0) {
-    // PENTEST-404: SOC R4 alert keys on any row of this action.
     await audit({
       actorId,
       action: "seller.order.refund.denied_cross_store",

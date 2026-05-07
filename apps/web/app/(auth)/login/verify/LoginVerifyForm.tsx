@@ -15,18 +15,11 @@ type Channel = { id: "sms" | "email"; hint: string };
 // phoneVerifiedAt before issuing the token (the channel just isn't
 // labelled). The server still handles whichever channel the user picks.
 
-// PENTEST-001 sister-route: same open-redirect guard as LoginForm.
-// `?next=` reaches `router.push(next)` on line ~117. Without this
-// helper an attacker crafts /login/verify?next=https://evil.example.com
-// and the post-OTP redirect lands on the phishing site. Reject any
-// non-relative path.
+// Open-redirect guard: only allow single-leading-slash relative paths.
 function safeNextPath(next: string | null | undefined): string {
   if (!next) return "/";
-  // Only allow paths that start with a single "/" and are not protocol-
-  // relative (//) or backslash-prefixed (/\). Reject absolute URLs.
   if (!next.startsWith("/")) return "/";
   if (next.startsWith("//") || next.startsWith("/\\")) return "/";
-  // Reject newline / control chars that can confuse downstream parsers.
   if (/[\r\n]/.test(next)) return "/";
   return next;
 }

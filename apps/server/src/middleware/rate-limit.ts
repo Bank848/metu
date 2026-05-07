@@ -2,8 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 
 // Sliding-window rate limiter, in-process Map keyed by IP. Sends a
 // 429 directly with the canonical body shape ({ error, retryAfter })
-// and a Retry-After header. Bypasses the AppError path so every
-// limiter ships the same fingerprint-resistant body (PENTEST-209).
+// and a Retry-After header.
 
 interface LimiterOptions {
   /** Max requests allowed within `windowMs`. */
@@ -74,12 +73,6 @@ export function rateLimit(options: LimiterOptions) {
       // Round up so Retry-After stays a whole-second value.
       const retryAfterSec = Math.max(1, Math.ceil((earliest + windowMs - now) / 1000));
       res.setHeader("Retry-After", String(retryAfterSec));
-      // PENTEST-209: every limiter ships the SAME 429 body shape so a
-      // recon caller can't fingerprint which limiter fired (path,
-      // window size, bucket fullness etc.) from the response alone.
-      // The actor-distinguishing detail is in the audit log, not the
-      // response. No variable message — `retryAfter` carries the only
-      // observable info.
       res.status(429).json({ error: "RateLimited", retryAfter: retryAfterSec });
       return;
     }
@@ -109,26 +102,16 @@ function sweep(buckets: Map<string, Bucket>, cutoff: number) {
 // so SMS / email cost can't be amplified by hopping endpoints.
 export const registerLimiter = rateLimit({ max: 3, windowMs: 60_000 });
 export const requestOtpLimiter = rateLimit({ max: 3, windowMs: 60_000 });
-// LEGACY ALIASES — kept exported only to keep unrelated `import` lines
-// compiling. NEVER mount these as middleware: each one was previously
-// shared across many routes and that shared bucket is exactly the
-// cross-route DoS surface (PENTEST-112 / PENTEST-031). Mint a fresh
-// instance per route via `makeLimiter({...})` instead.
+// Legacy aliases kept only so unrelated `import` lines still compile.
+// Never mount as middleware — each route should call `makeLimiter()`
+// for its own bucket; sharing a bucket is the cross-route DoS surface.
 export const loginLimiter = rateLimit({ max: 5, windowMs: 60_000 });
 export const forgotPasswordLimiter = rateLimit({
   max: 3,
   windowMs: 5 * 60_000,
 });
 
-/**
- * Factory for per-route limiter instances. Each call returns a FRESH
- * `rateLimit({...})` middleware backed by its own bucket map so two
- * routes using `makeLimiter()` never share state.
- *
- * PENTEST-112: replaces the prior pattern of a single shared
- * `forgotPasswordLimiter` mounted on seven different recovery / verify
- * routes (cross-route DoS).
- */
+/** Per-route limiter factory — each call returns its own bucket map. */
 export function makeLimiter(options: { max: number; windowMs: number }) {
   return rateLimit({ max: options.max, windowMs: options.windowMs });
 }
