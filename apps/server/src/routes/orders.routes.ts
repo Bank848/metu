@@ -12,5 +12,6 @@ router.get("/",           ctrl.list);         // GET  /orders → user's order h
 router.get("/:id",        ctrl.getOne);       // GET  /orders/:id → receipt
 router.post("/:id/retry", ctrl.retryPayment); // POST /orders/:id/retry → fresh PI for pending order
 router.post("/:id/sync",  ctrl.syncMyOrder);  // POST /orders/:id/sync  → owner-scoped Stripe re-fetch
+router.get( "/:id/status", ctrl.getMyOrderStatus); // GET  /orders/:id/status → tiny status-only poll
 
 export default router;
