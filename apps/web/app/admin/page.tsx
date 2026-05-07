@@ -14,6 +14,8 @@ import { OrdersByStatusDonut } from "@/components/admin/OrdersByStatusDonut";
 import { SqlTechniqueBadge } from "@/components/admin/SqlTechniqueBadge";
 import { TopBuyersList } from "@/components/admin/TopBuyersList";
 import { OrdersByCountryList } from "@/components/admin/OrdersByCountryList";
+import { UserInfoIntegrityCard } from "@/components/admin/UserInfoIntegrityCard";
+import { ProductPerformanceMatrix } from "@/components/admin/ProductPerformanceMatrix";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { apiFetch, ApiError } from "@/lib/server/api";
 import { coins, thbToCoins, coinsCompact, fmtDateTime, money } from "@/lib/format";
@@ -52,6 +54,22 @@ type Dashboard = {
   topBuyers: Array<{ userId: number; firstName: string; lastName: string; username: string; profileImage: string | null; orders: number; spend: number }>;
   ordersByCountry: Array<{ countryId: number | null; countryName: string; orders: number; spend: number }>;
   aovTrend: number[];
+  // Section 5c — % of users with a complete profile + share of
+  // settled orders that came from such users.
+  userInfoIntegrity: {
+    totalUsers: number;
+    completeUsers: number;
+    totalOrders: number;
+    ordersFromComplete: number;
+  } | null;
+  // Section 5f — bottom 5 active products by 30-day revenue.
+  productMatrix: Array<{
+    productId: number;
+    name: string;
+    revenue30d: number;
+    units30d: number;
+    totalUnits: number;
+  }>;
   queryStats: Array<{ name: string; ms: number }>;
 };
 
@@ -382,6 +400,26 @@ export default async function AdminOverview({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <TopBuyersList buyers={dashboard.topBuyers ?? []} />
         <OrdersByCountryList rows={dashboard.ordersByCountry ?? []} />
+      </div>
+
+      {/* Section 5c + 5f from the report — User Information Integrity
+          + Product Performance Matrix (underperformers half). Top-
+          products covers the high half of the matrix already; this
+          row pairs the underperformer list with the data-hygiene
+          KPIs so admin can spot promotion candidates AND profile-
+          completion gaps in the same scroll position. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {dashboard.userInfoIntegrity ? (
+          <UserInfoIntegrityCard
+            totalUsers={dashboard.userInfoIntegrity.totalUsers}
+            completeUsers={dashboard.userInfoIntegrity.completeUsers}
+            totalOrders={dashboard.userInfoIntegrity.totalOrders}
+            ordersFromComplete={dashboard.userInfoIntegrity.ordersFromComplete}
+          />
+        ) : (
+          <div />
+        )}
+        <ProductPerformanceMatrix rows={dashboard.productMatrix ?? []} />
       </div>
 
       {/* Categories + Tags + Age groups. Categories + tags are now

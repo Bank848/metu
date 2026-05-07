@@ -691,7 +691,7 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
  */
 export async function getDashboardMetrics() {
   const queryStats: QueryStat[] = [];
-  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows, topBuyersRows, ordersByCountryRows, aovTrendRows] = await Promise.all([
+  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows, topBuyersRows, ordersByCountryRows, aovTrendRows, infoIntegrityRows, productMatrixRows] = await Promise.all([
     timed("growth", queryStats, () => prisma.$queryRaw<Array<{
       total_users: bigint; buyers: bigint; sellers: bigint; admins: bigint;
       active_7d: bigint;
@@ -937,6 +937,76 @@ export async function getDashboardMetrics() {
       FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') d
       ORDER BY d ASC
     `),
+    // Section 5c of the report — User Information Integrity & Product
+    // Order. The report wants two ratios:
+    //   1. share of users with a "complete" profile
+    //   2. share of (settled) orders that came from a complete-profile user
+    // "Complete" here means: firstName, lastName, dateOfBirth,
+    // countryId, phone, profileImage all populated. Missing any one
+    // = incomplete. Used by admin to gauge data hygiene + the link
+    // between profile completeness and conversion.
+    timed("userInfoIntegrity", queryStats, () => prisma.$queryRaw<Array<{
+      total_users: bigint; complete_users: bigint;
+      total_orders: bigint; orders_from_complete: bigint;
+    }>>`
+      SELECT
+        (SELECT COUNT(*)::bigint FROM "users")                              AS total_users,
+        (SELECT COUNT(*)::bigint FROM "users"
+          WHERE first_name IS NOT NULL AND first_name <> ''
+            AND last_name  IS NOT NULL AND last_name  <> ''
+            AND date_of_birth IS NOT NULL
+            AND country_id    IS NOT NULL
+            AND phone         IS NOT NULL AND phone <> ''
+            AND profile_image IS NOT NULL AND profile_image <> '')         AS complete_users,
+        (SELECT COUNT(*)::bigint FROM "orders"
+          WHERE status IN ('paid', 'fulfilled'))                            AS total_orders,
+        (SELECT COUNT(*)::bigint
+          FROM   "orders" o
+          JOIN   "users"  u ON u.user_id = o.user_id
+          WHERE  o.status IN ('paid', 'fulfilled')
+            AND  u.first_name IS NOT NULL AND u.first_name <> ''
+            AND  u.last_name  IS NOT NULL AND u.last_name  <> ''
+            AND  u.date_of_birth IS NOT NULL
+            AND  u.country_id    IS NOT NULL
+            AND  u.phone         IS NOT NULL AND u.phone <> ''
+            AND  u.profile_image IS NOT NULL AND u.profile_image <> '') AS orders_from_complete
+    `),
+    // Section 5f — Product Performance Matrix. Top performers are
+    // already in the topProducts widget. Here we surface the OPPOSITE:
+    // active products (have at least one variant) with the LOWEST
+    // 30-day revenue, so the operator can decide who to promote /
+    // discount / surface. Returns up to 5 underperformers, sorted
+    // ascending by 30-day revenue. Only includes products that are
+    // active + belong to a non-suspended store (otherwise an admin
+    // would see junk).
+    timed("productMatrix", queryStats, () => prisma.$queryRaw<Array<{
+      product_id: number; name: string; revenue_30d: string; units_30d: bigint;
+      total_units: bigint;
+    }>>`
+      SELECT product_id, name, revenue_30d::text AS revenue_30d, units_30d, total_units
+      FROM (
+        SELECT p.product_id,
+               p.name,
+               COALESCE(SUM(CASE WHEN o.status IN ('paid','fulfilled')
+                                  AND o.created_at >= NOW() - INTERVAL '30 days'
+                                 THEN oi.price_per_unit * oi.quantity ELSE 0 END), 0) AS revenue_30d,
+               COALESCE(SUM(CASE WHEN o.status IN ('paid','fulfilled')
+                                  AND o.created_at >= NOW() - INTERVAL '30 days'
+                                 THEN oi.quantity ELSE 0 END), 0)::bigint              AS units_30d,
+               COALESCE(SUM(CASE WHEN o.status IN ('paid','fulfilled')
+                                 THEN oi.quantity ELSE 0 END), 0)::bigint              AS total_units
+          FROM "product"      p
+          JOIN "store"        s  ON s.store_id        = p.store_id
+          JOIN "product_item" pi ON pi.product_id     = p.product_id
+          LEFT JOIN "order_item" oi ON oi.product_item_id = pi.product_item_id
+          LEFT JOIN "orders"     o  ON o.order_id     = oi.order_id
+         WHERE p.is_active = true
+           AND s.suspended_at IS NULL
+         GROUP BY p.product_id, p.name
+      ) ranked
+      ORDER BY revenue_30d ASC, total_units ASC, product_id ASC
+      LIMIT 5
+    `),
   ]);
 
 
@@ -1035,6 +1105,26 @@ export async function getDashboardMetrics() {
     })),
     // 14-day AOV trend — used as a sparkline on the AOV KPI card.
     aovTrend: aovTrendRows.map((r) => Number(r.aov)),
+    // Section 5c — User Information Integrity. Two share ratios with
+    // raw counts in case the UI wants to spell them out.
+    userInfoIntegrity: infoIntegrityRows[0]
+      ? {
+          totalUsers: Number(infoIntegrityRows[0].total_users),
+          completeUsers: Number(infoIntegrityRows[0].complete_users),
+          totalOrders: Number(infoIntegrityRows[0].total_orders),
+          ordersFromComplete: Number(infoIntegrityRows[0].orders_from_complete),
+        }
+      : null,
+    // Section 5f — bottom 5 products by 30-day revenue (the
+    // "underperformer" half of the performance matrix). The TOP
+    // half is already in topProducts.
+    productMatrix: productMatrixRows.map((p) => ({
+      productId: p.product_id,
+      name: p.name,
+      revenue30d: Number(p.revenue_30d),
+      units30d: Number(p.units_30d),
+      totalUnits: Number(p.total_units),
+    })),
     // Per-query timing surfaced on /admin so the rubric shows the
     // panel knows what each block cost. Each entry is parallel
     // duration, not wall-clock — see `timed()` helper at top of file.
