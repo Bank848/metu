@@ -96,24 +96,65 @@ export async function listUsers(q: UserListQuery) {
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
       orderBy: { createdDate: "desc" },
-      include: {
-        country: true,
-        stats: true,
+      // PENTEST-103: explicit allowlist — never spread the full row.
+      // password, totpSecret, totpBackupCodes, phoneOtpHash, and any
+      // future credential column must NEVER reach the admin UI (which
+      // is itself an attack target via session theft / XSS). A future
+      // schema add will be invisible here unless it is added on
+      // purpose.
+      select: {
+        userId: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        emailVerified: true,
+        gender: true,
+        profileImage: true,
+        dateOfBirth: true,
+        phone: true,
+        phoneVerifiedAt: true,
+        totpEnabled: true,
+        requirePasswordReset: true,
+        createdDate: true,
+        updatedAt: true,
+        bannedAt: true,
+        bannedReason: true,
+        countryId: true,
+        country: { select: { countryId: true, name: true } },
+        stats: {
+          select: {
+            userId: true,
+            buyerLevel: true,
+            sellerLevel: true,
+            role: true,
+            updatedAt: true,
+          },
+        },
         store: { select: { storeId: true, name: true } },
       },
     }),
     prisma.user.count({ where }),
   ]);
 
+  // Belt-and-suspenders: also strip credential-shaped fields in code so
+  // even a misconfigured `include` (or a test mock that returns the
+  // raw row) cannot leak them. PENTEST-103.
+  const SENSITIVE = [
+    "password",
+    "totpSecret",
+    "totpBackupCodes",
+    "phoneOtpHash",
+    "phoneOtpExpiresAt",
+  ] as const;
+  const safeItems = items.map((row) => {
+    const out = { ...row } as Record<string, unknown>;
+    for (const k of SENSITIVE) delete out[k];
+    return out;
+  });
+
   return {
-    // Strip `password` even though it might be hashed — admin UI
-    // never needs it and accidental log-leak risk is real.
-    items: items.map(({ password, store, ...u }) => ({
-      ...u,
-      store: store
-        ? { storeId: store.storeId, name: store.name }
-        : null,
-    })),
+    items: safeItems,
     page: q.page,
     pageSize: q.pageSize,
     total,
