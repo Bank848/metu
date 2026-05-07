@@ -1752,20 +1752,45 @@ export async function getDatabaseSnapshot(): Promise<DatabaseSnapshot> {
  *     is rejected before it touches the connection.
  *   - 30s server timeout via Postgres SET LOCAL statement_timeout.
  *   - 200-row hard cap so a runaway SELECT can't OOM the API process.
+ *
+ * PENTEST-405: every invocation (success OR rejection) writes an
+ * `admin.sql.run` audit row. The privileged escape hatch should leave
+ * a trail every operator can review and SOC's R1 alert can page on.
  */
-export async function runAdminSql(rawSql: string): Promise<{
+export async function runAdminSql(
+  rawSql: string,
+  actorUserId?: number,
+  req?: AuditReq,
+): Promise<{
   rows: Array<Record<string, unknown>>;
   rowCount: number;
   truncated: boolean;
   durationMs: number;
 }> {
+  const sqlPreview = rawSql.slice(0, 200);
+  const recordAudit = async (
+    outcome: "ok" | "rejected" | "error",
+    extra: Record<string, unknown> = {},
+  ) => {
+    await audit({
+      actorId: actorUserId ?? null,
+      action: "admin.sql.run",
+      targetType: "system",
+      targetId: 0,
+      meta: { sql: sqlPreview, outcome, ...extra },
+      req,
+    });
+  };
+
   const sql = rawSql.trim().replace(/;+\s*$/, "");
   if (!sql) {
+    await recordAudit("rejected", { reason: "EmptySql" });
     throw new AppError(400, "EmptySql", "Type a SELECT or EXPLAIN statement first.");
   }
   const lower = sql.toLowerCase();
   const isAllowed = lower.startsWith("select") || lower.startsWith("explain") || lower.startsWith("with");
   if (!isAllowed) {
+    await recordAudit("rejected", { reason: "ReadOnlyOnly" });
     throw new AppError(
       400,
       "ReadOnlyOnly",
@@ -1774,6 +1799,7 @@ export async function runAdminSql(rawSql: string): Promise<{
   }
   // Block multi-statement attempts (we strip a single trailing `;` above).
   if (sql.includes(";")) {
+    await recordAudit("rejected", { reason: "MultipleStatements" });
     throw new AppError(
       400,
       "MultipleStatements",
@@ -1797,6 +1823,7 @@ export async function runAdminSql(rawSql: string): Promise<{
   for (const kw of WRITE_KEYWORDS) {
     const re = new RegExp(`\\b${kw}\\b`, "i");
     if (re.test(sql)) {
+      await recordAudit("rejected", { reason: "WriteKeywordBlocked", keyword: kw });
       throw new AppError(
         400,
         "WriteKeywordBlocked",
@@ -1806,18 +1833,29 @@ export async function runAdminSql(rawSql: string): Promise<{
   }
   const ROW_CAP = 200;
   const started = Date.now();
-  const rows = await prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = '30s'`);
-    await tx.$executeRawUnsafe(`SET LOCAL transaction_read_only = on`);
-    return tx.$queryRawUnsafe<Array<Record<string, unknown>>>(sql);
-  });
+  let rows: Array<Record<string, unknown>>;
+  try {
+    rows = await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = '30s'`);
+      await tx.$executeRawUnsafe(`SET LOCAL transaction_read_only = on`);
+      return tx.$queryRawUnsafe<Array<Record<string, unknown>>>(sql);
+    });
+  } catch (err) {
+    await recordAudit("error", {
+      durationMs: Date.now() - started,
+      error: err instanceof Error ? err.message.slice(0, 200) : "unknown",
+    });
+    throw err;
+  }
   const truncated = rows.length > ROW_CAP;
   const trimmed = truncated ? rows.slice(0, ROW_CAP) : rows;
+  const durationMs = Date.now() - started;
+  await recordAudit("ok", { rowCount: rows.length, truncated, durationMs });
   return {
     rows: serialiseRows(trimmed),
     rowCount: rows.length,
     truncated,
-    durationMs: Date.now() - started,
+    durationMs,
   };
 }
 
