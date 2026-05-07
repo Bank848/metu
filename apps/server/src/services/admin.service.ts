@@ -1908,7 +1908,18 @@ export async function syncOrderFromStripe(
   });
   if (!order) throw new AppError(404, "OrderNotFound");
   if (enforceOwnerUserId !== undefined && order.userId !== enforceOwnerUserId) {
-    throw new AppError(403, "Forbidden");
+    // Collapse 403 into 404 so the response shape can't be used to
+    // enumerate order IDs that exist but belong to other users.
+    // Audit-log the denial separately so SOC keeps visibility.
+    await audit({
+      actorId: actorUserId,
+      action: "order.sync.denied",
+      targetType: "order",
+      targetId: orderId,
+      meta: { reason: "not_owner" },
+      req,
+    });
+    throw new AppError(404, "OrderNotFound");
   }
   if (!order.stripePaymentIntentId) {
     throw new AppError(400, "NoPaymentIntent",
