@@ -72,8 +72,11 @@ export function LoginVerifyForm() {
   const [smsPhone, setSmsPhone] = useState<string>("");
   const [smsPhoneError, setSmsPhoneError] = useState<string | null>(null);
 
+  // Pre-fetch the phone on mount whenever SMS is even an option, so
+  // clicking the SMS tab is instant (no spinner waiting on the API).
+  const hasSmsChannel = channels.some((c) => c.id === "sms");
   useEffect(() => {
-    if (chosen !== "sms" || !token || smsPhone) return;
+    if (!token || !hasSmsChannel || smsPhone) return;
     let cancelled = false;
     (async () => {
       try {
@@ -96,7 +99,7 @@ export function LoginVerifyForm() {
     return () => {
       cancelled = true;
     };
-  }, [chosen, token, smsPhone]);
+  }, [token, hasSmsChannel, smsPhone]);
 
   // Auto-request the first OTP on mount + on channel switch, but
   // never within 30s of the previous send for the same channel.
