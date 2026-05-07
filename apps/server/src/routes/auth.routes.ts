@@ -20,11 +20,14 @@ router.post("/login/verify",      loginLimiter,          ctrl.loginVerify);
 router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
 router.post("/forgot-password",  forgotPasswordLimiter,  ctrl.forgotPassword);
-router.post("/reset-password",                           ctrl.resetPassword);
+// PENTEST-313/314: rate-limit reset-password to prevent leaked-token
+// brute-force / replay. forgotPasswordLimiter (3 / 5min) is consistent
+// with the request half of this flow.
+router.post("/reset-password",   forgotPasswordLimiter,  ctrl.resetPassword);
 // POST keeps the token in the body so it never lands in
 // access logs. GET stays for backward compatibility.
-router.post("/reset-password/check",                     ctrl.checkResetToken);
-router.get("/reset-password/check",                      ctrl.checkResetToken);
+router.post("/reset-password/check", forgotPasswordLimiter, ctrl.checkResetToken);
+router.get("/reset-password/check",  forgotPasswordLimiter, ctrl.checkResetToken);
 
 // mandatory verify flow at register. All public, rate-limited.
 router.post("/verify-email",         forgotPasswordLimiter, ctrl.verifyEmail);
@@ -62,17 +65,24 @@ router.patch("/me",               requireAuth(), ctrl.updateMe);
 router.delete("/me",              requireAuth(), ctrl.deleteMe);
 // Sensitive ops require a fresh TOTP step-up.
 router.post("/change-password",   requireAuth(), requireRecent2FA(15), ctrl.changePassword);
-router.post("/set-password",      requireAuth(), ctrl.setPassword);
+// PENTEST-311/314: rate-limit set-password (no requireRecent2FA — service
+// gates this behind ensureSensitiveOtp + only allows users without an
+// existing password). loginLimiter (5/min) prevents grinding from a
+// stolen session.
+router.post("/set-password",      requireAuth(), loginLimiter, ctrl.setPassword);
 
 router.patch("/phone",            requireAuth(), ctrl.updatePhone);
 
 // Sensitive change flows: OTP to current email first, then apply.
 router.post("/me/email-change/start",  requireAuth(), ctrl.startEmailChange);
-router.post("/me/email-change/verify", requireAuth(), ctrl.verifyEmailChange);
+// PENTEST-313: throttle OTP-verify on identity-change flows.
+router.post("/me/email-change/verify", requireAuth(), loginLimiter, ctrl.verifyEmailChange);
 router.post("/me/phone-change/start",  requireAuth(), ctrl.startPhoneChange);
-router.post("/me/phone-change/verify", requireAuth(), ctrl.verifyPhoneChange);
+router.post("/me/phone-change/verify", requireAuth(), loginLimiter, ctrl.verifyPhoneChange);
 router.post("/request-otp",       requireAuth(), requestOtpLimiter, ctrl.requestOtp);
-router.post("/verify-otp",        requireAuth(), ctrl.verifyOtp);
+// PENTEST-312: rate-limit verify-otp so a stolen session can't grind
+// 6-digit codes at network speed.
+router.post("/verify-otp",        requireAuth(), loginLimiter, ctrl.verifyOtp);
 // Email-OTP fallback for sensitive password ops when the user has no
 // verified phone. Same Verification row + identifier as SMS so only
 // one pending code per user across channels.
@@ -87,14 +97,15 @@ router.get("/sessions",                requireAuth(), ctrl.listSessions);
 router.delete("/sessions/all-others",  requireAuth(), requireRecent2FA(15), ctrl.revokeAllOtherSessions);
 router.delete("/sessions/:id",         requireAuth(), ctrl.revokeSession);
 
-// TOTP 2FA.
+// TOTP 2FA. PENTEST-312/314: every verify endpoint must be rate-limited
+// so a stolen session can't grind 6-digit TOTPs at network speed.
 router.post("/totp/enroll-start",  requireAuth(), ctrl.totpEnrollStart);
-router.post("/totp/enroll-verify", requireAuth(), ctrl.totpEnrollVerify);
-router.post("/totp/disable",       requireAuth(), ctrl.totpDisable);
-router.post("/totp/step-up",       requireAuth(), ctrl.totpStepUp);
+router.post("/totp/enroll-verify", requireAuth(), loginLimiter, ctrl.totpEnrollVerify);
+router.post("/totp/disable",       requireAuth(), loginLimiter, ctrl.totpDisable);
+router.post("/totp/step-up",       requireAuth(), loginLimiter, ctrl.totpStepUp);
 // Backup-code regeneration. Requires current password + a fresh TOTP
 // code so a stolen session alone can't rotate the backup set.
-router.post("/totp/backup-codes/regenerate", requireAuth(), ctrl.totpRegenerateBackupCodes);
+router.post("/totp/backup-codes/regenerate", requireAuth(), loginLimiter, ctrl.totpRegenerateBackupCodes);
 
 // Connected social accounts. Linking goes through better-auth's
 // /auth/better/sign-in/google flow inside an active session.
