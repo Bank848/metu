@@ -1,8 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
-import { AppError } from "../utils/errors.js";
 
-// Sliding-window rate limiter, in-process Map keyed by IP. Throws
-// AppError(429) and sets Retry-After on the response.
+// Sliding-window rate limiter, in-process Map keyed by IP. Sends a
+// 429 directly with the canonical body shape ({ error, retryAfter })
+// and a Retry-After header. Bypasses the AppError path so every
+// limiter ships the same fingerprint-resistant body (PENTEST-209).
 
 interface LimiterOptions {
   /** Max requests allowed within `windowMs`. */
@@ -73,9 +74,14 @@ export function rateLimit(options: LimiterOptions) {
       // Round up so Retry-After stays a whole-second value.
       const retryAfterSec = Math.max(1, Math.ceil((earliest + windowMs - now) / 1000));
       res.setHeader("Retry-After", String(retryAfterSec));
-      return next(
-        new AppError(429, "RateLimited", `Try again in ${retryAfterSec}s`),
-      );
+      // PENTEST-209: every limiter ships the SAME 429 body shape so a
+      // recon caller can't fingerprint which limiter fired (path,
+      // window size, bucket fullness etc.) from the response alone.
+      // The actor-distinguishing detail is in the audit log, not the
+      // response. No variable message — `retryAfter` carries the only
+      // observable info.
+      res.status(429).json({ error: "RateLimited", retryAfter: retryAfterSec });
+      return;
     }
 
     bucket.hits.push(now);
