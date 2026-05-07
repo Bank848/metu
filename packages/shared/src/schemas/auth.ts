@@ -23,8 +23,11 @@ export const registerSchema = z.object({
   username: z.string().min(3).max(20).regex(/^[a-zA-Z0-9_]+$/, "alphanumeric + underscore only"),
   email: z.string().email(),
   password: z.string().min(6).max(100),
-  firstName: z.string().min(1).max(40),
-  lastName: z.string().min(1).max(40),
+  // CRLF guard: these names land in email subject/body interpolations
+  // (gift email, receipts). Letting CR/LF through opens header
+  // injection at the outbound boundary. Block at validation.
+  firstName: z.string().min(1).max(40).regex(/^[^\r\n]*$/, "no newlines"),
+  lastName: z.string().min(1).max(40).regex(/^[^\r\n]*$/, "no newlines"),
   // Phase 41 - phone is mandatory at register so the OTP flow has
   // somewhere to send the code. Accept E.164 (+66...) or plain digits.
   phone: z
@@ -56,8 +59,8 @@ export const resendEmailVerifySchema = z.object({
 });
 
 export const updateProfileSchema = z.object({
-  firstName: z.string().min(1).max(40).optional(),
-  lastName: z.string().min(1).max(40).optional(),
+  firstName: z.string().min(1).max(40).regex(/^[^\r\n]*$/, "no newlines").optional(),
+  lastName: z.string().min(1).max(40).regex(/^[^\r\n]*$/, "no newlines").optional(),
   email: z.string().email().optional(),
   profileImage: z.string().url().optional(),
   countryId: z.number().int().positive().optional(),

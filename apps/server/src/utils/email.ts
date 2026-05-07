@@ -35,10 +35,27 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const from = input.from ?? process.env.RESEND_FROM ?? DEFAULT_FROM;
   const text = input.text ?? stripHtml(input.html);
 
+  // Header injection guard. CR/LF in any header field lets an
+  // attacker smuggle Bcc:/Reply-To:/From: lines that ride the
+  // server's DKIM-signed domain. Throw rather than silently strip
+  // so a controller bug surfaces in tests instead of in prod email.
+  assertHeaderSafe("to", input.to);
+  assertHeaderSafe("subject", input.subject);
+  assertHeaderSafe("from", from);
+
   if (process.env.RESEND_API_KEY) {
     return sendViaResend({ ...input, from, text });
   }
   return sendViaConsole({ ...input, from, text });
+}
+
+function assertHeaderSafe(field: string, value: string): void {
+  if (typeof value !== "string") {
+    throw new Error(`sendEmail: ${field} must be a string`);
+  }
+  if (/[\r\n]/.test(value)) {
+    throw new Error(`sendEmail: ${field} contains CR/LF — header injection blocked`);
+  }
 }
 
 function sendViaConsole(input: SendEmailInput & { from: string; text: string }): SendEmailResult {
