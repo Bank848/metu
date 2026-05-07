@@ -103,16 +103,18 @@ function sweep(buckets: Map<string, Bucket>, cutoff: number) {
 }
 
 // Singleton limiters per route so the WeakMap state actually persists.
-export const loginLimiter = rateLimit({ max: 5, windowMs: 60_000 });
+// `registerLimiter` is mounted on a single route (/register) so a
+// shared bucket is fine. `requestOtpLimiter` is shared between
+// /request-otp + /request-email-otp + /login/request-otp deliberately
+// so SMS / email cost can't be amplified by hopping endpoints.
 export const registerLimiter = rateLimit({ max: 3, windowMs: 60_000 });
 export const requestOtpLimiter = rateLimit({ max: 3, windowMs: 60_000 });
-// Legacy alias — historically a single instance was shared across the
-// password-reset, email-verify, phone-verify and Firebase SMS routes,
-// which means an attacker burning the bucket on /forgot-password also
-// blocked legitimate /verify-email and /resend-phone-otp callers from
-// the same IP (PENTEST-112). New code MUST mint a dedicated instance
-// via `makeLimiter({...})` per route. This export is kept only to
-// avoid breaking unrelated imports; route mounts have moved off it.
+// LEGACY ALIASES — kept exported only to keep unrelated `import` lines
+// compiling. NEVER mount these as middleware: each one was previously
+// shared across many routes and that shared bucket is exactly the
+// cross-route DoS surface (PENTEST-112 / PENTEST-031). Mint a fresh
+// instance per route via `makeLimiter({...})` instead.
+export const loginLimiter = rateLimit({ max: 5, windowMs: 60_000 });
 export const forgotPasswordLimiter = rateLimit({
   max: 3,
   windowMs: 5 * 60_000,

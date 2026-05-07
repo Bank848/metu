@@ -2,7 +2,6 @@ import { Router } from "express";
 import * as ctrl from "../controllers/auth.controller.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
-  loginLimiter,
   makeLimiter,
   registerLimiter,
   requestOtpLimiter,
@@ -11,12 +10,16 @@ import { requireRecent2FA } from "../middleware/require-recent-2fa.js";
 
 const router = Router();
 
-// Public, rate-limited.
-router.post("/login",            loginLimiter,           ctrl.login);
+// Public, rate-limited. PENTEST-031: each route gets a dedicated
+// limiter instance so a 5/min burst on /login doesn't drain the bucket
+// shared with /login/verify, /set-password, /verify-otp, the four
+// /totp/* verify routes, and the two /me/{email,phone}-change/verify
+// routes (10-route NAT-amplified DoS).
+router.post("/login",            makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.login);
 // Two-step login verify. Both endpoints rate-limited under the OTP
 // budget so a leaked pre-auth token can't be brute-forced.
 router.post("/login/request-otp", requestOtpLimiter,     ctrl.loginRequestOtp);
-router.post("/login/verify",      loginLimiter,          ctrl.loginVerify);
+router.post("/login/verify",      makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.loginVerify);
 router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
 // PENTEST-112: each recovery / verify route gets its own limiter
@@ -73,22 +76,24 @@ router.delete("/me",              requireAuth(), ctrl.deleteMe);
 router.post("/change-password",   requireAuth(), requireRecent2FA(15), ctrl.changePassword);
 // PENTEST-311/314: rate-limit set-password (no requireRecent2FA — service
 // gates this behind ensureSensitiveOtp + only allows users without an
-// existing password). loginLimiter (5/min) prevents grinding from a
-// stolen session.
-router.post("/set-password",      requireAuth(), loginLimiter, ctrl.setPassword);
+// existing password). PENTEST-031: own bucket per route so login bursts
+// don't lock legit users out of set-password.
+router.post("/set-password",      requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.setPassword);
 
 router.patch("/phone",            requireAuth(), ctrl.updatePhone);
 
 // Sensitive change flows: OTP to current email first, then apply.
 router.post("/me/email-change/start",  requireAuth(), ctrl.startEmailChange);
-// PENTEST-313: throttle OTP-verify on identity-change flows.
-router.post("/me/email-change/verify", requireAuth(), loginLimiter, ctrl.verifyEmailChange);
+// PENTEST-313: throttle OTP-verify on identity-change flows. PENTEST-031:
+// per-route bucket so /me/email-change/verify can't be DoS'd by a
+// /login burst on the same IP.
+router.post("/me/email-change/verify", requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.verifyEmailChange);
 router.post("/me/phone-change/start",  requireAuth(), ctrl.startPhoneChange);
-router.post("/me/phone-change/verify", requireAuth(), loginLimiter, ctrl.verifyPhoneChange);
+router.post("/me/phone-change/verify", requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.verifyPhoneChange);
 router.post("/request-otp",       requireAuth(), requestOtpLimiter, ctrl.requestOtp);
 // PENTEST-312: rate-limit verify-otp so a stolen session can't grind
-// 6-digit codes at network speed.
-router.post("/verify-otp",        requireAuth(), loginLimiter, ctrl.verifyOtp);
+// 6-digit codes at network speed. PENTEST-031: dedicated bucket.
+router.post("/verify-otp",        requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.verifyOtp);
 // Email-OTP fallback for sensitive password ops when the user has no
 // verified phone. Same Verification row + identifier as SMS so only
 // one pending code per user across channels.
@@ -105,13 +110,16 @@ router.delete("/sessions/:id",         requireAuth(), ctrl.revokeSession);
 
 // TOTP 2FA. PENTEST-312/314: every verify endpoint must be rate-limited
 // so a stolen session can't grind 6-digit TOTPs at network speed.
+// PENTEST-031: each /totp/* route gets a dedicated bucket — otherwise
+// a /login storm from the same NAT could lock a legit user out of
+// step-up TOTP entirely.
 router.post("/totp/enroll-start",  requireAuth(), ctrl.totpEnrollStart);
-router.post("/totp/enroll-verify", requireAuth(), loginLimiter, ctrl.totpEnrollVerify);
-router.post("/totp/disable",       requireAuth(), loginLimiter, ctrl.totpDisable);
-router.post("/totp/step-up",       requireAuth(), loginLimiter, ctrl.totpStepUp);
+router.post("/totp/enroll-verify", requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.totpEnrollVerify);
+router.post("/totp/disable",       requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.totpDisable);
+router.post("/totp/step-up",       requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.totpStepUp);
 // Backup-code regeneration. Requires current password + a fresh TOTP
 // code so a stolen session alone can't rotate the backup set.
-router.post("/totp/backup-codes/regenerate", requireAuth(), loginLimiter, ctrl.totpRegenerateBackupCodes);
+router.post("/totp/backup-codes/regenerate", requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.totpRegenerateBackupCodes);
 
 // Connected social accounts. Linking goes through better-auth's
 // /auth/better/sign-in/google flow inside an active session.
