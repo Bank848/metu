@@ -38,7 +38,11 @@ export function buildApp() {
   const app = express();
 
   // Trust Fly's X-Forwarded-For so req.ip is the real client IP.
-  app.set("trust proxy", true);
+  // Number form (1) trusts ONLY the rightmost proxy hop (Fly's edge), not the
+  // full chain. Using `true` would trust every entry in X-Forwarded-For, which
+  // lets a remote attacker spoof their source IP and bypass IP-keyed rate
+  // limits by prepending arbitrary values (PENTEST-021, P0).
+  app.set("trust proxy", 1);
 
   // Helmet first so 4xx responses still ship HSTS / X-Frame-Options.
   // CSP allowlist covers the Google OAuth + Inter font + avatar URLs.
