@@ -26,10 +26,16 @@ type Step = "enter-phone" | "enter-code" | "verified";
 export function FirebasePhoneVerify({
   defaultPhone = "",
   onVerified,
+  verifyUrl = "/api/auth/verify-phone-firebase",
+  extraBody = {},
 }: {
   defaultPhone?: string;
   /** Called after the server stamps phoneVerifiedAt successfully. */
   onVerified?: (phone: string) => void;
+  /** Override for non-register flows (e.g. login two-step verify). */
+  verifyUrl?: string;
+  /** Extra fields merged into the POST body sent to verifyUrl. */
+  extraBody?: Record<string, unknown>;
 }) {
   const [step, setStep] = useState<Step>("enter-phone");
   const [phone, setPhone] = useState(defaultPhone);
@@ -107,11 +113,12 @@ export function FirebasePhoneVerify({
       if (!confirmationRef.current) throw new Error("No pending verification — request a code first.");
       const result = await confirmationRef.current.confirm(code);
       const idToken = await result.user.getIdToken();
-      const res = await fetch("/api/auth/verify-phone-firebase", {
+      const body = { idToken, ...extraBody };
+      const res = await fetch(verifyUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({} as { message?: string; phone?: string }));
       if (!res.ok) {

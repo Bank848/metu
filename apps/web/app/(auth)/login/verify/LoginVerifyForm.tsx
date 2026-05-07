@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, ShieldCheck, Mail, Phone, ArrowLeft } from "lucide-react";
+import { FirebasePhoneVerify } from "@/components/auth/FirebasePhoneVerify";
 
 const CHANNEL_COOLDOWN_MS = 30_000;
 
@@ -68,8 +69,9 @@ export function LoginVerifyForm() {
 
   // Auto-request the first OTP on mount + on channel switch, but
   // never within 30s of the previous send for the same channel.
+  // SMS channel skips this — Firebase handles its own SMS round-trip.
   useEffect(() => {
-    if (!token) return;
+    if (!token || chosen === "sms") return;
     const last = sentAt[chosen] ?? 0;
     if (Date.now() - last < CHANNEL_COOLDOWN_MS) return;
     requestCode();
@@ -226,75 +228,99 @@ export function LoginVerifyForm() {
         </div>
       )}
 
-      <form onSubmit={submit} className="space-y-3">
-        <label className="block">
-          <span className="text-xs font-semibold uppercase tracking-wider text-ink-dim">
-            6-digit code
-          </span>
-          <input
-            type="text"
-            inputMode="numeric"
-            pattern="\d{6}"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="123456"
-            className="w-full mt-1 rounded-xl border border-line bg-space-950 px-4 py-3 text-center font-mono tracking-[0.5em] text-2xl text-white focus:border-metu-yellow outline-none"
-            autoFocus
-          />
-        </label>
+      {/* Trust-device toggle is shared across both channels. */}
+      <label className="flex items-start gap-2 cursor-pointer text-sm text-ink-secondary">
+        <input
+          type="checkbox"
+          checked={trustDevice}
+          onChange={(e) => setTrustDevice(e.target.checked)}
+          className="mt-1 h-4 w-4 accent-metu-yellow shrink-0"
+        />
+        <span>
+          Trust this device for 7 days — won&apos;t ask for a code again on this browser.
+        </span>
+      </label>
 
-        <label className="flex items-start gap-2 cursor-pointer text-sm text-ink-secondary">
-          <input
-            type="checkbox"
-            checked={trustDevice}
-            onChange={(e) => setTrustDevice(e.target.checked)}
-            className="mt-1 h-4 w-4 accent-metu-yellow shrink-0"
-          />
-          <span>
-            Trust this device for 7 days — won&apos;t ask for a code again on this browser.
-          </span>
-        </label>
-
-        {msg && (
-          <p className={`text-xs ${msg.ok ? "text-mint" : "text-coral"}`}>
-            {msg.text}
+      {chosen === "sms" ? (
+        <div className="space-y-3">
+          <p className="text-xs text-ink-secondary">
+            Enter your phone number with country code, then we&apos;ll text you a 6-digit code via Firebase.
           </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={busy !== null || code.length !== 6}
-          className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-metu-yellow px-4 py-2.5 text-sm font-bold text-surface-1 hover:bg-metu-yellow/90 disabled:opacity-50"
-        >
-          {busy === "verify" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {busy === "verify" ? "Verifying…" : "Sign in"}
-        </button>
-
-        <div className="flex items-center justify-between text-xs">
+          <FirebasePhoneVerify
+            verifyUrl="/api/auth/login/firebase-verify"
+            extraBody={{ token, trustDevice }}
+            onVerified={() => {
+              router.push(safeNextPath(next));
+              router.refresh();
+            }}
+          />
           <a
             href="/login"
-            className="inline-flex items-center gap-1 text-ink-dim hover:text-white"
+            className="inline-flex items-center gap-1 text-xs text-ink-dim hover:text-white"
           >
             <ArrowLeft className="h-3 w-3" />
             Back
           </a>
-          <button
-            type="button"
-            onClick={requestCode}
-            disabled={busy !== null || cooldownLeft > 0}
-            className="text-metu-yellow hover:underline disabled:opacity-50"
-          >
-            {busy === "request"
-              ? "Sending…"
-              : cooldownLeft > 0
-                ? `Resend in ${cooldownLeft}s`
-                : requested
-                  ? "Resend code"
-                  : "Send code"}
-          </button>
         </div>
-      </form>
+      ) : (
+        <form onSubmit={submit} className="space-y-3">
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wider text-ink-dim">
+              6-digit code
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="\d{6}"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              className="w-full mt-1 rounded-xl border border-line bg-space-950 px-4 py-3 text-center font-mono tracking-[0.5em] text-2xl text-white focus:border-metu-yellow outline-none"
+              autoFocus
+            />
+          </label>
+
+          {msg && (
+            <p className={`text-xs ${msg.ok ? "text-mint" : "text-coral"}`}>
+              {msg.text}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={busy !== null || code.length !== 6}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-metu-yellow px-4 py-2.5 text-sm font-bold text-surface-1 hover:bg-metu-yellow/90 disabled:opacity-50"
+          >
+            {busy === "verify" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {busy === "verify" ? "Verifying…" : "Sign in"}
+          </button>
+
+          <div className="flex items-center justify-between text-xs">
+            <a
+              href="/login"
+              className="inline-flex items-center gap-1 text-ink-dim hover:text-white"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              Back
+            </a>
+            <button
+              type="button"
+              onClick={requestCode}
+              disabled={busy !== null || cooldownLeft > 0}
+              className="text-metu-yellow hover:underline disabled:opacity-50"
+            >
+              {busy === "request"
+                ? "Sending…"
+                : cooldownLeft > 0
+                  ? `Resend in ${cooldownLeft}s`
+                  : requested
+                    ? "Resend code"
+                    : "Send code"}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
