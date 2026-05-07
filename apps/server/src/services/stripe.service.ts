@@ -158,12 +158,13 @@ export async function createPaymentIntent(opts: {
     {
       amount: amountSatang,
       currency: "thb",
-      // Card only — async / redirect-based methods (PromptPay, FPX, etc.)
-      // settle via the bank's app and arrive as `payment_intent.processing`,
-      // which our webhook does not flip to paid (orders sit pending forever).
-      // Restricting to non-redirect methods keeps the success → /orders
-      // flip synchronous and instant.
-      automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+      // Explicit card-only allowlist. `automatic_payment_methods` with
+      // `allow_redirects: never` was supposed to hide redirect methods
+      // like PromptPay but Stripe kept showing PromptPay anyway — be
+      // explicit. PromptPay etc. settle async via
+      // `payment_intent.processing` which our webhook does not handle,
+      // so orders would sit pending forever.
+      payment_method_types: ["card"],
       application_fee_amount: applicationFeeSatang,
       receipt_email: opts.buyerEmail,
       metadata: { orderId: String(opts.orderId) },
