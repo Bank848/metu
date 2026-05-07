@@ -16,8 +16,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ───── Stage 1: deps ─────
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat openssl
+# PENTEST-505 (round 2) — pin to node:20.20-alpine instead of the
+# rolling :20-alpine tag so a Node 20 minor bump can't surprise the
+# build. Same digest as :20-alpine on 2026-05-07 (alpine 3.23.4).
+FROM node:20.20-alpine AS deps
+# PENTEST-504 (round 2) — pin alpine package versions so a poisoned
+# mirror or upstream compromise can't silently swap in a malicious
+# build. Versions verified against alpine 3.23 community repo on
+# 2026-05-07; libc6-compat is a virtual provided by gcompat.
+RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
 WORKDIR /app
 
 # Lockfile + every workspace package.json (workspace install needs them
@@ -43,8 +50,8 @@ COPY packages/db/package.json ./packages/db/
 RUN npm ci --include=dev --ignore-scripts
 
 # ───── Stage 2: builder ─────
-FROM node:20-alpine AS builder
-RUN apk add --no-cache libc6-compat openssl
+FROM node:20.20-alpine AS builder
+RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -86,8 +93,8 @@ RUN npm run build -w @metu/shared
 RUN npm run build -w @metu/server
 
 # ───── Stage 3: runner ─────
-FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat openssl
+FROM node:20.20-alpine AS runner
+RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
 WORKDIR /app
 
 ENV NODE_ENV=production
