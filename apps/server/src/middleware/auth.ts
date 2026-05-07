@@ -59,10 +59,11 @@ export function requireAuth(roles?: UserRole[]) {
       const uid = await readBetterAuthUserId(req);
       if (uid === null) throw new AppError(401, "Unauthorized");
 
-      // Slim shape — middleware only needs auth + role checks. Full
-      // user object (with store + bio + addresses) was 54KB on /auth/me
-      // and ran on every authed request. Endpoints that need more do
-      // their own targeted query.
+      // Slim shape — middleware only needs auth + role + store presence.
+      // Full user object (with bio + addresses) was 54KB on /auth/me
+      // and ran on every authed request. The store join is kept (slim:
+      // storeId only) because requireStore() downstream gates /seller/**
+      // on its presence and seller controllers read `.storeId`.
       const user = await prisma.user.findUnique({
         where: { userId: uid },
         select: {
@@ -74,6 +75,7 @@ export function requireAuth(roles?: UserRole[]) {
           profileImage: true,
           bannedAt: true,
           stats: { select: { role: true } },
+          store: { select: { storeId: true } },
         },
       });
       // Banned users get treated as logged-out.
@@ -115,6 +117,7 @@ export function softAuth() {
           profileImage: true,
           bannedAt: true,
           stats: { select: { role: true } },
+          store: { select: { storeId: true } },
         },
       });
       if (user && !user.bannedAt) {

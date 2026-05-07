@@ -35,6 +35,7 @@ interface Status {
   payoutsEnabled?: boolean;
   chargesEnabled?: boolean;
   message?: string;
+  errorKind?: "not-configured" | "auth" | "no-store" | "unknown";
 }
 
 async function fetchStatus(): Promise<Status> {
@@ -45,30 +46,70 @@ async function fetchStatus(): Promise<Status> {
     return await apiFetch<Status>("/seller/stripe/status");
   } catch (err) {
     if (err instanceof ApiError) {
-      // 503 = Stripe not configured on the server ; surface the
-      // message Stripe-not-configured banner uses.
       if (err.status === 503) {
-        return { configured: false, message: "Stripe is not configured." };
+        return {
+          configured: false,
+          errorKind: "not-configured",
+          message: "Stripe is not configured.",
+        };
       }
-      // 401/403 fall through with default "loading" state — the user
-      // shouldn't normally see this since the layout already checks
-      // auth + store ownership before rendering this page.
+      if (err.status === 401) {
+        return {
+          configured: false,
+          errorKind: "auth",
+          message: "Sign in again to view Stripe Connect status.",
+        };
+      }
+      if (err.status === 403) {
+        return {
+          configured: false,
+          errorKind: "no-store",
+          message: "Create a store first to enable Stripe Connect.",
+        };
+      }
     }
-    return { configured: false, message: "Stripe is not configured." };
+    return {
+      configured: false,
+      errorKind: "unknown",
+      message: "Couldn’t load Stripe Connect status.",
+    };
   }
 }
 
 function StatusCard({ status }: { status: Status }) {
   if (!status.configured) {
+    const kind = status.errorKind ?? "not-configured";
+    const heading =
+      kind === "auth"
+        ? "Session expired"
+        : kind === "no-store"
+          ? "No store yet"
+          : kind === "unknown"
+            ? "Couldn’t load status"
+            : "Stripe not configured";
+    const body =
+      kind === "auth" ? (
+        <>Your session expired. Sign in again to manage Stripe Connect.</>
+      ) : kind === "no-store" ? (
+        <>
+          You need a store before linking Stripe. Visit your seller area and pick{" "}
+          <strong>Become a seller</strong> first.
+        </>
+      ) : kind === "unknown" ? (
+        <>{status.message ?? "Try again in a moment."}</>
+      ) : (
+        <>
+          The server is missing <code>STRIPE_SECRET_KEY</code>. Set it via flyctl
+          secrets to enable Connect onboarding.
+        </>
+      );
     return (
       <section className="rounded-2xl border border-amber-400/30 bg-amber-400/5 p-6">
         <div className="flex items-start gap-3">
           <AlertCircle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
           <div>
-            <h2 className="font-semibold text-amber-100">Stripe not configured</h2>
-            <p className="text-sm text-amber-100/80 mt-1">
-              The server is missing <code>STRIPE_SECRET_KEY</code>. Set it via flyctl secrets to enable Connect onboarding.
-            </p>
+            <h2 className="font-semibold text-amber-100">{heading}</h2>
+            <p className="text-sm text-amber-100/80 mt-1">{body}</p>
           </div>
         </div>
       </section>
