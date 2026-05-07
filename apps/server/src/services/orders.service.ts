@@ -697,25 +697,31 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
 
   // Gift flow — when the buyer ticked "this is a gift" at checkout,
   // also notify the recipient that something's waiting for them. The
-  // delivery payload (keys / download links) DOES go in the gift
-  // email so the recipient can use the goods immediately, but the
-  // wording shifts to second-person ("Hi! <buyer> bought you …").
+  // recipient sees ONLY product names + the buyer's first name + the
+  // gift message. License keys, download URLs, store contact details,
+  // and buyer's lastName/email are stripped (the recipient never
+  // consented to receive that PII; the buyer forwards keys manually).
   if (order.giftRecipientEmail) {
     const recipientSubject = `${buyer.firstName} sent you a METU gift — order #${orderId}`;
-    const giftIntroText = `${buyer.firstName} just bought you something on METU! Below are the items + your delivery details. ${order.giftMessage ? `\n\nMessage from ${buyer.firstName}: "${order.giftMessage}"` : ""}`;
-    const giftIntroHtml = `<p>${escape(buyer.firstName)} just bought you something on METU! Below are the items + your delivery details.</p>${order.giftMessage ? `<p style="margin-top:12px;padding:12px;background:#1a1a1a;border-left:3px solid #facc15;color:#facc15;"><em>"${escape(order.giftMessage)}"</em><br/><small>— ${escape(buyer.firstName)}</small></p>` : ""}`;
+    const giftIntroText = `${buyer.firstName} just bought you something on METU! Below are the items. ${order.giftMessage ? `\n\nMessage from ${buyer.firstName}: "${order.giftMessage}"` : ""}`;
+    const giftIntroHtml = `<p>${escape(buyer.firstName)} just bought you something on METU! Below are the items.</p>${order.giftMessage ? `<p style="margin-top:12px;padding:12px;background:#1a1a1a;border-left:3px solid #facc15;color:#facc15;"><em>"${escape(order.giftMessage)}"</em><br/><small>— ${escape(buyer.firstName)}</small></p>` : ""}`;
+    const recipientCards = buildRecipientStoreCards(stores, escape);
+    const recipientText = buildRecipientStoreText(stores);
     const giftHtml = renderEmailLayout({
       heading: `A gift from ${escape(buyer.firstName)}`,
       intro: giftIntroHtml,
       cta: { label: "View on METU", url: `${SITE_URL}/orders/${orderId}` },
-      bodyHtml: storeCards.join(""),
+      bodyHtml: recipientCards.join(""),
     });
     const giftText = [
       `Hi!`,
       "",
       giftIntroText,
       "",
-      ...textLines.slice(4), // drop the buyer-facing greeting + thanks
+      ...recipientText,
+      `Ask ${buyer.firstName} for the delivery details.`,
+      "",
+      "— METU Marketplace",
     ].join("\n");
     await sendEmail({
       to: order.giftRecipientEmail,
@@ -727,6 +733,48 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
       console.error("[order] gift recipient email failed:", err);
     });
   }
+}
+
+// Render a redacted card list for the gift recipient. Strips license
+// keys, download URLs, and store contact details — those are PII the
+// recipient never consented to receive. Buyer forwards delivery
+// payload manually if they want.
+function buildRecipientStoreCards(
+  stores: Array<{ store: { name: string }; lines: Array<{ quantity: number; productItem: { product: { name: string } } | null; productNameSnapshot: string }> }>,
+  escape: (s: string) => string,
+): string[] {
+  const cards: string[] = [];
+  for (const { store, lines } of stores) {
+    cards.push(
+      `<div style="margin: 20px 0 0; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; background: #fafbfc;">`,
+      `<div style="display: inline-block; background: #10b981; color: #ffffff; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
+    );
+    for (const it of lines) {
+      const name = escape(it.productItem?.product.name ?? it.productNameSnapshot);
+      cards.push(
+        `<div style="margin: 10px 0; padding: 12px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">`,
+        `<div style="font-size: 14px; font-weight: 600; color: #0f172a;">${it.quantity}&times; ${name}</div>`,
+        `</div>`,
+      );
+    }
+    cards.push(`</div>`);
+  }
+  return cards;
+}
+
+function buildRecipientStoreText(
+  stores: Array<{ store: { name: string }; lines: Array<{ quantity: number; productItem: { product: { name: string } } | null; productNameSnapshot: string }> }>,
+): string[] {
+  const out: string[] = [];
+  for (const { store, lines } of stores) {
+    out.push(`── ${store.name} ──`);
+    for (const it of lines) {
+      const name = it.productItem?.product.name ?? it.productNameSnapshot;
+      out.push(`  ${it.quantity}× ${name}`);
+    }
+    out.push("");
+  }
+  return out;
 }
 
 // List the user's orders newest first.
