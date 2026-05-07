@@ -35,6 +35,7 @@ export async function checkout(
 
   const cart = await prisma.cart.findFirst({
     where: { userId, status: "active" },
+    orderBy: { cartId: "desc" }, // latest active cart wins on duplicates
     include: {
       items: { include: { productItem: { include: { product: true } } } },
     },
@@ -839,32 +840,11 @@ export async function cancelUserPendingOrders(userId: number): Promise<void> {
       });
     });
   }
-
-  // Restore the user's most recent checked_out cart back to active so
-  // their items reappear in /cart. The earlier `checkout()` flow flips
-  // the cart to "checked_out" + creates a fresh empty active one;
-  // without this restore, a buyer who backs out of Stripe ends up
-  // looking at the empty new cart and POST /api/orders 400s with
-  // EmptyCart on the next checkout attempt.
-  await prisma.$transaction(async (tx) => {
-    const latestCheckedOut = await tx.cart.findFirst({
-      where: { userId, status: "checked_out" },
-      orderBy: { cartId: "desc" },
-      select: { cartId: true },
-    });
-    if (!latestCheckedOut) return;
-    const emptyActive = await tx.cart.findFirst({
-      where: { userId, status: "active" },
-      include: { items: { select: { cartItemId: true } } },
-    });
-    if (emptyActive && emptyActive.items.length === 0) {
-      await tx.cart.delete({ where: { cartId: emptyActive.cartId } });
-    }
-    await tx.cart.update({
-      where: { cartId: latestCheckedOut.cartId },
-      data: { status: "active" },
-    });
-  });
+  // Note: don't restore the checked_out cart here. checkout() already
+  // copies the selected items into the fresh active cart at order
+  // create time, so the user's /cart shows what they were about to
+  // pay for. Restoring an old cart on top of that creates a dual-
+  // active-cart bug where /cart flickers between two snapshots.
 }
 
 /**
@@ -876,6 +856,7 @@ export async function cancelUserPendingOrders(userId: number): Promise<void> {
 export async function clearCartAfterPayment(userId: number, orderId: number): Promise<void> {
   const active = await prisma.cart.findFirst({
     where: { userId, status: "active" },
+    orderBy: { cartId: "desc" }, // latest active cart wins on duplicates
     select: { cartId: true },
   });
   if (!active) return;

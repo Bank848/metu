@@ -15,8 +15,14 @@ import type {
  * created on the next POST /items.
  */
 async function getOrCreateActiveCart(userId: number) {
+  // Pick the LATEST active cart deterministically. An earlier
+  // cart-restore experiment could leave more than one active row for
+  // the same user; without an explicit orderBy, /cart would flicker
+  // between snapshots. Latest-by-cartId always wins so the buyer
+  // sees a stable cart.
   const existing = await prisma.cart.findFirst({
     where: { userId, status: "active" },
+    orderBy: { cartId: "desc" },
   });
   if (existing) return existing;
   return prisma.cart.create({ data: { userId, status: "active" } });
