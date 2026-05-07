@@ -362,7 +362,28 @@ export async function findProductById(id: number): Promise<ProductDetailResponse
         },
       },
       category: true,
-      items: { orderBy: { price: "asc" } },
+      // PENTEST-101/201: explicit allowlist on items so deliveryUrl
+      // and licenseKeyTemplate (post-purchase fulfilment payload)
+      // never reach the public product page. Buyers receive them via
+      // /orders/:id/items after the Stripe webhook stamps the order
+      // paid; anonymous + non-buyer responses must omit them entirely.
+      items: {
+        orderBy: { price: "asc" },
+        select: {
+          productItemId: true,
+          productId: true,
+          name: true,
+          description: true,
+          image: true,
+          deliveryMethod: true,
+          quantity: true,
+          price: true,
+          discountPercent: true,
+          discountAmount: true,
+          sampleUrl: true,
+          createdDate: true,
+        },
+      },
       images: { orderBy: { sortOrder: "asc" } },
       productNTags: { include: { tag: true } },
       details: { orderBy: { productDetailId: "asc" } },
