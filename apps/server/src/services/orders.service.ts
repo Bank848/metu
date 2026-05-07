@@ -694,6 +694,39 @@ export async function sendOrderReceipt(orderId: number): Promise<void> {
     html,
     text: textLines.join("\n"),
   });
+
+  // Gift flow — when the buyer ticked "this is a gift" at checkout,
+  // also notify the recipient that something's waiting for them. The
+  // delivery payload (keys / download links) DOES go in the gift
+  // email so the recipient can use the goods immediately, but the
+  // wording shifts to second-person ("Hi! <buyer> bought you …").
+  if (order.giftRecipientEmail) {
+    const recipientSubject = `${buyer.firstName} sent you a METU gift — order #${orderId}`;
+    const giftIntroText = `${buyer.firstName} just bought you something on METU! Below are the items + your delivery details. ${order.giftMessage ? `\n\nMessage from ${buyer.firstName}: "${order.giftMessage}"` : ""}`;
+    const giftIntroHtml = `<p>${escape(buyer.firstName)} just bought you something on METU! Below are the items + your delivery details.</p>${order.giftMessage ? `<p style="margin-top:12px;padding:12px;background:#1a1a1a;border-left:3px solid #facc15;color:#facc15;"><em>"${escape(order.giftMessage)}"</em><br/><small>— ${escape(buyer.firstName)}</small></p>` : ""}`;
+    const giftHtml = renderEmailLayout({
+      heading: `A gift from ${escape(buyer.firstName)}`,
+      intro: giftIntroHtml,
+      cta: { label: "View on METU", url: `${SITE_URL}/orders/${orderId}` },
+      bodyHtml: storeCards.join(""),
+    });
+    const giftText = [
+      `Hi!`,
+      "",
+      giftIntroText,
+      "",
+      ...textLines.slice(4), // drop the buyer-facing greeting + thanks
+    ].join("\n");
+    await sendEmail({
+      to: order.giftRecipientEmail,
+      subject: recipientSubject,
+      html: giftHtml,
+      text: giftText,
+    }).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("[order] gift recipient email failed:", err);
+    });
+  }
 }
 
 // List the user's orders newest first.

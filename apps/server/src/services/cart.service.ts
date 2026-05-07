@@ -112,10 +112,12 @@ export async function addItem(
 
   // already-owned guard. Single-copy products
   // (download / streaming / email — anything with isStackable=false)
-  // can't be bought twice by the same buyer. license_key + seller-
-  // override products bypass this rule. Refunded orders are excluded
-  // from the lookup so a buyer can re-purchase after a refund.
-  if (!item.product.isStackable) {
+  // can't be bought twice by the same buyer. license_key items
+  // bypass this rule per-variant: the same product can ship a
+  // download AND a license_key variant, and the license_key variant
+  // is meant to be re-purchasable even when the parent product is
+  // not stackable (each purchase mints a fresh key).
+  if (!item.product.isStackable && item.deliveryMethod !== "license_key") {
     const owned = await prisma.order.findFirst({
       where: {
         userId,
