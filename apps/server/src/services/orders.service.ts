@@ -752,8 +752,16 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
   // consented to receive that PII; the buyer forwards keys manually).
   if (order.giftRecipientEmail) {
     const recipientSubject = `${buyer.firstName} sent you a METU gift — order #${orderId}`;
-    const giftIntroText = `${buyer.firstName} just bought you something on METU! Below are the items. ${order.giftMessage ? `\n\nMessage from ${buyer.firstName}: "${order.giftMessage}"` : ""}`;
-    const giftIntroHtml = `<p>${escape(buyer.firstName)} just bought you something on METU! Below are the items.</p>${order.giftMessage ? `<p style="margin-top:12px;padding:12px;background:#1a1a1a;border-left:3px solid #facc15;color:#facc15;"><em>"${escape(order.giftMessage)}"</em><br/><small>— ${escape(buyer.firstName)}</small></p>` : ""}`;
+    // Sanitize giftMessage for the plain-text body: strip CR/LF + ANSI
+    // / control chars (so an attacker can't inject fake "From:" lines
+    // or weaponize terminal escape sequences in CLI mail clients), and
+    // hard-cap length even though the schema already caps at 500. The
+    // HTML branch's escape() already neutralises angle brackets but
+    // does NOT collapse CR/LF, so we apply the same sanitizer there
+    // before HTML escaping for parity.
+    const safeGiftMessage = sanitizePlainTextGiftMessage(order.giftMessage ?? "");
+    const giftIntroText = `${buyer.firstName} just bought you something on METU! Below are the items. ${safeGiftMessage ? `\n\nMessage from ${buyer.firstName}: "${safeGiftMessage}"` : ""}`;
+    const giftIntroHtml = `<p>${escape(buyer.firstName)} just bought you something on METU! Below are the items.</p>${safeGiftMessage ? `<p style="margin-top:12px;padding:12px;background:#1a1a1a;border-left:3px solid #facc15;color:#facc15;"><em>"${escape(safeGiftMessage)}"</em><br/><small>— ${escape(buyer.firstName)}</small></p>` : ""}`;
     const recipientCards = buildRecipientStoreCards(stores, escape);
     const recipientText = buildRecipientStoreText(stores);
     const giftHtml = renderEmailLayout({
@@ -809,6 +817,42 @@ function buildRecipientStoreCards(
     cards.push(`</div>`);
   }
   return cards;
+}
+
+// Sanitize a buyer-controlled gift message for inclusion in BOTH the
+// plain-text and HTML email bodies. The HTML branch's escape() handles
+// angle brackets but leaves CR/LF/control chars intact; without this
+// helper, the plain-text branch (Black-confirmed C2-002) lets the
+// attacker inject newlines, fake "Subject:"/"From:" lines that some
+// MUA quoted-reply views render verbatim, ANSI escape sequences (CLI
+// mail clients), or unicode bidi overrides. Steps:
+//   1. Strip ANSI escape (\x1b[...m) and other C0/C1 control chars
+//      EXCEPT a tab — keep printable whitespace only.
+//   2. Collapse CR/LF runs to a single space (no newline injection).
+//   3. Strip unicode bidi overrides (U+202A..U+202E, U+2066..U+2069)
+//      so an attacker can't reverse text direction in the recipient
+//      preview pane.
+//   4. Hard-cap at 500 chars (schema cap is also 500; this is a
+//      belt-and-braces in case schema drifts).
+function sanitizePlainTextGiftMessage(input: string): string {
+  if (!input) return "";
+  let s = input;
+  // ANSI CSI (ESC + '[' + params + final byte). Strip the whole
+  // sequence; we don't try to "preserve" colour codes.
+  s = s.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
+  // Other C0 (0x00-0x1F except \t) + C1 (0x80-0x9F) + DEL (0x7F).
+  s = s.replace(/[\x00-\x08\x0B-\x1F\x7F-\x9F]/g, "");
+  // CR/LF runs collapse to a single space.
+  s = s.replace(/[\r\n]+/g, " ");
+  // Tab → single space (avoid weird alignment in plain-text MUA).
+  s = s.replace(/\t+/g, " ");
+  // Unicode bidi controls.
+  s = s.replace(/[‪-‮⁦-⁩]/g, "");
+  // Collapse multi-space runs introduced by the substitutions.
+  s = s.replace(/ {2,}/g, " ").trim();
+  // Hard cap.
+  if (s.length > 500) s = s.slice(0, 500);
+  return s;
 }
 
 function buildRecipientStoreText(
