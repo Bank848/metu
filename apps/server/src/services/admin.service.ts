@@ -1887,6 +1887,16 @@ export async function syncOrderFromStripe(
       status: true,
       totalPrice: true,
       stripePaymentIntentId: true,
+      items: {
+        take: 1,
+        include: {
+          productItem: {
+            include: {
+              product: { include: { store: { select: { stripeAccountId: true } } } },
+            },
+          },
+        },
+      },
     },
   });
   if (!order) throw new AppError(404, "OrderNotFound");
@@ -1898,7 +1908,20 @@ export async function syncOrderFromStripe(
     return { synced: true, alreadyPaid: true };
   }
 
-  const pi = await getStripeClient().paymentIntents.retrieve(order.stripePaymentIntentId);
+  // Direct-charge PIs live on the seller's connected account, so
+  // retrieve them with the stripeAccount option. Without it the
+  // platform account 404s with "no such payment_intent".
+  const sellerStripeAccountId =
+    order.items[0]?.productItem?.product?.store?.stripeAccountId;
+  if (!sellerStripeAccountId) {
+    throw new AppError(400, "MissingStripeAccount",
+      "Could not resolve the seller's Stripe Connect account for this order.");
+  }
+  const pi = await getStripeClient().paymentIntents.retrieve(
+    order.stripePaymentIntentId,
+    {},
+    { stripeAccount: sellerStripeAccountId },
+  );
   if (pi.status !== "succeeded") {
     return { synced: false, reason: `Stripe PI status is ${pi.status}` };
   }
