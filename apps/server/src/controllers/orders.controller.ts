@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import { checkoutSchema } from "../models/orders.model.js";
 import * as service from "../services/orders.service.js";
+import { syncOrderFromStripe } from "../services/admin.service.js";
 import { currentAuth } from "../middleware/auth.js";
 import { AppError } from "../utils/errors.js";
 
@@ -56,6 +57,24 @@ export const retryPayment: RequestHandler = async (req, res, next) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) throw new AppError(400, "BadId");
     const result = await service.retryOrderPayment(auth.uid, id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /orders/:id/sync — buyer-facing fallback when the Stripe
+ * webhook is slow. Reuses the admin sync logic with an ownership
+ * gate: the order must belong to the calling buyer.
+ */
+export const syncMyOrder: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) throw new AppError(400, "BadId");
+    const result = await syncOrderFromStripe(id, auth.uid, req, auth.uid);
     res.json(result);
   } catch (err) {
     next(err);

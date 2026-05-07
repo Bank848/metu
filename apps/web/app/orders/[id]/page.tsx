@@ -108,8 +108,8 @@ export default async function OrderDetail({
       <TopNav />
       {isPaidHero && <Confetti />}
       {/* Pending orders silently re-fetch the RSC payload every 10s
-          (no jarring full-page reload) until the webhook flips status. */}
-      {isPendingHero && <PendingOrderRefresher />}
+          + auto-sync from Stripe after 15s if the webhook is slow. */}
+      {isPendingHero && <PendingOrderRefresher orderId={order.orderId} />}
       <main id="main" className="relative">
         {/* radial gold glow background, dim */}
         <div aria-hidden className="absolute inset-x-0 top-0 h-[640px] vibrant-mesh opacity-60 pointer-events-none" />

@@ -11,5 +11,6 @@ router.post("/",          ctrl.checkout);     // POST /orders → place order
 router.get("/",           ctrl.list);         // GET  /orders → user's order history
 router.get("/:id",        ctrl.getOne);       // GET  /orders/:id → receipt
 router.post("/:id/retry", ctrl.retryPayment); // POST /orders/:id/retry → fresh PI for pending order
+router.post("/:id/sync",  ctrl.syncMyOrder);  // POST /orders/:id/sync  → owner-scoped Stripe re-fetch
 
 export default router;

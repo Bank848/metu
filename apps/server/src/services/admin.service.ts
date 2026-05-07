@@ -1875,6 +1875,13 @@ export async function syncOrderFromStripe(
   orderId: number,
   actorUserId: number,
   req?: AuditReq,
+  /**
+   * When set, ownership is enforced: the order's userId must match
+   * `enforceOwnerUserId` or 403 Forbidden. Used for the buyer-facing
+   * /orders/:id/sync route so a buyer can recover their own stuck
+   * order without admin help.
+   */
+  enforceOwnerUserId?: number,
 ): Promise<{ synced: boolean; reason?: string; alreadyPaid?: boolean }> {
   if (!stripeConfigured()) {
     throw new AppError(503, "StripeNotConfigured");
@@ -1900,6 +1907,9 @@ export async function syncOrderFromStripe(
     },
   });
   if (!order) throw new AppError(404, "OrderNotFound");
+  if (enforceOwnerUserId !== undefined && order.userId !== enforceOwnerUserId) {
+    throw new AppError(403, "Forbidden");
+  }
   if (!order.stripePaymentIntentId) {
     throw new AppError(400, "NoPaymentIntent",
       "This order has no Stripe PaymentIntent recorded — nothing to sync.");
