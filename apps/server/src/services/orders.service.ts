@@ -557,8 +557,57 @@ export async function finalizeOrder(orderId: number): Promise<void> {
   });
 }
 
+// Idempotency cache for sendOrderReceipt. Stripe webhook + buyer-
+// triggered /sync can both reach finalizeOrder for the same orderId
+// and would otherwise double-fire the receipt email. We can't
+// persist a receiptSentAt column without a schema change (out of
+// scope for this round), so we combine an in-memory Set with a
+// Postgres advisory lock keyed on orderId. The advisory lock makes
+// it safe across multiple Node instances on the same DB; the Set
+// avoids hammering pg for repeats inside one process.
+const receiptSent = new Set<number>();
+
+async function tryAcquireReceiptLock(orderId: number): Promise<boolean> {
+  // pg_try_advisory_xact_lock would auto-release at transaction
+  // end, but sendOrderReceipt isn't in a transaction here. Use the
+  // session-scoped variant + explicit unlock so a crashed call
+  // doesn't permanently block the orderId.
+  try {
+    const rows = await prisma.$queryRaw<Array<{ ok: boolean }>>`
+      SELECT pg_try_advisory_lock(73310, ${orderId}::int) AS ok
+    `;
+    return rows[0]?.ok === true;
+  } catch {
+    // If advisory locks aren't available (e.g. a future non-pg
+    // backend), fall back to the in-memory check only.
+    return true;
+  }
+}
+
+async function releaseReceiptLock(orderId: number): Promise<void> {
+  try {
+    await prisma.$executeRaw`SELECT pg_advisory_unlock(73310, ${orderId}::int)`;
+  } catch {
+    // best-effort
+  }
+}
+
 // Render + send the buyer's receipt email, grouped by store.
 export async function sendOrderReceipt(orderId: number): Promise<void> {
+  // Idempotency guard — see comment on receiptSent above.
+  if (receiptSent.has(orderId)) return;
+  const got = await tryAcquireReceiptLock(orderId);
+  if (!got) return;
+  try {
+    if (receiptSent.has(orderId)) return;
+    receiptSent.add(orderId);
+    await sendOrderReceiptInner(orderId);
+  } finally {
+    await releaseReceiptLock(orderId);
+  }
+}
+
+async function sendOrderReceiptInner(orderId: number): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { orderId },
     include: {
