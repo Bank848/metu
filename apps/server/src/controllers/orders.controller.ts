@@ -64,6 +64,30 @@ export const retryPayment: RequestHandler = async (req, res, next) => {
 };
 
 /**
+ * GET /orders/:id/status — micro endpoint, status field only. Used by
+ * the pending-order page to poll cheaply (~50 bytes per response).
+ */
+export const getMyOrderStatus: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) throw new AppError(400, "BadId");
+    const { prisma } = await import("../db/prisma.js");
+    const order = await prisma.order.findUnique({
+      where: { orderId: id },
+      select: { userId: true, status: true },
+    });
+    if (!order || order.userId !== auth.uid) {
+      throw new AppError(404, "OrderNotFound");
+    }
+    res.json({ status: order.status });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * POST /orders/:id/sync — buyer-facing fallback when the Stripe
  * webhook is slow. Reuses the admin sync logic with an ownership
  * gate: the order must belong to the calling buyer.
