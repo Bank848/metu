@@ -1,7 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, ShieldCheck, Mail, Phone, ArrowLeft } from "lucide-react";
+
+const CHANNEL_COOLDOWN_MS = 30_000;
+
+function formatHM(date: Date): string {
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
 
 type Channel = { id: "sms" | "email"; hint: string };
 
@@ -53,14 +59,34 @@ export function LoginVerifyForm() {
   const [requested, setRequested] = useState(false);
   const [busy, setBusy] = useState<null | "request" | "verify">(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Per-channel last-sent timestamp drives the 30s cooldown chip.
+  const [sentAt, setSentAt] = useState<Record<Channel["id"], number>>({ sms: 0, email: 0 });
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+  // Strict-mode + double-click guard so React 18 dev double-mount
+  // and rapid tab clicks can't double-fire requestCode.
+  const inFlight = useRef(false);
 
-  // Auto-request the first OTP on mount so the user lands with the
-  // code already on its way. Only fires once per channel switch.
+  // Auto-request the first OTP on mount + on channel switch, but
+  // never within 30s of the previous send for the same channel.
   useEffect(() => {
     if (!token) return;
+    const last = sentAt[chosen] ?? 0;
+    if (Date.now() - last < CHANNEL_COOLDOWN_MS) return;
     requestCode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen]);
+
+  // Live countdown for the cooldown chip on the active channel.
+  useEffect(() => {
+    const last = sentAt[chosen] ?? 0;
+    const update = () => {
+      const left = Math.max(0, CHANNEL_COOLDOWN_MS - (Date.now() - last));
+      setCooldownLeft(Math.ceil(left / 1000));
+    };
+    update();
+    const id = window.setInterval(update, 1000);
+    return () => window.clearInterval(id);
+  }, [chosen, sentAt]);
 
   if (!token) {
     return (
@@ -71,6 +97,14 @@ export function LoginVerifyForm() {
   }
 
   async function requestCode() {
+    if (inFlight.current) return;
+    const last = sentAt[chosen] ?? 0;
+    if (Date.now() - last < CHANNEL_COOLDOWN_MS) {
+      const remaining = Math.ceil((CHANNEL_COOLDOWN_MS - (Date.now() - last)) / 1000);
+      setMsg({ ok: false, text: `Wait ${remaining}s before requesting another ${chosen === "sms" ? "SMS" : "email"} code.` });
+      return;
+    }
+    inFlight.current = true;
     setBusy("request");
     setMsg(null);
     try {
@@ -84,13 +118,19 @@ export function LoginVerifyForm() {
       if (!res.ok) {
         setMsg({ ok: false, text: data?.message ?? "Couldn't send the code." });
       } else {
+        const now = Date.now();
+        setSentAt((prev) => ({ ...prev, [chosen]: now }));
         setRequested(true);
-        setMsg({ ok: true, text: chosen === "sms" ? "Code sent — check your messages." : "Code sent — check your email inbox." });
+        const sentHm = formatHM(new Date(now));
+        const validHm = formatHM(new Date(now + 5 * 60_000));
+        const where = chosen === "sms" ? "messages" : "email inbox";
+        setMsg({ ok: true, text: `Code sent ${sentHm} — valid until ${validHm}. Check your ${where}; use the most recent code.` });
       }
     } catch {
       setMsg({ ok: false, text: "Network error." });
     } finally {
       setBusy(null);
+      inFlight.current = false;
     }
   }
 
@@ -152,17 +192,23 @@ export function LoginVerifyForm() {
         <div className="flex flex-wrap gap-2">
           {channels.map((c) => {
             const active = chosen === c.id;
+            const channelCooldown = Math.max(
+              0,
+              Math.ceil((CHANNEL_COOLDOWN_MS - (Date.now() - (sentAt[c.id] ?? 0))) / 1000),
+            );
             return (
               <button
                 key={c.id}
                 type="button"
+                disabled={busy !== null}
                 onClick={() => {
+                  if (chosen === c.id) return;
                   setChosen(c.id);
                   setCode("");
                   setRequested(false);
                 }}
                 className={
-                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition " +
+                  "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 " +
                   (active
                     ? "bg-metu-yellow text-space-950"
                     : "bg-white/5 text-ink-secondary hover:text-white hover:bg-white/10")
@@ -171,6 +217,9 @@ export function LoginVerifyForm() {
                 {c.id === "sms" ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
                 {c.id === "sms" ? "SMS" : "Email"}
                 {c.hint && <span className="opacity-60 font-mono">{c.hint}</span>}
+                {channelCooldown > 0 && (
+                  <span className="opacity-70 font-mono">{channelCooldown}s</span>
+                )}
               </button>
             );
           })}
@@ -233,10 +282,16 @@ export function LoginVerifyForm() {
           <button
             type="button"
             onClick={requestCode}
-            disabled={busy !== null}
+            disabled={busy !== null || cooldownLeft > 0}
             className="text-metu-yellow hover:underline disabled:opacity-50"
           >
-            {busy === "request" ? "Sending…" : requested ? "Resend code" : "Send code"}
+            {busy === "request"
+              ? "Sending…"
+              : cooldownLeft > 0
+                ? `Resend in ${cooldownLeft}s`
+                : requested
+                  ? "Resend code"
+                  : "Send code"}
           </button>
         </div>
       </form>
