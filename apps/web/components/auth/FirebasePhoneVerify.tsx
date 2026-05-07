@@ -209,16 +209,18 @@ export function FirebasePhoneVerify({
             <GlassButton tone="gold" onClick={verifyCode} disabled={code.length !== 6 || busy !== null}>
               {busy === "verify" ? "Verifying…" : "Verify code"}
             </GlassButton>
-            <button
-              type="button"
-              onClick={() => {
-                setStep("enter-phone");
-                setCode("");
-              }}
-              className="text-xs text-ink-dim hover:text-white"
-            >
-              Change number
-            </button>
+            {!hideEnterPhone && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("enter-phone");
+                  setCode("");
+                }}
+                className="text-xs text-ink-dim hover:text-white"
+              >
+                Change number
+              </button>
+            )}
           </div>
         </>
       )}

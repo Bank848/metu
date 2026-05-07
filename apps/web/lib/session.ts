@@ -19,17 +19,22 @@ export const getMe = cache(async () => {
   // The homepage is the most-trafficked surface and most visitors are
   // logged-out browsers; skipping /auth/me for them saves ~150-300ms
   // on every page render.
-  // Better-auth uses cookies starting with "better-auth." (and
-  // sometimes "metu-trusted-device" for 2FA bypass); presence of
-  // either implies an authenticated session worth checking.
+  // Better-auth cookie name carries a __Secure- prefix in production
+  // (per WHATWG cookie-prefix rules when `secure: true`) and is bare
+  // in dev — match both shapes. Missing the production prefix used to
+  // short-circuit valid sessions to logged-out.
   const cookieJar = cookies();
   const all = cookieJar.getAll();
-  const hasSession = all.some((c) =>
-    c.name.startsWith("better-auth.") ||
-    c.name === "metu-trusted-device" ||
-    c.name === "session" ||
-    c.name === "auth",
-  );
+  const hasSession = all.some((c) => {
+    if (
+      c.name.startsWith("better-auth.") ||
+      c.name.startsWith("__Secure-better-auth.") ||
+      c.name.startsWith("__Host-better-auth.")
+    ) return true;
+    return c.name === "metu-trusted-device" ||
+      c.name === "session" ||
+      c.name === "auth";
+  });
   if (!hasSession) return null;
 
   try {
