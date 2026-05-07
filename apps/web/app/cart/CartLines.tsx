@@ -621,13 +621,12 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
           )}
           {couponResult && !couponResult.valid && (
             <p className="text-xs text-red-400">
-              {/* Expand the API's terse "Coupon not found or inactive" with
-                  a hint pointing at the active demo code. Other reasons
-                  (expired, usage limit) already explain themselves and
-                  pass through unchanged. */}
-              {couponResult.reason === "Coupon not found or inactive"
-                ? t("cart.coupon.notFound")
-                : couponResult.reason}
+              {/* PENTEST-002/109: API now returns a single generic
+                  "Coupon is not valid" string for every failure mode
+                  (enumeration-resistant). Show the localised "not
+                  found" hint that nudges users to the active demo
+                  code regardless of the exact server reason. */}
+              {t("cart.coupon.notFound")}
             </p>
           )}
           {couponNoMatch && (

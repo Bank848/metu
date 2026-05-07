@@ -57,7 +57,9 @@ describe("POST /coupons/validate", () => {
       .send({ code: "NOPE" });
     expect(res.status).toBe(200);
     expect(res.body.valid).toBe(false);
-    expect(res.body.reason).toMatch(/not found/i);
+    // PENTEST-002/109: rejection messages collapsed to a single generic
+    // string so attackers can't enumerate which codes exist.
+    expect(res.body.reason).toMatch(/not valid/i);
   });
 
   it("returns valid:true with discount metadata for an active coupon", async () => {
@@ -103,6 +105,9 @@ describe("POST /coupons/validate", () => {
       .set("Cookie", cookie)
       .send({ code: "MAXED" });
     expect(res.body.valid).toBe(false);
-    expect(res.body.reason).toMatch(/limit reached/i);
+    // PENTEST-002/109: rejection messages collapsed to a single generic
+    // string so attackers can't enumerate which codes exist or their
+    // lifecycle state.
+    expect(res.body.reason).toMatch(/not valid/i);
   });
 });
