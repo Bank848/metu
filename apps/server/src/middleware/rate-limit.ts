@@ -100,7 +100,27 @@ function sweep(buckets: Map<string, Bucket>, cutoff: number) {
 export const loginLimiter = rateLimit({ max: 5, windowMs: 60_000 });
 export const registerLimiter = rateLimit({ max: 3, windowMs: 60_000 });
 export const requestOtpLimiter = rateLimit({ max: 3, windowMs: 60_000 });
+// Legacy alias — historically a single instance was shared across the
+// password-reset, email-verify, phone-verify and Firebase SMS routes,
+// which means an attacker burning the bucket on /forgot-password also
+// blocked legitimate /verify-email and /resend-phone-otp callers from
+// the same IP (PENTEST-112). New code MUST mint a dedicated instance
+// via `makeLimiter({...})` per route. This export is kept only to
+// avoid breaking unrelated imports; route mounts have moved off it.
 export const forgotPasswordLimiter = rateLimit({
   max: 3,
   windowMs: 5 * 60_000,
 });
+
+/**
+ * Factory for per-route limiter instances. Each call returns a FRESH
+ * `rateLimit({...})` middleware backed by its own bucket map so two
+ * routes using `makeLimiter()` never share state.
+ *
+ * PENTEST-112: replaces the prior pattern of a single shared
+ * `forgotPasswordLimiter` mounted on seven different recovery / verify
+ * routes (cross-route DoS).
+ */
+export function makeLimiter(options: { max: number; windowMs: number }) {
+  return rateLimit({ max: options.max, windowMs: options.windowMs });
+}
