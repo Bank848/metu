@@ -231,26 +231,14 @@ export const loginRequestOtp: RequestHandler = async (req, res, next) => {
     if (!user) throw new AppError(400, "InvalidPreAuth", "User not found.");
 
     if (channel === "sms") {
-      if (!user.phone) {
-        throw new AppError(400, "NoPhone", "This account has no phone on file. Use the email channel.");
-      }
-      // Reuse the in-session SMS OTP path (utils/otp). Same hash
-      // function so the verify step can use either channel uniformly.
-      const { generateCode, hashCode, otpIdentifier, expiresAt: otpExpiresAt, deliverCode } =
-        await import("../utils/otp.js");
-      const code = generateCode();
-      const hash = hashCode(payload.userId, user.phone, code);
-      const identifier = otpIdentifier(payload.userId);
-      await prisma.verification.deleteMany({ where: { identifier } });
-      await prisma.verification.create({
-        data: { identifier, value: hash, expiresAt: otpExpiresAt() },
-      });
-      await deliverCode(user.phone, code).catch((err) => {
-        // eslint-disable-next-line no-console
-        console.error("[login-verify] sms send failed:", err);
-      });
-      res.json({ ok: true, channel: "sms" });
-      return;
+      // SMS now goes through Firebase Phone Auth client-side. The
+      // client should call POST /auth/login/firebase-verify with the
+      // resulting Firebase ID token instead of asking us for a code.
+      throw new AppError(
+        410,
+        "SmsChannelMoved",
+        "SMS verification is handled by Firebase Phone Auth — use POST /auth/login/firebase-verify.",
+      );
     }
 
     // Email channel.
@@ -400,11 +388,17 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
 export const loginVerifyFirebase: RequestHandler = async (req, res, next) => {
   try {
     const token = typeof req.body?.token === "string" ? req.body.token : "";
-    const firebaseIdToken =
-      typeof req.body?.firebaseIdToken === "string" ? req.body.firebaseIdToken : "";
+    // Accept both `idToken` (matches register endpoint) and
+    // `firebaseIdToken` (more explicit) for callers' convenience.
+    const idToken =
+      typeof req.body?.idToken === "string"
+        ? req.body.idToken
+        : typeof req.body?.firebaseIdToken === "string"
+          ? req.body.firebaseIdToken
+          : "";
     const trustDevice = req.body?.trustDevice === true;
 
-    if (!firebaseIdToken) {
+    if (!idToken) {
       throw new AppError(400, "InvalidFirebaseToken", "Phone token is missing.");
     }
 
@@ -414,7 +408,7 @@ export const loginVerifyFirebase: RequestHandler = async (req, res, next) => {
     const payload = await resolveLoginPreAuthToken(token);
 
     const { verifyFirebaseIdToken } = await import("../lib/firebase-admin.js");
-    const decoded = await verifyFirebaseIdToken(firebaseIdToken);
+    const decoded = await verifyFirebaseIdToken(idToken);
     const firebasePhone = decoded.phone_number;
     if (!firebasePhone) {
       throw new AppError(
