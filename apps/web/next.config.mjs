@@ -38,6 +38,20 @@ const nextConfig = {
     instrumentationHook: true,
   },
   images: {
+    // PENTEST-501 mitigation (round 2, 2026-05-07) — Vercel never
+    // backported the next/image optimizer DoS chain (GHSA-9g9p-9gw9-jx7f
+     // + GHSA-3x4c-7xq6-9pq8 + GHSA-q4gf-8mx6-v5v3 + GHSA-h25m-26qc-wcjf
+    // + GHSA-ggv3-7p47-pfv8) to the 14.x branch — the `next-14` dist-tag
+    // is frozen at 14.2.35 and `npm audit fix` only offers a
+    // semver-major bump to next@16. With defense day 5 days away
+    // (2026-05-12) we can't risk an App-Router-era major upgrade, so
+    // we disable the on-the-fly optimizer instead. `unoptimized: true`
+    // makes <Image> emit raw <img> tags pointing at the source URL —
+    // we lose lazy resize/format conversion but the optimizer DoS
+    // surface (which accepts attacker-controlled query params for
+    // resize ops) is gone. Post-defense we'll do the next 14→15 bump
+    // properly with App Router migration audit.
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "i.pravatar.cc" },
