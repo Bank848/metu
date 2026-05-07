@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as ctrl from "../controllers/admin.controller.js";
 import { requireAuth } from "../middleware/auth.js";
+import { requireRecent2FA } from "../middleware/require-recent-2fa.js";
 
 // Admin resource. requireAuth(["admin"]) at the router level.
 const router = Router();
@@ -46,8 +47,10 @@ router.post("/transactions/:id/refund", ctrl.refundTransaction);
 // Reports
 router.get("/reports/:name",          ctrl.runReport);
 
-// Database inspector
-router.get("/db/snapshot",            ctrl.dbSnapshot);
-router.post("/db/run",                ctrl.dbRunSql);
+// Database inspector. PENTEST-302: gated by requireRecent2FA(15) so a
+// stolen admin cookie alone cannot read the full DB. Defense-in-depth on
+// top of the WRITE_KEYWORDS denylist + transaction_read_only.
+router.get("/db/snapshot",            requireRecent2FA(15), ctrl.dbSnapshot);
+router.post("/db/run",                requireRecent2FA(15), ctrl.dbRunSql);
 
 export default router;
