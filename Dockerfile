@@ -47,15 +47,16 @@ COPY . .
 # the build proceeded with NO Prisma client generated and crashed
 # later with MODULE_NOT_FOUND.
 RUN ok=false; \
-    for i in 1 2 3 4; do \
+    for i in 1 2 3 4 5 6 7 8 9 10; do \
       if npx prisma generate --schema=packages/db/prisma/schema.prisma; then \
         ok=true; break; \
       fi; \
-      echo "prisma generate attempt $i failed, retrying..."; \
-      sleep $((i * 5)); \
+      echo "prisma generate attempt $i failed; sleeping $((i * 10))s and retrying..."; \
+      sleep $((i * 10)); \
     done; \
     if [ "$ok" != "true" ]; then \
-      echo "FATAL: prisma generate failed after 4 attempts"; exit 1; \
+      echo "FATAL: prisma generate failed after 10 attempts (binaries.prisma.sh outage)"; \
+      exit 1; \
     fi
 
 # NEXT_PUBLIC_* env vars are inlined into the client bundle by Next at
