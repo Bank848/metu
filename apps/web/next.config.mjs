@@ -28,15 +28,11 @@ const nextConfig = {
   // we COPY that from the builder stage.
   output: "standalone",
   // Monorepo hint: include files from the repo root so workspace packages
-  // (`@metu/shared`, `@metu/db`) land in the standalone bundle. In
-  // Next 14.x this option lives under `experimental.` (it's promoted to
-  // a top-level key starting Next 15).
-  experimental: {
-    outputFileTracingRoot: path.join(__dirname, "../../"),
-    // Required in Next < 15 for `instrumentation.ts` to be picked up —
-    // Sentry depends on this hook to register the server runtime.
-    instrumentationHook: true,
-  },
+  // (`@metu/shared`, `@metu/db`) land in the standalone bundle. Promoted
+  // to a top-level key starting Next 15 (was under `experimental.` in 14.x).
+  outputFileTracingRoot: path.join(__dirname, "../../"),
+  // `experimental.instrumentationHook` removed in Next 15 — `instrumentation.ts`
+  // is auto-detected, so no flag needed for Sentry's server runtime hook.
   images: {
     // Disable the optimizer to avoid the next 14.2.x DoS chain.
     // Re-enable after the Next 14→15 bump post-defense.
