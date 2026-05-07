@@ -1,14 +1,25 @@
+# PENTEST-509 (round 2, 2026-05-07) — DEV-ONLY local Postgres + Adminer.
+# This file is NEVER deployed to production (Neon hosts the prod DB).
+# The metu/metu credential below is a documented dev-only placeholder —
+# port mappings are bound to 127.0.0.1 so a developer running
+# `docker compose up` on a machine connected to a LAN/coffee-shop
+# Wi-Fi can't have the DB / Adminer probed by another host.
 services:
   db:
     image: postgres:16-alpine
     container_name: metu-db
     restart: unless-stopped
     environment:
+      # Dev-only placeholder credential. Production uses Neon and a
+      # rotated DATABASE_URL stored in Fly secrets — never this value.
       POSTGRES_USER: metu
       POSTGRES_PASSWORD: metu
       POSTGRES_DB: metu
     ports:
-      - "5432:5432"
+      # Loopback-only bind — `127.0.0.1:` prefix prevents Docker from
+      # publishing this port on 0.0.0.0 (the default behaviour) where
+      # any host on the local network could reach a metu/metu Postgres.
+      - "127.0.0.1:5432:5432"
     volumes:
       - metu-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +33,10 @@ services:
     container_name: metu-adminer
     restart: unless-stopped
     ports:
-      - "8081:8080"
+      # Loopback-only bind — Adminer is a web DB admin UI shipping with
+      # no auth on the listening port; only the dev's own browser at
+      # http://localhost:8081 should reach it.
+      - "127.0.0.1:8081:8080"
     environment:
       ADMINER_DEFAULT_SERVER: db
       ADMINER_DESIGN: pepa-linha
