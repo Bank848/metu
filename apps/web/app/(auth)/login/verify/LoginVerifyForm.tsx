@@ -72,18 +72,35 @@ export function LoginVerifyForm() {
   // user types the full number into the Firebase widget themselves.
   // The endpoint also rotates the preAuthToken to a single-use child
   // and returns the new token in `token`.
-  const [smsPhoneHint, setSmsPhoneHint] = useState<string>("");
+  //
+  // Seed the masked-tail hint from the URL channels list (the /login
+  // redirect already passes "sms:••••1234"), so the SMS tab can show
+  // the hint without a network round-trip and without consuming the
+  // preAuthToken on mount. The full phone-for-sms call (which rotates
+  // the token + binds the child to /firebase-verify) is deferred to
+  // the moment the user actually picks SMS — see the effect below.
+  const smsChannelHint = channels.find((c) => c.id === "sms")?.hint ?? "";
+  const [smsPhoneHint, setSmsPhoneHint] = useState<string>(smsChannelHint);
   const [smsPhoneError, setSmsPhoneError] = useState<string | null>(null);
   // Rotated preAuthToken returned by /auth/login/phone-for-sms.
   // After the server consumes the original, the next call to
   // /firebase-verify must use this child token.
   const [smsToken, setSmsToken] = useState<string>(token);
+  // Have we already exchanged the parent token for a child via
+  // phone-for-sms? Tracked separately from smsPhoneHint because the
+  // URL-sourced hint pre-populates without consuming anything.
+  const [smsTokenRotated, setSmsTokenRotated] = useState<boolean>(false);
 
-  // Pre-fetch the phone on mount whenever SMS is even an option, so
-  // clicking the SMS tab is instant (no spinner waiting on the API).
+  // Lazy phone-for-sms fetch — fires ONLY when the user actually picks
+  // the SMS tab (or arrives on a phone-only flow with no channel
+  // chooser). This guarantees the email-channel paths never see a
+  // pre-burned preAuthToken (regression C2-W-003 fix). One-shot per
+  // mount: smsTokenRotated gates re-runs.
   const hasSmsChannel = channels.some((c) => c.id === "sms");
   useEffect(() => {
-    if (!token || !hasSmsChannel || smsPhoneHint) return;
+    if (!token || !hasSmsChannel) return;
+    if (chosen !== "sms") return;
+    if (smsTokenRotated) return;
     let cancelled = false;
     (async () => {
       try {
@@ -96,10 +113,13 @@ export function LoginVerifyForm() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.message ?? "Couldn't load phone for SMS.");
         if (!cancelled) {
-          setSmsPhoneHint(data.phone ?? "");
+          if (typeof data.phone === "string" && data.phone) {
+            setSmsPhoneHint(data.phone);
+          }
           if (typeof data.token === "string" && data.token) {
             setSmsToken(data.token);
           }
+          setSmsTokenRotated(true);
           setSmsPhoneError(null);
         }
       } catch (e: any) {
@@ -109,7 +129,7 @@ export function LoginVerifyForm() {
     return () => {
       cancelled = true;
     };
-  }, [token, hasSmsChannel, smsPhoneHint]);
+  }, [token, hasSmsChannel, chosen, smsTokenRotated]);
 
   // Auto-request the first OTP on mount + on channel switch, but
   // never within 30s of the previous send for the same channel.
@@ -289,12 +309,13 @@ export function LoginVerifyForm() {
         <div className="space-y-3">
           {smsPhoneError ? (
             <p className="text-xs text-coral">{smsPhoneError}</p>
-          ) : !smsPhoneHint ? (
+          ) : !smsTokenRotated ? (
             <p className="text-xs text-ink-secondary">Loading SMS verification…</p>
           ) : (
             <>
               <p className="text-xs text-ink-secondary">
-                Enter your full phone number to receive a Firebase SMS code. The number on file ends in {smsPhoneHint}.
+                Enter your full phone number to receive a Firebase SMS code.
+                {smsPhoneHint ? ` The number on file ends in ${smsPhoneHint}.` : ""}
               </p>
               <FirebasePhoneVerify
                 verifyUrl="/api/auth/login/firebase-verify"
