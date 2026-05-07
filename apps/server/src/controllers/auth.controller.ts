@@ -388,7 +388,8 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
 export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
   try {
     const token = typeof req.body?.token === "string" ? req.body.token : "";
-    const { resolveLoginPreAuthToken } = await import("../utils/login-verify.js");
+    const { resolveLoginPreAuthToken, consumeLoginPreAuthToken, issueLoginPreAuthToken } =
+      await import("../utils/login-verify.js");
     const payload = await resolveLoginPreAuthToken(token);
 
     const { prisma } = await import("../db/prisma.js");
@@ -399,11 +400,39 @@ export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
     if (!user?.phone) {
       throw new AppError(400, "NoPhone", "This account has no phone on file.");
     }
-    res.json({ phone: user.phone });
+
+    // Rotate the preAuthToken to a single-use child token so the
+    // original can't be replayed for repeated phone disclosure
+    // within the 5-minute window. The client must use the new
+    // token on the subsequent /firebase-verify call.
+    await consumeLoginPreAuthToken(token);
+    const nextToken = await issueLoginPreAuthToken(payload);
+
+    // Mask the returned phone — only the last 4 digits + country
+    // prefix. The raw value never leaves the server. The Firebase
+    // SMS round-trip happens on the client with the full number
+    // typed into the widget; we just confirm the tail matches the
+    // account on file.
+    const masked = maskPhoneTail(user.phone);
+    res.json({ phone: masked, token: nextToken });
   } catch (err) {
     next(err);
   }
 };
+
+// Thai phone masking — keep country code prefix + last 4 digits.
+// Example: "+66812345678" → "+66 *** *** 5678".
+function maskPhoneTail(phone: string): string {
+  const cleaned = phone.replace(/\s+/g, "");
+  if (!cleaned) return "";
+  const tail = cleaned.slice(-4);
+  // Country prefix: everything up to the start of the local number.
+  // For Thai E.164 (+66) this is the first 3 chars; for non-E.164
+  // strings fall back to a single asterisk block.
+  const prefixMatch = cleaned.match(/^\+\d{1,3}/);
+  const prefix = prefixMatch ? prefixMatch[0] : "";
+  return `${prefix} *** *** ${tail}`.trim();
+}
 
 /**
  * POST /auth/login/firebase-verify — finishes the two-step login when

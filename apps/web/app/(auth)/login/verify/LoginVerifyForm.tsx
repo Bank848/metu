@@ -66,17 +66,24 @@ export function LoginVerifyForm() {
   // Strict-mode + double-click guard so React 18 dev double-mount
   // and rapid tab clicks can't double-fire requestCode.
   const inFlight = useRef(false);
-  // Full phone fetched from /auth/login/phone-for-sms when SMS is
-  // chosen — so the user doesn't have to re-type a number they
-  // already proved ownership of (via password).
-  const [smsPhone, setSmsPhone] = useState<string>("");
+  // Phone hint fetched from /auth/login/phone-for-sms when SMS is
+  // chosen. Server returns a MASKED phone (e.g. "+66 *** *** 1234")
+  // so a stolen preAuthToken can't disclose the full number. The
+  // user types the full number into the Firebase widget themselves.
+  // The endpoint also rotates the preAuthToken to a single-use child
+  // and returns the new token in `token`.
+  const [smsPhoneHint, setSmsPhoneHint] = useState<string>("");
   const [smsPhoneError, setSmsPhoneError] = useState<string | null>(null);
+  // Rotated preAuthToken returned by /auth/login/phone-for-sms.
+  // After the server consumes the original, the next call to
+  // /firebase-verify must use this child token.
+  const [smsToken, setSmsToken] = useState<string>(token);
 
   // Pre-fetch the phone on mount whenever SMS is even an option, so
   // clicking the SMS tab is instant (no spinner waiting on the API).
   const hasSmsChannel = channels.some((c) => c.id === "sms");
   useEffect(() => {
-    if (!token || !hasSmsChannel || smsPhone) return;
+    if (!token || !hasSmsChannel || smsPhoneHint) return;
     let cancelled = false;
     (async () => {
       try {
@@ -89,7 +96,10 @@ export function LoginVerifyForm() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.message ?? "Couldn't load phone for SMS.");
         if (!cancelled) {
-          setSmsPhone(data.phone ?? "");
+          setSmsPhoneHint(data.phone ?? "");
+          if (typeof data.token === "string" && data.token) {
+            setSmsToken(data.token);
+          }
           setSmsPhoneError(null);
         }
       } catch (e: any) {
@@ -99,7 +109,7 @@ export function LoginVerifyForm() {
     return () => {
       cancelled = true;
     };
-  }, [token, hasSmsChannel, smsPhone]);
+  }, [token, hasSmsChannel, smsPhoneHint]);
 
   // Auto-request the first OTP on mount + on channel switch, but
   // never within 30s of the previous send for the same channel.
@@ -279,19 +289,16 @@ export function LoginVerifyForm() {
         <div className="space-y-3">
           {smsPhoneError ? (
             <p className="text-xs text-coral">{smsPhoneError}</p>
-          ) : !smsPhone ? (
+          ) : !smsPhoneHint ? (
             <p className="text-xs text-ink-secondary">Loading SMS verification…</p>
           ) : (
             <>
               <p className="text-xs text-ink-secondary">
-                Sending a 6-digit code via Firebase to your phone on file ({smsPhone.slice(0, 3)}••••{smsPhone.slice(-4)}).
+                Enter your full phone number to receive a Firebase SMS code. The number on file ends in {smsPhoneHint}.
               </p>
               <FirebasePhoneVerify
-                defaultPhone={smsPhone}
-                autoSend
-                hideEnterPhone
                 verifyUrl="/api/auth/login/firebase-verify"
-                extraBody={{ token, trustDevice }}
+                extraBody={{ token: smsToken, trustDevice }}
                 onVerified={() => {
                   router.push(safeNextPath(next));
                   router.refresh();
