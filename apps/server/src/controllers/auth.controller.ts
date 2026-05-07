@@ -451,7 +451,15 @@ export const loginVerifyFirebase: RequestHandler = async (req, res, next) => {
       select: { phone: true },
     });
     if (!user) throw new AppError(400, "InvalidPreAuth", "User not found.");
-    if (user.phone !== firebasePhone) {
+    // Normalize both sides to E.164 before comparing — Firebase always
+    // returns E.164 (+66...) but legacy User.phone rows may hold local
+    // format ("0812345678") or whitespace variants. Strict-equals
+    // would let a phone-mismatched account pass when the DB string
+    // drifted from canonical form.
+    const { normalizeThaiPhone } = await import("../utils/phone.js");
+    const dbPhoneE164 = normalizeThaiPhone(user.phone);
+    const fbPhoneE164 = normalizeThaiPhone(firebasePhone);
+    if (!dbPhoneE164 || !fbPhoneE164 || dbPhoneE164 !== fbPhoneE164) {
       await audit({
         actorId: payload.userId,
         action: "auth.login.fail",
