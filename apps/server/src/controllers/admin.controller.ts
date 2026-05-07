@@ -190,6 +190,19 @@ export const deleteTransaction: RequestHandler<{ id: string }> = async (req, res
   }
 };
 
+/** POST /admin/orders/:id/sync-from-stripe — recover stuck-pending orders. */
+export const syncOrderFromStripe: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const orderId = Number(req.params.id);
+    if (!Number.isFinite(orderId)) throw new AppError(400, "BadId");
+    const result = await service.syncOrderFromStripe(orderId, auth.uid, req);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const refundTransaction: RequestHandler<{ id: string }> = async (req, res, next) => {
   try {
     const auth = currentAuth(req)!;
