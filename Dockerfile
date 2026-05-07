@@ -42,12 +42,21 @@ COPY . .
 # because binaries.prisma.sh has been ECONNRESETting on Fly's build
 # network — multiple deploys failed before this. Retry up to 4 times
 # with exponential backoff so a transient TLS hiccup doesn't break a
-# deploy.
-RUN for i in 1 2 3 4; do \
-      npx prisma generate --schema=packages/db/prisma/schema.prisma && break; \
+# deploy. CRITICAL: track success and exit non-zero if ALL attempts
+# fail — earlier rev let the loop exit 0 even on total failure, so
+# the build proceeded with NO Prisma client generated and crashed
+# later with MODULE_NOT_FOUND.
+RUN ok=false; \
+    for i in 1 2 3 4; do \
+      if npx prisma generate --schema=packages/db/prisma/schema.prisma; then \
+        ok=true; break; \
+      fi; \
       echo "prisma generate attempt $i failed, retrying..."; \
       sleep $((i * 5)); \
-    done
+    done; \
+    if [ "$ok" != "true" ]; then \
+      echo "FATAL: prisma generate failed after 4 attempts"; exit 1; \
+    fi
 
 # NEXT_PUBLIC_* env vars are inlined into the client bundle by Next at
 # build time, NOT picked up at runtime. Fly's `flyctl secrets set` only
