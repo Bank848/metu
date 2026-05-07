@@ -61,8 +61,23 @@ COPY --from=deps /app/apps ./apps
 COPY --from=deps /app/packages ./packages
 COPY . .
 
-# Generate Prisma Client against our schema.
-RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
+# Generate Prisma Client against our schema. Wrapped in a retry loop
+# because binaries.prisma.sh has been ECONNRESETting on Fly's build
+# network. 10 attempts with linear backoff (10/20/.../100s); FATAL
+# exit on total failure so the build doesn't proceed without a
+# generated Prisma client. Same pattern as the BFF Dockerfile.
+RUN ok=false; \
+    for i in 1 2 3 4 5 6 7 8 9 10; do \
+      if npx prisma generate --schema=packages/db/prisma/schema.prisma; then \
+        ok=true; break; \
+      fi; \
+      echo "prisma generate attempt $i failed; sleeping $((i * 10))s and retrying..."; \
+      sleep $((i * 10)); \
+    done; \
+    if [ "$ok" != "true" ]; then \
+      echo "FATAL: prisma generate failed after 10 attempts (binaries.prisma.sh outage)"; \
+      exit 1; \
+    fi
 
 # Build @metu/shared first so the server's `import { ... } from "@metu/shared"`
 # resolves to compiled .js (apps/server/tsconfig is NodeNext + strict).
