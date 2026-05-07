@@ -787,7 +787,17 @@ export async function updateOrderStatus(
   const hasOwnedItem = order.items.some(
     (it) => it.productItem?.product.storeId === storeId,
   );
-  if (!hasOwnedItem) throw new AppError(403, "Forbidden");
+  if (!hasOwnedItem) {
+    // PENTEST-404: cross-store IDOR probe — log before throwing.
+    await audit({
+      actorId,
+      action: "seller.order.write.denied",
+      targetType: "order",
+      targetId: orderId,
+      meta: { reason: "Forbidden", storeId, requested: input.status },
+    });
+    throw new AppError(403, "Forbidden");
+  }
   // Same multi-store IDOR guard as refundOrder. The status field is
   // a single column shared across all stores' lines on an order, so
   // letting one seller flip the status would also flip it for the
@@ -796,6 +806,15 @@ export async function updateOrderStatus(
     (it) => it.productItem?.product.storeId !== storeId,
   );
   if (otherStoreLines.length > 0) {
+    // PENTEST-404: log the multi-store-denial signal — SOC R4 alerts
+    // on any row here.
+    await audit({
+      actorId,
+      action: "seller.order.status.denied_cross_store",
+      targetType: "order",
+      targetId: orderId,
+      meta: { storeId, requested: input.status },
+    });
     throw new AppError(
       409,
       "MultiStoreOrder",
@@ -854,7 +873,17 @@ export async function refundOrder(
   const hasOwnedItem = order.items.some(
     (it) => it.productItem?.product.storeId === storeId,
   );
-  if (!hasOwnedItem) throw new AppError(403, "Forbidden");
+  if (!hasOwnedItem) {
+    // PENTEST-404: cross-store IDOR probe via the refund surface.
+    await audit({
+      actorId,
+      action: "seller.order.refund.denied",
+      targetType: "order",
+      targetId: orderId,
+      meta: { reason: "Forbidden", storeId },
+    });
+    throw new AppError(403, "Forbidden");
+  }
 
   // Multi-store IDOR guard: earlier rev only required ONE matching
   // line, then refunded the WHOLE order — flipping status, restocking
@@ -870,6 +899,14 @@ export async function refundOrder(
     (it) => it.productItem?.product.storeId !== storeId,
   );
   if (otherStoreLines.length > 0) {
+    // PENTEST-404: SOC R4 alert keys on any row of this action.
+    await audit({
+      actorId,
+      action: "seller.order.refund.denied_cross_store",
+      targetType: "order",
+      targetId: orderId,
+      meta: { storeId },
+    });
     throw new AppError(
       409,
       "MultiStoreOrder",
