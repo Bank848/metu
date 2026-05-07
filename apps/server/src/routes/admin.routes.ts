@@ -44,6 +44,11 @@ router.post("/coupons",               ctrl.createMasterCoupon);
 router.delete("/transactions/:id",    ctrl.deleteTransaction);
 router.post("/transactions/:id/refund", ctrl.refundTransaction);
 
+// Order recovery — re-fetch a Stripe PaymentIntent and replay the
+// payment_intent.succeeded handler. Used when the live webhook missed
+// the original event (signature mismatch, network blip, etc.).
+router.post("/orders/:id/sync-from-stripe", ctrl.syncOrderFromStripe);
+
 // Reports
 router.get("/reports/:name",          ctrl.runReport);
 

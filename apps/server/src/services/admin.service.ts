@@ -3,7 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
-import { refundOrder as stripeRefund } from "./stripe.service.js";
+import { refundOrder as stripeRefund, getClient as getStripeClient, isConfigured as stripeConfigured } from "./stripe.service.js";
+import { finalizeOrder, clearCartAfterPayment } from "./orders.service.js";
 import { PUBLIC_SITE_URL } from "../config.js";
 import * as seller from "./seller.service.js";
 import {
@@ -1863,4 +1864,72 @@ function serialiseRows(
     }
     return out;
   });
+}
+
+/**
+ * One-shot recovery: rebuild an order's paid state from Stripe when the
+ * webhook delivery missed (signature mismatch, network blip, etc.).
+ * Mirrors onPaymentIntentSucceeded() in stripe-webhook.routes.ts.
+ */
+export async function syncOrderFromStripe(
+  orderId: number,
+  actorUserId: number,
+  req?: AuditReq,
+): Promise<{ synced: boolean; reason?: string; alreadyPaid?: boolean }> {
+  if (!stripeConfigured()) {
+    throw new AppError(503, "StripeNotConfigured");
+  }
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    select: {
+      orderId: true,
+      userId: true,
+      status: true,
+      totalPrice: true,
+      stripePaymentIntentId: true,
+    },
+  });
+  if (!order) throw new AppError(404, "OrderNotFound");
+  if (!order.stripePaymentIntentId) {
+    throw new AppError(400, "NoPaymentIntent",
+      "This order has no Stripe PaymentIntent recorded — nothing to sync.");
+  }
+  if (order.status === "paid" || order.status === "fulfilled") {
+    return { synced: true, alreadyPaid: true };
+  }
+
+  const pi = await getStripeClient().paymentIntents.retrieve(order.stripePaymentIntentId);
+  if (pi.status !== "succeeded") {
+    return { synced: false, reason: `Stripe PI status is ${pi.status}` };
+  }
+
+  const expectedSatang = Math.round(Number(order.totalPrice) * 100);
+  if (pi.amount_received !== expectedSatang) {
+    throw new AppError(
+      400,
+      "AmountMismatch",
+      `Expected ${expectedSatang} satang, Stripe shows ${pi.amount_received}.`,
+    );
+  }
+
+  const chargeId = typeof pi.latest_charge === "string" ? pi.latest_charge : null;
+  await prisma.order.update({
+    where: { orderId },
+    data: {
+      status: "paid",
+      stripeChargeId: chargeId,
+      stripeAmountReceived: pi.amount_received,
+    },
+  });
+  await clearCartAfterPayment(order.userId, orderId).catch(() => {});
+  await finalizeOrder(orderId);
+  await audit({
+    actorId: actorUserId,
+    action: "admin.order.sync_from_stripe",
+    targetType: "order",
+    targetId: orderId,
+    meta: { paymentIntentId: pi.id, amountReceived: pi.amount_received } as never,
+    req,
+  });
+  return { synced: true };
 }
