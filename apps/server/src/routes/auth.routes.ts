@@ -2,8 +2,8 @@ import { Router } from "express";
 import * as ctrl from "../controllers/auth.controller.js";
 import { requireAuth } from "../middleware/auth.js";
 import {
-  forgotPasswordLimiter,
   loginLimiter,
+  makeLimiter,
   registerLimiter,
   requestOtpLimiter,
 } from "../middleware/rate-limit.js";
@@ -19,21 +19,27 @@ router.post("/login/request-otp", requestOtpLimiter,     ctrl.loginRequestOtp);
 router.post("/login/verify",      loginLimiter,          ctrl.loginVerify);
 router.post("/register",         registerLimiter,        ctrl.register);
 router.post("/logout",                                   ctrl.logout);
-router.post("/forgot-password",  forgotPasswordLimiter,  ctrl.forgotPassword);
+// PENTEST-112: each recovery / verify route gets its own limiter
+// instance so a burst on /forgot-password doesn't drain the bucket
+// shared with /verify-email / /resend-phone-otp etc. (cross-route DoS).
+// Caps are unchanged from the previous shared 3 / 5min for parity.
+router.post("/forgot-password",         makeLimiter({ max: 3,  windowMs: 5 * 60_000 }), ctrl.forgotPassword);
 // PENTEST-313/314: rate-limit reset-password to prevent leaked-token
-// brute-force / replay. forgotPasswordLimiter (3 / 5min) is consistent
-// with the request half of this flow.
-router.post("/reset-password",   forgotPasswordLimiter,  ctrl.resetPassword);
+// brute-force / replay. Reset-password is the route an attacker with a
+// stolen token would actually grind, so allow a slightly higher max
+// (5/5min) than /forgot-password — legitimate users typically only
+// retry once or twice on validation errors.
+router.post("/reset-password",          makeLimiter({ max: 5,  windowMs: 5 * 60_000 }), ctrl.resetPassword);
 // POST keeps the token in the body so it never lands in
 // access logs. GET stays for backward compatibility.
-router.post("/reset-password/check", forgotPasswordLimiter, ctrl.checkResetToken);
-router.get("/reset-password/check",  forgotPasswordLimiter, ctrl.checkResetToken);
+router.post("/reset-password/check",    makeLimiter({ max: 10, windowMs: 5 * 60_000 }), ctrl.checkResetToken);
+router.get( "/reset-password/check",    makeLimiter({ max: 10, windowMs: 5 * 60_000 }), ctrl.checkResetToken);
 
 // mandatory verify flow at register. All public, rate-limited.
-router.post("/verify-email",         forgotPasswordLimiter, ctrl.verifyEmail);
-router.post("/resend-email-verify",  forgotPasswordLimiter, ctrl.resendEmailVerify);
-router.post("/verify-phone-register", forgotPasswordLimiter, ctrl.verifyPhoneRegister);
-router.post("/resend-phone-otp",      forgotPasswordLimiter, ctrl.resendPhoneOtp);
+router.post("/verify-email",            makeLimiter({ max: 5,  windowMs: 5 * 60_000 }), ctrl.verifyEmail);
+router.post("/resend-email-verify",     makeLimiter({ max: 3,  windowMs: 5 * 60_000 }), ctrl.resendEmailVerify);
+router.post("/verify-phone-register",   makeLimiter({ max: 5,  windowMs: 5 * 60_000 }), ctrl.verifyPhoneRegister);
+router.post("/resend-phone-otp",        makeLimiter({ max: 3,  windowMs: 5 * 60_000 }), ctrl.resendPhoneOtp);
 // alternative phone-verify path: client uses Firebase Phone
 // Auth (10 free SMS/day on the Spark plan), hands us back the ID
 // token, and we mark phoneVerifiedAt. Authed because we mutate the
@@ -43,15 +49,15 @@ router.post("/verify-phone-firebase", requireAuth(), ctrl.verifyPhoneFirebase);
 // no session cookie exists yet.
 router.post(
   "/verify-phone-firebase-register",
-  forgotPasswordLimiter,
+  makeLimiter({ max: 5, windowMs: 5 * 60_000 }),
   ctrl.verifyPhoneFirebaseByEmail,
 );
 // Server-side throttle the client hits BEFORE asking Firebase to send
-// an SMS. Per-IP cap via forgotPasswordLimiter, per-user + per-phone
-// cooldowns inside the service.
+// an SMS. Dedicated bucket so SMS-cost throttling is independent of
+// the other public verify routes.
 router.post(
   "/request-firebase-sms",
-  forgotPasswordLimiter,
+  makeLimiter({ max: 3, windowMs: 5 * 60_000 }),
   ctrl.requestFirebaseSms,
 );
 
