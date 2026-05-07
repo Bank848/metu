@@ -66,6 +66,37 @@ export function LoginVerifyForm() {
   // Strict-mode + double-click guard so React 18 dev double-mount
   // and rapid tab clicks can't double-fire requestCode.
   const inFlight = useRef(false);
+  // Full phone fetched from /auth/login/phone-for-sms when SMS is
+  // chosen — so the user doesn't have to re-type a number they
+  // already proved ownership of (via password).
+  const [smsPhone, setSmsPhone] = useState<string>("");
+  const [smsPhoneError, setSmsPhoneError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (chosen !== "sms" || !token || smsPhone) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/login/phone-for-sms", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ token }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.message ?? "Couldn't load phone for SMS.");
+        if (!cancelled) {
+          setSmsPhone(data.phone ?? "");
+          setSmsPhoneError(null);
+        }
+      } catch (e: any) {
+        if (!cancelled) setSmsPhoneError(e?.message ?? "Network error.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chosen, token, smsPhone]);
 
   // Auto-request the first OTP on mount + on channel switch, but
   // never within 30s of the previous send for the same channel.
@@ -243,17 +274,28 @@ export function LoginVerifyForm() {
 
       {chosen === "sms" ? (
         <div className="space-y-3">
-          <p className="text-xs text-ink-secondary">
-            Enter your phone number with country code, then we&apos;ll text you a 6-digit code via Firebase.
-          </p>
-          <FirebasePhoneVerify
-            verifyUrl="/api/auth/login/firebase-verify"
-            extraBody={{ token, trustDevice }}
-            onVerified={() => {
-              router.push(safeNextPath(next));
-              router.refresh();
-            }}
-          />
+          {smsPhoneError ? (
+            <p className="text-xs text-coral">{smsPhoneError}</p>
+          ) : !smsPhone ? (
+            <p className="text-xs text-ink-secondary">Loading SMS verification…</p>
+          ) : (
+            <>
+              <p className="text-xs text-ink-secondary">
+                Sending a 6-digit code via Firebase to your phone on file ({smsPhone.slice(0, 3)}••••{smsPhone.slice(-4)}).
+              </p>
+              <FirebasePhoneVerify
+                defaultPhone={smsPhone}
+                autoSend
+                hideEnterPhone
+                verifyUrl="/api/auth/login/firebase-verify"
+                extraBody={{ token, trustDevice }}
+                onVerified={() => {
+                  router.push(safeNextPath(next));
+                  router.refresh();
+                }}
+              />
+            </>
+          )}
           <a
             href="/login"
             className="inline-flex items-center gap-1 text-xs text-ink-dim hover:text-white"

@@ -379,6 +379,33 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
 };
 
 /**
+ * POST /auth/login/phone-for-sms — returns the full phone number for a
+ * valid pre-auth token, so the client-side Firebase Phone Auth widget
+ * doesn't have to re-prompt the user for a number they already proved
+ * they own (via password). Single-use of the pre-auth token is NOT
+ * consumed here — that happens at /firebase-verify.
+ */
+export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
+  try {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const { resolveLoginPreAuthToken } = await import("../utils/login-verify.js");
+    const payload = await resolveLoginPreAuthToken(token);
+
+    const { prisma } = await import("../db/prisma.js");
+    const user = await prisma.user.findUnique({
+      where: { userId: payload.userId },
+      select: { phone: true },
+    });
+    if (!user?.phone) {
+      throw new AppError(400, "NoPhone", "This account has no phone on file.");
+    }
+    res.json({ phone: user.phone });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * POST /auth/login/firebase-verify — finishes the two-step login when
  * the second factor is a Firebase Phone Auth ID token (client did the
  * SMS round-trip via reCAPTCHA + signInWithPhoneNumber). Body:

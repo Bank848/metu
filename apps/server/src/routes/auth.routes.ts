@@ -15,8 +15,15 @@ const router = Router();
 router.post("/login",            makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.login);
 router.post("/login/request-otp", requestOtpLimiter,     ctrl.loginRequestOtp);
 router.post("/login/verify",      makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.loginVerify);
-// Firebase Phone Auth path: client did the SMS round-trip via reCAPTCHA
-// and hands us a Firebase ID token to consume as the second factor.
+// Firebase Phone Auth path: client gets the full phone via this
+// endpoint so the user never has to re-type a number they already
+// own, then does the SMS round-trip via reCAPTCHA + signInWithPhoneNumber
+// and hands us the resulting ID token to consume as the second factor.
+router.post(
+  "/login/phone-for-sms",
+  makeLimiter({ max: 10, windowMs: 60_000 }),
+  ctrl.loginPhoneForSms,
+);
 router.post(
   "/login/firebase-verify",
   makeLimiter({ max: 5, windowMs: 60_000 }),

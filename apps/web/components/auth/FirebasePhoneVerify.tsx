@@ -28,6 +28,8 @@ export function FirebasePhoneVerify({
   onVerified,
   verifyUrl = "/api/auth/verify-phone-firebase",
   extraBody = {},
+  autoSend = false,
+  hideEnterPhone = false,
 }: {
   defaultPhone?: string;
   /** Called after the server stamps phoneVerifiedAt successfully. */
@@ -36,6 +38,10 @@ export function FirebasePhoneVerify({
   verifyUrl?: string;
   /** Extra fields merged into the POST body sent to verifyUrl. */
   extraBody?: Record<string, unknown>;
+  /** Auto-fire sendCode() once defaultPhone is non-empty (login flow). */
+  autoSend?: boolean;
+  /** Hide the editable phone input — show "Sending to ••••XXXX" copy. */
+  hideEnterPhone?: boolean;
 }) {
   const [step, setStep] = useState<Step>("enter-phone");
   const [phone, setPhone] = useState(defaultPhone);
@@ -61,6 +67,20 @@ export function FirebasePhoneVerify({
       }
     };
   }, []);
+
+  // Login flow gives us the verified phone up-front — auto-fire send
+  // once the phone arrives so the user doesn't have to click anything.
+  const autoSentRef = useRef(false);
+  useEffect(() => {
+    if (!autoSend || autoSentRef.current) return;
+    if (!firebaseConfigured || !defaultPhone) return;
+    if (phone !== defaultPhone) {
+      setPhone(defaultPhone);
+    }
+    autoSentRef.current = true;
+    void sendCode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSend, defaultPhone]);
 
   if (!firebaseConfigured) {
     return (
@@ -140,7 +160,7 @@ export function FirebasePhoneVerify({
           <div id="recaptcha-container" />
         </div>
       )}
-      {step === "enter-phone" && (
+      {step === "enter-phone" && !hideEnterPhone && (
         <>
           <label className="block text-sm font-semibold text-white">
             Phone (with country code)
@@ -156,6 +176,20 @@ export function FirebasePhoneVerify({
             {busy === "send" ? "Sending…" : "Send SMS code"}
           </GlassButton>
         </>
+      )}
+      {step === "enter-phone" && hideEnterPhone && (
+        <p className="text-sm text-ink-secondary">
+          {busy === "send"
+            ? `Sending an SMS code to ${phone || "your phone…"}`
+            : phone
+              ? `Tap below to send an SMS code to ${phone}.`
+              : "Preparing SMS verification…"}
+          {!autoSend && phone && (
+            <GlassButton tone="gold" onClick={sendCode} disabled={busy !== null}>
+              Send SMS code
+            </GlassButton>
+          )}
+        </p>
       )}
       {step === "enter-code" && (
         <>
