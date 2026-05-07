@@ -38,8 +38,16 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma Client against our schema.
-RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
+# Generate Prisma Client against our schema. Wrapped in a retry loop
+# because binaries.prisma.sh has been ECONNRESETting on Fly's build
+# network — multiple deploys failed before this. Retry up to 4 times
+# with exponential backoff so a transient TLS hiccup doesn't break a
+# deploy.
+RUN for i in 1 2 3 4; do \
+      npx prisma generate --schema=packages/db/prisma/schema.prisma && break; \
+      echo "prisma generate attempt $i failed, retrying..."; \
+      sleep $((i * 5)); \
+    done
 
 # NEXT_PUBLIC_* env vars are inlined into the client bundle by Next at
 # build time, NOT picked up at runtime. Fly's `flyctl secrets set` only
