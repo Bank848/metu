@@ -8,6 +8,7 @@ import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout } from "../utils/email-template.js";
 import { capQuantity, loadPurchasableProductItem } from "../utils/purchasable.js";
 import { SITE_URL } from "../config.js";
+import { audit } from "../utils/audit.js";
 import type {
   CheckoutInput,
   CheckoutResponse,
@@ -780,6 +781,29 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
       "",
       "— METU Marketplace",
     ].join("\n");
+    // Audit row BEFORE the actual send so SOC has visibility into
+    // gift volume even if Resend bounces. recipient_hash is sha256
+    // of the lowercased trimmed email — never the raw address — so
+    // we can correlate giftspam patterns without keeping recipient
+    // PII in the audit log. has_message reveals whether the buyer
+    // included a custom note (after sanitization).
+    const recipientNormalized = order.giftRecipientEmail.trim().toLowerCase();
+    const recipientHash = crypto
+      .createHash("sha256")
+      .update(recipientNormalized)
+      .digest("hex");
+    await audit({
+      actorId: order.userId ?? null,
+      action: "order.gift.sent",
+      targetType: "order",
+      targetId: orderId,
+      meta: {
+        recipient_hash: recipientHash,
+        has_message: safeGiftMessage.length > 0,
+        message_len: safeGiftMessage.length,
+      },
+      req: null,
+    });
     await sendEmail({
       to: order.giftRecipientEmail,
       subject: recipientSubject,

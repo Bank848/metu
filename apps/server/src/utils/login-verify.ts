@@ -111,16 +111,26 @@ export async function resolveLoginPreAuthToken(
   }
 }
 
-/** Single-use — call this on successful verify so the token can't be replayed. */
-export async function consumeLoginPreAuthToken(token: string): Promise<void> {
-  await prisma.verification
-    .deleteMany({ where: { identifier: `login-verify:${token}` } })
-    .catch(() => {});
+/** Single-use — call this on successful verify so the token can't be replayed.
+ *  Returns the number of pre-auth rows actually deleted (caller can
+ *  treat 0 as a replay attempt and emit an audit row). The
+ *  attempt-counter cleanup is best-effort and not counted. */
+export async function consumeLoginPreAuthToken(token: string): Promise<{ deleted: number }> {
+  let deleted = 0;
+  try {
+    const result = await prisma.verification.deleteMany({
+      where: { identifier: `login-verify:${token}` },
+    });
+    deleted = result.count ?? 0;
+  } catch {
+    // swallow — keep deleted=0
+  }
   // Also clear any attempt-counter row for this token so we don't
   // leave per-token DB litter.
   await prisma.verification
     .deleteMany({ where: { identifier: `login-verify-attempts:${token}` } })
     .catch(() => {});
+  return { deleted };
 }
 
 /**
