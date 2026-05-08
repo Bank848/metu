@@ -6,7 +6,7 @@ import { FavoriteButton } from "./FavoriteButton";
 import { CompareToggle } from "./CompareDrawer";
 import { StoreNameLink } from "./StoreNameLink";
 import { cn, isDataUrl, cardImage } from "@/lib/utils";
-import { coins, thbToCoins } from "@/lib/format";
+import { coinsOrFree, thbToCoins } from "@/lib/format";
 
 export type ProductCardProduct = {
   productId: number;
@@ -166,11 +166,11 @@ export function ProductCard({
                 isFeature ? "text-2xl md:text-3xl" : "text-lg",
               )}
             >
-              {coins(thbToCoins(product.minPrice))}
+              {coinsOrFree(thbToCoins(product.minPrice))}
             </span>
             {hasRange && (
               <span className="text-xs text-ink-dim ml-1 tabular-nums">
-                – {coins(thbToCoins(product.maxPrice!))}
+                – {coinsOrFree(thbToCoins(product.maxPrice!))}
               </span>
             )}
           </div>

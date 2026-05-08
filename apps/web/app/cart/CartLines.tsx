@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag, AlertTriangle, Heart } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
-import { coins, thbToCoins } from "@/lib/format";
+import { coins, coinsOrFree, thbToCoins } from "@/lib/format";
 import { play } from "@/lib/sound";
 import { cn, isDataUrl } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
@@ -459,11 +459,11 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                             (see the dedicated price div below). */}
                         <div className="sm:hidden mt-2 flex items-baseline gap-2">
                           <span className="font-display text-base font-bold text-gold-gradient">
-                            {coins(thbToCoins(l.lineTotal))}
+                            {coinsOrFree(thbToCoins(l.lineTotal))}
                           </span>
                           {l.quantity > 1 && (
                             <span className="text-[11px] text-ink-dim tabular-nums">
-                              {coins(thbToCoins(l.unitPrice))} ea
+                              {coinsOrFree(thbToCoins(l.unitPrice))} ea
                             </span>
                           )}
                         </div>
@@ -534,9 +534,9 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                           row (see the .sm:hidden block above). */}
                       <div className="hidden sm:block text-right shrink-0">
                         <div className="font-display text-lg font-bold text-gold-gradient">
-                          {coins(thbToCoins(l.lineTotal))}
+                          {coinsOrFree(thbToCoins(l.lineTotal))}
                         </div>
-                        <div className="text-xs text-ink-dim">{coins(thbToCoins(l.unitPrice))} ea</div>
+                        <div className="text-xs text-ink-dim">{coinsOrFree(thbToCoins(l.unitPrice))} ea</div>
                       </div>
                     </li>
                   );
