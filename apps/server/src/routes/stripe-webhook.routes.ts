@@ -6,6 +6,7 @@
 import { Router, raw } from "express";
 import type { Request, Response, NextFunction } from "express";
 import Stripe from "stripe";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { getClient, isConfigured } from "../services/stripe.service.js";
 import { finalizeOrder, clearCartAfterPayment } from "../services/orders.service.js";
@@ -257,20 +258,55 @@ async function onChargeRefunded(event: Stripe.Event) {
 
   const order = await prisma.order.findFirst({
     where: { stripePaymentIntentId: piId },
-    select: { orderId: true, stripeAmountReceived: true },
+    select: {
+      orderId: true,
+      userId: true,
+      totalPrice: true,
+      stripeAmountReceived: true,
+      // We use stripeRefundId presence as the "in-app refund already
+      // wrote a negative-payout Transaction" sentinel — see below.
+      stripeRefundId: true,
+      status: true,
+    },
   });
   if (!order) return;
 
   const lastRefund = charge.refunds?.data[0];
+  const fullyRefunded = charge.amount === charge.amount_refunded;
+  // Detect a refund that originated outside our app (e.g. Stripe
+  // Dashboard, support reversal). The in-app paths
+  // (seller.refundOrder + admin.refundTransaction) write a
+  // negative-payout Transaction synchronously AND set
+  // order.stripeRefundId before the webhook fires; if we don't see
+  // that sentinel and the order isn't already flagged refunded,
+  // this webhook is the first signal — book the ledger entry here so
+  // the admin transactions widget stays consistent.
+  const dashboardOriginated =
+    fullyRefunded && !order.stripeRefundId && order.status !== "refunded";
+
   await prisma.order.update({
     where: { orderId: order.orderId },
     data: {
       stripeRefundId: lastRefund?.id ?? null,
       stripeAmountRefunded: charge.amount_refunded,
       // Only fully-refunded orders flip status; partials stay `paid`.
-      status: charge.amount === charge.amount_refunded ? "refunded" : undefined,
+      status: fullyRefunded ? "refunded" : undefined,
     },
   });
+
+  if (dashboardOriginated) {
+    // Refunds book as a negative `payout` row to mirror the in-app
+    // flow (see admin.service.ts:refundTransaction +
+    // seller.service.ts:refundOrder). Same shape so the admin widget
+    // can't tell the difference between the two refund origins.
+    await prisma.transaction.create({
+      data: {
+        userId: order.userId,
+        transactionType: "payout",
+        totalAmount: new Prisma.Decimal(order.totalPrice).neg(),
+      },
+    });
+  }
 }
 
 async function onAccountUpdated(event: Stripe.Event) {
