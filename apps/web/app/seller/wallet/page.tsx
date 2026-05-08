@@ -42,8 +42,11 @@ interface Wallet {
 export default async function SellerWalletPage() {
   const wallet = await fetchWallet();
 
+  // Layout's <main> already provides horizontal padding + the only
+  // valid <main> per document. Wrap in <section> with no extra
+  // horizontal padding so phone widths don't double-pad.
   return (
-    <main id="main" className="px-8 py-8 max-w-4xl">
+    <section className="max-w-4xl">
       <PageHeader
         title="Wallet"
         subtitle="Live balance and payout history pulled directly from Stripe — METU stores no balance data."
@@ -56,7 +59,7 @@ export default async function SellerWalletPage() {
       ) : (
         <ConnectedView wallet={wallet} />
       )}
-    </main>
+    </section>
   );
 }
 
@@ -177,7 +180,7 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
       )}
 
       {/* Balance cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-2xl border border-mint/30 bg-mint/5 p-6">
           <div className="text-xs uppercase tracking-wider text-mint">Available</div>
           <div className="font-display text-3xl font-bold text-white mt-1">
@@ -201,20 +204,22 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
         {(wallet.payouts ?? []).length === 0 ? (
           <p className="text-sm text-ink-dim">No payouts yet.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wider text-ink-dim">
-              <tr><th className="py-1 font-medium">Date</th><th className="py-1 font-medium">Amount</th><th className="py-1 font-medium">Status</th></tr>
-            </thead>
-            <tbody>
-              {wallet.payouts!.map((p) => (
-                <tr key={p.id} className="border-t border-white/5">
-                  <td className="py-1.5">{fmtDate(p.created)}</td>
-                  <td className="py-1.5 font-mono">{formatSatang(p.amount, p.currency)}</td>
-                  <td className="py-1.5 capitalize">{p.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="-mx-2 overflow-x-auto px-2">
+            <table className="w-full min-w-[360px] text-sm">
+              <thead className="text-left text-xs uppercase tracking-wider text-ink-dim">
+                <tr><th className="py-1 font-medium">Date</th><th className="py-1 font-medium">Amount</th><th className="py-1 font-medium">Status</th></tr>
+              </thead>
+              <tbody>
+                {wallet.payouts!.map((p) => (
+                  <tr key={p.id} className="border-t border-white/5">
+                    <td className="py-1.5 whitespace-nowrap">{fmtDate(p.created)}</td>
+                    <td className="py-1.5 font-mono whitespace-nowrap">{formatSatang(p.amount, p.currency)}</td>
+                    <td className="py-1.5 capitalize whitespace-nowrap">{p.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
@@ -224,20 +229,22 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
         {(wallet.charges ?? []).length === 0 ? (
           <p className="text-sm text-ink-dim">No charges yet.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wider text-ink-dim">
-              <tr><th className="py-1 font-medium">Date</th><th className="py-1 font-medium">Amount</th><th className="py-1 font-medium">Status</th></tr>
-            </thead>
-            <tbody>
-              {wallet.charges!.map((c) => (
-                <tr key={c.id} className="border-t border-white/5">
-                  <td className="py-1.5">{fmtDate(c.created)}</td>
-                  <td className="py-1.5 font-mono">{formatSatang(c.amount, c.currency)}</td>
-                  <td className="py-1.5 capitalize">{c.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="-mx-2 overflow-x-auto px-2">
+            <table className="w-full min-w-[360px] text-sm">
+              <thead className="text-left text-xs uppercase tracking-wider text-ink-dim">
+                <tr><th className="py-1 font-medium">Date</th><th className="py-1 font-medium">Amount</th><th className="py-1 font-medium">Status</th></tr>
+              </thead>
+              <tbody>
+                {wallet.charges!.map((c) => (
+                  <tr key={c.id} className="border-t border-white/5">
+                    <td className="py-1.5 whitespace-nowrap">{fmtDate(c.created)}</td>
+                    <td className="py-1.5 font-mono whitespace-nowrap">{formatSatang(c.amount, c.currency)}</td>
+                    <td className="py-1.5 capitalize whitespace-nowrap">{c.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>
