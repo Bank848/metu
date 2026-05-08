@@ -37,6 +37,17 @@ function tone(type: string): "success" | "info" | "warning" | "danger" | "purple
   return "mist";
 }
 
+function dotClass(t: ReturnType<typeof tone>): string {
+  switch (t) {
+    case "success": return "bg-mint";
+    case "danger":  return "bg-coral";
+    case "warning": return "bg-amber-400";
+    case "purple":  return "bg-fuchsia-400";
+    case "info":    return "bg-sky-400";
+    default:        return "bg-ink-dim";
+  }
+}
+
 function fmtAmount(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
   const cur = (currency ?? "thb").toUpperCase();
@@ -76,7 +87,10 @@ export async function StripeActivityCard() {
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-mint" />
           <h2 className="font-display font-bold text-white">Stripe activity</h2>
-          <span className="text-[10px] uppercase tracking-wider text-ink-dim">live</span>
+          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-mint">
+            <span className="h-1.5 w-1.5 rounded-full bg-mint animate-pulse" />
+            Live
+          </span>
         </div>
         {data && (
           <span className="text-xs text-ink-dim font-mono">
@@ -95,9 +109,12 @@ export async function StripeActivityCard() {
         <div className="px-4 sm:px-6 py-6 text-sm text-ink-dim">No Stripe events in the last 30 days.</div>
       ) : data ? (
         <ul className="divide-y divide-line max-h-[420px] overflow-y-auto">
-          {data.events.map((e) => (
+          {data.events.map((e) => {
+            const t = tone(e.type);
+            return (
             <li key={e.id} className="px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3">
-              <Badge variant={tone(e.type)} className="font-mono text-[10px] shrink-0">
+              <span className={`h-2 w-2 rounded-full shrink-0 ${dotClass(t)}`} aria-hidden />
+              <Badge variant={t} className="font-mono text-[10px] shrink-0">
                 {e.type}
               </Badge>
               <div className="flex-1 min-w-0">
@@ -113,7 +130,8 @@ export async function StripeActivityCard() {
                 {fmtAmount(e.amount, e.currency)}
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : null}
     </section>

@@ -33,10 +33,18 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
   return (
     <div className="rounded-2xl border border-line/80 bg-space-850 p-5 shadow-flat">
       <header className="mb-3">
-        <h3 className="font-display font-bold text-white flex items-center gap-2">
-          <TrendingDown className="h-4 w-4 text-coral" />
-          Underperformers (30d)
-        </h3>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
+            <TrendingDown className="h-4 w-4 text-coral" />
+            Underperformers (30d)
+          </h3>
+          {totalDead > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-coral/10 ring-1 ring-coral/30 px-2 py-0.5 text-[10px] text-coral whitespace-nowrap">
+              <AlertCircle className="h-3 w-3" />
+              {totalDead} dead
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 flex-wrap mt-1">
           <p className="text-xs text-ink-dim">
             Bottom 5 by 30-day revenue · candidates for promotion or pull
@@ -56,10 +64,11 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
               <li key={r.productId}>
                 <Link
                   href={`/product/${r.productId}`}
+                  title={`${r.totalUnits}u total · ${coins(thbToCoins(r.revenue30d))} in last 30d`}
                   className="group flex items-center gap-3 rounded-lg bg-space-800 ring-1 ring-line px-3 py-2 hover:ring-coral/40 hover:bg-space-800/80 transition"
                 >
-                  <span className="text-ink-dim text-xs font-mono w-5 shrink-0">
-                    {i + 1}.
+                  <span className="text-ink-dim text-[11px] font-semibold w-5 shrink-0 tabular-nums">
+                    {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
@@ -88,7 +97,7 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
                         />
                       </span>
                       <span className="text-[10px] text-ink-secondary font-mono tabular-nums shrink-0 whitespace-nowrap">
-                        {r.units30d}u/30d · {r.totalUnits}u total
+                        {r.units30d}u/30d
                       </span>
                     </div>
                   </div>
@@ -97,13 +106,6 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
             );
           })}
         </ol>
-      )}
-
-      {totalDead > 0 && (
-        <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-coral/10 ring-1 ring-coral/30 px-2 py-1 text-[11px] text-coral">
-          <AlertCircle className="h-3 w-3" />
-          {totalDead} product{totalDead === 1 ? "" : "s"} with zero sales in the last 30 days
-        </div>
       )}
     </div>
   );

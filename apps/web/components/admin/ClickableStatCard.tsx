@@ -73,7 +73,7 @@ export function ClickableStatCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-ink-dim">
+          <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-ink-secondary">
             {icon}
             <span>{label}</span>
           </div>
@@ -88,7 +88,7 @@ export function ClickableStatCard({
             )}
           </div>
         </div>
-        <ArrowUpRight className="h-4 w-4 text-ink-dim opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
+        <ArrowUpRight className="h-4 w-4 text-ink-dim opacity-30 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
       </div>
 
       {/* Delta + sparkline row. Both optional so cards without

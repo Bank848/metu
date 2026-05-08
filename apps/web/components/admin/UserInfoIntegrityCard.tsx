@@ -37,10 +37,13 @@ export function UserInfoIntegrityCard({
   // means seed data is skewed).
   const lift = userRate > 0 ? orderRate / userRate : 0;
 
+  const liftMeaningful = userRate > 0 && orderRate > 0;
+  const liftAccent = lift >= 1 ? "mint" : "coral";
+
   return (
     <div className="rounded-2xl border border-line/80 bg-space-850 p-5 shadow-flat">
       <header className="mb-3">
-        <h3 className="font-display font-bold text-white flex items-center gap-2">
+        <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-mint" />
           User information integrity
         </h3>
@@ -49,23 +52,56 @@ export function UserInfoIntegrityCard({
         </div>
       </header>
 
+      {/* Lead with the lift — that's the actual insight. The two ratios
+          below are supporting context. */}
+      {liftMeaningful && (
+        <div
+          className={
+            "mb-3 rounded-xl p-4 " +
+            (liftAccent === "mint"
+              ? "bg-mint/10 ring-1 ring-mint/30"
+              : "bg-coral/10 ring-1 ring-coral/30")
+          }
+        >
+          <div
+            className={
+              "text-[10px] uppercase tracking-wider mb-1 " +
+              (liftAccent === "mint" ? "text-mint" : "text-coral")
+            }
+          >
+            Conversion lift
+          </div>
+          <div
+            className={
+              "font-display text-3xl font-extrabold tabular-nums " +
+              (liftAccent === "mint" ? "text-mint" : "text-coral")
+            }
+          >
+            {lift.toFixed(2)}×
+          </div>
+          <div className="text-xs text-ink-secondary mt-1">
+            Complete profiles convert at this multiple of the platform average.
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div className="rounded-xl bg-space-800 ring-1 ring-line p-3">
           <div className="text-[10px] uppercase tracking-wider text-ink-secondary">
             Profile complete
           </div>
-          <div className="font-display text-2xl font-extrabold text-white mt-1 tabular-nums">
+          <div className="font-display text-xl font-bold text-white mt-1 tabular-nums">
             {userRate.toFixed(1)}%
           </div>
           <div className="text-[11px] text-ink-secondary mt-0.5 tabular-nums">
             {completeUsers.toLocaleString()} / {totalUsers.toLocaleString()} users
           </div>
         </div>
-        <div className="rounded-xl bg-mint/[0.12] border border-mint/30 p-3">
-          <div className="text-[10px] uppercase tracking-wider text-mint">
+        <div className="rounded-xl bg-space-800 ring-1 ring-line p-3">
+          <div className="text-[10px] uppercase tracking-wider text-ink-secondary">
             Orders from complete users
           </div>
-          <div className="font-display text-2xl font-extrabold text-mint mt-1 tabular-nums">
+          <div className="font-display text-xl font-bold text-white mt-1 tabular-nums">
             {orderRate.toFixed(1)}%
           </div>
           <div className="text-[11px] text-ink-secondary mt-0.5 tabular-nums">
@@ -74,18 +110,7 @@ export function UserInfoIntegrityCard({
         </div>
       </div>
 
-      {/* Lift readout — only meaningful when both ratios are non-zero. */}
-      {userRate > 0 && orderRate > 0 && (
-        <div className="mt-3 text-xs text-ink-secondary tabular-nums">
-          Complete-profile users are{" "}
-          <span className={lift >= 1 ? "text-mint font-semibold" : "text-coral font-semibold"}>
-            {lift.toFixed(2)}×
-          </span>{" "}
-          more likely to convert than average.
-        </div>
-      )}
-
-      <p className="mt-2 text-[10px] text-ink-dim font-mono leading-relaxed">
+      <p className="mt-3 text-[10px] text-ink-dim italic leading-relaxed">
         complete = firstName + lastName + DOB + country + phone + avatar
       </p>
     </div>
