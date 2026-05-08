@@ -116,13 +116,17 @@ sellerRouter.post("/stripe/payout", requireAuth(), requireStore(), async (req, r
     if (!isConfigured()) {
       return res.status(503).json({ error: "StripeNotConfigured" });
     }
+    // Stripe can grant charges_enabled without payouts_enabled (e.g.
+    // when bank verification is pending). Gate the payout endpoint on
+    // payouts_enabled, not charges_enabled, so a seller who can collect
+    // money but can't yet receive a transfer gets a clear error.
     const store = await prisma.store.findUnique({
       where: { storeId: currentStore(req).storeId },
-      select: { stripeAccountId: true, stripeChargesEnabled: true },
+      select: { stripeAccountId: true, stripePayoutsEnabled: true },
     });
-    if (!store?.stripeAccountId || !store.stripeChargesEnabled) {
-      throw new AppError(400, "NotOnboarded",
-        "Finish Stripe Connect onboarding before requesting a payout.");
+    if (!store?.stripeAccountId || !store.stripePayoutsEnabled) {
+      throw new AppError(400, "PayoutsDisabled",
+        "Stripe payouts aren't enabled on your store yet — finish onboarding (bank account + verification) first.");
     }
     // Body: { amountBaht: number } - require explicit amount.
     const amountBaht = Number(req.body?.amountBaht);
