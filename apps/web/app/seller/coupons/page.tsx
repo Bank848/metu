@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Ticket } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth } from "@/lib/session";
 import { coins, thbToCoins, fmtDate } from "@/lib/format";
@@ -31,6 +33,14 @@ export default async function SellerCoupons() {
         action={<GlassButton tone="gold" href="/seller/coupons/new">+ New coupon</GlassButton>}
       />
 
+      {coupons.length === 0 ? (
+        <EmptyState
+          title="No coupons created"
+          description="Click 'New coupon' to spark a campaign — drive sales with percent or fixed-baht discounts."
+          icon={<Ticket className="h-8 w-8" />}
+          action={<Button href="/seller/coupons/new">Create coupon →</Button>}
+        />
+      ) : (
       <div className="rounded-2xl border border-line bg-space-850 overflow-hidden">
         <table className="w-full">
           <thead className="bg-space-800 text-xs font-semibold uppercase tracking-wider text-ink-dim">
@@ -86,6 +96,7 @@ export default async function SellerCoupons() {
           </tbody>
         </table>
       </div>
+      )}
     </>
   );
 }

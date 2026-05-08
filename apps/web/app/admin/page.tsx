@@ -546,6 +546,9 @@ export default async function AdminOverview({
           <span className="text-xs text-ink-dim font-mono">{stats.recentTransactions.length} most recent</span>
         </div>
         <ul className="divide-y divide-line max-h-[640px] overflow-y-auto">
+          {stats.recentTransactions.length === 0 && (
+            <li className="px-6 py-10 text-center text-sm text-ink-dim">No recent transactions</li>
+          )}
           {stats.recentTransactions.map((tx) => (
             <li key={tx.transactionId} className="px-6 py-4 flex items-center gap-4">
               <div className="relative h-9 w-9 rounded-full bg-brand-yellow overflow-hidden shrink-0">
