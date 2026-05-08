@@ -228,6 +228,38 @@ export async function listStoreCharges(stripeAccountId: string, limit = 20) {
 }
 
 /**
+ * Platform-wide Stripe activity feed for the admin overview. Pulls
+ * recent events from the platform account so the admin can see the
+ * money flow live (charges, refunds, payouts) without per-store
+ * drill-in. Stripe keeps events for 30 days by default.
+ */
+export async function listPlatformActivity(limit = 20) {
+  const stripe = getClient();
+  const events = await stripe.events.list({
+    limit,
+    types: [
+      "charge.succeeded",
+      "charge.refunded",
+      "charge.failed",
+      "payment_intent.succeeded",
+      "payment_intent.payment_failed",
+      "refund.created",
+      "refund.updated",
+      "payout.paid",
+      "payout.failed",
+      "transfer.created",
+    ],
+  });
+  return events;
+}
+
+/** Platform-account balance (admin overview headline). */
+export async function getPlatformBalance() {
+  const stripe = getClient();
+  return stripe.balance.retrieve();
+}
+
+/**
  * Trigger a manual payout to the seller's bank. Stripe rejects (400)
  * when amount > available balance.
  */

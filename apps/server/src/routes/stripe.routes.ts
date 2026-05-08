@@ -15,6 +15,8 @@ import {
   listStoreCharges,
   refundOrder,
   createManualPayout,
+  listPlatformActivity,
+  getPlatformBalance,
 } from "../services/stripe.service.js";
 
 const sellerRouter = Router();
@@ -146,6 +148,42 @@ sellerRouter.post("/stripe/payout", requireAuth(), requireStore(), async (req, r
 });
 
 const adminRouter = Router();
+
+// Platform-wide Stripe activity feed — read-only, admin-only.
+// Returns the latest events across the platform Connect account so the
+// admin overview can show charges/refunds/payouts in real time.
+adminRouter.get("/stripe/activity", requireAuth(["admin"]), async (_req, res, next) => {
+  try {
+    if (!isConfigured()) {
+      return res.status(503).json({ error: "StripeNotConfigured" });
+    }
+    const [events, balance] = await Promise.all([
+      listPlatformActivity(20),
+      getPlatformBalance(),
+    ]);
+    res.json({
+      balance: {
+        available: balance.available.map((b) => ({ amount: b.amount, currency: b.currency })),
+        pending: balance.pending.map((b) => ({ amount: b.amount, currency: b.currency })),
+      },
+      events: events.data.map((e) => {
+        // Strip massive expansion fields; keep what the UI needs.
+        const obj = e.data.object as { id?: string; amount?: number; amount_received?: number; currency?: string; status?: string };
+        return {
+          id: e.id,
+          type: e.type,
+          created: e.created,
+          objectId: obj.id ?? null,
+          amount: obj.amount ?? obj.amount_received ?? null,
+          currency: obj.currency ?? null,
+          status: obj.status ?? null,
+        };
+      }),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 adminRouter.post(
   "/orders/:id/refund",

@@ -17,6 +17,7 @@ import { OrdersByCountryList } from "@/components/admin/OrdersByCountryList";
 import { UserInfoIntegrityCard } from "@/components/admin/UserInfoIntegrityCard";
 import { ProductPerformanceMatrix } from "@/components/admin/ProductPerformanceMatrix";
 import { TransactionActions } from "@/components/admin/TransactionActions";
+import { StripeActivityCard } from "@/components/admin/StripeActivityCard";
 import { apiFetch, ApiError } from "@/lib/server/api";
 import { coins, thbToCoins, coinsCompact, fmtDateTime, money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -530,6 +531,13 @@ export default async function AdminOverview({
           noise but is one click for the rubric reviewer. */}
       <div className="mb-6">
         <QueryTimingsBar timings={dashboard.queryStats ?? []} />
+      </div>
+
+      {/* Stripe activity feed — pulls live events from the platform Connect
+          account (charges, refunds, payouts) so the admin can sanity-check
+          money flow without leaving the dashboard. Read-only widget. */}
+      <div className="mb-6">
+        <StripeActivityCard />
       </div>
 
       <section className="rounded-2xl border border-line bg-space-850">
