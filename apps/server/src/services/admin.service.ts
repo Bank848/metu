@@ -1580,15 +1580,21 @@ ORDER BY revenue DESC`;
       };
     }
     case "top-stores": {
+      // Status filter goes on the SUM (FILTER), not on the LEFT JOIN's
+      // ON-clause. Otherwise non-settled orders fail to JOIN but the
+      // matching order_item row remains and SUM(oi.price ...) silently
+      // counts cancelled / pending revenue.
       const sql = `
 SELECT s.store_id, s.name,
-       COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
-       COUNT(DISTINCT o.order_id)::bigint AS orders
+       COALESCE(SUM(oi.price_per_unit * oi.quantity)
+                  FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::text AS revenue,
+       COUNT(DISTINCT o.order_id)
+         FILTER (WHERE o.status IN ('paid','fulfilled'))::bigint            AS orders
 FROM store s
 LEFT JOIN product p       ON p.store_id = s.store_id
 LEFT JOIN product_item pi ON pi.product_id = p.product_id
 LEFT JOIN order_item oi   ON oi.product_item_id = pi.product_item_id
-LEFT JOIN orders o        ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
+LEFT JOIN orders o        ON o.order_id = oi.order_id
 GROUP BY s.store_id, s.name
 ORDER BY revenue DESC
 LIMIT 10`;
@@ -1596,13 +1602,15 @@ LIMIT 10`;
         Array<{ store_id: number; name: string; revenue: string; orders: bigint }>
       >`
         SELECT s.store_id, s.name,
-               COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
-               COUNT(DISTINCT o.order_id)::bigint AS orders
+               COALESCE(SUM(oi.price_per_unit * oi.quantity)
+                          FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::text AS revenue,
+               COUNT(DISTINCT o.order_id)
+                 FILTER (WHERE o.status IN ('paid','fulfilled'))::bigint            AS orders
         FROM store s
         LEFT JOIN product p       ON p.store_id = s.store_id
         LEFT JOIN product_item pi ON pi.product_id = p.product_id
         LEFT JOIN order_item oi   ON oi.product_item_id = pi.product_item_id
-        LEFT JOIN orders o        ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
+        LEFT JOIN orders o        ON o.order_id = oi.order_id
         GROUP BY s.store_id, s.name
         ORDER BY revenue DESC
         LIMIT 10
@@ -1629,15 +1637,17 @@ LIMIT 10`;
       };
     }
     case "signups-per-day": {
+      // Bucket by Bangkok local day so a signup at 23:30 ICT lands
+      // on today's bar, not yesterday's (the row's stored as UTC).
       const sql = `
-SELECT DATE_TRUNC('day', created_date)::date AS day, COUNT(*)::bigint AS count
+SELECT (created_date AT TIME ZONE 'Asia/Bangkok')::date AS day, COUNT(*)::bigint AS count
 FROM "users"
 WHERE created_date >= NOW() - INTERVAL '60 days'
 GROUP BY day ORDER BY day`;
       const rows = await prisma.$queryRaw<
         Array<{ day: Date; count: bigint }>
       >`
-        SELECT DATE_TRUNC('day', created_date)::date AS day, COUNT(*)::bigint AS count
+        SELECT (created_date AT TIME ZONE 'Asia/Bangkok')::date AS day, COUNT(*)::bigint AS count
         FROM "users"
         WHERE created_date >= NOW() - INTERVAL '60 days'
         GROUP BY day ORDER BY day
