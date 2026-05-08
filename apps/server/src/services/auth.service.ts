@@ -595,8 +595,26 @@ export async function verifyPhoneFirebase(
     select: { phone: true, phoneVerifiedAt: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
-  if (user.phoneVerifiedAt && user.phone === firebasePhone) {
-    return { phone: user.phone, phoneVerifiedAt: user.phoneVerifiedAt };
+  // Mirror loginVerifyFirebase + verifyPhoneFirebaseByEmail: normalize
+  // both sides before comparing so a legacy non-canonical user.phone
+  // doesn't fall through to the update branch and let an attacker who
+  // already holds the session rewrite the verified phone.
+  const dbPhoneE164 = normalizeThaiPhone(user.phone);
+  const fbPhoneE164 = normalizeThaiPhone(firebasePhone);
+  if (
+    user.phoneVerifiedAt &&
+    dbPhoneE164 &&
+    fbPhoneE164 &&
+    dbPhoneE164 === fbPhoneE164
+  ) {
+    return { phone: user.phone!, phoneVerifiedAt: user.phoneVerifiedAt };
+  }
+  if (user.phoneVerifiedAt && dbPhoneE164 && fbPhoneE164 && dbPhoneE164 !== fbPhoneE164) {
+    throw new AppError(
+      403,
+      "PhoneMismatch",
+      "The verified phone doesn't match the account on file.",
+    );
   }
 
   const updated = await prisma.user.update({
