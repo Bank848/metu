@@ -1,20 +1,22 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Store, ShieldCheck, Settings, RotateCcw, Database, Code2, Tag, Ticket } from "lucide-react";
+import { LayoutDashboard, Users, Store, ShieldCheck, Settings, RotateCcw, Database, Code2, Tag, Ticket, ShoppingBag, ClipboardList } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { href: "/admin",          label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/users",    label: "Users",    icon: Users },
-  { href: "/admin/stores",   label: "Stores",   icon: Store },
-  { href: "/admin/coupons",  label: "Coupons",  icon: Ticket },
-  { href: "/admin/tags",     label: "Tags",     icon: Tag },
-  { href: "/admin/refunds",  label: "Refunds",  icon: RotateCcw },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
-  { href: "/admin/database", label: "Database", icon: Database },
-  { href: "/admin/queries",  label: "Queries",  icon: Code2 },
+  { href: "/admin",           label: "Overview",  icon: LayoutDashboard },
+  { href: "/admin/users",     label: "Users",     icon: Users },
+  { href: "/admin/stores",    label: "Stores",    icon: Store },
+  { href: "/admin/orders",    label: "Orders",    icon: ShoppingBag },
+  { href: "/admin/coupons",   label: "Coupons",   icon: Ticket },
+  { href: "/admin/tags",      label: "Tags",      icon: Tag },
+  { href: "/admin/refunds",   label: "Refunds",   icon: RotateCcw },
+  { href: "/admin/audit-log", label: "Audit log", icon: ClipboardList },
+  { href: "/admin/settings",  label: "Settings",  icon: Settings },
+  { href: "/admin/database",  label: "Database",  icon: Database },
+  { href: "/admin/queries",   label: "Queries",   icon: Code2 },
 ];
 
 export function AdminSidebar() {
