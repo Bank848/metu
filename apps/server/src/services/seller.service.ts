@@ -827,6 +827,26 @@ export async function updateOrderStatus(
       "Only paid orders can be fulfilled.",
     );
   }
+  // Block paid→cancelled: a seller used to silently flip a paid order
+  // to "cancelled" with no Stripe refund call, no transaction record,
+  // and no stock restock. Money sat on the seller's connected account
+  // while the buyer saw "Cancelled" in their order list. Force the
+  // seller through the refund path which calls Stripe and records the
+  // money trail. Keeping pending→cancelled allowed (no money to refund).
+  if (input.status === "cancelled" && order.status === "paid") {
+    await audit({
+      actorId,
+      action: "seller.order.update.denied",
+      targetType: "order",
+      targetId: orderId,
+      meta: { storeId, reason: "paid_must_refund_first" },
+    });
+    throw new AppError(
+      409,
+      "RefundFirst",
+      "This order is already paid. Refund it instead of cancelling so the buyer gets their money back.",
+    );
+  }
 
   await prisma.order.update({
     where: { orderId },
