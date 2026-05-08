@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Star, X, Scale } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { EmptyState } from "@/components/EmptyState";
-import { coins, thbToCoins } from "@/lib/format";
+import { coinsOrFree, thbToCoins } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { readIds, toggle, clear } from "@/lib/compareList";
 
@@ -116,10 +116,10 @@ export function CompareView() {
               {items.map((it) => (
                 <td key={it.productId} className="px-4 py-3 text-sm text-white">
                   <span className="font-display text-base font-bold text-gold-gradient">
-                    {coins(thbToCoins(it.minPrice))}
+                    {coinsOrFree(thbToCoins(it.minPrice))}
                   </span>
                   {it.maxPrice && it.maxPrice !== it.minPrice && (
-                    <span className="text-ink-dim"> – {coins(thbToCoins(it.maxPrice))}</span>
+                    <span className="text-ink-dim"> – {coinsOrFree(thbToCoins(it.maxPrice))}</span>
                   )}
                 </td>
               ))}

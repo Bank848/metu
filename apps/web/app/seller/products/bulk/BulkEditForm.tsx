@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Save, AlertTriangle } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
-import { coins, thbToCoins } from "@/lib/format";
+import { coinsOrFree, thbToCoins } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Item = {
@@ -193,7 +193,7 @@ export function BulkEditForm({ items }: { items: Item[] }) {
                   </td>
                   <td className="px-3 py-3 text-right text-ink-secondary">{it.quantity}</td>
                   <td className="px-3 py-3 text-right text-ink-secondary">{it.discountPercent}%</td>
-                  <td className="px-3 py-3 text-right">{coins(thbToCoins(it.price))}</td>
+                  <td className="px-3 py-3 text-right">{coinsOrFree(thbToCoins(it.price))}</td>
                   <td
                     className={cn(
                       "px-3 py-3 text-right font-semibold",
@@ -204,7 +204,7 @@ export function BulkEditForm({ items }: { items: Item[] }) {
                         : "text-ink-dim",
                     )}
                   >
-                    {coins(thbToCoins(newPrice))}
+                    {coinsOrFree(thbToCoins(newPrice))}
                   </td>
                 </tr>
               );
