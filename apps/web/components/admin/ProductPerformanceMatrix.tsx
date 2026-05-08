@@ -56,7 +56,7 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
               <li key={r.productId}>
                 <Link
                   href={`/product/${r.productId}`}
-                  className="group flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.04] transition"
+                  className="group flex items-center gap-3 rounded-lg bg-space-800 ring-1 ring-line px-3 py-2 hover:ring-coral/40 hover:bg-space-800/80 transition"
                 >
                   <span className="text-ink-dim text-xs font-mono w-5 shrink-0">
                     {i + 1}.
@@ -78,7 +78,7 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
                     {/* Inline bar — coral so it visually contrasts with
                         the mint Top Stores / Top Buyers leaderboards. */}
                     <div className="mt-1 flex items-center gap-2">
-                      <span className="flex-1 h-1 rounded-full bg-space-900 overflow-hidden">
+                      <span className="flex-1 h-1.5 rounded-full bg-space-950 overflow-hidden ring-1 ring-line/60">
                         <span
                           className="block h-full bg-coral animate-bar-extend"
                           style={{
@@ -87,7 +87,7 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
                           }}
                         />
                       </span>
-                      <span className="text-[10px] text-ink-dim font-mono tabular-nums shrink-0 whitespace-nowrap">
+                      <span className="text-[10px] text-ink-secondary font-mono tabular-nums shrink-0 whitespace-nowrap">
                         {r.units30d}u/30d · {r.totalUnits}u total
                       </span>
                     </div>

@@ -50,25 +50,25 @@ export function UserInfoIntegrityCard({
       </header>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-xl bg-space-900 ring-1 ring-line/50 p-3">
-          <div className="text-[10px] uppercase tracking-wider text-ink-dim">
+        <div className="rounded-xl bg-space-800 ring-1 ring-line p-3">
+          <div className="text-[10px] uppercase tracking-wider text-ink-secondary">
             Profile complete
           </div>
           <div className="font-display text-2xl font-extrabold text-white mt-1 tabular-nums">
             {userRate.toFixed(1)}%
           </div>
-          <div className="text-[11px] text-ink-dim mt-0.5 tabular-nums">
+          <div className="text-[11px] text-ink-secondary mt-0.5 tabular-nums">
             {completeUsers.toLocaleString()} / {totalUsers.toLocaleString()} users
           </div>
         </div>
-        <div className="rounded-xl bg-mint/[0.06] border border-mint/15 p-3">
-          <div className="text-[10px] uppercase tracking-wider text-mint/80">
+        <div className="rounded-xl bg-mint/[0.12] border border-mint/30 p-3">
+          <div className="text-[10px] uppercase tracking-wider text-mint">
             Orders from complete users
           </div>
           <div className="font-display text-2xl font-extrabold text-mint mt-1 tabular-nums">
             {orderRate.toFixed(1)}%
           </div>
-          <div className="text-[11px] text-ink-dim mt-0.5 tabular-nums">
+          <div className="text-[11px] text-ink-secondary mt-0.5 tabular-nums">
             {ordersFromComplete.toLocaleString()} / {totalOrders.toLocaleString()} settled
           </div>
         </div>
