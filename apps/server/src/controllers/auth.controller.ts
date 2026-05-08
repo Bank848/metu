@@ -406,11 +406,10 @@ export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
     // within the 5-minute window. The client must use the new
     // token on the subsequent /firebase-verify call.
     const consumeResult = await consumeLoginPreAuthToken(token);
-    // deleted === 0 means a concurrent caller already burned this
-    // token between our resolve() and our delete(). That's the race
-    // window flagged by Black Hat in round 2 — emit a replay row so
-    // SOC's preauth-token-reuse rule can fire on the actual replay
-    // attempt instead of waiting for downstream churn.
+    // deleted === 0 means the token was already burned (replay or
+    // race). Emit the replay audit row, then refuse to issue a new
+    // child token or disclose the masked phone — otherwise the
+    // "blocked" name is a lie.
     if (consumeResult.deleted === 0) {
       await audit({
         actorId: payload.userId,
@@ -420,6 +419,7 @@ export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
         meta: { reason: "already_consumed", route: "phone-for-sms" },
         req,
       });
+      throw new AppError(400, "InvalidPreAuth", "Login token is invalid or already used.");
     }
     const nextToken = await issueLoginPreAuthToken(payload);
 

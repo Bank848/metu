@@ -481,6 +481,11 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
   it("response body returns a MASKED phone (country prefix + last 4 only) and a NEW child token", async () => {
     const token = await mintTokenAndArmFindFirst(7);
     (prisma.user.findUnique as any).mockResolvedValue({ phone: "+66812345678" });
+    // Cycle 4 R2 fix: phone-for-sms now refuses to mint a child token
+    // unless the parent token's deleteMany actually removed a row.
+    // Override the default `{ count: 0 }` mock with `{ count: 1 }` so
+    // this happy-path test exercises the issuance branch.
+    (prisma.verification.deleteMany as any).mockResolvedValue({ count: 1 });
 
     const res = await request(buildApp())
       .post("/auth/login/phone-for-sms")
@@ -504,6 +509,7 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
   it("the parent token is consumed (deleteMany was called for the original token identifier)", async () => {
     const token = await mintTokenAndArmFindFirst(7);
     (prisma.user.findUnique as any).mockResolvedValue({ phone: "+66812345678" });
+    (prisma.verification.deleteMany as any).mockResolvedValue({ count: 1 });
 
     await request(buildApp())
       .post("/auth/login/phone-for-sms")
@@ -519,5 +525,23 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
       ([arg]: any) => arg?.where?.identifier === `login-verify:${token}`,
     );
     expect(parentDelete).toBeDefined();
+  });
+
+  it("rejects with 400 InvalidPreAuth when the parent token was already consumed (replay)", async () => {
+    const token = await mintTokenAndArmFindFirst(7);
+    (prisma.user.findUnique as any).mockResolvedValue({ phone: "+66812345678" });
+    // Replay scenario: deleteMany finds zero rows, meaning a prior
+    // call already burned this token. Default mock = { count: 0 }.
+    (prisma.verification.deleteMany as any).mockResolvedValue({ count: 0 });
+
+    const res = await request(buildApp())
+      .post("/auth/login/phone-for-sms")
+      .send({ token });
+
+    // Must NOT issue a new child token, MUST NOT leak the masked phone.
+    expect(res.status).toBe(400);
+    expect(res.body.error?.code ?? res.body.error).toMatch(/InvalidPreAuth/);
+    expect(res.body.phone).toBeUndefined();
+    expect(res.body.token).toBeUndefined();
   });
 });
