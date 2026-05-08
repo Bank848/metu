@@ -49,7 +49,9 @@ type CouponResult =
       couponId: number;
       discountType: "percent" | "fixed";
       discountValue: number;
-      store: { storeId: number; name: string };
+      // store is null on master coupons (storeId=null in DB) — code below
+      // must null-guard or default to "Master coupon" labelling.
+      store: { storeId: number; name: string } | null;
     };
 
 const API = "/api";
@@ -138,7 +140,8 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   // count toward the eligible subtotal the discount applies to.
   const eligibleSubtotal = useMemo(() => {
     if (!couponResult?.valid) return 0;
-    return eligibleSubtotalForStore(selectedItems, couponResult.store.storeId);
+    // store=null → master coupon → applies to whole selected subtotal.
+    return eligibleSubtotalForStore(selectedItems, couponResult.store?.storeId ?? null);
   }, [couponResult, selectedItems]);
 
   const discount = useMemo(() => {
@@ -328,7 +331,12 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   const couponNoMatch =
     couponResult?.valid &&
     eligibleSubtotal === 0 &&
-    !selectedItems.some((l) => l.storeId === couponResult.store.storeId);
+    // Master coupon (store=null) applies to anything selected; only "no match"
+    // when zero items selected at all. Per-store coupon: no match when no
+    // selected line lives in that coupon's store.
+    (couponResult.store
+      ? !selectedItems.some((l) => l.storeId === couponResult.store!.storeId)
+      : selectedItems.length === 0);
 
   return (
     <div className="grid md:grid-cols-[1fr_360px] gap-6 md:gap-8 items-start">
@@ -340,7 +348,10 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
           const storeSubtotal = lines
             .filter((l) => selected[l.cartItemId])
             .reduce((a, b) => a + b.lineTotal, 0);
-          const couponAppliesHere = couponResult?.valid && couponResult.store.storeId === storeId;
+          // Master coupon (store=null) applies to every store; per-store coupon only its own store.
+          const couponAppliesHere =
+            couponResult?.valid &&
+            (couponResult.store === null || couponResult.store.storeId === storeId);
           const storeDiscount = couponAppliesHere
             ? couponResult.discountType === "percent"
               ? (storeSubtotal * couponResult.discountValue) / 100
@@ -615,7 +626,9 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
                   ? `−${couponResult.discountValue}%`
                   : `−${coins(thbToCoins(couponResult.discountValue))}`}
                 {" · "}
-                <span className="text-ink-secondary">{couponResult.store.name} items only</span>
+                <span className="text-ink-secondary">
+                  {couponResult.store ? `${couponResult.store.name} items only` : "Master coupon (all items)"}
+                </span>
               </span>
             </p>
           )}
@@ -627,7 +640,9 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
           {couponNoMatch && (
             <p className="text-xs text-amber-400 inline-flex items-center gap-1">
               <AlertTriangle className="h-3 w-3" />
-              No selected items are from {couponResult?.valid ? couponResult.store.name : ""}.
+              {couponResult?.valid && couponResult.store
+                ? `No selected items are from ${couponResult.store.name}.`
+                : `Select at least one item to apply this master coupon.`}
             </p>
           )}
         </form>
