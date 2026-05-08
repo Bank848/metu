@@ -1,7 +1,9 @@
 import Image from "next/image";
-import { Download } from "lucide-react";
+import { Download, Inbox } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { OrderStatusActions } from "@/components/seller/OrderStatusActions";
 import { apiAuth } from "@/lib/session";
@@ -44,6 +46,14 @@ export default async function SellerOrders() {
           </GlassButton>
         }
       />
+      {orders.length === 0 ? (
+        <EmptyState
+          title="No orders yet"
+          description="Share your store link to start selling — buyers' purchases will land here."
+          icon={<Inbox className="h-8 w-8" />}
+          action={<Button href="/seller/products">Manage products →</Button>}
+        />
+      ) : (
       <ul className="space-y-3">
         {orders.map((o) => (
           <li key={o.orderId} className="rounded-2xl border border-line bg-space-850 p-5">
@@ -82,6 +92,7 @@ export default async function SellerOrders() {
           </li>
         ))}
       </ul>
+      )}
     </>
   );
 }
