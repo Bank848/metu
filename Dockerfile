@@ -4,7 +4,7 @@
 
 # ───── Stage 1: deps ─────
 FROM node:20.20-alpine AS deps
-RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.7-r0
+RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -17,7 +17,7 @@ RUN npm ci --include=dev --ignore-scripts
 
 # ───── Stage 2: builder ─────
 FROM node:20.20-alpine AS builder
-RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.7-r0
+RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -64,7 +64,7 @@ RUN npm run build -w @metu/web
 
 # ───── Stage 3: runner ─────
 FROM node:20.20-alpine AS runner
-RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.7-r0
+RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
 WORKDIR /app
 
 ENV NODE_ENV=production
