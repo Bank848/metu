@@ -98,7 +98,7 @@ export function RequestPayoutButton({ availableSatang }: { availableSatang: numb
 
       {open && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 grid place-items-start sm:place-items-center bg-black/60 backdrop-blur-sm pt-8 pb-32 px-4 sm:py-4 overflow-y-auto"
           role="dialog"
           aria-modal="true"
           aria-labelledby="payout-title"
@@ -107,7 +107,7 @@ export function RequestPayoutButton({ availableSatang }: { availableSatang: numb
           <form
             onSubmit={submit}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl border border-line bg-space-900 p-5 shadow-2xl"
+            className="w-full max-w-sm max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-2xl border border-line bg-space-900 p-5 shadow-2xl"
           >
             <div className="flex items-start justify-between mb-4">
               <h2 id="payout-title" className="text-base font-display font-bold text-white">
