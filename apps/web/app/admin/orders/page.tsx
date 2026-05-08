@@ -140,9 +140,15 @@ export default async function AdminOrders({
                 </div>
               );
             case "stores": {
+              // productItem can be null when the variant was hard-deleted
+              // after the order shipped; defend the join chain so the
+              // admin row still renders even if the variant is gone.
               const uniq = Array.from(
                 new Map(
-                  o.items.map((it) => [it.productItem.product.store.storeId, it.productItem.product.store])
+                  o.items.flatMap((it) => {
+                    const store = it.productItem?.product?.store;
+                    return store ? [[store.storeId, store] as const] : [];
+                  })
                 ).values(),
               );
               return (
