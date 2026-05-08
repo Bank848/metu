@@ -1009,9 +1009,17 @@ export async function getDashboardMetrics() {
       total_orders: bigint; orders_from_complete: bigint;
     }>>`
       SELECT
-        (SELECT COUNT(*)::bigint FROM "users")                              AS total_users,
+        -- Active users only: anonymised (deleted_*) and banned rows
+        -- skew the data-hygiene readout because deleteUser nulls out
+        -- their PII. The default /admin/users list also hides them —
+        -- keep this widget consistent so the % matches the table.
         (SELECT COUNT(*)::bigint FROM "users"
-          WHERE first_name IS NOT NULL AND first_name <> ''
+          WHERE banned_at IS NULL
+            AND email NOT LIKE 'deleted_%')                                 AS total_users,
+        (SELECT COUNT(*)::bigint FROM "users"
+          WHERE banned_at IS NULL
+            AND email NOT LIKE 'deleted_%'
+            AND first_name IS NOT NULL AND first_name <> ''
             AND last_name  IS NOT NULL AND last_name  <> ''
             AND date_of_birth IS NOT NULL
             AND country_id    IS NOT NULL
@@ -1023,6 +1031,8 @@ export async function getDashboardMetrics() {
           FROM   "orders" o
           JOIN   "users"  u ON u.user_id = o.user_id
           WHERE  o.status IN ('paid', 'fulfilled')
+            AND  u.banned_at IS NULL
+            AND  u.email NOT LIKE 'deleted_%'
             AND  u.first_name IS NOT NULL AND u.first_name <> ''
             AND  u.last_name  IS NOT NULL AND u.last_name  <> ''
             AND  u.date_of_birth IS NOT NULL
