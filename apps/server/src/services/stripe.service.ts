@@ -228,29 +228,67 @@ export async function listStoreCharges(stripeAccountId: string, limit = 20) {
 }
 
 /**
- * Platform-wide Stripe activity feed for the admin overview. Pulls
- * recent events from the platform account so the admin can see the
- * money flow live (charges, refunds, payouts) without per-store
- * drill-in. Stripe keeps events for 30 days by default.
+ * Platform-wide Stripe activity feed for the admin overview. METU runs
+ * Stripe Connect with direct charges, so charge / refund / payout /
+ * transfer events fire on the seller's connected account, NOT on the
+ * platform — a plain `events.list({})` call comes back empty for any
+ * marketplace activity. Fan out across every store with a connected
+ * account, merge by `created` DESC, and cache for 60s so admin
+ * page-refreshes don't hammer Stripe.
  */
-export async function listPlatformActivity(limit = 20) {
+const ACTIVITY_TTL_MS = 60_000;
+const _activityCache = new Map<
+  string,
+  { fetchedAt: number; events: Stripe.Event[] }
+>();
+
+export async function listPlatformActivity(
+  limit = 20,
+): Promise<{ data: Stripe.Event[] }> {
   const stripe = getClient();
-  const events = await stripe.events.list({
-    limit,
-    types: [
-      "charge.succeeded",
-      "charge.refunded",
-      "charge.failed",
-      "payment_intent.succeeded",
-      "payment_intent.payment_failed",
-      "refund.created",
-      "refund.updated",
-      "payout.paid",
-      "payout.failed",
-      "transfer.created",
-    ],
+  const now = Date.now();
+  const cached = _activityCache.get("platform-activity");
+  if (cached && now - cached.fetchedAt < ACTIVITY_TTL_MS) {
+    return { data: cached.events.slice(0, limit) };
+  }
+
+  const types = [
+    "charge.succeeded",
+    "charge.refunded",
+    "charge.failed",
+    "payment_intent.succeeded",
+    "payment_intent.payment_failed",
+    "refund.created",
+    "refund.updated",
+    "payout.paid",
+    "payout.failed",
+    "transfer.created",
+  ];
+
+  const stores = await prisma.store.findMany({
+    where: { stripeAccountId: { not: null } },
+    select: { stripeAccountId: true },
   });
-  return events;
+
+  const eventsByAccount = await Promise.allSettled(
+    stores.map((s) =>
+      stripe.events.list(
+        { limit: 5, types },
+        { stripeAccount: s.stripeAccountId! },
+      ),
+    ),
+  );
+
+  const merged: Stripe.Event[] = [];
+  for (const r of eventsByAccount) {
+    if (r.status === "fulfilled") merged.push(...r.value.data);
+  }
+
+  // Newest first.
+  merged.sort((a, b) => b.created - a.created);
+  const trimmed = merged.slice(0, Math.max(limit, 20));
+  _activityCache.set("platform-activity", { fetchedAt: now, events: trimmed });
+  return { data: trimmed.slice(0, limit) };
 }
 
 /** Platform-account balance (admin overview headline). */
