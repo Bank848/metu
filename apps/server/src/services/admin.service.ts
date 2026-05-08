@@ -651,7 +651,13 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
            JOIN "store"   s ON s.store_id = p.store_id)                            AS products,
         (SELECT COUNT(*) FROM "product_review")                                    AS reviews,
         (SELECT COUNT(*) FROM "orders")                                            AS orders,
-        (SELECT COUNT(*) FROM "orders" WHERE status = 'pending')                   AS pending_orders,
+        -- Bound to the last 30 minutes so expired-but-unswept orders
+        -- don't inflate the tile when sweepExpiredOrders is delayed
+        -- (cold-start, GC pause). Real "pending" is a 15-minute TTL
+        -- per Business Rule 4j; 30 minutes is a 2× generous ceiling.
+        (SELECT COUNT(*) FROM "orders"
+          WHERE status = 'pending'
+            AND created_at >= NOW() - INTERVAL '30 minutes')                       AS pending_orders,
         (SELECT COALESCE(SUM(total_price), 0)::text
            FROM "orders"
           WHERE status IN ('paid', 'fulfilled'))                                   AS gmv
