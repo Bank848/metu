@@ -505,8 +505,33 @@ export async function verifyPhoneFirebaseByEmail(
   if (!user) {
     return { phone: firebasePhone, phoneVerifiedAt: new Date() };
   }
-  if (user.phoneVerifiedAt && user.phone === firebasePhone) {
-    return { phone: user.phone, phoneVerifiedAt: user.phoneVerifiedAt };
+  // Mirror loginVerifyFirebase: legacy User.phone rows may hold local
+  // format ("0812345678") or whitespace variants while Firebase always
+  // returns E.164. Strict-equals would tunnel through and the update
+  // branch below would then OVERWRITE the user's stored phone with
+  // whatever the Firebase token holds — letting an attacker who proves
+  // ownership of any Thai number rewrite a legacy victim's recovery
+  // channel. Normalize both sides before comparing.
+  const dbPhoneE164 = normalizeThaiPhone(user.phone);
+  const fbPhoneE164 = normalizeThaiPhone(firebasePhone);
+  if (
+    user.phoneVerifiedAt &&
+    dbPhoneE164 &&
+    fbPhoneE164 &&
+    dbPhoneE164 === fbPhoneE164
+  ) {
+    return { phone: user.phone!, phoneVerifiedAt: user.phoneVerifiedAt };
+  }
+  // If the user already has a verified phone that DOESN'T match the
+  // Firebase number (after normalization), refuse the rewrite — this
+  // path is only meant for first-time verification, not for swapping
+  // a verified number under attacker control.
+  if (user.phoneVerifiedAt && dbPhoneE164 && fbPhoneE164 && dbPhoneE164 !== fbPhoneE164) {
+    throw new AppError(
+      403,
+      "PhoneMismatch",
+      "The verified phone doesn't match the account on file.",
+    );
   }
 
   const updated = await prisma.user.update({
