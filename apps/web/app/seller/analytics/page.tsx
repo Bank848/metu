@@ -80,6 +80,10 @@ export default async function SellerAnalyticsPage() {
       ORDER BY count DESC
     `,
     // Per-product revenue + units sold (paid+fulfilled only).
+    // FILTER (WHERE o.order_id IS NOT NULL) is the gate — without it,
+    // the LEFT JOIN keeps order_item rows even when their order's
+    // status was filtered out by the orders join condition, which
+    // double-counts unpaid units.
     prisma.$queryRaw<Array<{
       product_id: number;
       name: string;
@@ -89,8 +93,8 @@ export default async function SellerAnalyticsPage() {
       SELECT
         p.product_id,
         p.name,
-        COALESCE(SUM(oi.quantity), 0) AS units,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue
+        COALESCE(SUM(oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0) AS units,
+        COALESCE(SUM(oi.price_per_unit * oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0)::text AS revenue
       FROM product p
       LEFT JOIN product_item pi ON pi.product_id = p.product_id
       LEFT JOIN order_item oi ON oi.product_item_id = pi.product_item_id

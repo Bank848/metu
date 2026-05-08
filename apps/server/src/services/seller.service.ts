@@ -127,21 +127,30 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
     JOIN product p ON p.product_id = pi.product_id
     WHERE p.store_id = ${storeId}
       AND o.created_at >= NOW() - INTERVAL '30 days'
+      AND o.status IN ('paid','fulfilled')
     GROUP BY day
     ORDER BY day
   `;
 
+  // topProducts must mirror the KPI status filter so the overview
+  // tells one story: revenue and units below come from the same
+  // paid+fulfilled orders the headline numbers count.
+  // FILTER (WHERE o.order_id IS NOT NULL) is the gate — the LEFT JOIN
+  // returns NULL for orders columns when status didn't match, which
+  // is the signal we drop the order_item from the aggregate.
   const topProducts = await prisma.$queryRaw<
     Array<{ product_id: number; name: string; revenue: string; units: bigint }>
   >`
     SELECT p.product_id, p.name,
-           COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
-           COALESCE(SUM(oi.quantity), 0)::bigint AS units
+           COALESCE(SUM(oi.price_per_unit * oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0)::text AS revenue,
+           COALESCE(SUM(oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0)::bigint AS units
     FROM product p
     LEFT JOIN product_item pi ON pi.product_id = p.product_id
     LEFT JOIN order_item oi ON oi.product_item_id = pi.product_item_id
+    LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
     WHERE p.store_id = ${storeId}
     GROUP BY p.product_id, p.name
+    HAVING COALESCE(SUM(oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0) > 0
     ORDER BY revenue DESC
     LIMIT 5
   `;
