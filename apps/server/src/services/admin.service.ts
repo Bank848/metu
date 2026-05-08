@@ -1222,8 +1222,9 @@ export async function createMasterCoupon(input: {
   code: string;
   discountType: "percent" | "fixed";
   discountValue: number;
-  startDate: string;
-  endDate: string;
+  // zod's z.coerce.date() emits Date — accept Date | string for tolerance.
+  startDate: Date | string;
+  endDate: Date | string;
   usageLimit: number;
 }, actorId: number, req?: AuditReq) {
   const code = input.code.trim().toUpperCase();
@@ -1241,8 +1242,8 @@ export async function createMasterCoupon(input: {
       code,
       discountType: input.discountType,
       discountValue: input.discountValue,
-      startDate: new Date(input.startDate),
-      endDate: new Date(input.endDate),
+      startDate: input.startDate instanceof Date ? input.startDate : new Date(input.startDate),
+      endDate: input.endDate instanceof Date ? input.endDate : new Date(input.endDate),
       usageLimit: input.usageLimit,
       isActive: true,
     },
