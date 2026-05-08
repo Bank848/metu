@@ -72,24 +72,6 @@ export function LoginForm({
   const totpInputRef = useRef<HTMLInputElement>(null);
   const adminOtpInputRef = useRef<HTMLInputElement>(null);
 
-  // Demo chip → form prefill via a window event. The page mounts
-  // <DemoChip> buttons that dispatch `metu:prefill-login` with
-  // {email, password} in the detail; we listen and apply.
-  useEffect(() => {
-    function onPrefill(ev: Event) {
-      const detail = (ev as CustomEvent<{ email: string; password: string }>).detail;
-      if (!detail) return;
-      setEmail(detail.email);
-      setPassword(detail.password);
-      setStep("credentials");
-      setTotpCode("");
-      setError(null);
-      formRef.current?.querySelector<HTMLInputElement>('input[name="email"]')?.focus();
-    }
-    window.addEventListener("metu:prefill-login", onPrefill);
-    return () => window.removeEventListener("metu:prefill-login", onPrefill);
-  }, []);
-
   // When we transition into the TOTP / admin-OTP step, autofocus the
   // matching input.
   useEffect(() => {
