@@ -55,13 +55,18 @@ export async function checkout(
   let unselectedItems = selectedSet
     ? cart.items.filter((ci) => !selectedSet.has(ci.cartItemId))
     : [];
-  // Stale-id fallback: a buyer who backed out of Stripe and clicked
-  // Checkout again sends the OLD cartItemIds (cart was recreated; ids
-  // changed). Filter would return zero — instead of 400'ing, treat
-  // a zero-match selection as "everything" so the retry just works.
+  // Stale-id check: a buyer who backed out of Stripe and clicked
+  // Checkout again may send OLD cartItemIds (cart was recreated; ids
+  // changed). Earlier rev silently treated a zero-match as "select
+  // everything" — that path silently over-charged buyers who had
+  // deselected items. Fail-fast with a clear 400 so the client can
+  // refetch the cart and re-confirm what the buyer wants to pay for.
   if (selectedSet && selectedItems.length === 0 && cart.items.length > 0) {
-    selectedItems = cart.items;
-    unselectedItems = [];
+    throw new AppError(
+      400,
+      "SelectionStale",
+      "Cart selection is out of sync. Refresh and re-select what you want to buy.",
+    );
   }
   if (selectedItems.length === 0) {
     throw new AppError(400, "EmptyCart", "No items selected for checkout.");
