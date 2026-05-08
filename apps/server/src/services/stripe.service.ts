@@ -1,6 +1,11 @@
 // Stripe Connect (test mode) integration. Stripe owns the payment
 // state; we persist only the IDs we need. Module is isConfigured()
 // guarded so a deploy without STRIPE_SECRET_KEY still boots in demo mode.
+//
+// Money-direction policy (buyer-favourable):
+//   - Buyer charge:  Math.floor(baht * 100)  — sub-satang lost to buyer's favour
+//   - Buyer refund:  Math.round(baht * 100)  — buyer gets the cent back
+//   - Seller payout: Stripe owns the math; we never compute it locally
 import Stripe from "stripe";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
@@ -149,7 +154,10 @@ export async function createPaymentIntent(opts: {
   buyerEmail?: string;
 }): Promise<{ paymentIntentId: string; clientSecret: string }> {
   const stripe = getClient();
-  const amountSatang = Math.round(opts.amountBaht * 100);
+  // Buyer charge: floor satang so any sub-satang fragment lost is in
+  // the buyer's favour (they pay slightly less, never slightly more
+  // than what we displayed).
+  const amountSatang = Math.floor(opts.amountBaht * 100);
   const applicationFeeSatang = Math.floor(
     (amountSatang * opts.applicationFeePercent) / 100,
   );

@@ -142,7 +142,10 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     await finalizeOrder(orderId);
     return;
   }
-  const expectedSatang = Math.round(Number(order.totalPrice) * 100);
+  // Mirror createPaymentIntent's buyer-favourable floor (see
+  // stripe.service.ts header). PI was charged at floor; expected here
+  // must match or the amount_mismatch audit fires on legitimate orders.
+  const expectedSatang = Math.floor(Number(order.totalPrice) * 100);
   if (pi.amount_received !== expectedSatang) {
     // eslint-disable-next-line no-console
     console.error(
