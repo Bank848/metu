@@ -29,3 +29,19 @@ export function normalizeThaiPhone(input: string | null | undefined): string {
 export function isValidThaiE164(s: string): boolean {
   return /^\+66\d{9}$/.test(s);
 }
+
+/**
+ * Mask a phone number to the country prefix + last 4 digits. Use for
+ * any audit_log meta payload, UI surface, or transactional email body
+ * that doesn't strictly need the full E.164 — strict need is rare.
+ *
+ * Example: "+66812345678" → "+66 *** *** 5678".
+ */
+export function maskPhoneTail(phone: string | null | undefined): string {
+  const cleaned = String(phone ?? "").replace(/\s+/g, "");
+  if (!cleaned) return "";
+  const tail = cleaned.slice(-4);
+  const prefixMatch = cleaned.match(/^\+\d{1,3}/);
+  const prefix = prefixMatch ? prefixMatch[0] : "";
+  return `${prefix} *** *** ${tail}`.trim();
+}

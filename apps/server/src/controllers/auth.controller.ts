@@ -20,6 +20,7 @@ import {
 } from "../models/auth.model.js";
 import * as service from "../services/auth.service.js";
 import { audit } from "../utils/audit.js";
+import { maskPhoneTail } from "../utils/phone.js";
 import {
   currentAuth,
   currentUser,
@@ -435,19 +436,8 @@ export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Thai phone masking — keep country code prefix + last 4 digits.
-// Example: "+66812345678" → "+66 *** *** 5678".
-function maskPhoneTail(phone: string): string {
-  const cleaned = phone.replace(/\s+/g, "");
-  if (!cleaned) return "";
-  const tail = cleaned.slice(-4);
-  // Country prefix: everything up to the start of the local number.
-  // For Thai E.164 (+66) this is the first 3 chars; for non-E.164
-  // strings fall back to a single asterisk block.
-  const prefixMatch = cleaned.match(/^\+\d{1,3}/);
-  const prefix = prefixMatch ? prefixMatch[0] : "";
-  return `${prefix} *** *** ${tail}`.trim();
-}
+// maskPhoneTail moved to apps/server/src/utils/phone.ts so audit
+// emit sites can share the same implementation.
 
 /**
  * POST /auth/login/firebase-verify — finishes the two-step login when

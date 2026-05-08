@@ -11,7 +11,7 @@ import { findFirstProfaneField } from "../utils/profanity.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout, escapeHtml } from "../utils/email-template.js";
 import { audit } from "../utils/audit.js";
-import { normalizeThaiPhone, isValidThaiE164 } from "../utils/phone.js";
+import { normalizeThaiPhone, isValidThaiE164, maskPhoneTail } from "../utils/phone.js";
 import { SITE_URL, DEMO_REVEAL_TOKENS } from "../config.js";
 import type {
   ChangePasswordInput,
@@ -447,13 +447,15 @@ export async function gateFirebaseSmsRequest(email: string): Promise<{ ok: true 
   }
 
   // Cross-account phone cooldown — block the same phone from being
-  // bombed via re-registration loops. We look at audit metadata for
-  // `phone` and refuse if any account texted this number recently.
-  if (user.phone) {
+  // bombed via re-registration loops. Match on the masked tail so the
+  // audit_log never stores a full E.164 (PII) but the dedup signal is
+  // still strong (last-4 collisions inside a 5-min window are rare).
+  const maskedPhone = user.phone ? maskPhoneTail(user.phone) : null;
+  if (maskedPhone) {
     const phoneRecent = await prisma.auditLog.findFirst({
       where: {
         action: "phone.firebase_sms.requested",
-        meta: { path: ["phone"], equals: user.phone },
+        meta: { path: ["phone"], equals: maskedPhone },
         createdAt: { gte: new Date(now - SMS_PHONE_COOLDOWN_MS) },
       },
       select: { logId: true, targetId: true },
@@ -473,7 +475,7 @@ export async function gateFirebaseSmsRequest(email: string): Promise<{ ok: true 
     action: "phone.firebase_sms.requested",
     targetType: "user",
     targetId: user.userId,
-    meta: user.phone ? { phone: user.phone } : null,
+    meta: maskedPhone ? { phone: maskedPhone } : null,
   });
 
   return { ok: true };
@@ -906,7 +908,7 @@ export async function verifyPhoneChange(userId: number, newPhone: string, code: 
     action: "user.phone_change",
     targetType: "user",
     targetId: userId,
-    meta: { phone: normalized },
+    meta: { phone: maskPhoneTail(normalized) },
   });
   return sanitize(updated);
 }
