@@ -33,9 +33,9 @@ export default async function SellerLayout({ children }: { children: React.React
   // refreshed. See StripeOnboardingBanner.
 
   return (
-    <div className="flex min-h-screen bg-space-black">
+    <div className="md:flex min-h-screen bg-space-black">
       <SellerSidebar storeName={me.user?.store?.name} />
-      <main id="main" className="flex-1 px-8 py-10">
+      <main id="main" className="flex-1 px-4 sm:px-6 md:px-8 py-6 md:py-10">
         {isSuspended && (
           <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 flex items-start gap-3">
             <PauseCircle className="h-5 w-5 text-amber-400 mt-0.5 shrink-0" />
