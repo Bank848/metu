@@ -2,9 +2,18 @@ import Link from "next/link";
 import { Wallet, ExternalLink, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { apiFetch, ApiError } from "@/lib/server/api";
 import { fmtDate } from "@/lib/format";
 import { RequestPayoutButton } from "./RequestPayoutButton";
+
+function payoutTone(status: string): "success" | "warning" | "danger" | "mist" {
+  const s = status.toLowerCase();
+  if (s === "paid" || s === "succeeded" || s === "completed") return "success";
+  if (s === "pending" || s === "in_transit") return "warning";
+  if (s === "failed" || s === "canceled" || s === "cancelled") return "danger";
+  return "mist";
+}
 
 export const dynamic = "force-dynamic";
 
@@ -181,17 +190,17 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
 
       {/* Balance cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-mint/30 bg-mint/5 p-6">
+        <div className="rounded-2xl border border-mint/30 bg-gradient-to-br from-mint/8 to-mint/3 p-6">
           <div className="text-xs uppercase tracking-wider text-mint">Available</div>
-          <div className="font-display text-3xl font-bold text-white mt-1">
+          <div className="font-display text-3xl font-bold text-white mt-1 tabular-nums">
             ฿{formatSatang(totalAvailable)}
           </div>
           <p className="text-xs text-ink-dim mt-2">Funds that can be paid out next.</p>
           <RequestPayoutButton availableSatang={totalAvailable} />
         </div>
-        <div className="rounded-2xl border border-line bg-space-900 p-6">
-          <div className="text-xs uppercase tracking-wider text-ink-dim">Pending</div>
-          <div className="font-display text-3xl font-bold text-white mt-1">
+        <div className="rounded-2xl border border-line bg-gradient-to-br from-space-900 to-space-950 p-6">
+          <div className="text-xs uppercase tracking-wider text-ink-secondary">Pending</div>
+          <div className="font-display text-3xl font-bold text-white mt-1 tabular-nums">
             ฿{formatSatang(totalPending)}
           </div>
           <p className="text-xs text-ink-dim mt-2">Recently received — clears in ~7 days.</p>
@@ -202,7 +211,9 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
       <section className="rounded-2xl border border-line bg-space-900 p-6">
         <h3 className="font-semibold text-white mb-3">Recent payouts</h3>
         {(wallet.payouts ?? []).length === 0 ? (
-          <p className="text-sm text-ink-dim">No payouts yet.</p>
+          <p className="text-sm text-ink-dim">
+            No payouts yet — funds will appear here once Stripe completes your first one.
+          </p>
         ) : (
           <div className="-mx-2 overflow-x-auto px-2">
             <table className="w-full min-w-[360px] text-sm">
@@ -213,8 +224,10 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
                 {wallet.payouts!.map((p) => (
                   <tr key={p.id} className="border-t border-white/5">
                     <td className="py-1.5 whitespace-nowrap">{fmtDate(p.created)}</td>
-                    <td className="py-1.5 font-mono whitespace-nowrap">{formatSatang(p.amount, p.currency)}</td>
-                    <td className="py-1.5 capitalize whitespace-nowrap">{p.status}</td>
+                    <td className="py-1.5 font-mono tabular-nums whitespace-nowrap">{formatSatang(p.amount, p.currency)}</td>
+                    <td className="py-1.5 whitespace-nowrap">
+                      <Badge variant={payoutTone(p.status)} className="uppercase text-[10px]">{p.status}</Badge>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -227,7 +240,9 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
       <section className="rounded-2xl border border-line bg-space-900 p-6">
         <h3 className="font-semibold text-white mb-3">Recent charges</h3>
         {(wallet.charges ?? []).length === 0 ? (
-          <p className="text-sm text-ink-dim">No charges yet.</p>
+          <p className="text-sm text-ink-dim">
+            No charges yet — your sales will show up here once buyers start checking out.
+          </p>
         ) : (
           <div className="-mx-2 overflow-x-auto px-2">
             <table className="w-full min-w-[360px] text-sm">
@@ -238,8 +253,10 @@ function ConnectedView({ wallet }: { wallet: Wallet }) {
                 {wallet.charges!.map((c) => (
                   <tr key={c.id} className="border-t border-white/5">
                     <td className="py-1.5 whitespace-nowrap">{fmtDate(c.created)}</td>
-                    <td className="py-1.5 font-mono whitespace-nowrap">{formatSatang(c.amount, c.currency)}</td>
-                    <td className="py-1.5 capitalize whitespace-nowrap">{c.status}</td>
+                    <td className="py-1.5 font-mono tabular-nums whitespace-nowrap">{formatSatang(c.amount, c.currency)}</td>
+                    <td className="py-1.5 whitespace-nowrap">
+                      <Badge variant={payoutTone(c.status)} className="uppercase text-[10px]">{c.status}</Badge>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -107,7 +107,7 @@ export function RequestPayoutButton({ availableSatang }: { availableSatang: numb
           <form
             onSubmit={submit}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-2xl border border-line bg-space-900 p-5 shadow-2xl"
+            className="w-full max-w-sm max-h-[calc(100dvh-4rem)] overflow-y-auto rounded-2xl border border-line bg-space-900 p-5 shadow-2xl ring-1 ring-white/10"
           >
             <div className="flex items-start justify-between mb-4">
               <h2 id="payout-title" className="text-base font-display font-bold text-white">
@@ -125,28 +125,36 @@ export function RequestPayoutButton({ availableSatang }: { availableSatang: numb
             </div>
 
             <p className="text-xs text-ink-secondary mb-2">
-              Available balance: <span className="font-mono text-mint">฿{availableBaht.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              Available balance: <span className="font-mono tabular-nums text-mint">฿{availableBaht.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </p>
 
             <label htmlFor="payout-amount" className="block text-xs font-medium text-ink-secondary mb-1.5">
               Amount (baht)
             </label>
-            <input
-              id="payout-amount"
-              ref={inputRef}
-              type="number"
-              min="0.01"
-              max={availableBaht}
-              step="0.01"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              disabled={busy}
-              className="w-full rounded-lg border border-line bg-space-950 px-3 py-2 text-sm font-mono text-white outline-none focus:border-mint disabled:opacity-50"
-            />
+            <div className="relative">
+              <span
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-mono text-ink-dim"
+              >
+                ฿
+              </span>
+              <input
+                id="payout-amount"
+                ref={inputRef}
+                type="number"
+                min="0.01"
+                max={availableBaht}
+                step="0.01"
+                required
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                disabled={busy}
+                className="w-full rounded-lg border border-line bg-space-950 pl-7 pr-3 py-2 text-sm font-mono tabular-nums text-white outline-none focus:border-mint disabled:opacity-50"
+              />
+            </div>
 
-            <p className="mt-2 text-xs text-ink-dim">
-              Funds will arrive in your linked bank account within 1–2 business days (Stripe schedule).
+            <p className="mt-1.5 text-[11px] text-ink-dim">
+              Max: <span className="font-mono tabular-nums text-mint">฿{availableBaht.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> · Arrives in 1–2 business days
             </p>
 
             {msg && <p className="mt-2 text-xs text-red-400">{msg}</p>}
