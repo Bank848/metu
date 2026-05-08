@@ -290,6 +290,12 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
         credentials: "include",
       });
       if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { message?: string; error?: string }));
+        // Surface the server-supplied reason so buyers know WHY checkout
+        // failed (expired coupon, gift email malformed, seller not Stripe-
+        // onboarded, stock change, etc.) instead of just hearing the
+        // error sound and watching the button silently re-enable.
+        setToast({ ok: false, text: err?.message ?? err?.error ?? "Checkout failed — please try again" });
         play("error");
         return;
       }
