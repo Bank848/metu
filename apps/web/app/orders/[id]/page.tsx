@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth, getMe } from "@/lib/session";
 import { getServerT } from "@/lib/i18n/server";
-import { coins, thbToCoins, fmtDate, fmtDateTime } from "@/lib/format";
+import { coins, coinsOrFree, thbToCoins, fmtDate, fmtDateTime } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 import { prisma } from "@/lib/server/prisma";
 import { Confetti } from "./Confetti";
@@ -273,7 +273,7 @@ export default async function OrderDetail({
                         </div>
                       )}
                       <div className="text-xs text-ink-dim mt-1.5">
-                        Qty {it.quantity} · {coins(thbToCoins(Number(it.pricePerUnit)))} each
+                        Qty {it.quantity} · {coinsOrFree(thbToCoins(Number(it.pricePerUnit)))} each
                       </div>
                       {canReview && (
                         <div className="mt-2">

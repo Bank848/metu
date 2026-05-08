@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { ProductRowActions } from "@/components/seller/ProductRowActions";
 import { apiAuth } from "@/lib/session";
-import { coins, thbToCoins } from "@/lib/format";
+import { coinsOrFree, thbToCoins } from "@/lib/format";
 import { isDataUrl, cardImage } from "@/lib/utils";
 
 type Product = {
@@ -112,7 +112,7 @@ export default async function SellerProducts() {
                     </td>
                     <td className="px-5 py-3 text-sm text-white">{p.items.length}</td>
                     <td className="px-5 py-3 text-sm font-semibold text-brand-yellow">
-                      {coins(thbToCoins(min))}{min !== max && ` – ${coins(thbToCoins(max))}`}
+                      {coinsOrFree(thbToCoins(min))}{min !== max && ` – ${coinsOrFree(thbToCoins(max))}`}
                     </td>
                     <td className="px-5 py-3 text-sm text-ink-secondary">{p._count.reviews}</td>
                     <td className="px-5 py-3">

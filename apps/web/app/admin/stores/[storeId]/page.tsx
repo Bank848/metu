@@ -8,7 +8,7 @@ import { StatCard } from "@/components/StatCard";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { EmptyState } from "@/components/EmptyState";
 import { prisma } from "@/lib/server/prisma";
-import { fmtDate, fmtDateTime, coins, thbToCoins, coinsCompact } from "@/lib/format";
+import { fmtDate, fmtDateTime, coins, coinsOrFree, thbToCoins, coinsCompact } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -240,8 +240,8 @@ export default async function AdminStoreDetailPage({
                       <td className="px-4 py-3 text-right tabular-nums font-mono text-white">
                         {minPrice === 0 ? "—" :
                           minPrice === maxPrice
-                            ? coins(thbToCoins(minPrice))
-                            : `${coins(thbToCoins(minPrice))} – ${coins(thbToCoins(maxPrice))}`}
+                            ? coinsOrFree(thbToCoins(minPrice))
+                            : `${coinsOrFree(thbToCoins(minPrice))} – ${coinsOrFree(thbToCoins(maxPrice))}`}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums text-ink-secondary">
                         {p._count.reviews}
