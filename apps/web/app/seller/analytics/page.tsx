@@ -91,7 +91,9 @@ export default async function SellerAnalyticsPage() {
       ORDER BY units DESC, revenue DESC
       LIMIT 10
     `,
-    // Top 5 buyers by spend on this store.
+    // Top 5 buyers by spend on this store. Order is anchored to userId
+    // directly (see schema.prisma:432 — "Order is owned by the user");
+    // do NOT join via cart, the schema has no Order.cart_id column.
     prisma.$queryRaw<Array<{
       user_id: number;
       username: string;
@@ -105,8 +107,7 @@ export default async function SellerAnalyticsPage() {
         COUNT(DISTINCT o.order_id) AS orders,
         COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS spent
       FROM users u
-      JOIN cart c ON c.user_id = u.user_id
-      JOIN orders o ON o.cart_id = c.cart_id AND o.status IN ('paid','fulfilled')
+      JOIN orders o ON o.user_id = u.user_id AND o.status IN ('paid','fulfilled')
       JOIN order_item oi ON oi.order_id = o.order_id
       JOIN product_item pi ON pi.product_item_id = oi.product_item_id
       JOIN product p ON p.product_id = pi.product_id
@@ -115,15 +116,15 @@ export default async function SellerAnalyticsPage() {
       ORDER BY spent DESC
       LIMIT 5
     `,
-    // Lifetime totals.
+    // Lifetime totals. Same correction: count distinct buyers via
+    // Order.user_id, not via a non-existent Order.cart_id join.
     prisma.$queryRaw<Array<{ orders: bigint; units: bigint; revenue: string; buyers: bigint }>>`
       SELECT
         COUNT(DISTINCT o.order_id) AS orders,
         COALESCE(SUM(oi.quantity), 0) AS units,
         COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
-        COUNT(DISTINCT c.user_id) AS buyers
+        COUNT(DISTINCT o.user_id) AS buyers
       FROM orders o
-      JOIN cart c ON c.cart_id = o.cart_id
       JOIN order_item oi ON oi.order_id = o.order_id
       JOIN product_item pi ON pi.product_item_id = oi.product_item_id
       JOIN product p ON p.product_id = pi.product_id
