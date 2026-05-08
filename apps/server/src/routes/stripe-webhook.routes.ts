@@ -142,6 +142,24 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     await finalizeOrder(orderId);
     return;
   }
+  // Cancelled / refunded orders must NOT be flipped back to paid by a
+  // late PI succeed. Earlier rev only short-circuited paid|fulfilled,
+  // so a buyer who created order O1, backed out, called checkout
+  // again (cancelUserPendingOrders flipped O1 to cancelled + restored
+  // stock), and then had Stripe finally succeed PI₁ async would see
+  // O1 resurrected — license keys minted, receipt sent, inventory off.
+  // Audit + bail on any non-pending status.
+  if (order.status !== "pending") {
+    await prisma.auditLog.create({
+      data: {
+        action: "stripe.late_pi_after_cancel",
+        targetType: "order",
+        targetId: orderId,
+        meta: { piId: pi.id, orderStatus: order.status, amount: pi.amount_received },
+      },
+    });
+    return;
+  }
   // Mirror createPaymentIntent's buyer-favourable floor (see
   // stripe.service.ts header). PI was charged at floor; expected here
   // must match or the amount_mismatch audit fires on legitimate orders.
