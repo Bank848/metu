@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, FileDown, BadgeCheck, ArrowRight } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
-import { coins, thbToCoins } from "@/lib/format";
+import { coins, coinsOrFree, thbToCoins } from "@/lib/format";
 import { play } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
@@ -201,9 +201,9 @@ export function AddToCart({
               </div>
               <div className="flex items-baseline gap-2">
                 {it.discountPercent > 0 && (
-                  <span className="text-xs line-through text-ink-dim">{coins(thbToCoins(it.price))}</span>
+                  <span className="text-xs line-through text-ink-dim">{coinsOrFree(thbToCoins(it.price))}</span>
                 )}
-                <span className="font-display font-bold text-gold-gradient">{coins(thbToCoins(it.finalPrice))}</span>
+                <span className="font-display font-bold text-gold-gradient">{coinsOrFree(thbToCoins(it.finalPrice))}</span>
               </div>
             </button>
           );
@@ -267,7 +267,7 @@ export function AddToCart({
         <div className="ml-auto text-right">
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">Total</div>
           <div className="font-display text-2xl font-extrabold text-gold-gradient">
-            {coins(thbToCoins(active.finalPrice * quantity))}
+            {coinsOrFree(thbToCoins(active.finalPrice * quantity))}
           </div>
         </div>
       </div>

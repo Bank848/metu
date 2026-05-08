@@ -1,7 +1,7 @@
 "use client";
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { coins, thbToCoins } from "@/lib/format";
+import { coinsOrFree, thbToCoins } from "@/lib/format";
 import { SelectInput } from "./SelectInput";
 import { NumberInput } from "./NumberInput";
 import { TextInput } from "./TextInput";
@@ -191,10 +191,10 @@ export function VariantRow({
             )}
             aria-live="polite"
           >
-            Buyer sees: {coins(thbToCoins(finalPrice))}
+            Buyer sees: {coinsOrFree(thbToCoins(finalPrice))}
             {hasDiscount && (
               <span className="ml-1.5 line-through text-coral/60 font-normal">
-                {coins(thbToCoins(value.price))}
+                {coinsOrFree(thbToCoins(value.price))}
               </span>
             )}
           </span>

@@ -38,11 +38,28 @@ export function moneyCompact(n: number | string | null | undefined): string {
 }
 
 /**
- * Coin shims around money(): coins() returns baht (or "Free" at 0),
- * thbToCoins() is now passthrough. Kept as shims so existing call-sites
- * don't need a sweep.
+ * Default money formatter: always returns "฿X.XX" — including ฿0.00.
+ * Use this for revenue, GMV, stat tiles, dashboard charts, order totals,
+ * coupon discount amounts, transaction amounts. ANY context where 0 means
+ * "no money moved" rather than "this thing is free."
+ *
+ * Earlier rev returned "Free" at 0 — broke the admin dashboard because
+ * a zero-revenue day rendered as "Free" inside a Revenue chart hover.
+ * "Free" semantics moved to `coinsOrFree()` for product-price contexts.
  */
 export function coins(n: number | string | null | undefined): string {
+  const num = typeof n === "string" ? Number(n) : (n ?? 0);
+  if (!Number.isFinite(num)) return money(0);
+  return money(num);
+}
+
+/**
+ * Product-price formatter: returns "Free" when the price is 0,
+ * otherwise the same "฿X.XX" as `coins()`. Use this on browse cards,
+ * product detail pages, and cart-line UNIT prices — places where 0
+ * genuinely means the seller is offering the product for free.
+ */
+export function coinsOrFree(n: number | string | null | undefined): string {
   const num = typeof n === "string" ? Number(n) : (n ?? 0);
   if (!Number.isFinite(num)) return money(0);
   if (num === 0) return "Free";
