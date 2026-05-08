@@ -142,7 +142,7 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
  * Register a new buyer. Runs profanity gate before duplicate check.
  * Throws 400 ProfanityRejected or 409 Conflict (username/email).
  */
-export async function register(input: RegisterInput): Promise<AuthOutcome> {
+export async function register(input: RegisterInput, req?: AuditReq): Promise<AuthOutcome> {
   const profane = findFirstProfaneField({
     username: input.username,
     firstName: input.firstName,
@@ -245,6 +245,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
     targetType: "user",
     targetId: user.userId,
     meta: { email: user.email },
+    req,
   });
 
   // demo escape hatch. When DEMO_REVEAL_TOKENS=true, the
@@ -268,7 +269,7 @@ export async function register(input: RegisterInput): Promise<AuthOutcome> {
  * confirm an email-verify token from the URL. One-shot:
  * the token row gets consumedAt stamped on success.
  */
-export async function verifyEmail(token: string): Promise<void> {
+export async function verifyEmail(token: string, req?: AuditReq): Promise<void> {
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
   const row = await prisma.emailVerifyToken.findUnique({
     where: { tokenHash },
@@ -292,6 +293,7 @@ export async function verifyEmail(token: string): Promise<void> {
     action: "user.email_verified",
     targetType: "user",
     targetId: row.userId,
+    req,
   });
 }
 
@@ -315,7 +317,7 @@ export async function resendEmailVerify(
  * verify the 6-digit OTP entered after register. Email
  * is the lookup key (no session yet at this stage).
  */
-export async function verifyPhoneRegister(email: string, code: string): Promise<void> {
+export async function verifyPhoneRegister(email: string, code: string, req?: AuditReq): Promise<void> {
   const user = await prisma.user.findUnique({ where: { email } });
   // collapse all failure modes to one InvalidCode error.
   // Distinct errors (UserNotFound vs NoPendingOtp vs OtpExpired) leak
@@ -364,6 +366,7 @@ export async function verifyPhoneRegister(email: string, code: string): Promise<
     action: "user.phone_verified",
     targetType: "user",
     targetId: user.userId,
+    req,
   });
 }
 

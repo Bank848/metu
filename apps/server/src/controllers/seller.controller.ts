@@ -242,7 +242,7 @@ export const updateOrderStatus: RequestHandler<{ id: string }> = async (req, res
     if (!Number.isFinite(orderId)) throw new AppError(400, "BadId");
     const parsed = updateOrderStatusSchema.safeParse(req.body);
     if (!parsed.success) throw parsed.error;
-    await service.updateOrderStatus(orderId, store.storeId, auth.uid, parsed.data);
+    await service.updateOrderStatus(orderId, store.storeId, auth.uid, parsed.data, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);

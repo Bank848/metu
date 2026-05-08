@@ -1,9 +1,13 @@
 import { Prisma } from "@prisma/client";
 import type { z } from "zod";
+import type { Request } from "express";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
 import { refundOrder as stripeRefund } from "./stripe.service.js";
+
+// Narrow type so services don't have to drag in the full Express.Request.
+type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 import {
   type SellerStatsResponse,
   type PatchVariantInput,
@@ -771,6 +775,7 @@ export async function updateOrderStatus(
   storeId: number,
   actorId: number,
   input: UpdateOrderStatusInput,
+  req?: AuditReq,
 ) {
   const order = await prisma.order.findUnique({
     where: { orderId },
@@ -794,6 +799,7 @@ export async function updateOrderStatus(
       targetType: "order",
       targetId: orderId,
       meta: { reason: "Forbidden", storeId, requested: input.status },
+      req,
     });
     throw new AppError(403, "Forbidden");
   }
@@ -809,6 +815,7 @@ export async function updateOrderStatus(
       targetType: "order",
       targetId: orderId,
       meta: { storeId, requested: input.status },
+      req,
     });
     throw new AppError(
       409,
@@ -840,6 +847,7 @@ export async function updateOrderStatus(
       targetType: "order",
       targetId: orderId,
       meta: { storeId, reason: "paid_must_refund_first" },
+      req,
     });
     throw new AppError(
       409,
@@ -858,6 +866,7 @@ export async function updateOrderStatus(
     targetType: "order",
     targetId: orderId,
     meta: { from: order.status, to: input.status, storeId },
+    req,
   });
 }
 
