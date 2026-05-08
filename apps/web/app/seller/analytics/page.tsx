@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { TrendingUp, ShoppingBag, Users, Package as PackageIcon } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
@@ -21,6 +22,14 @@ const STATUS_VARIANT: Record<
   fulfilled: "info",
   cancelled: "danger",
   refunded: "purple",
+};
+
+const STATUS_BAR_COLOR: Record<keyof typeof STATUS_VARIANT, string> = {
+  pending: "bg-amber-500",
+  paid: "bg-mint",
+  fulfilled: "bg-mint/70",
+  cancelled: "bg-metu-red",
+  refunded: "bg-purple-500",
 };
 
 export default async function SellerAnalyticsPage() {
@@ -199,9 +208,13 @@ export default async function SellerAnalyticsPage() {
                 <tbody className="divide-y divide-white/6">
                   {perProduct.map((p) => (
                     <tr key={p.product_id} className="hover:bg-white/5">
-                      <td className="px-5 py-2.5 text-white truncate max-w-[280px]">{p.name}</td>
-                      <td className="px-5 py-2.5 text-right text-ink-secondary">{Number(p.units).toLocaleString()}</td>
-                      <td className="px-5 py-2.5 text-right font-semibold text-gold-gradient">
+                      <td className="px-5 py-2.5 text-white truncate max-w-[280px]">
+                        <Link href={`/product/${p.product_id}`} className="hover:text-metu-yellow transition-colors">
+                          {p.name}
+                        </Link>
+                      </td>
+                      <td className="px-5 py-2.5 text-right text-ink-secondary tabular-nums">{Number(p.units).toLocaleString()}</td>
+                      <td className="px-5 py-2.5 text-right font-mono tabular-nums text-mint">
                         {coins(thbToCoins(Number(p.revenue)))}
                       </td>
                     </tr>
@@ -221,16 +234,40 @@ export default async function SellerAnalyticsPage() {
             <div className="space-y-6">
               <section className="rounded-2xl glass-morphism p-5">
                 <h2 className="font-display font-bold text-white mb-3">Order status mix</h2>
-                <ul className="space-y-2">
-                  {statusBreakdown.map((s) => (
-                    <li key={s.status} className="flex items-center justify-between text-sm">
-                      <Badge variant={STATUS_VARIANT[s.status as keyof typeof STATUS_VARIANT] ?? "mist"} className="uppercase">
-                        {s.status}
-                      </Badge>
-                      <span className="font-mono text-white">{Number(s.count).toLocaleString()}</span>
-                    </li>
-                  ))}
-                </ul>
+                {(() => {
+                  const total = statusBreakdown.reduce((s, r) => s + Number(r.count), 0);
+                  if (total === 0) {
+                    return <p className="text-sm text-ink-dim">No orders yet.</p>;
+                  }
+                  return (
+                    <>
+                      <div className="flex h-2 rounded-full overflow-hidden mb-3 bg-space-800" role="img" aria-label="Order status mix">
+                        {statusBreakdown.map((s) => {
+                          const pct = (Number(s.count) / total) * 100;
+                          const color = STATUS_BAR_COLOR[s.status as keyof typeof STATUS_BAR_COLOR] ?? "bg-white/20";
+                          return (
+                            <span
+                              key={s.status}
+                              className={color}
+                              style={{ width: `${pct}%` }}
+                              title={`${s.status}: ${Number(s.count).toLocaleString()} (${pct.toFixed(1)}%)`}
+                            />
+                          );
+                        })}
+                      </div>
+                      <ul className="space-y-2">
+                        {statusBreakdown.map((s) => (
+                          <li key={s.status} className="flex items-center justify-between text-sm">
+                            <Badge variant={STATUS_VARIANT[s.status as keyof typeof STATUS_VARIANT] ?? "mist"} className="uppercase">
+                              {s.status}
+                            </Badge>
+                            <span className="font-mono tabular-nums text-white">{Number(s.count).toLocaleString()}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  );
+                })()}
               </section>
 
               <section className="rounded-2xl glass-morphism p-5">
@@ -244,7 +281,7 @@ export default async function SellerAnalyticsPage() {
                         </div>
                         <div className="text-[11px] text-ink-dim">@{b.username} · {Number(b.orders)} order{Number(b.orders) !== 1 ? "s" : ""}</div>
                       </div>
-                      <span className="font-display font-bold text-gold-gradient text-sm">
+                      <span className="font-mono tabular-nums font-semibold text-mint text-sm">
                         {coins(thbToCoins(Number(b.spent)))}
                       </span>
                     </li>
