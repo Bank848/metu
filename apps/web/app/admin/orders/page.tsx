@@ -73,12 +73,12 @@ export default async function AdminOrders({
           name="q"
           defaultValue={searchParams.q ?? ""}
           placeholder="Order ID, buyer email, name…"
-          className="md:col-span-2 rounded-full border border-line bg-space-800 px-4 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
+          className="col-span-2 md:col-span-2 rounded-full border border-line bg-space-800 px-4 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
         />
         <select
           name="status"
           defaultValue={searchParams.status ?? ""}
-          className="rounded-full border border-line bg-space-800 px-3 py-2 text-sm text-white"
+          className="col-span-1 md:col-span-1 rounded-full border border-line bg-space-800 px-3 py-2 text-sm text-white"
         >
           <option value="">All statuses</option>
           <option value="pending">Pending</option>
@@ -90,7 +90,7 @@ export default async function AdminOrders({
         <select
           name="storeId"
           defaultValue={searchParams.storeId ?? ""}
-          className="rounded-full border border-line bg-space-800 px-3 py-2 text-sm text-white"
+          className="col-span-1 md:col-span-1 rounded-full border border-line bg-space-800 px-3 py-2 text-sm text-white"
         >
           <option value="">All stores</option>
           {stores.map((s) => (
@@ -102,7 +102,7 @@ export default async function AdminOrders({
         </button>
       </form>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
         <StatCard variant="highlight" icon={ShoppingCart} label="Pending" value={countByStatus.get("pending") ?? 0} />
         <StatCard icon={CreditCard} label="Paid" value={countByStatus.get("paid") ?? 0} />
         <StatCard icon={Clock} label="Fulfilled" value={countByStatus.get("fulfilled") ?? 0} />
