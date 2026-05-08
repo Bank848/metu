@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag, AlertTriangle, Heart } from "lucide-react";
+import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag, AlertTriangle, Heart, Loader2 } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { coins, coinsOrFree, thbToCoins } from "@/lib/format";
 import { play } from "@/lib/sound";
@@ -617,9 +617,10 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
               <button
                 type="submit"
                 disabled={!coupon || busy}
-                className="rounded-pill button-gradient px-4 text-xs disabled:opacity-50"
+                className="rounded-pill button-gradient px-4 text-xs disabled:opacity-50 inline-flex items-center gap-1.5"
               >
-                Apply
+                {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+                {busy ? "Applying…" : "Apply"}
               </button>
             </div>
           </div>
