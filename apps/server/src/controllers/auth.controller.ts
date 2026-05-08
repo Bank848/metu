@@ -597,7 +597,7 @@ export const register: RequestHandler = async (req, res, next) => {
     if (!parsed.success) {
       throw parsed.error;
     }
-    const { user, role, demo } = await service.register(parsed.data);
+    const { user, role, demo } = await service.register(parsed.data, req);
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
     // register also enforces single-session for symmetry
     // with login (a malicious party can't keep a stale session alive
@@ -950,7 +950,7 @@ export const verifyEmail: RequestHandler = async (req, res, next) => {
     if (!parsed.success) {
       throw parsed.error;
     }
-    await service.verifyEmail(parsed.data.token);
+    await service.verifyEmail(parsed.data.token, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -983,7 +983,7 @@ export const verifyPhoneRegister: RequestHandler = async (req, res, next) => {
     if (!parsed.success) {
       throw parsed.error;
     }
-    await service.verifyPhoneRegister(parsed.data.email, parsed.data.code);
+    await service.verifyPhoneRegister(parsed.data.email, parsed.data.code, req);
     res.json({ ok: true });
   } catch (err) {
     next(err);
