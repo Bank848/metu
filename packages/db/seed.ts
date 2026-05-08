@@ -117,6 +117,7 @@ function pickImage(category: string, seed: string, index = 0, w = 1200, h = 800)
 const baht = (n: number) => new Prisma.Decimal(n);
 
 async function clear() {
+  await prisma.auditLog.deleteMany();
   await prisma.couponUsage.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
@@ -911,6 +912,188 @@ async function seedActiveCart(demoBuyer: U, items: { productItemId: number }[]) 
   });
 }
 
+// Seed ~50 audit_log rows so /admin/audit-log isn't empty on a fresh
+// db:reset. Mix of auth, store, product, order, refund, refresh-matview,
+// coupon, sql.run actions spread over the last 30 days. Without this
+// the demo path 4 reviewer opens audit-log and sees a feature that
+// looks unimplemented.
+async function seedAuditLog(users: U[]) {
+  const admin = users[0];
+  const sellers = users.slice(1, 5);
+  const buyers = users.slice(5);
+
+  // Tuples: [action, targetType, ...]. Weighted by realism — login.success
+  // is the most frequent action in any real audit log.
+  type Tmpl = {
+    action: string;
+    targetType: string;
+    actor: "admin" | "seller" | "buyer" | "system";
+    meta?: Prisma.InputJsonValue;
+  };
+  const tmpls: Tmpl[] = [
+    { action: "auth.login.success",        targetType: "user",        actor: "buyer" },
+    { action: "auth.login.success",        targetType: "user",        actor: "seller" },
+    { action: "auth.login.success",        targetType: "user",        actor: "admin" },
+    { action: "auth.login.fail",           targetType: "user",        actor: "buyer",  meta: { reason: "bad_password" } },
+    { action: "user.email_verified",       targetType: "user",        actor: "buyer" },
+    { action: "user.phone_verified",       targetType: "user",        actor: "buyer" },
+    { action: "user.register",             targetType: "user",        actor: "buyer" },
+    { action: "order.paid",                targetType: "order",       actor: "buyer",  meta: { paymentIntentId: "pi_seed_demo" } },
+    { action: "order.fulfilled",           targetType: "order",       actor: "seller" },
+    { action: "order.refund",              targetType: "order",       actor: "admin",  meta: { reason: "buyer_request" } },
+    { action: "transaction.refund",        targetType: "transaction", actor: "admin",  meta: { reason: "buyer_request" } },
+    { action: "store.suspend",             targetType: "store",       actor: "admin",  meta: { reason: "policy_violation" } },
+    { action: "store.create",              targetType: "store",       actor: "admin" },
+    { action: "admin.store.update",        targetType: "store",       actor: "admin",  meta: { fields: ["name", "description"] } },
+    { action: "admin.product.update",      targetType: "product",     actor: "admin",  meta: { fields: ["price"] } },
+    { action: "admin.product.delete",      targetType: "product",     actor: "admin" },
+    { action: "user.role_change",          targetType: "user",        actor: "admin",  meta: { from: "buyer", to: "seller" } },
+    { action: "user.ban",                  targetType: "user",        actor: "admin",  meta: { reason: "spam" } },
+    { action: "user.unban",                targetType: "user",        actor: "admin" },
+    { action: "coupon.master_create",      targetType: "coupon",      actor: "admin",  meta: { code: "WELCOME20" } },
+    { action: "admin.matview.refresh",     targetType: "matview",     actor: "admin",  meta: { matview: "mv_top_stores_30d" } },
+    { action: "admin.sql.run",             targetType: "query",       actor: "admin",  meta: { query: "SELECT count(*) FROM users" } },
+    { action: "auth.preauth.replay_blocked", targetType: "user",      actor: "system" },
+  ];
+
+  const now = Date.now();
+  const ipPool = ["203.151.27.42", "184.22.168.91", "171.7.241.10", "1.2.3.4", "49.49.234.55"];
+  const uaPool = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+  ];
+
+  const rows: Prisma.AuditLogCreateManyInput[] = [];
+  for (let i = 0; i < 50; i++) {
+    const t = tmpls[i % tmpls.length];
+    let actorId: number | null = null;
+    if (t.actor === "admin") actorId = admin.userId;
+    else if (t.actor === "seller") actorId = sellers[i % sellers.length].userId;
+    else if (t.actor === "buyer") actorId = buyers[i % buyers.length].userId;
+    // system → null
+
+    // targetId: a plausible row in the right table. Seed has small ID
+    // ranges so any 1-N value here is fine for display.
+    const targetId =
+      t.targetType === "user"
+        ? buyers[i % buyers.length].userId
+        : t.targetType === "store"
+          ? 1 + (i % 4)
+          : t.targetType === "product"
+            ? 1 + (i % 9)
+            : t.targetType === "order"
+              ? 1 + (i % 15)
+              : t.targetType === "transaction"
+                ? 1 + (i % 9)
+                : t.targetType === "coupon"
+                  ? 1 + (i % 8)
+                  : i + 1;
+
+    // Spread over the last 30 days, weighted slightly towards recent.
+    const minutesAgo = Math.floor(Math.pow(Math.random(), 1.5) * 30 * 24 * 60);
+    const createdAt = new Date(now - minutesAgo * 60_000);
+
+    rows.push({
+      actorId,
+      action: t.action,
+      targetType: t.targetType,
+      targetId,
+      meta: t.meta ?? Prisma.JsonNull,
+      ipAddress: t.actor === "system" ? null : ipPool[i % ipPool.length],
+      userAgent: t.actor === "system" ? null : uaPool[i % uaPool.length],
+      createdAt,
+    });
+  }
+
+  await prisma.auditLog.createMany({ data: rows });
+}
+
+// Seed ~10 coupon_usage rows so /seller/coupons/[id]/report and
+// /coupons/history aren't blank on db:reset. Picks active coupons,
+// applies each to a few seeded paid orders (per the unique
+// [couponId, userId] constraint, one redemption per user per coupon),
+// and back-fills the OrderItem.couponId snapshot so coupon-aware
+// pages can join.
+async function seedCouponUsage(users: U[]) {
+  const buyers = users.slice(5);
+
+  // Pick currently-active coupons (not expired/scheduled). Limit to 3
+  // so the report pages aren't littered with single-use rows.
+  const now = new Date();
+  const activeCoupons = await prisma.coupon.findMany({
+    where: {
+      isActive: true,
+      startDate: { lte: now },
+      endDate: { gte: now },
+    },
+    take: 3,
+    orderBy: { couponId: "asc" },
+  });
+  if (activeCoupons.length === 0) return;
+
+  // Look up paid/fulfilled orders we can attach a coupon to. Seed creates
+  // 9 such orders; we'll attach to the first ~6 so the report has data.
+  const paidOrders = await prisma.order.findMany({
+    where: { status: { in: ["paid", "fulfilled"] } },
+    include: { items: true },
+    take: 6,
+    orderBy: { orderId: "asc" },
+  });
+
+  // Track (couponId, userId) pairs to satisfy the unique constraint —
+  // one redemption per user per coupon.
+  const usedPairs = new Set<string>();
+  let usageCount = 0;
+
+  for (let i = 0; i < paidOrders.length && usageCount < 10; i++) {
+    const order = paidOrders[i];
+    const coupon = activeCoupons[i % activeCoupons.length];
+    const pairKey = `${coupon.couponId}:${order.userId}`;
+    if (usedPairs.has(pairKey)) continue;
+
+    // Stamp the first order item with this coupon so the per-coupon
+    // report can join through OrderItem.couponId.
+    const firstItem = order.items[0];
+    if (!firstItem) continue;
+    await prisma.orderItem.update({
+      where: { orderItemId: firstItem.orderItemId },
+      data: { couponId: coupon.couponId },
+    });
+
+    await prisma.couponUsage.create({
+      data: {
+        couponId: coupon.couponId,
+        userId: order.userId,
+        createdAt: order.createdAt,
+      },
+    });
+    usedPairs.add(pairKey);
+    usageCount++;
+  }
+
+  // Top up to ~10 with extra (coupon, buyer) pairs that aren't already
+  // attached to an order — the seller report still counts these as
+  // redemptions even without a stamped OrderItem.
+  for (const buyer of buyers) {
+    if (usageCount >= 10) break;
+    for (const coupon of activeCoupons) {
+      if (usageCount >= 10) break;
+      const pairKey = `${coupon.couponId}:${buyer.userId}`;
+      if (usedPairs.has(pairKey)) continue;
+      await prisma.couponUsage.create({
+        data: {
+          couponId: coupon.couponId,
+          userId: buyer.userId,
+          createdAt: new Date(Date.now() - Math.floor(Math.random() * 14) * 86_400_000),
+        },
+      });
+      usedPairs.add(pairKey);
+      usageCount++;
+    }
+  }
+}
+
 async function summary() {
   const rows = await Promise.all([
     ["country",        await prisma.country.count()],
@@ -932,6 +1115,7 @@ async function summary() {
     ["transaction",    await prisma.transaction.count()],
     ["coupon",         await prisma.coupon.count()],
     ["coupon_usage",   await prisma.couponUsage.count()],
+    ["audit_log",      await prisma.auditLog.count()],
   ]);
   console.log("\n=== ROW COUNTS ===");
   for (const [t, c] of rows) console.log(`  ${String(t).padEnd(16)} ${c}`);
@@ -968,6 +1152,10 @@ async function main() {
   console.log(`✓ ${coupons.length} coupons`);
   await seedOrders(users, items);
   console.log(`✓ orders + transactions seeded`);
+  await seedAuditLog(users);
+  console.log(`✓ audit_log seeded`);
+  await seedCouponUsage(users);
+  console.log(`✓ coupon_usage seeded`);
   await seedActiveCart(users[5], items);
   console.log(`✓ demo buyer cart pre-filled`);
   await summary();
