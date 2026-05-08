@@ -817,3 +817,122 @@ export async function getAdminStores(f: AdminStoresFilters = {}) {
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
 }
+
+export type AdminOrdersFilters = {
+  q?: string;
+  status?: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
+  storeId?: number;
+  page?: number;
+};
+
+/**
+ * /admin/orders — list every order across every store. Joined buyer +
+ * line items + first store name so the table can show seller chip
+ * without N+1. Capped at 50 rows / page.
+ */
+export async function getAdminOrders(f: AdminOrdersFilters = {}) {
+  const page = Math.max(1, f.page ?? 1);
+  const pageSize = 50;
+  const where: Prisma.OrderWhereInput = {};
+  if (f.status) where.status = f.status;
+  if (f.storeId) {
+    where.items = { some: { productItem: { product: { storeId: f.storeId } } } };
+  }
+  if (f.q?.trim()) {
+    const q = f.q.trim();
+    const orderId = Number.isFinite(Number(q)) ? Number(q) : undefined;
+    where.OR = [
+      ...(orderId ? [{ orderId }] : []),
+      { user: { username: { contains: q, mode: "insensitive" } } },
+      { user: { email: { contains: q, mode: "insensitive" } } },
+      { user: { firstName: { contains: q, mode: "insensitive" } } },
+      { user: { lastName: { contains: q, mode: "insensitive" } } },
+    ];
+  }
+  const [rows, total] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        user: { select: { username: true, firstName: true, lastName: true, email: true } },
+        items: {
+          include: {
+            productItem: {
+              select: {
+                product: { select: { name: true, store: { select: { storeId: true, name: true } } } },
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.order.count({ where }),
+  ]);
+  return {
+    items: rows,
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+export type AdminAuditLogFilters = {
+  actorEmail?: string;
+  action?: string;
+  outcome?: string;
+  from?: Date;
+  to?: Date;
+  page?: number;
+};
+
+/**
+ * /admin/audit-log — paginated tail of audit_log with optional
+ * actor / action / outcome / date filters. 100 rows / page.
+ * actorEmail filters by joining User on actor_user_id.
+ */
+export async function getAdminAuditLog(f: AdminAuditLogFilters = {}) {
+  const page = Math.max(1, f.page ?? 1);
+  const pageSize = 100;
+  const where: Prisma.AuditLogWhereInput = {};
+  if (f.action) where.action = { startsWith: f.action };
+  if (f.outcome) {
+    // Stored under meta.outcome historically; also accept tag suffix on action.
+    where.OR = [
+      { action: { endsWith: `.${f.outcome}` } },
+      { meta: { path: ["outcome"], equals: f.outcome } },
+    ];
+  }
+  if (f.from || f.to) {
+    where.createdAt = {};
+    if (f.from) where.createdAt.gte = f.from;
+    if (f.to) where.createdAt.lte = f.to;
+  }
+  if (f.actorEmail?.trim()) {
+    const e = f.actorEmail.trim();
+    where.actor = {
+      is: { email: { contains: e, mode: "insensitive" } },
+    };
+  }
+  const [rows, total] = await Promise.all([
+    prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        actor: { select: { username: true, email: true, firstName: true, lastName: true } },
+      },
+    }),
+    prisma.auditLog.count({ where }),
+  ]);
+  return {
+    items: rows,
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
