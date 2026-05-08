@@ -43,6 +43,8 @@ export interface DataTableProps<T> {
   className?: string;
   /** aria-label for the table itself — passed to the <table> element. */
   ariaLabel?: string;
+  /** Per-row className override — e.g. coral left-border on failed audit rows. */
+  rowClassName?: (row: T) => string | undefined;
 }
 
 const alignClass: Record<DataTableAlign, string> = {
@@ -61,6 +63,7 @@ export function DataTable<T>({
   pagination,
   className,
   ariaLabel,
+  rowClassName,
 }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
@@ -107,7 +110,10 @@ export function DataTable<T>({
               {rows.map((row) => (
                 <tr
                   key={getRowKey(row)}
-                  className="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors"
+                  className={cn(
+                    "border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors",
+                    rowClassName?.(row),
+                  )}
                 >
                   {columns.map((col) => (
                     <td
@@ -147,7 +153,10 @@ export function DataTable<T>({
           return (
             <li
               key={getRowKey(row)}
-              className="surface-flat rounded-xl p-4 space-y-3"
+              className={cn(
+                "surface-flat rounded-xl p-4 space-y-3",
+                rowClassName?.(row),
+              )}
             >
               {first && (
                 <div className="text-sm">{renderCell(row, first)}</div>

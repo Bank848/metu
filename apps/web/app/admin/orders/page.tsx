@@ -68,7 +68,15 @@ export default async function AdminOrders({
         subtitle={`${data.total.toLocaleString()} total · viewing page ${data.page}/${data.totalPages}`}
       />
 
-      <form action="/admin/orders" method="get" className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+        <StatCard variant="highlight" icon={ShoppingCart} label="Pending" value={countByStatus.get("pending") ?? 0} />
+        <StatCard icon={CreditCard} label="Paid" value={countByStatus.get("paid") ?? 0} />
+        <StatCard icon={Clock} label="Fulfilled" value={countByStatus.get("fulfilled") ?? 0} />
+        <StatCard icon={XCircle} label="Cancelled" value={countByStatus.get("cancelled") ?? 0} />
+        <StatCard icon={RotateCcw} label="Refunded" value={countByStatus.get("refunded") ?? 0} />
+      </div>
+
+      <form action="/admin/orders" method="get" className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-2">
         <input
           name="q"
           defaultValue={searchParams.q ?? ""}
@@ -97,18 +105,10 @@ export default async function AdminOrders({
             <option key={s.storeId} value={s.storeId}>{s.name}</option>
           ))}
         </select>
-        <button className="rounded-full bg-metu-yellow text-space-black px-4 py-2 text-sm font-bold col-span-2 md:col-span-1">
+        <button className="rounded-full bg-space-800 ring-1 ring-line text-white hover:ring-metu-yellow/40 transition px-4 py-2 text-sm font-semibold col-span-2 md:col-span-1">
           Apply filters
         </button>
       </form>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6">
-        <StatCard variant="highlight" icon={ShoppingCart} label="Pending" value={countByStatus.get("pending") ?? 0} />
-        <StatCard icon={CreditCard} label="Paid" value={countByStatus.get("paid") ?? 0} />
-        <StatCard icon={Clock} label="Fulfilled" value={countByStatus.get("fulfilled") ?? 0} />
-        <StatCard icon={XCircle} label="Cancelled" value={countByStatus.get("cancelled") ?? 0} />
-        <StatCard icon={RotateCcw} label="Refunded" value={countByStatus.get("refunded") ?? 0} />
-      </div>
 
       <DataTable<Order>
         ariaLabel="Orders"

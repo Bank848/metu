@@ -83,7 +83,18 @@ export default async function AdminAuditLog({
         subtitle={`${data.total.toLocaleString()} events · viewing page ${data.page}/${data.totalPages} · 100 per page · Asia/Bangkok timezone`}
       />
 
-      <form action="/admin/audit-log" method="get" className="mb-4 grid grid-cols-2 md:grid-cols-6 gap-2">
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <StatCard variant="highlight" icon={ClipboardList} label="Events on page" value={rows.length} />
+        <StatCard icon={Activity} label="Distinct actors" value={distinctActors} />
+        <StatCard
+          icon={AlertTriangle}
+          label="Fails / denied (page)"
+          value={failCount}
+          variant={failCount > 0 ? "default" : "zero"}
+        />
+      </div>
+
+      <form action="/admin/audit-log" method="get" className="mb-6 grid grid-cols-2 md:grid-cols-6 gap-2">
         <input
           name="actorEmail"
           defaultValue={searchParams.actorEmail ?? ""}
@@ -105,7 +116,7 @@ export default async function AdminAuditLog({
           <option value="ok">ok / success</option>
           <option value="fail">fail / denied</option>
         </select>
-        <button className="rounded-full bg-metu-yellow text-space-black px-4 py-2 text-sm font-bold">
+        <button className="rounded-full bg-space-800 ring-1 ring-line text-white hover:ring-metu-yellow/40 transition px-4 py-2 text-sm font-semibold">
           Apply
         </button>
         <input
@@ -122,22 +133,16 @@ export default async function AdminAuditLog({
         />
       </form>
 
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <StatCard variant="highlight" icon={ClipboardList} label="Events on page" value={rows.length} />
-        <StatCard icon={Activity} label="Distinct actors" value={distinctActors} />
-        <StatCard
-          icon={AlertTriangle}
-          label="Fails / denied (page)"
-          value={failCount}
-          variant={failCount > 0 ? "default" : "zero"}
-        />
-      </div>
-
       <DataTable<Row>
         ariaLabel="Audit log"
         columns={columns}
         rows={rows}
         getRowKey={(r) => r.logId}
+        rowClassName={(r) =>
+          r.action.endsWith(".fail") || r.action.endsWith(".denied")
+            ? "border-l-2 border-l-coral"
+            : undefined
+        }
         emptyState={
           <EmptyState
             variant="noResults"
