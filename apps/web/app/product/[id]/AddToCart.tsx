@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, FileDown, BadgeCheck, ArrowRight } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { coins, coinsOrFree, thbToCoins } from "@/lib/format";
@@ -48,6 +48,12 @@ export function AddToCart({
   // Used to trigger a one-shot pulse animation on the Add-to-cart button
   // when the add succeeds — visual confirmation beyond the toast text.
   const [justAdded, setJustAdded] = useState(false);
+  // Synchronous busy gate. `setBusy(true)` flips state on the next
+  // render but a fast double-click (Add then Buy-now within ~16ms)
+  // can fire both handlers before React re-renders the disabled
+  // attributes — both POST /api/cart/items requests would queue.
+  // The ref check rejects the second click immediately.
+  const busyRef = useRef(false);
 
   const active = items.find((i) => i.productItemId === selected)!;
   const isDigital = active && DIGITAL.has(active.deliveryMethod);
@@ -59,6 +65,8 @@ export function AddToCart({
   }, [maxQty]);
 
   async function addToCart(buyNow = false) {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setMessage(null);
     try {
@@ -111,6 +119,7 @@ export function AddToCart({
       setMessage("Network error");
     } finally {
       setBusy(false);
+      busyRef.current = false;
     }
   }
 
@@ -296,13 +305,13 @@ export function AddToCart({
           tone="glass"
           size="lg"
           onClick={() => addToCart(false)}
-          disabled={busy || active?.stock === 0 && !isDigital}
+          disabled={busy || (active?.stock === 0 && !isDigital)}
           className={cn(justAdded && "animate-[atc-pulse_0.9s_ease-out]")}
         >
           {justAdded ? <CheckCircle2 className="h-4 w-4 text-green-400" /> : <ShoppingBag className="h-4 w-4" />}
           {justAdded ? "Added" : "Add to cart"}
         </GlassButton>
-        <GlassButton tone="gold" size="lg" onClick={() => addToCart(true)} disabled={busy || active?.stock === 0 && !isDigital}>
+        <GlassButton tone="gold" size="lg" onClick={() => addToCart(true)} disabled={busy || (active?.stock === 0 && !isDigital)}>
           <Zap className="h-4 w-4" />
           Buy now
         </GlassButton>
