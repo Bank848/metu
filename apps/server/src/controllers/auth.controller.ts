@@ -380,11 +380,24 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
 };
 
 /**
- * POST /auth/login/phone-for-sms — returns the full phone number for a
- * valid pre-auth token, so the client-side Firebase Phone Auth widget
- * doesn't have to re-prompt the user for a number they already proved
- * they own (via password). Single-use of the pre-auth token is NOT
- * consumed here — that happens at /firebase-verify.
+ * POST /auth/login/phone-for-sms — returns the phone number bound to a
+ * valid pre-auth token so the Firebase Phone Auth widget can fire its
+ * SMS round-trip without making the buyer re-type a number they
+ * already own (they got here by entering the right password). Single-
+ * use of the pre-auth token IS consumed here and rotated into a child
+ * `token` returned in the response — the next call must be /firebase-
+ * verify with that child token.
+ *
+ * Returns:
+ *   - `phone`: full E.164 number (Firebase needs this for signInWithPhoneNumber)
+ *   - `phoneMasked`: country prefix + last 4 digits (safe to display)
+ *   - `token`: rotated child preAuthToken
+ *
+ * Returning the full phone is acceptable here because the caller has
+ * already proven possession of the password, and the masked tail
+ * already leaks enough info for SIM-swap social engineering. Trading
+ * the marginal disclosure for the better UX (no manual re-entry) is
+ * deliberate.
  */
 export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
   try {
@@ -424,13 +437,11 @@ export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
     }
     const nextToken = await issueLoginPreAuthToken(payload);
 
-    // Mask the returned phone — only the last 4 digits + country
-    // prefix. The raw value never leaves the server. The Firebase
-    // SMS round-trip happens on the client with the full number
-    // typed into the widget; we just confirm the tail matches the
-    // account on file.
-    const masked = maskPhoneTail(user.phone);
-    res.json({ phone: masked, token: nextToken });
+    res.json({
+      phone: user.phone,
+      phoneMasked: maskPhoneTail(user.phone),
+      token: nextToken,
+    });
   } catch (err) {
     next(err);
   }

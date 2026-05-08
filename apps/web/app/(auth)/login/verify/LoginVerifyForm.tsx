@@ -90,6 +90,10 @@ export function LoginVerifyForm() {
   // phone-for-sms? Tracked separately from smsPhoneHint because the
   // URL-sourced hint pre-populates without consuming anything.
   const [smsTokenRotated, setSmsTokenRotated] = useState<boolean>(false);
+  // Full phone returned by /phone-for-sms — handed to FirebasePhoneVerify
+  // as defaultPhone so the buyer doesn't have to re-type the number they
+  // already proved they own at the password step.
+  const [smsPhoneFull, setSmsPhoneFull] = useState<string>("");
 
   // Lazy phone-for-sms fetch — fires ONLY when the user actually picks
   // the SMS tab (or arrives on a phone-only flow with no channel
@@ -113,8 +117,17 @@ export function LoginVerifyForm() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.message ?? "Couldn't load phone for SMS.");
         if (!cancelled) {
-          if (typeof data.phone === "string" && data.phone) {
+          // Server returns: phone (full E.164), phoneMasked (display),
+          // token (child preAuth). Older builds returned just `phone`
+          // as the masked value — fall back to that so a stale BFF
+          // doesn't strand the form.
+          if (typeof data.phoneMasked === "string" && data.phoneMasked) {
+            setSmsPhoneHint(data.phoneMasked);
+          } else if (typeof data.phone === "string" && /\*/.test(data.phone)) {
             setSmsPhoneHint(data.phone);
+          }
+          if (typeof data.phone === "string" && data.phone && !/\*/.test(data.phone)) {
+            setSmsPhoneFull(data.phone);
           }
           if (typeof data.token === "string" && data.token) {
             setSmsToken(data.token);
@@ -317,15 +330,19 @@ export function LoginVerifyForm() {
         <div className="space-y-3">
           {smsPhoneError ? (
             <p className="text-xs text-coral">{smsPhoneError}</p>
-          ) : !smsTokenRotated ? (
+          ) : !smsTokenRotated || !smsPhoneFull ? (
             <p className="text-xs text-ink-secondary">Loading SMS verification…</p>
           ) : (
             <>
               <p className="text-xs text-ink-secondary">
-                Enter your full phone number to receive a Firebase SMS code.
-                {smsPhoneHint ? ` The number on file ends in ${smsPhoneHint}.` : ""}
+                We&rsquo;ll send a 6-digit Firebase SMS code to the phone on
+                file{smsPhoneHint ? ` (${smsPhoneHint})` : ""}. The code
+                expires in 5 minutes; resend is allowed once every 5 minutes.
               </p>
               <FirebasePhoneVerify
+                defaultPhone={smsPhoneFull}
+                phoneLabel={smsPhoneHint || undefined}
+                hideEnterPhone
                 verifyUrl="/api/auth/login/firebase-verify"
                 extraBody={{ token: smsToken, trustDevice }}
                 onVerified={() => {

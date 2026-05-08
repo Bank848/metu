@@ -478,7 +478,7 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
     return token;
   }
 
-  it("response body returns a MASKED phone (country prefix + last 4 only) and a NEW child token", async () => {
+  it("response body returns the full phone, a MASKED display tail, and a NEW child token", async () => {
     const token = await mintTokenAndArmFindFirst(7);
     (prisma.user.findUnique as any).mockResolvedValue({ phone: "+66812345678" });
     // Cycle 4 R2 fix: phone-for-sms now refuses to mint a child token
@@ -492,14 +492,20 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
       .send({ token });
 
     expect(res.status).toBe(200);
+    // Cycle 5 UX revision: the response now ships the full E.164 phone
+    // alongside the masked tail. Firebase Phone Auth needs the full
+    // number to fire signInWithPhoneNumber, and forcing the buyer to
+    // re-type a number they already proved they own at the password
+    // step was bouncing real users at demo. The masked tail still
+    // ships in `phoneMasked` for safe-to-display copy.
+    expect(res.body.phone).toBe("+66812345678");
     // Mask format from maskPhoneTail: prefix (+ up to 3 digits via the
     // /^\+\d{1,3}/ regex) + " *** *** " + last-4. For "+66812345678"
     // the regex's 1-3 greedy match yields "+668".
-    expect(res.body.phone).toMatch(/^\+\d{1,3} \*\*\* \*\*\* \d{4}$/);
-    expect(res.body.phone.endsWith(" 5678")).toBe(true);
-    // Full middle digits must NEVER come back in the body.
-    expect(res.body.phone).not.toContain("1234");
-    expect(res.body.phone).not.toContain("12345");
+    expect(res.body.phoneMasked).toMatch(/^\+\d{1,3} \*\*\* \*\*\* \d{4}$/);
+    expect(res.body.phoneMasked.endsWith(" 5678")).toBe(true);
+    expect(res.body.phoneMasked).not.toContain("1234");
+    expect(res.body.phoneMasked).not.toContain("12345");
     // Child token returned and DIFFERENT from the parent (rotation).
     expect(typeof res.body.token).toBe("string");
     expect(res.body.token.length).toBeGreaterThan(20);

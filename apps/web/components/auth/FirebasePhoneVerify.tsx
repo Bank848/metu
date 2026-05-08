@@ -25,6 +25,7 @@ type Step = "enter-phone" | "enter-code" | "verified";
 
 export function FirebasePhoneVerify({
   defaultPhone = "",
+  phoneLabel,
   onVerified,
   verifyUrl = "/api/auth/verify-phone-firebase",
   extraBody = {},
@@ -32,6 +33,12 @@ export function FirebasePhoneVerify({
   hideEnterPhone = false,
 }: {
   defaultPhone?: string;
+  /** What to show users in the "code sent to ___" copy. Defaults to
+   *  defaultPhone (the raw E.164). Pass a masked tail like
+   *  "+66 *** *** 1234" on flows where the raw number shouldn't reach
+   *  the UI. Firebase still receives the full defaultPhone for the
+   *  signInWithPhoneNumber call. */
+  phoneLabel?: string;
   /** Called after the server stamps phoneVerifiedAt successfully. */
   onVerified?: (phone: string) => void;
   /** Override for non-register flows (e.g. login two-step verify). */
@@ -206,25 +213,27 @@ export function FirebasePhoneVerify({
         </>
       )}
       {step === "enter-phone" && hideEnterPhone && (
-        <p className="text-sm text-ink-secondary">
-          {busy === "send"
-            ? `Sending an SMS code to ${phone || "your phone…"}`
-            : phone
-              ? `Tap below to send an SMS code to ${phone}.`
-              : "Preparing SMS verification…"}
+        <div className="space-y-3">
+          <p className="text-sm text-ink-secondary">
+            {busy === "send"
+              ? `Sending an SMS code to ${phoneLabel || phone || "your phone…"}`
+              : phone
+                ? `Tap below to send an SMS code to ${phoneLabel || phone}.`
+                : "Preparing SMS verification…"}
+          </p>
           {!autoSend && phone && (
             <GlassButton tone="gold" onClick={sendCode} disabled={busy !== null}>
-              Send SMS code
+              {busy === "send" ? "Sending…" : "Send SMS code"}
             </GlassButton>
           )}
-        </p>
+        </div>
       )}
       {step === "enter-code" && (
         <>
           <p className="text-sm text-ink-secondary">
             {busy === "send"
-              ? <>Sending a 6-digit code to <strong className="text-white">{phone}</strong>…</>
-              : <>Enter the 6-digit code we just sent to <strong className="text-white">{phone}</strong>.</>}
+              ? <>Sending a 6-digit code to <strong className="text-white">{phoneLabel || phone}</strong>…</>
+              : <>Enter the 6-digit code we just sent to <strong className="text-white">{phoneLabel || phone}</strong>.</>}
           </p>
           <input
             type="text"
