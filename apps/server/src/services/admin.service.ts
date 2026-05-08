@@ -676,6 +676,8 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
     // N-day revenue series. generate_series fills in zero-revenue
     // days so the chart never has gaps; FILTER limits the SUM/COUNT
     // to settled orders only without a second LEFT JOIN.
+    // Bins by Bangkok local date so an order placed at 23:30 ICT bins
+    // to "today" (matches what the operator sees on the wall clock).
     prisma.$queryRaw<
       Array<{ day: string; revenue: string; order_count: bigint }>
     >`
@@ -683,9 +685,13 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
         TO_CHAR(d::date, 'YYYY-MM-DD')                                    AS day,
         COALESCE(SUM(o.total_price) FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::text AS revenue,
         COUNT(o.order_id) FILTER (WHERE o.status IN ('paid','fulfilled')) AS order_count
-      FROM generate_series(CURRENT_DATE - (${offset}::int * INTERVAL '1 day'), CURRENT_DATE, INTERVAL '1 day') d
+      FROM generate_series(
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date - (${offset}::int * INTERVAL '1 day'),
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+             INTERVAL '1 day'
+           ) d
       LEFT JOIN "orders" o
-        ON DATE(o.created_at) = d::date
+        ON (o.created_at AT TIME ZONE 'Asia/Bangkok')::date = d::date
       GROUP BY d
       ORDER BY d ASC
     `,
@@ -875,12 +881,20 @@ export async function getDashboardMetrics() {
       day: string; users: bigint; orders: bigint; gmv: string; reviews: bigint;
     }>>`
       SELECT TO_CHAR(d::date, 'YYYY-MM-DD') AS day,
-             COALESCE((SELECT COUNT(*) FROM "users" u WHERE DATE(u.created_date) = d::date), 0)::bigint  AS users,
-             COALESCE((SELECT COUNT(*) FROM "orders" o WHERE DATE(o.created_at) = d::date), 0)::bigint   AS orders,
+             COALESCE((SELECT COUNT(*) FROM "users" u
+                        WHERE (u.created_date AT TIME ZONE 'Asia/Bangkok')::date = d::date), 0)::bigint  AS users,
+             COALESCE((SELECT COUNT(*) FROM "orders" o
+                        WHERE (o.created_at AT TIME ZONE 'Asia/Bangkok')::date = d::date), 0)::bigint   AS orders,
              COALESCE((SELECT SUM(total_price) FROM "orders" o
-                        WHERE DATE(o.created_at) = d::date AND o.status IN ('paid','fulfilled')), 0)::text AS gmv,
-             COALESCE((SELECT COUNT(*) FROM "product_review" r WHERE DATE(r.created_at) = d::date), 0)::bigint AS reviews
-      FROM generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, INTERVAL '1 day') d
+                        WHERE (o.created_at AT TIME ZONE 'Asia/Bangkok')::date = d::date
+                          AND o.status IN ('paid','fulfilled')), 0)::text AS gmv,
+             COALESCE((SELECT COUNT(*) FROM "product_review" r
+                        WHERE (r.created_at AT TIME ZONE 'Asia/Bangkok')::date = d::date), 0)::bigint AS reviews
+      FROM generate_series(
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date - INTERVAL '6 days',
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+             INTERVAL '1 day'
+           ) d
       ORDER BY d ASC
     `),
     // Orders-by-status donut. Five-way breakdown so /admin can render
@@ -966,10 +980,14 @@ export async function getDashboardMetrics() {
              COALESCE((
                SELECT AVG(total_price)::numeric(20,2)
                  FROM "orders" o
-                WHERE DATE(o.created_at) = d::date
+                WHERE (o.created_at AT TIME ZONE 'Asia/Bangkok')::date = d::date
                   AND o.status IN ('paid', 'fulfilled')
              ), 0)::text                                             AS aov
-      FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, INTERVAL '1 day') d
+      FROM generate_series(
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date - INTERVAL '13 days',
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+             INTERVAL '1 day'
+           ) d
       ORDER BY d ASC
     `),
     // Section 5c of the report — User Information Integrity & Product
