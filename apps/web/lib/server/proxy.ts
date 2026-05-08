@@ -14,6 +14,13 @@ export async function forwardToApi(
   const incomingOrigin =
     req.headers.get("origin") ?? new URL(req.url).origin;
 
+  // Forward client IP markers so audit rows + rate-limit buckets on
+  // the upstream API see the real visitor, not the BFF machine. Under
+  // Fly.io, two reverse proxies sit in front; only Fly-Client-IP
+  // carries the original visitor address. Without forwarding, every
+  // /api/admin/* / /api/seller/* action records the BFF's IP.
+  const flyIp = req.headers.get("fly-client-ip");
+  const xff = req.headers.get("x-forwarded-for");
   const init: RequestInit = {
     method: req.method,
     headers: {
@@ -24,6 +31,8 @@ export async function forwardToApi(
       ...(req.headers.get("user-agent")
         ? { "user-agent": req.headers.get("user-agent")! }
         : {}),
+      ...(flyIp ? { "fly-client-ip": flyIp } : {}),
+      ...(xff ? { "x-forwarded-for": xff } : {}),
     },
   };
   if (req.method !== "GET" && req.method !== "HEAD") {
