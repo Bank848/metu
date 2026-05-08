@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { clientIp } from "../utils/client-ip.js";
 
 // Sliding-window rate limiter, in-process Map keyed by IP. Sends a
 // 429 directly with the canonical body shape ({ error, retryAfter })
@@ -35,8 +36,10 @@ function bucketsFor(options: LimiterOptions): Map<string, Bucket> {
 }
 
 function defaultKey(req: Request): string {
-  // req.ip respects trust proxy (set in app.ts).
-  return req.ip ?? "unknown";
+  // Under Fly.io, req.ip resolves to the inner reverse-proxy IP, not
+  // the real visitor — `clientIp()` reads the canonical Fly-Client-IP
+  // header first, then falls back to XFF[0] / req.ip for local dev.
+  return clientIp(req) ?? "unknown";
 }
 
 export function rateLimit(options: LimiterOptions) {
