@@ -54,15 +54,16 @@ export function subtotalOf(lines: ReadonlyArray<Pick<CartLineForMath, "lineTotal
 /**
  * Subtotal of just the lines from `storeId` — coupons are scoped to
  * the store that issued them, so a code from "Store A" only discounts
- * Store A's lines even when other lines are in the cart.
+ * Store A's lines even when other lines are in the cart. Pass
+ * `storeId = null` for master (platform-wide) coupons that discount
+ * the entire selected subtotal.
  */
 export function eligibleSubtotalForStore(
   lines: ReadonlyArray<Pick<CartLineForMath, "storeId" | "lineTotal">>,
-  storeId: number,
+  storeId: number | null,
 ): number {
-  return lines
-    .filter((l) => l.storeId === storeId)
-    .reduce((acc, l) => acc + l.lineTotal, 0);
+  const matched = storeId === null ? lines : lines.filter((l) => l.storeId === storeId);
+  return matched.reduce((acc, l) => acc + l.lineTotal, 0);
 }
 
 export type CouponDiscount = {
