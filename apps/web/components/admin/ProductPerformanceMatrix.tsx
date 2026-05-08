@@ -31,7 +31,7 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
   const totalDead = rows.filter((r) => r.revenue30d === 0).length;
 
   return (
-    <div className="rounded-2xl border border-line bg-space-900 p-5">
+    <div className="rounded-2xl border border-line/80 bg-space-850 p-5 shadow-flat">
       <header className="mb-3">
         <h3 className="font-display font-bold text-white flex items-center gap-2">
           <TrendingDown className="h-4 w-4 text-coral" />
@@ -78,7 +78,7 @@ export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
                     {/* Inline bar — coral so it visually contrasts with
                         the mint Top Stores / Top Buyers leaderboards. */}
                     <div className="mt-1 flex items-center gap-2">
-                      <span className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden">
+                      <span className="flex-1 h-1 rounded-full bg-space-900 overflow-hidden">
                         <span
                           className="block h-full bg-coral animate-bar-extend"
                           style={{

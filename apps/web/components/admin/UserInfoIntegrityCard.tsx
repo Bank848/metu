@@ -38,7 +38,7 @@ export function UserInfoIntegrityCard({
   const lift = userRate > 0 ? orderRate / userRate : 0;
 
   return (
-    <div className="rounded-2xl border border-line bg-space-900 p-5">
+    <div className="rounded-2xl border border-line/80 bg-space-850 p-5 shadow-flat">
       <header className="mb-3">
         <h3 className="font-display font-bold text-white flex items-center gap-2">
           <ShieldCheck className="h-4 w-4 text-mint" />
@@ -50,7 +50,7 @@ export function UserInfoIntegrityCard({
       </header>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-xl bg-space-950/60 p-3">
+        <div className="rounded-xl bg-space-900 ring-1 ring-line/50 p-3">
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">
             Profile complete
           </div>
