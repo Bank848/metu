@@ -149,4 +149,32 @@ if (isMainModule) {
         console.error("[metu-server] sweepExpiredOrders error:", err);
       });
   }, SWEEP_INTERVAL_MS).unref();
+
+  // Top-stores leaderboard freshness — REFRESH MATERIALIZED VIEW
+  // CONCURRENTLY every 5 minutes so the /admin "Top stores (30d)"
+  // widget stays current during a live demo without the operator
+  // having to click the manual Refresh button. CONCURRENTLY = readers
+  // never block (UNIQUE index on store_id is created in the matview
+  // migration). Errors are logged + swallowed so a transient DB blip
+  // doesn't crash the server. Tracked on globalThis so dev hot-reload
+  // doesn't stack up duplicate intervals.
+  const MATVIEW_REFRESH_MS = 5 * 60_000;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const g = globalThis as any;
+  if (g.__metuTopStoresRefreshTimer) {
+    clearInterval(g.__metuTopStoresRefreshTimer);
+  }
+  g.__metuTopStoresRefreshTimer = setInterval(() => {
+    import("./db/prisma.js")
+      .then(({ prisma }) =>
+        prisma.$executeRawUnsafe(
+          `REFRESH MATERIALIZED VIEW CONCURRENTLY "top_stores_30d"`,
+        ),
+      )
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error("[metu-server] top_stores_30d refresh error:", err);
+      });
+  }, MATVIEW_REFRESH_MS);
+  g.__metuTopStoresRefreshTimer.unref?.();
 }
