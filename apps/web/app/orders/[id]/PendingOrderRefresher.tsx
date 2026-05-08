@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 type Stage = "verifying" | "syncing" | "polling" | "confirmed";
+
+const STAGES: Stage[] = ["verifying", "syncing", "polling"];
 
 /**
  * While an order is `?new=1 + status=pending`, fire an immediate
@@ -87,10 +90,31 @@ export function PendingOrderRefresher({ orderId }: { orderId: number }) {
         : stage === "polling"
           ? "Almost there — finalising the order…"
           : "Order confirmed!";
+  const idx = STAGES.indexOf(stage);
+  const done = stage === "confirmed";
   return (
-    <p className="text-xs text-ink-dim mt-2 text-center">
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-metu-yellow mr-1.5 animate-pulse" />
-      {label}
-    </p>
+    <div className="mt-2" aria-live="polite">
+      <div className="flex items-center justify-center gap-1.5">
+        {STAGES.map((s, i) => {
+          const isCurrent = !done && i === idx;
+          const isFilled = done || i <= idx;
+          return (
+            <span
+              key={s}
+              className={cn(
+                "h-1.5 w-6 rounded-full transition-colors",
+                done
+                  ? "bg-mint"
+                  : isFilled
+                    ? "bg-metu-yellow"
+                    : "bg-space-800",
+                isCurrent && "animate-pulse",
+              )}
+            />
+          );
+        })}
+      </div>
+      <p className="text-xs text-ink-dim text-center mt-1.5">{label}</p>
+    </div>
   );
 }

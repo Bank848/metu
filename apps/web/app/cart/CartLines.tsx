@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag, AlertTriangle, Heart, Loader2 } from "lucide-react";
+import { Trash2, Tag as TagIcon, ShieldCheck, Sparkles, ShoppingBag, AlertTriangle, Heart, Loader2, X } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { coins, coinsOrFree, thbToCoins } from "@/lib/format";
 import { play } from "@/lib/sound";
@@ -625,19 +625,27 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
             </div>
           </div>
           {couponResult?.valid && (
-            <p className="text-xs flex items-center gap-1 text-green-400">
-              <TagIcon className="h-3 w-3" />
-              <span>
-                <strong>{couponResult.code}</strong> applied ·{" "}
+            <div className="inline-flex items-start gap-2 rounded-full bg-mint/15 ring-1 ring-mint/30 pl-2.5 pr-1.5 py-1 text-xs text-mint max-w-full">
+              <TagIcon className="h-3 w-3 mt-0.5 shrink-0" />
+              <span className="min-w-0">
+                <strong className="font-semibold">{couponResult.code}</strong> ·{" "}
                 {couponResult.discountType === "percent"
                   ? `−${couponResult.discountValue}%`
                   : `−${coins(thbToCoins(couponResult.discountValue))}`}
                 {" · "}
                 <span className="text-ink-secondary">
-                  {couponResult.store ? `${couponResult.store.name} items only` : "Master coupon (all items)"}
+                  {couponResult.store ? `${couponResult.store.name} items` : "all items"}
                 </span>
               </span>
-            </p>
+              <button
+                type="button"
+                onClick={() => { setCoupon(""); setCouponResult(null); }}
+                aria-label="Remove coupon"
+                className="ml-auto shrink-0 rounded-full p-0.5 text-mint/70 hover:text-mint hover:bg-mint/20 transition"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
           )}
           {couponResult && !couponResult.valid && (
             <p className="text-xs text-red-400">

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/Button";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 // bfcache + Stripe Elements quirk: when the buyer hits browser-back
 // from the Stripe-hosted 3DS flow, browsers may restore the page from
@@ -139,7 +139,11 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
   }
 
   return (
-    <form onSubmit={onSubmit} className="rounded-2xl border border-line bg-space-900 p-6">
+    <form onSubmit={onSubmit} className="max-w-md mx-auto rounded-2xl border border-line bg-space-900 p-6">
+      <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-metu-yellow/15 ring-1 ring-metu-yellow/30 px-2.5 py-1 text-[10px] font-mono text-metu-yellow uppercase tracking-wider">
+        <AlertCircle className="h-3 w-3" />
+        Test mode · no real charge
+      </div>
       <PaymentElement onReady={() => setReady(true)} />
       {error && (
         <p role="alert" className="mt-3 text-sm text-red-400">
