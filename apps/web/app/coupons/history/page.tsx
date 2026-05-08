@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Ticket, ArrowRight, Clock } from "lucide-react";
+import { Ticket, ArrowRight, Clock, Sparkles } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { PageHeader } from "@/components/PageHeader";
@@ -26,6 +26,14 @@ interface UsageRow {
   used_at: Date;
   order_id: number | null;
   amount_saved: string;
+}
+
+interface AvailableMasterRow {
+  coupon_id: number;
+  code: string;
+  discount_type: string;
+  discount_value: number;
+  end_date: Date;
 }
 
 export default async function CouponHistoryPage() {
@@ -71,6 +79,28 @@ export default async function CouponHistoryPage() {
   `;
 
   const totalSaved = rows.reduce((a, r) => a + Number(r.amount_saved), 0);
+
+  // Surface master coupons (storeId=null) that are still active AND
+  // the user hasn't redeemed yet. Demo briefing path-4 expects "admin
+  // creates a master coupon → buyer sees it on /coupons/history" — the
+  // redemption-only table can't satisfy that so this section fronts the
+  // list. Excludes per-store coupons; those still ride the featured
+  // promo block at the bottom.
+  const availableMaster = await prisma.$queryRaw<AvailableMasterRow[]>`
+    SELECT c.coupon_id, c.code, c.discount_type, c.discount_value, c.end_date
+    FROM coupon c
+    WHERE c.store_id IS NULL
+      AND c.is_active = true
+      AND c.start_date <= NOW()
+      AND c.end_date   >= NOW()
+      AND NOT EXISTS (
+        SELECT 1 FROM coupon_usage cu
+        WHERE cu.coupon_id = c.coupon_id AND cu.user_id = ${userId}
+      )
+    ORDER BY c.end_date ASC
+    LIMIT 12
+  `;
+
   const featured = await getFeaturedCoupons(3);
 
   return (
@@ -85,6 +115,49 @@ export default async function CouponHistoryPage() {
               : `${rows.length} redemption${rows.length === 1 ? "" : "s"} · saved ${coins(thbToCoins(totalSaved))} total`
           }
         />
+
+        {availableMaster.length > 0 && (
+          <section className="rounded-2xl border border-metu-yellow/40 bg-gradient-to-br from-metu-yellow/8 to-transparent p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-metu-yellow" />
+                Available coupons
+              </h2>
+              <span className="text-xs text-ink-dim">
+                {availableMaster.length} master coupon{availableMaster.length === 1 ? "" : "s"} ready to use
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {availableMaster.map((c) => (
+                <div
+                  key={c.coupon_id}
+                  className="rounded-xl border border-metu-yellow/50 bg-space-900 p-4"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <Badge variant="gold" className="uppercase text-[10px]">
+                      Master
+                    </Badge>
+                    <span className="text-[10px] text-ink-dim flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {fmtDate(c.end_date)}
+                    </span>
+                  </div>
+                  <div className="font-display text-lg font-bold text-gold-gradient">
+                    {c.discount_type === "percent"
+                      ? `${c.discount_value}% off`
+                      : `${coins(thbToCoins(c.discount_value))} off`}
+                  </div>
+                  <code className="block font-mono text-xs text-metu-yellow mt-1 select-all">
+                    {c.code}
+                  </code>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-[11px] text-ink-dim">
+              Apply any of these codes at checkout. Master coupons work across every store on METU.
+            </p>
+          </section>
+        )}
 
         {rows.length === 0 ? (
           <EmptyState
