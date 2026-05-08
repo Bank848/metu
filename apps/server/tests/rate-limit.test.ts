@@ -75,6 +75,38 @@ describe("rateLimit middleware", () => {
     expect(okB.status).toBe(200);
   });
 
+  it("Fly-Client-IP wins over X-Forwarded-For — Fly inner proxy can't be spoofed via XFF", async () => {
+    // Regression coverage for cycle-4 R1 finding C4-T-002: under Fly,
+    // req.ip is the inner reverse-proxy IP and XFF is set by the outer
+    // Fly edge. The canonical Fly-Client-IP header carries the real
+    // visitor IP and MUST take precedence over XFF in defaultKey() —
+    // otherwise a single shared bucket throttles every visitor on the
+    // machine.
+    const app = makeApp(2, 60_000);
+    // Two requests where Fly-Client-IP differs but XFF is identical:
+    // each must get its own bucket (proves Fly-Client-IP is the key).
+    await request(app)
+      .get("/limited")
+      .set("X-Forwarded-For", "10.0.0.99")
+      .set("Fly-Client-IP", "203.0.113.10");
+    await request(app)
+      .get("/limited")
+      .set("X-Forwarded-For", "10.0.0.99")
+      .set("Fly-Client-IP", "203.0.113.10");
+    const overA = await request(app)
+      .get("/limited")
+      .set("X-Forwarded-For", "10.0.0.99")
+      .set("Fly-Client-IP", "203.0.113.10");
+    expect(overA.status).toBe(429);
+    // Same XFF (would collide if XFF were the key) but different
+    // Fly-Client-IP — must start fresh at 0.
+    const okB = await request(app)
+      .get("/limited")
+      .set("X-Forwarded-For", "10.0.0.99")
+      .set("Fly-Client-IP", "203.0.113.20");
+    expect(okB.status).toBe(200);
+  });
+
   it("re-allows requests after the window slides (using a tiny windowMs)", async () => {
     const app = makeApp(1, 50); // 1 request per 50ms
     const first = await request(app).get("/limited");
