@@ -75,9 +75,40 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
   // save-for-later feedback and any other non-line-scoped action result.
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   // Gift checkout state — collapsed by default to keep the summary tight.
+  // Persisted to localStorage so a buyer who bounces to /checkout and then
+  // hits browser-back to /cart doesn't lose what they typed (the page
+  // re-fetches under force-dynamic, which can re-mount this component).
+  const GIFT_STORAGE_KEY = "metu:cart-gift";
   const [giftOpen, setGiftOpen] = useState(false);
   const [giftEmail, setGiftEmail] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
+  // Hydrate gift state from localStorage on mount (client-only).
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(GIFT_STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { open?: boolean; email?: string; message?: string };
+      if (saved && typeof saved === "object") {
+        if (typeof saved.open === "boolean") setGiftOpen(saved.open);
+        if (typeof saved.email === "string") setGiftEmail(saved.email);
+        if (typeof saved.message === "string") setGiftMessage(saved.message);
+      }
+    } catch {
+      // private mode / quota / parse failure — fall back to defaults.
+    }
+    // run once on mount; later writes happen via the persist effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        GIFT_STORAGE_KEY,
+        JSON.stringify({ open: giftOpen, email: giftEmail, message: giftMessage }),
+      );
+    } catch {
+      // ignore — same fallbacks as above.
+    }
+  }, [giftOpen, giftEmail, giftMessage]);
 
   // Every item is selected by default; mirror to localStorage so checkbox
   // state survives navigations (cart refresh after add-to-cart, return from
@@ -291,6 +322,17 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({} as { message?: string; error?: string }));
+        // SelectionStale = the localStorage selection has cartItemIds
+        // from a cart that's already been checked out. Wipe selection
+        // storage and re-fetch the cart so the next click works without
+        // the buyer having to figure out why "Refresh" was needed.
+        if (err?.error === "SelectionStale") {
+          try { window.localStorage.removeItem(SELECTION_STORAGE_KEY); } catch { /* noop */ }
+          setToast({ ok: false, text: "Cart updated — re-select what you want and try again." });
+          play("error");
+          router.refresh();
+          return;
+        }
         // Surface the server-supplied reason so buyers know WHY checkout
         // failed (expired coupon, gift email malformed, seller not Stripe-
         // onboarded, stock change, etc.) instead of just hearing the
@@ -301,6 +343,13 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       }
       const data = await res.json();
       play("success");
+      // checkout empties the active cart server-side, so any persisted
+      // gift fields and selection map to the now-archived cart. Clear
+      // them so the next active cart starts fresh.
+      try {
+        window.localStorage.removeItem(GIFT_STORAGE_KEY);
+        window.localStorage.removeItem(SELECTION_STORAGE_KEY);
+      } catch { /* noop */ }
       // run #2 / F8 — checkout empties the active cart server
       // side; tell the TopNav badge before we navigate away so the
       // icon doesn't briefly flash the pre-checkout count on the

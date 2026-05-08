@@ -34,10 +34,11 @@ export default async function CheckoutPage({
     where: { orderId },
     include: {
       // Direct-charge PIs live on the seller's Connect account, so
-      // Stripe.js scopes with stripeAccount: <sellerAcct>. Derived from
-      // the first item's product's store (all items single-store).
+      // Stripe.js scopes with stripeAccount: <sellerAcct>. Single-store
+      // orders only, so any surviving item gives us the right account —
+      // we load all so a hard-deleted item[0] (productItem set null)
+      // doesn't leave us with a null Stripe account.
       items: {
-        take: 1,
         include: {
           productItem: {
             include: {
@@ -108,7 +109,12 @@ export default async function CheckoutPage({
           clientSecret={clientSecret}
           publishableKey={publishableKey}
           stripeAccount={
-            order.items[0]?.productItem?.product.store.stripeAccountId ?? null
+            // Hard-deleted variants surface as null productItem on
+            // OrderItem (set-null FK). Find the first surviving item so
+            // we can still derive the seller's Stripe account — otherwise
+            // Stripe.js loads in platform context and the Element hangs
+            // on a PI that lives on the connected account.
+            order.items.find((i) => i.productItem)?.productItem?.product.store.stripeAccountId ?? null
           }
         />
       </main>

@@ -82,6 +82,18 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
   // Without this, Pay was clickable while Stripe was still loading and
   // the button got stuck on "Confirming…" forever.
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [slowLoad, setSlowLoad] = useState(false);
+
+  // If Elements never mounts within ~10s, surface a refresh CTA.
+  // Otherwise the form sits at "Loading payment form…" indefinitely
+  // when the seller's stripeAccount doesn't match the PI's account, a
+  // CSP rule blocks the iframe, etc.
+  useEffect(() => {
+    if (ready || loadError) return;
+    const t = window.setTimeout(() => setSlowLoad(true), 10_000);
+    return () => window.clearTimeout(t);
+  }, [ready, loadError]);
 
   // If the user navigated BACK to this page after a successful redirect
   // (the PI is already succeeded/processing on Stripe), don't let them
@@ -144,7 +156,38 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
         <AlertCircle className="h-3 w-3" />
         Test mode · no real charge
       </div>
-      <PaymentElement onReady={() => setReady(true)} />
+      <PaymentElement
+        onReady={() => setReady(true)}
+        onLoadError={(e) =>
+          setLoadError(e.error?.message ?? "Couldn't load the payment form.")
+        }
+      />
+      {(loadError || (slowLoad && !ready)) && (
+        <div role="alert" className="mt-4 rounded-xl border border-coral/40 bg-coral/5 p-3 text-sm text-coral">
+          <p className="font-semibold mb-1">
+            {loadError ? "Payment form failed to load." : "Payment form is taking longer than usual."}
+          </p>
+          <p className="text-xs text-coral/80 mb-2">
+            {loadError ?? "It usually loads within a few seconds. Refresh the page or return to your cart and try again."}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-full bg-coral/20 px-3 py-1 text-xs font-semibold hover:bg-coral/30 transition"
+            >
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/cart")}
+              className="rounded-full ring-1 ring-coral/40 px-3 py-1 text-xs font-semibold hover:bg-coral/10 transition"
+            >
+              Back to cart
+            </button>
+          </div>
+        </div>
+      )}
       {error && (
         <p role="alert" className="mt-3 text-sm text-red-400">
           {error}
@@ -153,11 +196,11 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
       <Button
         type="submit"
         variant="primary"
-        disabled={!ready || busy}
+        disabled={!ready || busy || !!loadError}
         className="mt-6 w-full"
       >
-        {(busy || !ready) ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {busy ? "Confirming…" : !ready ? "Loading payment form…" : "Pay now"}
+        {(busy || (!ready && !loadError)) ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {busy ? "Confirming…" : loadError ? "Payment form unavailable" : !ready ? "Loading payment form…" : "Pay now"}
       </Button>
       <p className="mt-4 text-center text-xs text-ink-dim">
         Test mode &middot; use card <code>4242 4242 4242 4242</code>, any future expiry, any CVC.
