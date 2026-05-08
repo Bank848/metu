@@ -4,6 +4,7 @@ import type { Request } from "express";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
+import { bangkokStartOfDay, bangkokEndOfDay } from "../utils/time.js";
 import { refundOrder as stripeRefund } from "./stripe.service.js";
 
 // Narrow type so services don't have to drag in the full Express.Request.
@@ -755,8 +756,8 @@ export async function createCoupon(storeId: number, input: CouponInput) {
       code: input.code,
       discountType: input.discountType,
       discountValue: input.discountValue,
-      startDate: new Date(input.startDate),
-      endDate: new Date(input.endDate),
+      startDate: bangkokStartOfDay(input.startDate),
+      endDate: bangkokEndOfDay(input.endDate),
       usageLimit: input.usageLimit,
       isActive: input.isActive,
     },

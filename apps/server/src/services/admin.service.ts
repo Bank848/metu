@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
+import { bangkokStartOfDay, bangkokEndOfDay } from "../utils/time.js";
 import { refundOrder as stripeRefund, getClient as getStripeClient, isConfigured as stripeConfigured } from "./stripe.service.js";
 import { finalizeOrder, clearCartAfterPayment } from "./orders.service.js";
 import { PUBLIC_SITE_URL } from "../config.js";
@@ -1305,8 +1306,10 @@ export async function createMasterCoupon(input: {
       code,
       discountType: input.discountType,
       discountValue: input.discountValue,
-      startDate: input.startDate instanceof Date ? input.startDate : new Date(input.startDate),
-      endDate: input.endDate instanceof Date ? input.endDate : new Date(input.endDate),
+      // Snap to Bangkok day boundaries so a date-input "2026-12-31"
+      // doesn't expire at 07:00 ICT (UTC midnight + offset).
+      startDate: bangkokStartOfDay(input.startDate),
+      endDate: bangkokEndOfDay(input.endDate),
       usageLimit: input.usageLimit,
       isActive: true,
     },
