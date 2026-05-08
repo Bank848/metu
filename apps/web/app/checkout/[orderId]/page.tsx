@@ -62,9 +62,19 @@ export default async function CheckoutPage({
 
   const clientSecret = searchParams.cs;
   if (!clientSecret) {
-    // No clientSecret in the URL → either the order was placed in demo
-    // mode (no Stripe charge) or the link was tampered with. Send the
-    // user back to the cart in either case.
+    // No clientSecret in the URL. Three cases:
+    //   1. order is already settled → handled above (line 59).
+    //   2. order is `pending` but the user landed here via browser-back
+    //      from the receipt — the original ?cs= is gone from history.
+    //      Route to the receipt instead of /cart so a paid order never
+    //      "disappears". Stripe webhook may have settled the row between
+    //      the load and now; receipt page handles the still-pending state
+    //      with PendingOrderRefresher.
+    //   3. true demo mode (no Stripe key) — the API never returned a
+    //      clientSecret in the first place; treat as cart bounce.
+    if (order.status === "pending") {
+      redirect(`/orders/${orderId}`);
+    }
     redirect("/cart");
   }
 
