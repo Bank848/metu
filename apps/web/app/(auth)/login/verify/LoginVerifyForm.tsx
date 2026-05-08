@@ -162,6 +162,14 @@ export function LoginVerifyForm() {
     );
   }
 
+  // After phone-for-sms rotates the parent token into smsToken, the
+  // original `token` is consumed server-side. If the user toggles back
+  // to the email tab, every email-channel call has to use smsToken
+  // (the rotated child is still bound to the same login session) or
+  // the server returns InvalidPreAuth. This avoids the demo-day glitch
+  // where clicking SMS chip then Email chip 401s the form.
+  const activeToken = smsTokenRotated ? smsToken : token;
+
   async function requestCode() {
     if (inFlight.current) return;
     const last = sentAt[chosen] ?? 0;
@@ -178,7 +186,7 @@ export function LoginVerifyForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ token, channel: chosen }),
+        body: JSON.stringify({ token: activeToken, channel: chosen }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -209,7 +217,7 @@ export function LoginVerifyForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ token, code: code.trim(), trustDevice }),
+        body: JSON.stringify({ token: activeToken, code: code.trim(), trustDevice }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
