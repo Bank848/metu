@@ -352,7 +352,7 @@ export default async function OrderDetail({
                   <Sparkles className="h-3 w-3 text-metu-yellow" />
                   Transaction
                 </h2>
-                <div className="rounded-xl border border-white/10 bg-surface-2 p-4 grid grid-cols-3 gap-4 font-mono text-xs">
+                <div className="rounded-xl border border-white/10 bg-surface-2 p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 font-mono text-xs">
                   <div>
                     <div className="text-ink-dim">Tx ID</div>
                     <div className="text-white mt-0.5">#{order.transaction.transactionId}</div>
