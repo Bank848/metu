@@ -762,7 +762,8 @@ export async function getAdminStores(f: AdminStoresFilters = {}) {
   if (f.businessTypeId) where.businessTypeId = f.businessTypeId;
   if (f.minRating !== undefined) where.rating = { gte: f.minRating };
   if (f.q?.trim()) {
-    const q = f.q.trim();
+    // Cap at 64 chars before fanning into multiple `contains` clauses.
+    const q = f.q.trim().slice(0, 64);
     where.OR = [
       { name: { contains: q, mode: "insensitive" } },
       { owner: { OR: [

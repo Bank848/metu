@@ -195,6 +195,19 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     },
   });
 
+  // Bump Transaction.date to payment-success time so the admin Recent
+  // Transactions widget sorts paid orders ahead of stale checkouts.
+  // Idempotent: re-stamping `now()` on a Stripe retry is harmless.
+  // Transaction <-> Order is many-to-one via Order.transactionId, so
+  // filter via the relation rather than a non-existent orderId column.
+  await prisma.transaction.updateMany({
+    where: {
+      transactionType: "purchase",
+      orders: { some: { orderId } },
+    },
+    data: { date: new Date() },
+  });
+
   // Now that the charge is real, drop the purchased items from whatever
   // active cart the buyer carried forward. Cart row itself stays open
   // for any unrelated items still in it.
