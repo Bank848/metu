@@ -947,6 +947,16 @@ export async function changePassword(
     select: { email: true },
   });
   await syncCredentialAccount(userId, updated.email, hash);
+  // Revoke every other better-auth session and trusted-device row so
+  // a stolen-credential or shared-laptop scenario doesn't keep old
+  // sessions alive after the owner rotates the password. The current
+  // session lives in the better-auth cookie of THIS request and is
+  // not in our local Session table — it stays valid for the user
+  // who just changed the password.
+  await prisma.$transaction([
+    prisma.session.deleteMany({ where: { userId } }),
+    prisma.trustedDevice.deleteMany({ where: { userId } }),
+  ]);
   await audit({
     actorId: userId,
     action: "auth.password.change",
@@ -1509,6 +1519,15 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
   ]);
 
   await syncCredentialAccount(row.userId, updatedUser.email, hash);
+
+  // After a password reset (forgot-password flow), nuke every existing
+  // session + trusted-device row so the actor who just regained access
+  // is the only one with a foothold. The reset-link consumer hasn't
+  // logged in yet — they'll mint a fresh session on the next sign-in.
+  await prisma.$transaction([
+    prisma.session.deleteMany({ where: { userId: row.userId } }),
+    prisma.trustedDevice.deleteMany({ where: { userId: row.userId } }),
+  ]);
 
   await audit({
     actorId: row.userId,

@@ -45,6 +45,9 @@ vi.mock("../src/db/prisma.js", () => ({
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+      // changePassword + resetPassword nuke every trusted device row
+      // for the user; the mock just needs to exist for the call.
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     // Phase 16.3 — credential `account` row stays in sync with
     // user.password via syncCredentialAccount(). All four
