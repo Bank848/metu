@@ -10,8 +10,10 @@ export const couponInputSchema = z
     code: z.string().min(3).max(50).regex(/^[A-Z0-9_-]+$/, "uppercase alphanumeric"),
     discountType: z.enum(DISCOUNT_TYPE),
     discountValue: z.number().int().positive(),
-    startDate: z.string().datetime(),
-    endDate: z.string().datetime(),
+    // Accept both YYYY-MM-DD (HTML <input type="date">) and full ISO. coerce.date()
+    // parses either into a Date — refine() below reads them with .getTime() directly.
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
     usageLimit: z.number().int().positive(),
     isActive: z.boolean().default(true),
   })
@@ -35,7 +37,7 @@ export const couponInputSchema = z
   // (`endDate >= NOW()` and `startDate <= NOW()` can't both be true)
   // so sellers wondered why their "active" coupon wasn't applying.
   .refine(
-    (v) => new Date(v.endDate).getTime() >= new Date(v.startDate).getTime(),
+    (v) => v.endDate.getTime() >= v.startDate.getTime(),
     {
       message: "endDate must be on or after startDate",
       path: ["endDate"],
