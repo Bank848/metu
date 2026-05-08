@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Users, Store, Package, ShoppingBag, Banknote, Clock, Ticket, MessageSquare, TrendingUp, Tag as TagIcon, Database, Wallet } from "lucide-react";
+import { Users, Store, Package, ShoppingBag, Banknote, Clock, Ticket, MessageSquare, TrendingUp, Tag as TagIcon, Database, Wallet, AlertTriangle, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -120,12 +120,39 @@ export default async function AdminOverview({
     safeFetch<HeatmapCell[]>("/admin/dashboard/heatmap?days=30"),
   ]);
   if (!stats || !dashboard) {
-    // Surface which call failed so future regressions are debuggable
-    // straight from the rendered page instead of needing log access.
+    // Styled error card matching the rest of the admin design system.
+    // The diagnostic line stays accessible via <details> so we can still
+    // tell which sub-call tripped, but it's no longer the primary UX.
+    // ?retry= cache-buster forces server components to re-fetch on click.
+    const retryHref = `/admin?retry=${Date.now()}${searchParams.range ? `&range=${searchParams.range}` : ""}`;
     return (
-      <p className="text-coral text-sm">
-        Failed to load · stats={stats ? "ok" : "null"} · dashboard={dashboard ? "ok" : "null"} · heatmap={heatmap ? "ok" : "null"}
-      </p>
+      <div className="surface-editorial rounded-3xl px-6 py-10 md:px-8 md:py-12 mt-6">
+        <div className="mx-auto flex max-w-md flex-col items-center gap-4 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-coral/15 text-coral">
+            <AlertTriangle className="h-7 w-7" />
+          </div>
+          <h2 className="font-display text-xl font-bold text-white">
+            Couldn&apos;t load the overview
+          </h2>
+          <p className="text-sm text-ink-secondary">
+            One or more analytics queries failed. This is usually a
+            transient cold-boot — give it a moment and try again.
+          </p>
+          <Link
+            href={retryHref}
+            className="inline-flex items-center gap-2 rounded-pill bg-metu-yellow px-5 py-2 text-sm font-semibold text-space-950 hover:bg-metu-yellow/90 transition"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </Link>
+          <details className="mt-2 text-xs text-ink-dim">
+            <summary className="cursor-pointer hover:text-white">Diagnostic info</summary>
+            <code className="mt-2 block rounded-lg border border-line bg-space-950 px-3 py-2 text-left font-mono text-[11px]">
+              stats={stats ? "ok" : "null"} · dashboard={dashboard ? "ok" : "null"} · heatmap={heatmap ? "ok" : "null"}
+            </code>
+          </details>
+        </div>
+      </div>
     );
   }
 

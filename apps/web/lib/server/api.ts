@@ -52,13 +52,22 @@ export async function apiFetch<T>(
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
   const { skipAuth, ...fetchInit } = init;
 
-  const cookie = skipAuth ? "" : headers().get("cookie") ?? "";
+  const inboundHeaders = skipAuth ? null : headers();
+  const cookie = inboundHeaders?.get("cookie") ?? "";
+  // Forward client IP markers so the upstream API records the real
+  // visitor's IP in audit rows + rate-limit buckets. Without this, the
+  // BFF machine's IP appears for every server-rendered admin/seller
+  // action because Express only sees BFF -> API on the upstream call.
+  const flyIp = inboundHeaders?.get("fly-client-ip") ?? "";
+  const xff = inboundHeaders?.get("x-forwarded-for") ?? "";
 
   const res = await fetch(url, {
     ...fetchInit,
     headers: {
       ...(fetchInit.headers ?? {}),
       ...(cookie ? { cookie } : {}),
+      ...(flyIp ? { "fly-client-ip": flyIp } : {}),
+      ...(xff ? { "x-forwarded-for": xff } : {}),
     },
     cache: fetchInit.cache ?? "no-store",
   });

@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { prisma } from "../db/prisma.js";
+import { clientIp } from "./client-ip.js";
 
 /**
  * Append an entry to AuditLog. Fire-and-forget; logging failures
@@ -17,7 +18,7 @@ export async function audit(args: {
    *  are captured from the request headers. Pass from controller. */
   req?: Pick<Request, "ip" | "headers"> | null;
 }): Promise<void> {
-  const ipAddress = args.req?.ip?.slice(0, 45) ?? null;
+  const ipAddress = clientIp(args.req);
   // user-agent can be string[] on HTTP/2 paths.
   const uaRaw = args.req?.headers?.["user-agent"] as string | string[] | undefined;
   const userAgent =
