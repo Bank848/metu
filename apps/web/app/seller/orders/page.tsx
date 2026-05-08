@@ -13,7 +13,9 @@ type Order = {
   status: "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
   totalPrice: string | number;
   createdAt: string;
-  cart: { user: { firstName: string; lastName: string; username: string; profileImage: string | null } };
+  // listOrders returns user directly via include: { user: {...} } —
+  // there is no cart relation on Order, the previous shape crashed render.
+  user: { firstName: string; lastName: string; username: string; profileImage: string | null };
   items: Array<{
     orderItemId: number;
     quantity: number;
@@ -48,13 +50,13 @@ export default async function SellerOrders() {
             <div className="flex items-start justify-between gap-4 mb-3">
               <div className="flex items-center gap-3">
                 <div className="relative h-10 w-10 rounded-full bg-brand-yellow overflow-hidden shrink-0">
-                  {o.cart.user.profileImage && (
-                    <Image src={o.cart.user.profileImage} alt="" fill sizes="40px" className="object-cover" unoptimized={isDataUrl(o.cart.user.profileImage)} />
+                  {o.user.profileImage && (
+                    <Image src={o.user.profileImage} alt="" fill sizes="40px" className="object-cover" unoptimized={isDataUrl(o.user.profileImage)} />
                   )}
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-white">
-                    {o.cart.user.firstName} {o.cart.user.lastName}
+                    {o.user.firstName} {o.user.lastName}
                   </div>
                   <div className="text-xs font-mono text-ink-dim">
                     ORDER #{o.orderId} · {fmtDate(o.createdAt)}
