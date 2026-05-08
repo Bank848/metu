@@ -839,7 +839,11 @@ export async function getAdminOrders(f: AdminOrdersFilters = {}) {
     where.items = { some: { productItem: { product: { storeId: f.storeId } } } };
   }
   if (f.q?.trim()) {
-    const q = f.q.trim();
+    // Defense-in-depth: cap the search string at 64 chars before it
+    // flows into multiple `contains` clauses on indexed text columns.
+    // Admin-only today, but a future change that ever masked email in
+    // the rendered list would otherwise leave the timing oracle.
+    const q = f.q.trim().slice(0, 64);
     const orderId = Number.isFinite(Number(q)) ? Number(q) : undefined;
     where.OR = [
       ...(orderId ? [{ orderId }] : []),
@@ -897,21 +901,34 @@ export async function getAdminAuditLog(f: AdminAuditLogFilters = {}) {
   const page = Math.max(1, f.page ?? 1);
   const pageSize = 100;
   const where: Prisma.AuditLogWhereInput = {};
-  if (f.action) where.action = { startsWith: f.action };
+  // Cap action filter at 64 chars before it hits a startsWith index
+  // scan — defense-in-depth against unbounded input on this admin
+  // endpoint.
+  if (f.action) where.action = { startsWith: f.action.slice(0, 64) };
   if (f.outcome) {
     // Stored under meta.outcome historically; also accept tag suffix on action.
     where.OR = [
-      { action: { endsWith: `.${f.outcome}` } },
-      { meta: { path: ["outcome"], equals: f.outcome } },
+      { action: { endsWith: `.${f.outcome.slice(0, 64)}` } },
+      { meta: { path: ["outcome"], equals: f.outcome.slice(0, 64) } },
     ];
   }
   if (f.from || f.to) {
+    // Cap the date range at 90 days to prevent an unbounded full-table
+    // scan on audit_log. If the caller asks for more, clamp `from` so
+    // the window slides to the most recent 90 days ending at `to`.
+    const MAX_RANGE_MS = 90 * 24 * 60 * 60 * 1000;
+    let from = f.from;
+    const to = f.to;
+    if (from && to && to.getTime() - from.getTime() > MAX_RANGE_MS) {
+      from = new Date(to.getTime() - MAX_RANGE_MS);
+    }
     where.createdAt = {};
-    if (f.from) where.createdAt.gte = f.from;
-    if (f.to) where.createdAt.lte = f.to;
+    if (from) where.createdAt.gte = from;
+    if (to) where.createdAt.lte = to;
   }
   if (f.actorEmail?.trim()) {
-    const e = f.actorEmail.trim();
+    // Cap actorEmail at 64 chars before the `contains` join scan.
+    const e = f.actorEmail.trim().slice(0, 64);
     where.actor = {
       is: { email: { contains: e, mode: "insensitive" } },
     };
