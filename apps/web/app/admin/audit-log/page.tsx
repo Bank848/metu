@@ -188,7 +188,7 @@ export default async function AdminAuditLog({
                   <summary className="cursor-pointer text-ink-secondary hover:text-white font-mono">
                     {truncate(j, 60)}
                   </summary>
-                  <pre className="mt-2 max-w-md overflow-x-auto rounded bg-space-950 border border-line p-2 text-[10px] text-ink-secondary whitespace-pre-wrap break-all">
+                  <pre className="mt-2 max-w-full sm:max-w-md overflow-x-auto rounded bg-space-950 border border-line p-2 text-[10px] text-ink-secondary whitespace-pre-wrap break-all">
                     {JSON.stringify(r.meta, null, 2)}
                   </pre>
                 </details>
