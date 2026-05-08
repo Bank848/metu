@@ -72,7 +72,7 @@ export async function StripeActivityCard() {
 
   return (
     <section className="rounded-2xl border border-line bg-space-850">
-      <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+      <div className="px-4 sm:px-6 py-4 border-b border-line flex flex-wrap items-center justify-between gap-y-1 gap-x-3">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-mint" />
           <h2 className="font-display font-bold text-white">Stripe activity</h2>
@@ -87,16 +87,16 @@ export async function StripeActivityCard() {
       </div>
 
       {errorMsg ? (
-        <div className="px-6 py-6 flex items-start gap-3">
+        <div className="px-4 sm:px-6 py-6 flex items-start gap-3">
           <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-100/80">{errorMsg}</p>
         </div>
       ) : data && data.events.length === 0 ? (
-        <div className="px-6 py-6 text-sm text-ink-dim">No Stripe events in the last 30 days.</div>
+        <div className="px-4 sm:px-6 py-6 text-sm text-ink-dim">No Stripe events in the last 30 days.</div>
       ) : data ? (
         <ul className="divide-y divide-line max-h-[420px] overflow-y-auto">
           {data.events.map((e) => (
-            <li key={e.id} className="px-6 py-3 flex items-center gap-3">
+            <li key={e.id} className="px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-3">
               <Badge variant={tone(e.type)} className="font-mono text-[10px] shrink-0">
                 {e.type}
               </Badge>

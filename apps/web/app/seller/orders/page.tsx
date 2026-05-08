@@ -56,26 +56,26 @@ export default async function SellerOrders() {
       ) : (
       <ul className="space-y-3">
         {orders.map((o) => (
-          <li key={o.orderId} className="rounded-2xl border border-line bg-space-850 p-5">
-            <div className="flex items-start justify-between gap-4 mb-3">
-              <div className="flex items-center gap-3">
+          <li key={o.orderId} className="rounded-2xl border border-line bg-space-850 p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2 sm:gap-4 mb-3">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <div className="relative h-10 w-10 rounded-full bg-brand-yellow overflow-hidden shrink-0">
                   {o.user.profileImage && (
                     <Image src={o.user.profileImage} alt="" fill sizes="40px" className="object-cover" unoptimized={isDataUrl(o.user.profileImage)} />
                   )}
                 </div>
-                <div>
-                  <div className="text-sm font-semibold text-white">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-white truncate">
                     {o.user.firstName} {o.user.lastName}
                   </div>
-                  <div className="text-xs font-mono text-ink-dim">
+                  <div className="text-xs font-mono text-ink-dim truncate">
                     ORDER #{o.orderId} · {fmtDate(o.createdAt)}
                   </div>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <Badge variant={variants[o.status]} className="uppercase">{o.status}</Badge>
-                <div className="mt-1 font-display font-bold text-brand-yellow">{coins(thbToCoins(Number(o.totalPrice)))}</div>
+                <div className="mt-1 font-display font-bold text-brand-yellow whitespace-nowrap">{coins(thbToCoins(Number(o.totalPrice)))}</div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-ink-secondary">
