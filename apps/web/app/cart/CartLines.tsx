@@ -572,7 +572,7 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
       {/* Wave-3: surface-accent (mint) pins the summary as the right
           column's anchor card. Toast colours follow the new tokens —
           mint for success, coral for error. */}
-      <aside className="rounded-2xl surface-accent p-6 sticky top-28 shadow-flat">
+      <aside className="rounded-2xl surface-accent p-6 lg:sticky lg:top-28 shadow-flat">
         {toast && (
           <p
             role="status"
