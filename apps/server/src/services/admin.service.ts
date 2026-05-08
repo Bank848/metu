@@ -782,16 +782,25 @@ export async function getDashboardMetrics() {
       -- the SELECT list also has "AS revenue" (text). Wrap the
       -- aggregation in a subquery so the alias becomes a real column
       -- on the outer SELECT and the cast resolves cleanly.
+      --
+      -- The status guard belongs in the SUM, not the JOIN ON: a LEFT
+      -- JOIN whose ON-clause filters out a non-settled order leaves
+      -- the matching order_item row with o.* = NULL, so the SUM still
+      -- counts it. FILTER on the order status keeps zero-order
+      -- products visible while excluding pending / cancelled
+      -- order_items from the revenue + units totals.
       SELECT product_id, name, revenue::text AS revenue, units
       FROM (
         SELECT
           p.product_id, p.name,
-          COALESCE(SUM(oi.price_per_unit * oi.quantity), 0) AS revenue,
-          COALESCE(SUM(oi.quantity), 0)::bigint             AS units
+          COALESCE(SUM(oi.price_per_unit * oi.quantity)
+                     FILTER (WHERE o.status IN ('paid','fulfilled')), 0) AS revenue,
+          COALESCE(SUM(oi.quantity)
+                     FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::bigint AS units
         FROM "product" p
         LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
         LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
-        LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
+        LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id
         GROUP BY p.product_id, p.name
       ) ranked
       ORDER BY revenue DESC
@@ -820,18 +829,25 @@ export async function getDashboardMetrics() {
       -- name from the Prisma model). Wrap the aggregation in a
       -- subquery so revenue::text alias doesn't collide with the
       -- ORDER BY (same fix as topStores + topProducts).
+      -- Same status-filter-in-the-JOIN bug as topProducts: a LEFT JOIN
+      -- whose ON-clause filters out a non-settled order keeps the
+      -- order_item row alive (with o.* = NULL), so SUM(oi.price ...)
+      -- silently sums pending / cancelled order_items into category
+      -- revenue. FILTER on the order status fixes it without losing
+      -- zero-order categories from the list.
       SELECT category_id, name, product_count, revenue::text AS revenue
       FROM (
         SELECT
           c.category_id,
           c.category_name AS name,
           COUNT(DISTINCT p.product_id)::bigint                                AS product_count,
-          COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)                   AS revenue
+          COALESCE(SUM(oi.price_per_unit * oi.quantity)
+                     FILTER (WHERE o.status IN ('paid','fulfilled')), 0)      AS revenue
         FROM "category" c
         LEFT JOIN "product"      p  ON p.category_id     = c.category_id
         LEFT JOIN "product_item" pi ON pi.product_id     = p.product_id
         LEFT JOIN "order_item"   oi ON oi.product_item_id = pi.product_item_id
-        LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id AND o.status IN ('paid','fulfilled')
+        LEFT JOIN "orders"       o  ON o.order_id        = oi.order_id
         GROUP BY c.category_id, c.category_name
       ) ranked
       ORDER BY revenue DESC
