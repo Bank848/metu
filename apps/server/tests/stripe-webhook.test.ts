@@ -36,6 +36,13 @@ const prismaMock: any = {
     update: vi.fn(),
   },
   store: { updateMany: vi.fn() },
+  // onPaymentIntentSucceeded touches Transaction.date on payment
+  // success; onChargeRefunded books a negative-payout Transaction for
+  // dashboard-originated refunds. Both go through the prismaMock.
+  transaction: {
+    updateMany: vi.fn(async () => ({ count: 1 })),
+    create: vi.fn(async () => ({})),
+  },
   $executeRawUnsafe: vi.fn(async () => 0),
 };
 prismaMock.$transaction = vi.fn(async (cb: (tx: any) => Promise<unknown>) => cb(prismaMock));

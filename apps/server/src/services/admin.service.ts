@@ -662,11 +662,24 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
            FROM "orders"
           WHERE status IN ('paid', 'fulfilled'))                                   AS gmv
     `,
-    // Recent transactions — keeping Prisma here because the nested
-    // `user` select rides Prisma's typed builder cleanly, and the row
-    // shape feeds straight into the API response without remapping.
+    // Recent transactions — keep Prisma here because the nested `user`
+    // select rides the typed builder cleanly. Filter to settled rows
+    // only (payouts always show; purchases only when their order is
+    // paid / fulfilled / refunded), and order by `date` (touched on
+    // payment success) so the widget reflects payment-moment ordering
+    // instead of stale checkout-time anchors.
     prisma.transaction.findMany({
-      orderBy: { createdAt: "desc" },
+      where: {
+        OR: [
+          { transactionType: "payout" },
+          {
+            orders: {
+              some: { status: { in: ["paid", "fulfilled", "refunded"] } },
+            },
+          },
+        ],
+      },
+      orderBy: { date: "desc" },
       take: 30,
       include: {
         user: {
@@ -2015,6 +2028,17 @@ export async function syncOrderFromStripe(
       stripeChargeId: chargeId,
       stripeAmountReceived: pi.amount_received,
     },
+  });
+  // Mirror onPaymentIntentSucceeded: bump Transaction.date so the admin
+  // Recent Transactions widget reflects when payment actually settled,
+  // not when the buyer first pressed checkout. Idempotent across the
+  // webhook + sync race.
+  await prisma.transaction.updateMany({
+    where: {
+      transactionType: "purchase",
+      orders: { some: { orderId } },
+    },
+    data: { date: new Date() },
   });
   await clearCartAfterPayment(order.userId, orderId).catch(() => {});
   await finalizeOrder(orderId);
