@@ -55,7 +55,9 @@ export const productInputSchema = z.object({
   description: z.string().min(2).max(255),
   categoryId: z.number().int().positive(),
   images: z.array(z.string().url()).min(1).max(5),
-  tagIds: z.array(z.number().int().positive()).max(10).default([]),
+  // Free-form tag names. Server resolves to existing ProductTag rows
+  // case-insensitively; unknown names auto-create.
+  tags: z.array(z.string().trim().min(1).max(30)).max(10).default([]),
   items: z.array(productItemInputSchema).min(1).max(5),
   isStackable: z.boolean().optional(),
   details: z.array(productAddDetailInputSchema).max(6).default([]),

@@ -51,7 +51,7 @@ export default async function EditProductPage({ params }: { params: { id: string
           description: product.description,
           categoryId: product.categoryId,
           images: product.images.map((i) => i.productImage),
-          tagIds: product.productNTags.map((nt) => nt.tagId),
+          tagNames: product.productNTags.map((nt) => nt.tag.tagName),
           isStackable: product.isStackable,
           items: product.items.map((it) => ({
             name: it.name,

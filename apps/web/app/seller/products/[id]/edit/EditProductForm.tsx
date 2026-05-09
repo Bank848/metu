@@ -24,7 +24,7 @@ type Initial = {
   description: string;
   categoryId: number;
   images: string[];
-  tagIds: number[];
+  tagNames: string[];
   items: Variant[];
   isStackable: boolean;
   details: { detailName: string; detailValue: string }[];
@@ -73,7 +73,7 @@ export function EditProductForm({
   const [description, setDescription] = useState(initial.description);
   const [categoryId, setCategoryId] = useState<number>(initial.categoryId);
   const [images, setImages] = useState<string[]>(initial.images.length ? initial.images : [""]);
-  const [tagIds, setTagIds] = useState<number[]>(initial.tagIds);
+  const [tagNames, setTagNames] = useState<string[]>(initial.tagNames);
   const [details, setDetails] = useState<AdditionalDetail[]>(initial.details ?? []);
   const [variants, setVariants] = useState<Variant[]>(initial.items ?? []);
   const [isStackable, setIsStackable] = useState(initial.isStackable);
@@ -119,7 +119,6 @@ export function EditProductForm({
   const minRaw = Math.min(...rawPrices);
   const maxRaw = Math.max(...rawPrices);
   const previewDiscount = variants.length ? Math.max(...variants.map((v) => v.discountPercent)) : 0;
-  const tagNames = tags.filter((t) => tagIds.includes(t.tagId)).map((t) => t.tagName);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -139,7 +138,7 @@ export function EditProductForm({
           description: description.trim(),
           categoryId,
           images: cleanImages,
-          tagIds,
+          tags: tagNames,
           isStackable,
           details: details
             .filter((d) => d.detailName?.trim() || d.detailValue?.trim())
@@ -263,8 +262,8 @@ export function EditProductForm({
           description="Type to autocomplete. Suggestions are sorted by popularity."
         >
           <TagInput
-            selectedIds={tagIds}
-            onChange={setTagIds}
+            selected={tagNames}
+            onChange={setTagNames}
             options={tags}
           />
         </FormSection>

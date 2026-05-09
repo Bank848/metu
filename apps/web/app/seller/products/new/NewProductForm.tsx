@@ -35,7 +35,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<number>(categories[0]?.categoryId ?? 0);
   const [images, setImages] = useState<string[]>([""]);
-  const [tagIds, setTagIds] = useState<number[]>([]);
+  const [tagNames, setTagNames] = useState<string[]>([]);
   const [variants, setVariants] = useState<Variant[]>([{ ...DEFAULT_VARIANT }]);
   const [details, setDetails] = useState<AdditionalDetail[]>([]);
   const [isStackable, setIsStackable] = useState(false);
@@ -81,9 +81,6 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
   const previewDiscount = variants.length
     ? Math.max(...variants.map((v) => v.discountPercent))
     : 0;
-  const tagNames = tags
-    .filter((t) => tagIds.includes(t.tagId))
-    .map((t) => t.tagName);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,7 +100,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
           description: description.trim(),
           categoryId,
           images: cleanImages,
-          tagIds,
+          tags: tagNames,
           isStackable,
           details: details
             .filter((d) => d.detailName?.trim() || d.detailValue?.trim())
@@ -226,8 +223,8 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
           description="Type to autocomplete. Suggestions are sorted by popularity."
         >
           <TagInput
-            selectedIds={tagIds}
-            onChange={setTagIds}
+            selected={tagNames}
+            onChange={setTagNames}
             options={tags}
           />
         </FormSection>
