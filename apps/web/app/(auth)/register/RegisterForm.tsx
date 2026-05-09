@@ -24,17 +24,33 @@ const MAX_DOB = new Date(TODAY.getFullYear() - 13, TODAY.getMonth(), TODAY.getDa
   .toISOString()
   .slice(0, 10);
 
+// Open-redirect guard mirrors the login version.
+function safeNextPath(next: string | null | undefined): string | null {
+  if (!next) return null;
+  if (!next.startsWith("/")) return null;
+  if (next.startsWith("//") || next.startsWith("/\\")) return null;
+  if (/[\r\n]/.test(next)) return null;
+  return next;
+}
+
 export function RegisterForm({
   countries,
   googleEnabled = false,
   defaultPhoneCountry = "TH",
+  next,
+  emailHint,
 }: {
   countries: Country[];
-  /** .x — gates the "Continue with Google" button. */
   googleEnabled?: boolean;
-  /** guess of the user's country, used to pre-select the
-   *  dial code on the phone field. The user can change it. */
+  /** Pre-select the phone country dial code; user can change it. */
   defaultPhoneCountry?: string;
+  /** Threaded through verify-phone so post-onboarding lands on the
+   *  caller's page (e.g. /gift/[id]?t=…). */
+  next?: string;
+  /** Hint text shown above the email field, e.g. when arriving from a
+   *  gift link that wants the recipient to sign up with a specific
+   *  address. The form doesn't lock the input — user can override. */
+  emailHint?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -102,11 +118,13 @@ export function RegisterForm({
         return;
       }
       setBusy(false);
-      // → 42 — register no longer auto-logs in. The BFF
-      // forwarder set a signed `metu_pv` cookie so the verify pages
-      // know which account this is without putting the email in the
-      // URL.
-      router.push("/verify-phone");
+      // Register no longer auto-logs in. The BFF forwarder set a signed
+      // `metu_pv` cookie so verify-phone can identify the account
+      // without ?email= in the URL. Thread `next` through so a gift
+      // recipient lands back on /gift/[id]?t=… after phone verify.
+      const safeNext = safeNextPath(next);
+      const target = safeNext ? `/verify-phone?next=${encodeURIComponent(safeNext)}` : "/verify-phone";
+      router.push(target);
       router.refresh();
     } catch {
       setError("Network error");
@@ -176,6 +194,11 @@ export function RegisterForm({
 
       <label className="block">
         <span className="block text-sm font-semibold text-white mb-1">Email</span>
+        {emailHint && (
+          <p className="text-[11px] text-metu-yellow mb-1.5">
+            Sign up with the address this gift was sent to: <span className="font-mono">{emailHint}</span>
+          </p>
+        )}
         <input
           type="email"
           className={inputCls}

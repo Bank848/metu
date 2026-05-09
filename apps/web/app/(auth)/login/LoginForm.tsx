@@ -44,9 +44,14 @@ export function LoginForm({
   next,
   /** When false, hide the Google button and the OR-divider. */
   googleEnabled = false,
+  emailHint,
 }: {
   next?: string;
   googleEnabled?: boolean;
+  /** Optional hint shown above the email field, e.g. when arriving
+   *  from a gift link that wants the recipient to sign in with a
+   *  specific masked address. The form does not lock the input. */
+  emailHint?: string;
 }) {
   const searchParams = useSearchParams();
   const oauthErrorBanner = errorMessage(searchParams.get("error"));
@@ -346,6 +351,11 @@ export function LoginForm({
       <label className="block text-sm font-semibold text-white mb-1" htmlFor="login-email">
         Email
       </label>
+      {emailHint && step === "credentials" && (
+        <p className="text-[11px] text-metu-yellow mb-1.5">
+          Sign in with the address this gift was sent to: <span className="font-mono">{emailHint}</span>
+        </p>
+      )}
       <input
         id="login-email"
         name="email"

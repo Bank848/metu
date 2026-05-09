@@ -16,6 +16,42 @@ import type {
   OrderListItem,
 } from "../models/orders.model.js";
 
+// HMAC of orderId + recipient email, truncated to 32 base64url chars.
+// Lets the gift email link to a public /gift page that verifies the
+// token + the signed-in user's email before disclosing license keys.
+function giftTokenSecret(): string {
+  const s = process.env.JWT_SECRET;
+  if (!s || s.length < 16) {
+    throw new Error("JWT_SECRET missing — gift tokens cannot be signed.");
+  }
+  return s;
+}
+
+export function signGiftToken(orderId: number, recipientEmail: string): string {
+  const payload = `gift:${orderId}:${recipientEmail.trim().toLowerCase()}`;
+  return crypto
+    .createHmac("sha256", giftTokenSecret())
+    .update(payload)
+    .digest("base64url")
+    .slice(0, 32);
+}
+
+export function verifyGiftToken(
+  orderId: number,
+  recipientEmail: string,
+  token: string,
+): boolean {
+  if (typeof token !== "string" || token.length !== 32) return false;
+  const expected = signGiftToken(orderId, recipientEmail);
+  // Equal lengths guaranteed by the slice above; timingSafeEqual still
+  // throws on mismatched lengths, so wrap defensively.
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Checkout. Wraps cart resolution, coupon, line totals, order create,
  * stock decrement, and cart swap in a single Prisma transaction.
@@ -701,44 +737,44 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
   const storeCards: string[] = [];
   for (const { store, lines } of stores) {
     storeCards.push(
-      `<div style="margin: 20px 0 0; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; background: #fafbfc;">`,
-      `<div style="display: inline-block; background: #10b981; color: #ffffff; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
+      `<div style="margin: 20px 0 0; border: 1px solid #f1e5b8; border-radius: 14px; padding: 18px 20px; background: #fffdf5;">`,
+      `<div style="display: inline-block; background: #FFCC00; color: #1a1919; font-weight: 800; font-size: 11px; padding: 5px 11px; border-radius: 999px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
     );
     for (const it of lines) {
       const name = escape(it.productItem?.product.name ?? it.productNameSnapshot);
       storeCards.push(
-        `<div style="margin: 10px 0; padding: 12px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">`,
-        `<div style="font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 6px;">${it.quantity}&times; ${name}</div>`,
+        `<div style="margin: 10px 0; padding: 14px 16px; background: #ffffff; border: 1px solid #efe7c4; border-radius: 12px;">`,
+        `<div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">${it.quantity}&times; ${name}</div>`,
       );
       if (it.deliveredKey) {
         storeCards.push(
-          `<div style="margin-top: 8px;">`,
-          `<div style="font-size: 10px; font-weight: 700; color: #047857; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">License key</div>`,
-          `<div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; background: #0f172a; color: #6EE7B7; padding: 10px 12px; border-radius: 8px; word-break: break-all; font-size: 13px; letter-spacing: 0.02em;">${escape(it.deliveredKey)}</div>`,
+          `<div style="margin-top: 10px;">`,
+          `<div style="font-size: 10px; font-weight: 700; color: #b26800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">License key</div>`,
+          `<div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; background: #0f172a; color: #FFCC00; padding: 10px 12px; border-radius: 8px; word-break: break-all; font-size: 13px; letter-spacing: 0.02em;">${escape(it.deliveredKey)}</div>`,
           `</div>`,
         );
       }
       if (it.deliveredUrl) {
         storeCards.push(
-          `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;"><tr><td style="border-radius: 8px; background: #10b981;"><a href="${escape(it.deliveredUrl)}" style="display: inline-block; padding: 10px 18px; font-size: 13px; font-weight: 700; color: #ffffff; text-decoration: none;">Download &rarr;</a></td></tr></table>`,
+          `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 12px;"><tr><td style="border-radius: 999px; background: linear-gradient(180deg, #FFCC00 0%, #B26800 100%); box-shadow: 0 3px 10px -4px rgba(178,104,0,0.5);"><a href="${escape(it.deliveredUrl)}" style="display: inline-block; padding: 10px 22px; font-size: 13px; font-weight: 700; color: #1a1919; text-decoration: none; letter-spacing: 0.01em;">Download &rarr;</a></td></tr></table>`,
         );
       }
       storeCards.push(`</div>`);
     }
     const contact: string[] = [];
-    if (store.contactEmail) contact.push(`<a href="mailto:${escape(store.contactEmail)}" style="color: #047857; text-decoration: none;">${escape(store.contactEmail)}</a>`);
+    if (store.contactEmail) contact.push(`<a href="mailto:${escape(store.contactEmail)}" style="color: #b26800; text-decoration: none; font-weight: 600;">${escape(store.contactEmail)}</a>`);
     if (store.phone) contact.push(escape(store.phone));
     if (contact.length) {
       storeCards.push(
-        `<div style="font-size: 12px; color: #64748b; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #cbd5e1;">Contact ${escape(store.name)}: ${contact.join(" &middot; ")}</div>`,
+        `<div style="font-size: 12px; color: #64748b; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #efe7c4;">Contact ${escape(store.name)}: ${contact.join(" &middot; ")}</div>`,
       );
     }
     storeCards.push(`</div>`);
   }
 
   const html = renderEmailLayout({
-    heading: `Hi ${escape(buyer.firstName)} - your goods are ready`,
-    intro: `Payment cleared. License keys + download links for order <strong>#${orderId}</strong> are below; everything stays available on your account too.`,
+    heading: `Order #${orderId} confirmed — your downloads are ready`,
+    intro: `Hi <strong>${escape(buyer.firstName)}</strong>, payment cleared. License keys and download links are below, and everything stays available on your METU account whenever you need it again.`,
     cta: { label: "View order", url: `${SITE_URL}/orders/${orderId}` },
     bodyHtml: storeCards.join(""),
   });
@@ -757,23 +793,26 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
   // and buyer's lastName/email are stripped (the recipient never
   // consented to receive that PII; the buyer forwards keys manually).
   if (order.giftRecipientEmail) {
-    const recipientSubject = `${buyer.firstName} sent you a METU gift — order #${orderId}`;
-    // Sanitize giftMessage for the plain-text body: strip CR/LF + ANSI
-    // / control chars (so an attacker can't inject fake "From:" lines
-    // or weaponize terminal escape sequences in CLI mail clients), and
-    // hard-cap length even though the schema already caps at 500. The
-    // HTML branch's escape() already neutralises angle brackets but
-    // does NOT collapse CR/LF, so we apply the same sanitizer there
-    // before HTML escaping for parity.
+    const recipientSubject = `🎁 ${buyer.firstName} sent you a METU gift — claim it now`;
+    // Sanitize buyer-controlled message: strip CR/LF + ANSI + bidi
+    // overrides + cap at 500 chars. Without this the plain-text branch
+    // lets the buyer inject fake "Subject:"/"From:" lines into the
+    // recipient's email client.
     const safeGiftMessage = sanitizePlainTextGiftMessage(order.giftMessage ?? "");
-    const giftIntroText = `${buyer.firstName} just bought you something on METU! Below are the items. ${safeGiftMessage ? `\n\nMessage from ${buyer.firstName}: "${safeGiftMessage}"` : ""}`;
-    const giftIntroHtml = `<p>${escape(buyer.firstName)} just bought you something on METU! Below are the items.</p>${safeGiftMessage ? `<p style="margin-top:12px;padding:12px;background:#1a1a1a;border-left:3px solid #facc15;color:#facc15;"><em>"${escape(safeGiftMessage)}"</em><br/><small>— ${escape(buyer.firstName)}</small></p>` : ""}`;
+    // HMAC-signed claim token. The /gift page verifies token + the
+    // signed-in user's email matches giftRecipientEmail before any
+    // license key or download URL is rendered.
+    const claimToken = signGiftToken(orderId, order.giftRecipientEmail);
+    const claimUrl = `${SITE_URL}/gift/${orderId}?t=${claimToken}`;
+    const giftIntroText = `${buyer.firstName} just bought you a digital gift on METU. Click the link below and sign in (or create a free account) with this email address to claim it.${safeGiftMessage ? `\n\nMessage from ${buyer.firstName}: "${safeGiftMessage}"` : ""}`;
+    const giftIntroHtml = `<p>${escape(buyer.firstName)} just bought you a digital gift on METU. Tap the button below and sign in (or create a free account) with this email address to claim it.</p>${safeGiftMessage ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 18px 0 4px;"><tr><td style="background: #fffbeb; border-left: 4px solid #FFCC00; border-radius: 8px; padding: 14px 16px;"><div style="font-size: 10px; font-weight: 700; color: #b26800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Note from ${escape(buyer.firstName)}</div><div style="font-size: 14px; color: #713f12; font-style: italic; line-height: 1.55;">${escape(safeGiftMessage)}</div></td></tr></table>` : ""}`;
     const recipientCards = buildRecipientStoreCards(stores, escape);
     const recipientText = buildRecipientStoreText(stores);
     const giftHtml = renderEmailLayout({
-      heading: `A gift from ${escape(buyer.firstName)}`,
+      heading: `🎁 A gift from ${escape(buyer.firstName)}`,
       intro: giftIntroHtml,
-      cta: { label: "View on METU", url: `${SITE_URL}/orders/${orderId}` },
+      cta: { label: "Claim your gift", url: claimUrl },
+      fallbackUrl: claimUrl,
       bodyHtml: recipientCards.join(""),
     });
     const giftText = [
@@ -781,8 +820,10 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
       "",
       giftIntroText,
       "",
+      `Claim it: ${claimUrl}`,
+      "",
       ...recipientText,
-      `Ask ${buyer.firstName} for the delivery details.`,
+      "Sign in with the email this message was sent to — that's how METU knows the gift is yours.",
       "",
       "— METU Marketplace",
     ].join("\n");
@@ -821,6 +862,141 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
   }
 }
 
+// Mask an email for display: head two chars + ****** + @domain.
+function maskEmailForDisplay(email: string): string {
+  const [local, domain] = email.split("@");
+  if (!domain || !local) return "***";
+  const head = local.slice(0, Math.min(2, local.length));
+  return `${head}${"*".repeat(Math.max(1, local.length - head.length))}@${domain}`;
+}
+
+// Public-by-token gift access. The /gift/:orderId page calls this with
+// the URL token + the signed-in user's email (or null). Returns enough
+// shape for the page to either render the goods, prompt sign-in, or
+// surface a polite "wrong account" error without leaking the recipient
+// address to anyone who didn't already have the email.
+export type GiftItem = {
+  orderItemId: number;
+  quantity: number;
+  name: string;
+  deliveredKey: string | null;
+  deliveredUrl: string | null;
+};
+export type GiftStoreBucket = {
+  storeId: number;
+  storeName: string;
+  items: GiftItem[];
+};
+export type GiftAccessResult =
+  | { status: "not-found" }
+  | { status: "no-gift" }
+  | { status: "invalid-token" }
+  | { status: "needs-auth"; recipientMasked: string }
+  | { status: "wrong-email"; recipientMasked: string }
+  | {
+      status: "ok";
+      orderId: number;
+      buyerFirstName: string;
+      giftMessage: string | null;
+      recipientMasked: string;
+      stores: GiftStoreBucket[];
+    };
+
+export async function getGiftAccess(
+  orderId: number,
+  token: string,
+  currentUserEmail: string | null,
+): Promise<GiftAccessResult> {
+  if (!Number.isFinite(orderId) || orderId <= 0) return { status: "not-found" };
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    select: {
+      orderId: true,
+      userId: true,
+      giftRecipientEmail: true,
+      giftMessage: true,
+      user: { select: { firstName: true } },
+    },
+  });
+  if (!order) return { status: "not-found" };
+  if (!order.giftRecipientEmail) return { status: "no-gift" };
+  if (!verifyGiftToken(orderId, order.giftRecipientEmail, token)) {
+    return { status: "invalid-token" };
+  }
+
+  const recipientMasked = maskEmailForDisplay(order.giftRecipientEmail);
+  if (!currentUserEmail) {
+    return { status: "needs-auth", recipientMasked };
+  }
+  if (currentUserEmail.trim().toLowerCase() !== order.giftRecipientEmail.trim().toLowerCase()) {
+    return { status: "wrong-email", recipientMasked };
+  }
+
+  // Authed + email matches — load full delivery payloads.
+  const full = await prisma.order.findUnique({
+    where: { orderId },
+    include: {
+      items: {
+        include: {
+          productItem: {
+            include: {
+              product: {
+                include: {
+                  store: { select: { storeId: true, name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!full) return { status: "not-found" };
+
+  const ORPHAN = -1;
+  const byStore = new Map<number, GiftStoreBucket>();
+  for (const it of full.items) {
+    const store = it.productItem?.product.store;
+    const sid = store?.storeId ?? ORPHAN;
+    const bucket = byStore.get(sid) ?? {
+      storeId: sid,
+      storeName: store?.name ?? "(deleted store)",
+      items: [],
+    };
+    bucket.items.push({
+      orderItemId: it.orderItemId,
+      quantity: it.quantity,
+      name: it.productItem?.product.name ?? it.productNameSnapshot,
+      deliveredKey: it.deliveredKey,
+      deliveredUrl: it.deliveredUrl,
+    });
+    byStore.set(sid, bucket);
+  }
+
+  await audit({
+    actorId: null,
+    action: "order.gift.viewed",
+    targetType: "order",
+    targetId: orderId,
+    meta: {
+      recipient_hash: crypto
+        .createHash("sha256")
+        .update(order.giftRecipientEmail.trim().toLowerCase())
+        .digest("hex"),
+    },
+    req: null,
+  });
+
+  return {
+    status: "ok",
+    orderId,
+    buyerFirstName: order.user?.firstName ?? "Someone",
+    giftMessage: order.giftMessage,
+    recipientMasked,
+    stores: [...byStore.values()],
+  };
+}
+
 // Render a redacted card list for the gift recipient. Strips license
 // keys, download URLs, and store contact details — those are PII the
 // recipient never consented to receive. Buyer forwards delivery
@@ -832,14 +1008,14 @@ function buildRecipientStoreCards(
   const cards: string[] = [];
   for (const { store, lines } of stores) {
     cards.push(
-      `<div style="margin: 20px 0 0; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; background: #fafbfc;">`,
-      `<div style="display: inline-block; background: #10b981; color: #ffffff; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
+      `<div style="margin: 20px 0 0; border: 1px solid #f1e5b8; border-radius: 14px; padding: 18px 20px; background: #fffdf5;">`,
+      `<div style="display: inline-block; background: #FFCC00; color: #1a1919; font-weight: 800; font-size: 11px; padding: 5px 11px; border-radius: 999px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
     );
     for (const it of lines) {
       const name = escape(it.productItem?.product.name ?? it.productNameSnapshot);
       cards.push(
-        `<div style="margin: 10px 0; padding: 12px 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">`,
-        `<div style="font-size: 14px; font-weight: 600; color: #0f172a;">${it.quantity}&times; ${name}</div>`,
+        `<div style="margin: 10px 0; padding: 14px 16px; background: #ffffff; border: 1px solid #efe7c4; border-radius: 12px;">`,
+        `<div style="font-size: 14px; font-weight: 700; color: #0f172a;">${it.quantity}&times; ${name}</div>`,
         `</div>`,
       );
     }

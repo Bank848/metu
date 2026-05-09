@@ -7,7 +7,11 @@ import { safeGetSettings } from "@/lib/settings";
 export const metadata = { title: "Log in — METU" };
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage({ searchParams }: { searchParams: { next?: string } }) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: { next?: string; email?: string };
+}) {
   // Only render the "Continue with Google" button when the API
   // actually has Google credentials configured. Otherwise clicking
   // takes the user to a hard 404 (better-auth throws
@@ -47,7 +51,11 @@ export default async function LoginPage({ searchParams }: { searchParams: { next
           className="mt-7 w-full animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
           style={{ animationDelay: "120ms" }}
         >
-          <LoginForm next={searchParams.next} googleEnabled={settings.googleEnabled} />
+          <LoginForm
+            next={searchParams.next}
+            googleEnabled={settings.googleEnabled}
+            emailHint={typeof searchParams.email === "string" ? searchParams.email : undefined}
+          />
         </div>
 
         <div

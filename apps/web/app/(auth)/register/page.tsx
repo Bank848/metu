@@ -12,9 +12,11 @@ export const metadata = { title: "Sign up — METU" };
 // so it can't be statically prerendered (no DATABASE_URL during build).
 export const dynamic = "force-dynamic";
 
-export default async function RegisterPage() {
-  // .x — Google button is hidden when GOOGLE_CLIENT_ID isn't
-  // set on the API. Read in parallel with the country list.
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: { next?: string; email?: string };
+}) {
   const [countries, settings] = await Promise.all([
     prisma.country.findMany({
       select: { countryId: true, name: true },
@@ -22,6 +24,8 @@ export default async function RegisterPage() {
     }),
     safeGetSettings(),
   ]);
+  const next = typeof searchParams.next === "string" ? searchParams.next : undefined;
+  const emailHint = typeof searchParams.email === "string" ? searchParams.email : undefined;
   return (
     <main id="main" className="relative min-h-screen bg-space-black overflow-hidden">
       <StarField />
@@ -42,10 +46,15 @@ export default async function RegisterPage() {
           countries={countries}
           googleEnabled={settings.googleEnabled}
           defaultPhoneCountry={detectDefaultCountry()}
+          next={next}
+          emailHint={emailHint}
         />
         <p className="mt-4 text-sm text-ink-secondary">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-brand-yellow hover:underline">
+          <Link
+            href={`/login${next ? `?next=${encodeURIComponent(next)}${emailHint ? `&email=${encodeURIComponent(emailHint)}` : ""}` : ""}`}
+            className="font-semibold text-brand-yellow hover:underline"
+          >
             Log in →
           </Link>
         </p>

@@ -63,7 +63,19 @@ function toE164Thai(input: string): string {
   return "+" + digits;
 }
 
-export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaultPhone?: string }) {
+export function VerifyPhoneForm({
+  email,
+  defaultPhone,
+  next,
+}: {
+  email: string;
+  defaultPhone?: string;
+  /** Threaded from /register or /login so a gift recipient lands back
+   *  on /gift/[id]?t=… after phone verify (and email-verify, if next
+   *  carries them through it). When unset, falls back to / or
+   *  /verify-pending the same way the legacy flow did. */
+  next?: string;
+}) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -247,7 +259,8 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
       if (!res.ok) throw new Error(data?.message ?? "Server rejected the verification.");
       setVerified(true);
       setTimeout(() => {
-        router.push(data?.emailVerified ? "/" : "/verify-pending");
+        const fallback = data?.emailVerified ? "/" : "/verify-pending";
+        router.push(next ?? fallback);
         router.refresh();
       }, 1200);
     } catch (e) {
@@ -286,7 +299,8 @@ export function VerifyPhoneForm({ email, defaultPhone }: { email: string; defaul
       }
       setVerified(true);
       setTimeout(() => {
-        router.push(data?.emailVerified ? "/" : "/verify-pending");
+        const fallback = data?.emailVerified ? "/" : "/verify-pending";
+        router.push(next ?? fallback);
         router.refresh();
       }, 1200);
     } catch {
