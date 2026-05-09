@@ -471,6 +471,10 @@ describe("PATCH /seller/product-items/:id (variant nudge)", () => {
 describe("POST /seller/coupons", () => {
   it("creates a coupon scoped to the seller's store", async () => {
     (prisma.coupon.create as any).mockResolvedValue({ couponId: 1 });
+    // Past startDate is now rejected by the schema's no-past-start refine,
+    // so use offsets relative to now to keep the test future-proof.
+    const startDate = new Date(Date.now() + 60_000).toISOString();
+    const endDate = new Date(Date.now() + 365 * 86_400_000).toISOString();
     const res = await request(buildApp())
       .post("/seller/coupons")
       .set("Cookie", await cookieFor(7))
@@ -478,8 +482,8 @@ describe("POST /seller/coupons", () => {
         code: "WELCOME10",
         discountType: "percent",
         discountValue: 10,
-        startDate: "2026-01-01T00:00:00.000Z",
-        endDate: "2026-12-31T23:59:59.000Z",
+        startDate,
+        endDate,
         usageLimit: 100,
         isActive: true,
       });

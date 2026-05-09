@@ -35,14 +35,15 @@ beforeEach(async () => {
 });
 
 describe("GET /tags", () => {
-  it("returns the alphabetised tag list", async () => {
-    (prisma.productTag.findMany as any).mockResolvedValue([
-      { tagId: 1, tagName: "commercial-use" },
-      { tagId: 2, tagName: "thai-style" },
+  it("returns tags ordered by product count desc", async () => {
+    (prisma.$queryRaw as any).mockResolvedValue([
+      { tag_id: 2, tag_name: "thai-style", tag_description: "", product_count: 5 },
+      { tag_id: 1, tag_name: "commercial-use", tag_description: "", product_count: 3 },
     ]);
     const res = await request(buildApp()).get("/tags");
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(2);
-    expect(res.body[0].tagName).toBe("commercial-use");
+    expect(res.body[0].tagName).toBe("thai-style");
+    expect(res.body[0].productCount).toBe(5);
   });
 });

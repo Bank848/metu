@@ -813,14 +813,38 @@ export async function getDashboardMetrics() {
       ) ranked
       ORDER BY revenue DESC
     `),
-    timed("tags", queryStats, () => prisma.$queryRaw<Array<{ tag_id: number; tag_name: string; product_count: bigint }>>`
-      SELECT t.tag_id, t.tag_name,
-             COUNT(*)::bigint AS product_count
-      FROM "product_tag" t
-      JOIN "product_n_tag" pnt ON pnt.tag_id = t.tag_id
-      GROUP BY t.tag_id, t.tag_name
-      ORDER BY product_count DESC
-      LIMIT 10
+    timed("tags", queryStats, () => prisma.$queryRaw<Array<{
+      tag_id: number; tag_name: string; product_count: bigint;
+      categories: Array<{ name: string; count: number }> | null;
+    }>>`
+      WITH top_tags AS (
+        SELECT t.tag_id, t.tag_name, COUNT(*)::int AS product_count
+          FROM "product_tag" t
+          JOIN "product_n_tag" pnt ON pnt.tag_id = t.tag_id
+         GROUP BY t.tag_id, t.tag_name
+         ORDER BY product_count DESC
+         LIMIT 10
+      ),
+      tag_cat AS (
+        SELECT pnt.tag_id, c.category_name, COUNT(*)::int AS cat_count
+          FROM "product_n_tag" pnt
+          JOIN "product"  p ON p.product_id  = pnt.product_id
+          JOIN "category" c ON c.category_id = p.category_id
+         WHERE pnt.tag_id IN (SELECT tag_id FROM top_tags)
+         GROUP BY pnt.tag_id, c.category_name
+      )
+      SELECT tt.tag_id, tt.tag_name, tt.product_count::bigint,
+             COALESCE(
+               json_agg(
+                 json_build_object('name', tc.category_name, 'count', tc.cat_count)
+                 ORDER BY tc.cat_count DESC
+               ) FILTER (WHERE tc.tag_id IS NOT NULL),
+               '[]'::json
+             ) AS categories
+        FROM top_tags tt
+        LEFT JOIN tag_cat tc ON tc.tag_id = tt.tag_id
+       GROUP BY tt.tag_id, tt.tag_name, tt.product_count
+       ORDER BY tt.product_count DESC
     `),
     timed("couponImpact", queryStats, () => prisma.$queryRaw<Array<{
       total_coupons: bigint; active_coupons: bigint; total_redemptions: bigint;
@@ -1056,7 +1080,12 @@ export async function getDashboardMetrics() {
       categoryId: c.category_id, name: c.name,
       productCount: Number(c.product_count), revenue: Number(c.revenue),
     })),
-    tags: tags.map((t) => ({ tagId: t.tag_id, tagName: t.tag_name, productCount: Number(t.product_count) })),
+    tags: tags.map((t) => ({
+      tagId: t.tag_id,
+      tagName: t.tag_name,
+      productCount: Number(t.product_count),
+      topCategories: (t.categories ?? []).slice(0, 3),
+    })),
     couponImpact: couponImpact[0]
       ? {
           totalCoupons: Number(couponImpact[0].total_coupons),

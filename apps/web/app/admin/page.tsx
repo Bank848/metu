@@ -46,7 +46,12 @@ type Dashboard = {
   topProducts: Array<{ productId: number; name: string; revenue: number; units: number }>;
   ageGroups: Array<{ bucket: string; buyers: number }>;
   categories: Array<{ categoryId: number; name: string; productCount: number; revenue: number }>;
-  tags: Array<{ tagId: number; tagName: string; productCount: number }>;
+  tags: Array<{
+    tagId: number;
+    tagName: string;
+    productCount: number;
+    topCategories: Array<{ name: string; count: number }>;
+  }>;
   couponImpact: { totalCoupons: number; activeCoupons: number; totalRedemptions: number; totalDiscount: number; nearExpiry: number } | null;
   reviewMonitor: { avgRating: number; totalReviews: number; reviews7d: number; lowRated: number } | null;
   kpiSparklines: { users: number[]; orders: number[]; gmv: number[]; reviews: number[] };
@@ -512,25 +517,45 @@ export default async function AdminOverview({
         <div className="rounded-2xl border border-line bg-space-900 p-5">
           <h3 className="font-display font-bold text-white flex items-center gap-2">
             <TagIcon className="h-4 w-4 text-info" />
-            Top tags
+            Tag insights
           </h3>
           <div className="flex items-center gap-1.5 mb-3 mt-1">
-            <SqlTechniqueBadge technique="join-group" label="JOIN product_tag" />
+            <SqlTechniqueBadge technique="join-group" label="tag × category pivot" />
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {dashboard.tags.slice(0, 12).map((t) => (
-              <Link
-                key={t.tagId}
-                href={`/admin/tags?q=${encodeURIComponent(t.tagName)}`}
-                className="hover:scale-105 transition-transform"
-              >
-                <Badge variant="mist" className="text-xs">
-                  {t.tagName} · {t.productCount}
-                </Badge>
-              </Link>
-            ))}
-            {dashboard.tags.length === 0 && <span className="text-xs text-ink-dim">No tags yet.</span>}
-          </div>
+          {dashboard.tags.length === 0 ? (
+            <span className="text-xs text-ink-dim">No tags yet.</span>
+          ) : (
+            <ul className="space-y-1.5 text-xs">
+              {dashboard.tags.slice(0, 10).map((t) => (
+                <li key={t.tagId} className="border-b border-line/50 pb-1.5 last:border-0">
+                  <Link
+                    href={`/admin/tags?q=${encodeURIComponent(t.tagName)}`}
+                    className="flex items-center justify-between gap-2 group"
+                  >
+                    <span className="font-semibold text-white group-hover:text-metu-yellow truncate">
+                      {t.tagName}
+                    </span>
+                    <span className="font-mono text-ink-dim tabular-nums shrink-0">
+                      {t.productCount}p
+                    </span>
+                  </Link>
+                  {t.topCategories.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {t.topCategories.map((c) => (
+                        <span
+                          key={c.name}
+                          className="inline-flex items-center gap-1 rounded-full bg-info/10 text-info border border-info/20 px-1.5 py-0.5 text-[10px] font-medium"
+                        >
+                          {c.name}
+                          <span className="text-[9px] text-info/70 tabular-nums">{c.count}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="rounded-2xl border border-line bg-space-900 p-5">
           <h3 className="font-display font-bold text-white">Age groups</h3>
