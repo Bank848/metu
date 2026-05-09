@@ -180,7 +180,7 @@ model ProductTag {
   tagId          Int    @id @default(autoincrement()) @map("tag_id")
   tagName        String @unique @map("tag_name") @db.VarChar(30)
   tagDescription String @map("tag_description") @db.VarChar(150)
-  tagCount      Int     @default(0)
+  tagCount       Int    @default(0) @map("tag_count")
 
   productNTags ProductNTag[]
 
