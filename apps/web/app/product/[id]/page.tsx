@@ -65,7 +65,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
     price: Number(it.price),
     finalPrice: Number(it.price) * (1 - (it.discountPercent ?? 0) / 100),
     stock: it.quantity,
-    sampleUrl: (it as any).sampleUrl ?? null,
     name: (it as any).name ?? null,
     description: (it as any).description ?? null,
     image: (it as any).image ?? null,

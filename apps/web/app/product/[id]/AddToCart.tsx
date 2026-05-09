@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, FileDown, BadgeCheck, ArrowRight } from "lucide-react";
+import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, BadgeCheck, ArrowRight } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { coins, thbToCoins } from "@/lib/format";
 import { play } from "@/lib/sound";
@@ -18,7 +18,6 @@ type Item = {
   finalPrice: number;
   discountPercent: number;
   stock: number;
-  sampleUrl?: string | null;
 };
 
 const DELIVERY_LABEL: Record<string, string> = {
@@ -124,17 +123,6 @@ export function AddToCart({
           View order #{ownedOrderId}
           <ArrowRight className="h-4 w-4" />
         </Link>
-        {active?.sampleUrl && (
-          <a
-            href={active.sampleUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-metu-yellow hover:underline ml-3"
-          >
-            <FileDown className="h-3 w-3" />
-            Free sample
-          </a>
-        )}
       </div>
     );
   }
@@ -277,18 +265,6 @@ export function AddToCart({
         </div>
         {isDigital && (
           <span className="text-[11px] text-ink-dim">Digital · 1 per order</span>
-        )}
-        {/* Free preview / sample link — only when the seller has set one. */}
-        {active?.sampleUrl && (
-          <a
-            href={active.sampleUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-metu-yellow hover:underline"
-          >
-            <FileDown className="h-3 w-3" />
-            Free sample
-          </a>
         )}
         <div className="ml-auto text-right">
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">Total</div>

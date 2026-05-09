@@ -693,7 +693,6 @@ async function seedProducts(
         }
       }
 
-      const sampleUrl = pickImage(def.category, def.imageSeeds[0], 0, 480, 320);
       const slug = def.name.toLowerCase().replace(/\([^)]*\)/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 
       for (const it of def.items) {
@@ -727,7 +726,6 @@ async function seedProducts(
             price: baht(it.price),
             discountPercent: it.discountPercent ?? 0,
             discountAmount: baht(((it.discountPercent ?? 0) * it.price) / 100),
-            sampleUrl,
             deliveryUrl,
             licenseKeyTemplate,
           },

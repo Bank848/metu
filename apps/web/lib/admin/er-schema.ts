@@ -823,15 +823,6 @@ export const ER_ENTITIES: ErEntity[] = [
         "ordinal": 10
       },
       {
-        "name": "sample_url",
-        "type": "TEXT",
-        "pk": false,
-        "fk": null,
-        "unique": false,
-        "nullable": true,
-        "ordinal": 11
-      },
-      {
         "name": "delivery_url",
         "type": "TEXT",
         "pk": false,
