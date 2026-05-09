@@ -15,8 +15,21 @@ export const metadata = { title: "Verify your phone — METU" };
 // session (when signed in) or a short-lived signed `metu_pv` cookie
 // (between register and full sign-in). It never sits in the URL.
 
-export default async function VerifyPhonePage() {
+function safeNextRedirect(next: string | undefined): string | null {
+  if (!next) return null;
+  if (!next.startsWith("/")) return null;
+  if (next.startsWith("//") || next.startsWith("/\\")) return null;
+  if (/[\r\n]/.test(next)) return null;
+  return next;
+}
+
+export default async function VerifyPhonePage({
+  searchParams,
+}: {
+  searchParams: { next?: string };
+}) {
   const me = await getMe();
+  const nextSafe = safeNextRedirect(searchParams.next);
   let email: string | null = null;
   let phoneTail = "your phone";
   let phoneVerified = false;
@@ -44,7 +57,9 @@ export default async function VerifyPhonePage() {
   }
   if (!email) redirect("/login");
   if (phoneVerified) {
-    redirect(emailVerified ? "/" : "/verify-pending");
+    // Already verified — honour ?next= when supplied (e.g. gift claim
+    // bouncing back through /verify-phone after register).
+    redirect(nextSafe ?? (emailVerified ? "/" : "/verify-pending"));
   }
   // Google new-user has no phone yet; bounce them back to
   // /profile/edit with a clear note instead of pretending we sent an
@@ -89,6 +104,7 @@ export default async function VerifyPhonePage() {
           <VerifyPhoneForm
             email={email}
             defaultPhone={typeof me?.user?.phone === "string" ? me.user.phone : undefined}
+            next={nextSafe ?? undefined}
           />
 
           {loggedIn ? (

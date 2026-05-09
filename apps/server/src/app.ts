@@ -16,6 +16,7 @@ import authRoutes from "./routes/auth.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
 import couponsRoutes from "./routes/coupons.routes.js";
 import ordersRoutes from "./routes/orders.routes.js";
+import giftRoutes from "./routes/gift.routes.js";
 import reviewsRoutes, { productReviewsRouter } from "./routes/reviews.routes.js";
 import favoritesRoutes from "./routes/favorites.routes.js";
 import sellerRoutes from "./routes/seller.routes.js";
@@ -84,6 +85,7 @@ export function buildApp() {
   app.use("/cart",       cartRoutes);
   app.use("/coupons",    couponsRoutes);
   app.use("/orders",     ordersRoutes);
+  app.use("/gift",       giftRoutes);
 
   // POST /products/:productId/reviews must mount before the products
   // router so it wins over the /:id catch-all.
