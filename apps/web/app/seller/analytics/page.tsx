@@ -48,23 +48,25 @@ export default async function SellerAnalyticsPage() {
     topBuyers,
     totals,
   ] = await Promise.all([
-    // Daily revenue over the last 30 days — same shape as the admin
-    // RevenueChart component expects (day, revenue, orderCount).
+    // Daily revenue over the last 30 days, scoped to this store.
+    // Bangkok-local dates so it lines up with the admin chart and the
+    // seller's local mental model.
     prisma.$queryRaw<Array<{ day: string; revenue: string; order_count: bigint }>>`
       SELECT
         TO_CHAR(d::date, 'YYYY-MM-DD') AS day,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity)
-          FILTER (WHERE o.status IN ('paid','fulfilled')), 0)::text AS revenue,
-        COUNT(DISTINCT o.order_id)
-          FILTER (WHERE o.status IN ('paid','fulfilled')) AS order_count
-      FROM generate_series(CURRENT_DATE - INTERVAL '29 days', CURRENT_DATE, INTERVAL '1 day') d
-      LEFT JOIN order_item oi ON DATE(
-        (SELECT created_at FROM orders WHERE order_id = oi.order_id)
-      ) = d::date
-      LEFT JOIN orders o ON o.order_id = oi.order_id
+        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
+        COUNT(DISTINCT o.order_id) AS order_count
+      FROM generate_series(
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date - INTERVAL '29 days',
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+             INTERVAL '1 day'
+           ) d
+      LEFT JOIN orders     o  ON (o.created_at AT TIME ZONE 'Asia/Bangkok')::date = d::date
+                              AND o.status IN ('paid','fulfilled')
+      LEFT JOIN order_item oi ON oi.order_id = o.order_id
       LEFT JOIN product_item pi ON pi.product_item_id = oi.product_item_id
-      LEFT JOIN product p ON p.product_id = pi.product_id AND p.store_id = ${storeId}
-      WHERE pi.product_item_id IS NULL OR p.store_id = ${storeId}
+      LEFT JOIN product p ON p.product_id = pi.product_id
+      WHERE oi.order_item_id IS NULL OR p.store_id = ${storeId}
       GROUP BY d
       ORDER BY d ASC
     `,
