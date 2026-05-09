@@ -136,8 +136,8 @@ export async function TopNav({ q }: { q?: string } = {}) {
         />
       </div>
 
-      <nav className="relative z-1 h-[47px] w-full bg-zinc-600/20 backdrop-blur-[5px] flex items-center px-[89px]">
-        <div className="no-scrollbar flex items-center mx-auto gap-2 overflow-x-auto py-2.5">
+      <nav className="relative z-1 h-[47px] w-full bg-zinc-600/20 backdrop-blur-[5px] flex items-center px-3 md:px-[89px]">
+        <div className="no-scrollbar flex items-center md:mx-auto gap-2 overflow-x-auto py-2.5">
           {TABS.map((tab) => (
             <Link
               key={tab.label}
