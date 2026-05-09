@@ -104,3 +104,21 @@ export const syncMyOrder: RequestHandler = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * POST /orders/:id/reclaim-gift — buyer pulls back an accidental
+ * gift order before the recipient opens it. 409 once any
+ * order.gift.viewed audit row exists for this orderId.
+ */
+export const reclaimGift: RequestHandler = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req);
+    if (!auth) throw new AppError(401, "Unauthorized");
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) throw new AppError(400, "BadId");
+    const result = await service.reclaimGiftAsBuyer(auth.uid, id, req);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};

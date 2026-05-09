@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
+import type { Request } from "express";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { isConfigured as stripeConfigured, createPaymentIntent, getClient, refreshAccountStatus } from "./stripe.service.js";
@@ -15,6 +16,8 @@ import type {
   OrderDetail,
   OrderListItem,
 } from "../models/orders.model.js";
+
+type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
 
 // HMAC of orderId + recipient email, truncated to 32 base64url chars.
 function giftTokenSecret(): string {
@@ -1263,6 +1266,77 @@ export async function findByIdForUser(
       claimUrl: `${SITE_URL}/gift/${order.orderId}?t=${claimToken}`,
     },
   } as OrderDetail;
+}
+
+/**
+ * Buyer takes back a gift they accidentally sent. Strict policy:
+ * blocked the moment the recipient has even opened /gift/[id] (we
+ * gate on the order.gift.viewed audit row from getGiftAccess). On
+ * success we null the gift fields so findByIdForUser stops redacting,
+ * and emit order.gift.reclaimed_by_buyer for the audit-log trail.
+ */
+export async function reclaimGiftAsBuyer(
+  userId: number,
+  orderId: number,
+  req: AuditReq,
+): Promise<{ ok: true }> {
+  const order = await prisma.order.findUnique({
+    where: { orderId },
+    select: { orderId: true, userId: true, giftRecipientEmail: true, status: true },
+  });
+  if (!order || order.userId !== userId || !order.giftRecipientEmail) {
+    throw new AppError(404, "OrderNotFound");
+  }
+  if (order.status !== "paid" && order.status !== "fulfilled") {
+    throw new AppError(409, "InvalidStatus", "You can only reclaim a paid or fulfilled gift order.");
+  }
+
+  const viewed = await prisma.auditLog.findFirst({
+    where: {
+      action: "order.gift.viewed",
+      targetType: "order",
+      targetId: orderId,
+    },
+    select: { logId: true },
+  });
+  if (viewed) {
+    await audit({
+      actorId: userId,
+      action: "order.gift.reclaim_blocked",
+      targetType: "order",
+      targetId: orderId,
+      meta: { reason: "recipient_already_viewed" },
+      req,
+    });
+    throw new AppError(
+      409,
+      "RecipientAlreadyViewed",
+      "Your recipient already opened this gift, so it can't be reclaimed. Ask the seller for a refund instead.",
+    );
+  }
+
+  const recipientHash = crypto
+    .createHash("sha256")
+    .update(order.giftRecipientEmail.trim().toLowerCase())
+    .digest("hex");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({
+      where: { orderId },
+      data: { giftRecipientEmail: null, giftMessage: null },
+    });
+  });
+
+  await audit({
+    actorId: userId,
+    action: "order.gift.reclaimed_by_buyer",
+    targetType: "order",
+    targetId: orderId,
+    meta: { recipient_hash: recipientHash },
+    req,
+  });
+
+  return { ok: true };
 }
 
 /**

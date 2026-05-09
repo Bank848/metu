@@ -16,6 +16,7 @@ import { ReviewItemButton } from "./ReviewItemButton";
 import { RetryPaymentLink } from "./RetryPaymentLink";
 import { PendingOrderRefresher } from "./PendingOrderRefresher";
 import { CopyGiftLinkButton } from "./CopyGiftLinkButton";
+import { ReclaimGiftButton } from "./ReclaimGiftButton";
 
 type Order = {
   orderId: number;
@@ -266,6 +267,9 @@ export default async function OrderDetail({
                     </div>
                     <CopyGiftLinkButton url={order.giftStatus.claimUrl} />
                   </div>
+                  {(order.status === "paid" || order.status === "fulfilled") && (
+                    <ReclaimGiftButton orderId={order.orderId} />
+                  )}
                 </div>
               </section>
             )}
