@@ -30,8 +30,23 @@ const config = {
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
 };
 
+// Dockerfile defaults each ARG to a "build-placeholder" string so a
+// `next build` without --build-arg still type-checks and ships an
+// image. Treat any of those placeholders as "unconfigured" — otherwise
+// Firebase JS SDK throws auth/api-key-not-valid the moment the user
+// clicks Send SMS code, with a confusing error message that looks like
+// a runtime bug instead of a deploy-time config gap.
+function looksLikePlaceholder(v: string): boolean {
+  return !v || v.includes("placeholder") || v.includes("build-");
+}
+
 export const firebaseConfigured = Boolean(
-  config.apiKey && config.authDomain && config.projectId,
+  config.apiKey &&
+    config.authDomain &&
+    config.projectId &&
+    !looksLikePlaceholder(config.apiKey) &&
+    !looksLikePlaceholder(config.authDomain) &&
+    !looksLikePlaceholder(config.projectId),
 );
 
 let app: FirebaseApp | null = null;

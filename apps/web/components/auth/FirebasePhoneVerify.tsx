@@ -153,7 +153,24 @@ export function FirebasePhoneVerify({
       confirmationRef.current = conf as any;
       setLastSentAt(Date.now());
     } catch (e: any) {
-      setErr(e?.message ?? "Couldn't send the SMS — check the phone number.");
+      // Map known Firebase error codes to actionable copy. Anything we
+      // don't recognise falls back to e.message.
+      const code: string | undefined = e?.code;
+      let friendly: string;
+      if (code === "auth/api-key-not-valid" || code === "auth/api-key-not-valid.-please-pass-a-valid-api-key.") {
+        friendly = "SMS verification is not configured on this deployment (Firebase API key is invalid). Pick the Email channel above to receive a code instead.";
+      } else if (code === "auth/invalid-phone-number") {
+        friendly = "Phone number format looks wrong. Expecting an E.164 value like +66812345678.";
+      } else if (code === "auth/too-many-requests") {
+        friendly = "Firebase is rate-limiting this device. Wait a few minutes, then try again.";
+      } else if (code === "auth/quota-exceeded") {
+        friendly = "Daily SMS quota for this Firebase project is used up. Try the Email channel instead.";
+      } else if (code === "auth/captcha-check-failed") {
+        friendly = "reCAPTCHA didn't validate. Refresh the page and try again.";
+      } else {
+        friendly = e?.message ?? "Couldn't send the SMS — try again.";
+      }
+      setErr(friendly);
       // Drop back so user can retry / change number on register flow.
       setStep("enter-phone");
     } finally {
