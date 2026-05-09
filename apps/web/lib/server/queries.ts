@@ -449,21 +449,25 @@ export async function browseProducts(params: {
     conditions.push(Prisma.sql`p.category_id = ${params.category}`);
 
   if (params.shop) {
-    const shopLike = `%${params.shop.trim()}%`;
-    conditions.push(Prisma.sql`s.name ILIKE ${shopLike}`);
+    // Escape SQL-LIKE meta-chars so a typed `%` or `_` doesn't become a
+    // server-side wildcard cardinality amplifier.
+    const safe = params.shop.trim().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    const shopLike = `%${safe}%`;
+    conditions.push(Prisma.sql`s.name ILIKE ${shopLike} ESCAPE '\\'`);
   }
 
   if (params.q) {
-    const like = `%${params.q}%`;
+    const safeQ = params.q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+    const like = `%${safeQ}%`;
     conditions.push(Prisma.sql`(
-      p.name        ILIKE ${like} OR
-      p.description ILIKE ${like} OR
-      s.name        ILIKE ${like} OR
+      p.name        ILIKE ${like} ESCAPE '\\' OR
+      p.description ILIKE ${like} ESCAPE '\\' OR
+      s.name        ILIKE ${like} ESCAPE '\\' OR
       EXISTS (
         SELECT 1 FROM "product_n_tag" pnt2
         JOIN  "product_tag"   t2 ON t2.tag_id = pnt2.tag_id
         WHERE pnt2.product_id = p.product_id
-          AND t2.tag_name ILIKE ${like}
+          AND t2.tag_name ILIKE ${like} ESCAPE '\\'
       )
     )`);
   }

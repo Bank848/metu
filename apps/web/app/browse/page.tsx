@@ -39,6 +39,24 @@ function resolveCategoryId(
   return hit?.categoryId;
 }
 
+// Numeric search-param parser. Rejects NaN / Infinity / negative so a
+// stray `?priceMin=abc` no longer crashes Postgres with a 500. Caps at
+// 1e7 baht to keep filter cardinality predictable.
+function parsePriceParam(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return Math.min(n, 1e7);
+}
+
+// String filter cap so a 10KB shop= can't amplify ILIKE into a CPU bomb.
+function parseStringParam(raw: string | undefined, max = 60): string | undefined {
+  if (!raw) return undefined;
+  const t = raw.trim();
+  if (!t) return undefined;
+  return t.slice(0, max);
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function BrowsePage({
@@ -58,18 +76,18 @@ export default async function BrowsePage({
 
   const result = await browseProducts({
     category: categoryId,
-    tags: searchParams.tags,
-    minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
-    maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
-    originalMinPrice: searchParams.originalMinPrice ? Number(searchParams.originalMinPrice) : undefined,
-    originalMaxPrice: searchParams.originalMaxPrice ? Number(searchParams.originalMaxPrice) : undefined,
+    tags: parseStringParam(searchParams.tags, 200),
+    minPrice: parsePriceParam(searchParams.minPrice),
+    maxPrice: parsePriceParam(searchParams.maxPrice),
+    originalMinPrice: parsePriceParam(searchParams.originalMinPrice),
+    originalMaxPrice: parsePriceParam(searchParams.originalMaxPrice),
     delivery: searchParams.delivery,
-    q: searchParams.q,
-    shop: searchParams.shop,
+    q: parseStringParam(searchParams.q),
+    shop: parseStringParam(searchParams.shop),
     sort: parseSort(searchParams.sort),
-    page: searchParams.page ? Math.max(1, Number(searchParams.page)) : 1,
+    page: searchParams.page ? Math.max(1, Math.min(1000, Number(searchParams.page) || 1)) : 1,
     pageSize: 16,
-    minRating: searchParams.minRating ? Number(searchParams.minRating) : undefined,
+    minRating: parsePriceParam(searchParams.minRating),
   });
 
   const activeSort = searchParams.sort ?? "newest";
