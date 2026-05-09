@@ -1,11 +1,8 @@
 "use client";
 import { Database, Sparkles } from "lucide-react";
 
-// Closing recap. The earlier version pitched a QR scan, which we
-// dropped because (a) the mobile UI is intentionally deferred and
-// (b) a kiosk on a hallway monitor benefits more from a database-flavoured
-// summary slide than a "scan me" CTA. Mirrors the HeroSlide grid layout
-// so the loop bookends visually.
+// Closing recap — database-flavoured summary tiles that bookend the
+// HeroSlide layout.
 
 interface NumberTile {
   value: string;

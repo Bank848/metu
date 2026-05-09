@@ -24,12 +24,6 @@ export default async function NotFound() {
       <div className="relative mx-auto max-w-2xl px-6 py-20 flex flex-col items-center text-center">
         <Logo size="lg" />
 
-        {/* Wave-3 visual: the lucide Compass icon-in-a-circle was the
-            generic "we got lost" trope. Swap to the bespoke NoResults
-            SVG (coral-tinted) — same emotional register but in our
-            palette and not a stock Lucide icon. The headline+number
-            sits inside `surface-editorial` so it reads as a typographic
-            moment, not just three text lines floating on the page. */}
         <div className="mt-12 mb-6">
           <NoResults className="h-32 w-32 text-coral" title="404 — page not found" />
         </div>

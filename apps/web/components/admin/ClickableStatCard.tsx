@@ -6,31 +6,20 @@ import { MiniSparkline } from "./MiniSparkline";
 import { CountUpNumber, type CountUpFormat } from "./CountUpNumber";
 
 // Drill-in variant of StatCard with optional sparkline + click-through
-// link. The bare StatCard (components/StatCard) stays for screens
-// where we don't want the surface to read as clickable; this wrapper
-// adds the affordances when /admin's KPIs deep-link into filter pages.
+// link. Use when /admin KPIs should deep-link into filter pages.
 
 type Tone = "default" | "highlight" | "zero";
 
 interface Props {
   href: string;
-  /** Pre-rendered JSX for the icon. Caller passes e.g. <Banknote
-      className="h-3.5 w-3.5" />. We can't accept LucideIcon as a
-      component reference because the /admin page is a server
-      component — Next.js refuses to serialise function references
-      across the RSC boundary into a client component. */
+  /** Pre-rendered icon JSX (RSC can't serialise function references). */
   icon: ReactNode;
   label: string;
   value: string | number;
-  /** When set, the card renders a <CountUpNumber> tween from 0 → this
-      number on mount, formatted via `countUpFormat`. The static `value`
-      acts as the SSR fallback (and the post-tween display). */
+  /** Tween from 0 to this number on mount; static `value` is the SSR fallback. */
   countUpTo?: number;
-  /** Formatter name for the count-up tween. Defaults to "int" (comma-
-      separated integer). Use "compact-coins" for ฿-amount cards. The
-      prop is a string enum, NOT a function, because Next.js refuses
-      to serialise function references across the RSC boundary into a
-      client component (see CountUpNumber for the full story). */
+  /** Formatter name for the count-up tween — string enum (not a function)
+      so it survives the RSC boundary. Default "int". */
   countUpFormat?: CountUpFormat;
   /** Optional 7-day series for an inline sparkline. */
   sparkline?: number[];
@@ -91,8 +80,7 @@ export function ClickableStatCard({
         <ArrowUpRight className="h-4 w-4 text-ink-dim opacity-30 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
       </div>
 
-      {/* Delta + sparkline row. Both optional so cards without
-          historical data degrade gracefully. */}
+      {/* Delta + sparkline row (both optional). */}
       {(typeof deltaPct === "number" || deltaPct === null || (sparkline && sparkline.length > 0)) && (
         <div className="mt-3 flex items-end justify-between gap-3">
           {(typeof deltaPct === "number" || deltaPct === null) ? (

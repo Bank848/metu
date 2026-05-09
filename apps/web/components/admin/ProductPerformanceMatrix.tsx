@@ -3,16 +3,9 @@ import { TrendingDown, AlertCircle } from "lucide-react";
 import { coins, coinsCompact, thbToCoins } from "@/lib/format";
 import { SqlTechniqueBadge } from "./SqlTechniqueBadge";
 
-// Section 5f of the CPE241 final report — Product Performance Matrix.
-// The TOP half of the matrix (best-selling products) lives in the
-// existing TopProducts widget. This component fills in the BOTTOM
-// half: products with the lowest 30-day revenue, so the operator
-// can decide who to surface, discount, or pull. Sorted ascending by
-// 30-day revenue, ties broken by lifetime units sold then product
-// id for determinism.
-//
-// We intentionally show "active" products only — paused / suspended
-// products are out of scope for promotion.
+// Bottom half of the Product Performance Matrix — products with the
+// lowest 30-day revenue (active only). Sorted ascending by revenue,
+// ties broken by lifetime units then productId.
 
 interface Row {
   productId: number;
@@ -23,10 +16,7 @@ interface Row {
 }
 
 export function ProductPerformanceMatrix({ rows }: { rows: Row[] }) {
-  // Highest-revenue row in the slice — drives the inline bar's
-  // relative scale. We invert the bar (longer = better) so the
-  // visual stays intuitive: long bar = decent revenue but still
-  // bottom-5; tiny bar = absolutely no movement.
+  // Top row's revenue scales the inline bar (longer = better).
   const max = Math.max(1, ...rows.map((r) => r.revenue30d));
   const totalDead = rows.filter((r) => r.revenue30d === 0).length;
 

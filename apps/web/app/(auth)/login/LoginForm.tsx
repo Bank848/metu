@@ -9,8 +9,7 @@ const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 // Login form. Posts to /api/auth/login -> BFF -> Express ->
 // better-auth.signInEmail. Multi-step UI: credentials → TOTP →
-// admin email-OTP (Phase 49, only for guarded accounts like the
-// public admin demo).
+// admin email-OTP (only for guarded accounts like the public admin demo).
 
 // Open-redirect guard: only allow single-leading-slash relative paths.
 function safeNextPath(next: string | null | undefined): string {
@@ -247,10 +246,7 @@ export function LoginForm({
   // better-auth exposes social sign-in via POST /sign-in/social with
   // a JSON body; follow the {url} response to Google.
   const callbackURL = safeNextPath(next);
-  // used to pre-decide "email-exists" for every OAuth
-  // failure, which masked unrelated errors (state_mismatch, network,
-  // cancelled-by-user). Use a generic param and let the error-message
-  // helper map known codes; everything else shows the generic copy.
+  // Generic param so errorMessage() can map known codes; otherwise generic copy.
   const errorCallbackURL = "/login?error=oauth-failed";
   async function onClickGoogle(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();

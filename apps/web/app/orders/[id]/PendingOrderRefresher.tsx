@@ -35,9 +35,7 @@ export function PendingOrderRefresher({ orderId }: { orderId: number }) {
         if (data.status === "paid" || data.status === "fulfilled") {
           if (!cancelled) {
             setStage("confirmed");
-            // Cart was cleared server-side once the order settled — kick
-            // the cart-badge subscribers so they don't wait 60s for the
-            // poll backstop to notice.
+            // Cart was cleared server-side; nudge the badge subscribers.
             window.dispatchEvent(new CustomEvent("cart:update"));
             router.refresh();
           }

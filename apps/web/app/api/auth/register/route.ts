@@ -1,11 +1,7 @@
 // Forwards POST /auth/register to Express. Turnstile + profanity gate server-side.
-// → 43: on a successful register, stamp a short-lived signed
-// `metu_pv` cookie carrying the email so the verify pages can read it
-// without it sitting in `?email=` query strings. When the API echoes
-// back demo OTP / email-verify token (DEMO_REVEAL_TOKENS=true on the
-// server), include those in the cookie payload so the verify pages
-// can show them inline — Resend sandbox sender + console-only SMS
-// can't deliver them out-of-band during a live demo.
+// On success stamps a short-lived signed `metu_pv` cookie carrying the
+// email (and demo OTP/token when DEMO_REVEAL_TOKENS=true) so the verify
+// pages can read it without `?email=` query strings.
 import { type NextRequest } from "next/server";
 import { forwardToApi } from "@/lib/server/proxy";
 import { buildPendingVerifyCookie } from "@/lib/server/pending-verify";

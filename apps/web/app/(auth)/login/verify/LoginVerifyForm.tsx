@@ -66,19 +66,9 @@ export function LoginVerifyForm() {
   // Strict-mode + double-click guard so React 18 dev double-mount
   // and rapid tab clicks can't double-fire requestCode.
   const inFlight = useRef(false);
-  // Phone hint fetched from /auth/login/phone-for-sms when SMS is
-  // chosen. Server returns a MASKED phone (e.g. "+66 *** *** 1234")
-  // so a stolen preAuthToken can't disclose the full number. The
-  // user types the full number into the Firebase widget themselves.
-  // The endpoint also rotates the preAuthToken to a single-use child
-  // and returns the new token in `token`.
-  //
-  // Seed the masked-tail hint from the URL channels list (the /login
-  // redirect already passes "sms:••••1234"), so the SMS tab can show
-  // the hint without a network round-trip and without consuming the
-  // preAuthToken on mount. The full phone-for-sms call (which rotates
-  // the token + binds the child to /firebase-verify) is deferred to
-  // the moment the user actually picks SMS — see the effect below.
+  // Masked-tail hint seeded from the URL so the SMS tab renders without
+  // burning the preAuthToken on mount. /phone-for-sms (called when SMS is
+  // actually picked) returns the full number + a rotated child token.
   const smsChannelHint = channels.find((c) => c.id === "sms")?.hint ?? "";
   const [smsPhoneHint, setSmsPhoneHint] = useState<string>(smsChannelHint);
   const [smsPhoneError, setSmsPhoneError] = useState<string | null>(null);
@@ -95,11 +85,8 @@ export function LoginVerifyForm() {
   // already proved they own at the password step.
   const [smsPhoneFull, setSmsPhoneFull] = useState<string>("");
 
-  // Lazy phone-for-sms fetch — fires ONLY when the user actually picks
-  // the SMS tab (or arrives on a phone-only flow with no channel
-  // chooser). This guarantees the email-channel paths never see a
-  // pre-burned preAuthToken (regression C2-W-003 fix). One-shot per
-  // mount: smsTokenRotated gates re-runs.
+  // Lazy phone-for-sms fetch — fires only once when the user picks SMS
+  // so email-channel paths never see a pre-burned preAuthToken.
   const hasSmsChannel = channels.some((c) => c.id === "sms");
   useEffect(() => {
     if (!token || !hasSmsChannel) return;
@@ -175,12 +162,8 @@ export function LoginVerifyForm() {
     );
   }
 
-  // After phone-for-sms rotates the parent token into smsToken, the
-  // original `token` is consumed server-side. If the user toggles back
-  // to the email tab, every email-channel call has to use smsToken
-  // (the rotated child is still bound to the same login session) or
-  // the server returns InvalidPreAuth. This avoids the demo-day glitch
-  // where clicking SMS chip then Email chip 401s the form.
+  // Once phone-for-sms has rotated the parent token, every channel
+  // (including email-fallback) must use the child or the server 401s.
   const activeToken = smsTokenRotated ? smsToken : token;
 
   async function requestCode() {

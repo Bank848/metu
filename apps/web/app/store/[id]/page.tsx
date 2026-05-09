@@ -35,9 +35,7 @@ export default async function StorePage({ params }: { params: { id: string } }) 
     <>
       <TopNav />
       <main>
-        {/* Cover banner — Wave-3: surface-hero replaces hand-rolled vibrant
-            mesh fallback so the storefront banner picks up the editorial
-            radial-gradient treatment from globals.css §5. */}
+        {/* Cover banner */}
         <section className="relative h-[280px] md:h-[360px] overflow-hidden surface-hero">
           <StarField density="md" />
           {store.coverImage ? (
@@ -75,15 +73,9 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                   <h1 className="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white">
                     {store.name}
                   </h1>
-                  {/* Wave-3: short coral underline anchors the store name
-                      with the warm secondary accent. Stays under the
-                      heading rather than running full-width — this is a
-                      mark, not a divider. */}
+                  {/* Coral underline mark beneath the store name. */}
                   <span aria-hidden className="mt-2 block h-[3px] w-16 rounded-full bg-coral" />
                 </div>
-                {/* Phase 26 — "Message store" CTA removed alongside
-                    the messaging surface. Storefront keeps Share as
-                    the only header-level secondary action. */}
                 <ShareButton title={store.name} text={`${store.name} on METU`} size="md" />
               </div>
               <p className="mt-3 text-ink-secondary max-w-2xl">{store.description}</p>
@@ -140,9 +132,7 @@ export default async function StorePage({ params }: { params: { id: string } }) 
                 action={<GlassButton tone="gold" href="/browse">Browse marketplace →</GlassButton>}
               />
             ) : (
-              // Wave-3 asymmetry — first card is the `feature` variant
-              // (mint surface + bigger image). Same pattern as the
-              // related-products row on the product detail page.
+              // First card uses the `feature` variant for visual asymmetry.
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                 {products.map((p, i) => (
                   <ProductCard

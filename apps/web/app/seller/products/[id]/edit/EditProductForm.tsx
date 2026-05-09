@@ -40,20 +40,10 @@ const DEFAULT_VARIANT: Variant = {
 };
 
 /**
- * Edit form for an existing product. Mirrors NewProductForm so sellers
- * have the same mental model — same FormSection layout, same VariantRow,
- * same sticky live preview. Differences:
- *   - initial state comes from props
- *   - submits via PATCH instead of POST
- *   - existing variants are protected (can't be removed) because
- *     OrderItem / CartItem FK into them
- *   - a mint info banner above Variants explains the lock so sellers
- *     don't wonder why the trash icon is dim. The banner used to render
- *     in coral with an AlertTriangle (F27, QA 2026-04-25) which read as
- *     an error state — the lock is normal product behaviour, not a
- *     warning, so it picked up the brand `info` register: mint
- *     surface-accent + Info icon, matching the success/positive
- *     palette role mint plays elsewhere in the seller flow.
+ * Edit form for an existing product — mirrors NewProductForm. Submits
+ * via PATCH; existing variants can't be deleted because OrderItem and
+ * CartItem FK into them. A mint info banner above Variants explains
+ * the lock to sellers.
  */
 type Mode = "seller" | "admin";
 
@@ -347,9 +337,8 @@ export function EditProductForm({
           )}
         </FormSection>
 
-        {/* Phase 48 — purchase rule: stackable products (license keys
-            are the canonical example) can be re-bought; everything else
-            is single-copy and the storefront blocks repeat orders. */}
+        {/* Stackable products (license keys etc.) can be re-bought;
+            single-copy products are blocked from repeat orders. */}
         <FormSection
           title="Purchase rule"
           description="Whether the same buyer can buy this product more than once."
@@ -385,11 +374,8 @@ export function EditProductForm({
           description="Update price, stock, and discount. Sold variants stay for order history."
         >
           {existingVariantCount > 0 && (
-            // F27: this is a normal "informational" banner, not an
-            // error — sellers see it on every edit of a product that
-            // has any sales history. The mint surface-accent +
-            // `Info` icon match the brand info register and stop the
-            // lock from reading as a destructive warning.
+            // Informational banner shown on every edit of a product with
+            // sales history; mint surface keeps it from reading destructive.
             <div className="surface-accent rounded-xl px-4 py-3 flex items-start gap-2.5">
               <Info className="h-4 w-4 text-mint mt-0.5 shrink-0" />
               <p className="text-xs text-ink-secondary leading-relaxed">

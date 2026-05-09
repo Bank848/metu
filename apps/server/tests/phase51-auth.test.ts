@@ -74,7 +74,7 @@ describe("POST /auth/register — P2002 race -> 409", () => {
   it("maps a P2002 on email to 409 EmailTaken even if the dup pre-check passed", async () => {
     // Pre-check: both findUnique calls return null (no dup detected).
     (prisma.user.findUnique as any).mockResolvedValue(null);
-    // Race: a parallel register inserted the row between pre-check and
+    // A parallel register inserted the row between pre-check and
     // create. Prisma surfaces P2002 with target `email`.
     const p2002 = new Prisma.PrismaClientKnownRequestError(
       "Unique constraint failed",
@@ -156,11 +156,8 @@ describe("DELETE /auth/me — self-delete guards", () => {
       .delete("/auth/me")
       .set("Cookie", await cookieFor(7))
       .send({ confirmation: "buyer7" });
-    // The endpoint requires `confirmation` matches username — but we
-    // never get there because the pending-order guard fires first.
-    // The controller may also surface 400 for confirmation mismatch
-    // depending on order; both are acceptable as long as no destructive
-    // op runs.
+    // The pending-order guard fires before the confirmation check.
+    // Either way no destructive op should run.
     expect(prisma.user.delete).not.toHaveBeenCalled();
   });
 

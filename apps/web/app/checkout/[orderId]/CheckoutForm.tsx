@@ -6,10 +6,8 @@ import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/Button";
 import { Loader2, AlertCircle } from "lucide-react";
 
-// bfcache + Stripe Elements quirk: when the buyer hits browser-back
-// from the Stripe-hosted 3DS flow, browsers may restore the page from
-// the back-forward cache with the Stripe iframe state half-attached.
-// Force a full reload so Stripe Elements re-mounts cleanly.
+// Force a full reload on bfcache restore so Stripe Elements re-mounts
+// cleanly after the 3DS browser-back path.
 function useReloadOnBfcacheRestore() {
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
@@ -40,12 +38,8 @@ export function CheckoutForm({
   orderId: number;
   clientSecret: string;
   publishableKey: string;
-  /**
-   * for direct-charge Connect orders the
-   * PaymentIntent lives on the seller's Connect account, so Stripe.js
-   * must be scoped with `stripeAccount`. Without this, PaymentElement
-   * fails to mount with `Unhandled payment Element loaderror`.
-   */
+  /** Connect direct-charge: the PI lives on the seller's account so
+   *  Stripe.js must be scoped with `stripeAccount`. */
   stripeAccount: string | null;
 }) {
   useReloadOnBfcacheRestore();
@@ -78,28 +72,22 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // True once <PaymentElement /> has actually mounted its iframe.
-  // Without this, Pay was clickable while Stripe was still loading and
-  // the button got stuck on "Confirming…" forever.
+  // True once <PaymentElement /> has mounted its iframe so Pay isn't
+  // clickable while Stripe is still loading.
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [slowLoad, setSlowLoad] = useState(false);
 
-  // If Elements never mounts within ~10s, surface a refresh CTA.
-  // Otherwise the form sits at "Loading payment form…" indefinitely
-  // when the seller's stripeAccount doesn't match the PI's account, a
-  // CSP rule blocks the iframe, etc.
+  // Surface a refresh CTA if Elements never mounts within ~10s.
   useEffect(() => {
     if (ready || loadError) return;
     const t = window.setTimeout(() => setSlowLoad(true), 10_000);
     return () => window.clearTimeout(t);
   }, [ready, loadError]);
 
-  // If the user navigated BACK to this page after a successful redirect
-  // (the PI is already succeeded/processing on Stripe), don't let them
-  // submit again — bounce to the receipt page where the webhook flip
-  // is awaited. Same for cancellations: surface the error rather than
-  // silently mounting a dead form.
+  // If the user navigated back to this page with the PI already
+  // succeeded/processing on Stripe, bounce to the receipt; surface a
+  // message for cancelled PIs instead of mounting a dead form.
   useEffect(() => {
     if (!stripe) return;
     let cancelled = false;
@@ -123,13 +111,8 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
     if (!stripe || !elements || !ready) return;
     setBusy(true);
     setError(null);
-    // Validate the PaymentElement BEFORE asking Stripe to confirm. Without
-    // this, clicking Pay now with an empty card field hands `confirmPayment`
-    // an unvalidated form and the iframe quietly waits for input that the
-    // user can't see — busy stays true and the button hangs on
-    // "Confirming…" forever. `elements.submit()` triggers the same
-    // built-in validation Stripe shows after a real submit attempt and
-    // surfaces inline field errors to the buyer.
+    // Validate the PaymentElement before confirming so an empty card
+    // field shows inline errors instead of hanging on "Confirming…".
     const submission = await elements.submit();
     if (submission.error) {
       setError(submission.error.message ?? "Please fill in your payment details.");

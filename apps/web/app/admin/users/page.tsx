@@ -36,10 +36,8 @@ type UsersResp = {
 export const dynamic = "force-dynamic";
 
 /**
- * / Step 3b — role tones use the admin-vocab mapping called out
- * in the playbook: admin = yellow (privileged), seller = mint
- * (positive / "live" relationship), buyer = mist (neutral). All three
- * variants are pre-existing on `<Badge>` — no new tokens introduced.
+ * Role tones: admin = yellow (privileged), seller = mint (positive),
+ * buyer = mist (neutral).
  */
 const roleVariant = { admin: "yellow", seller: "success", buyer: "mist" } as const;
 
@@ -157,9 +155,8 @@ export default async function AdminUsers({
         </button>
       </form>
 
-      {/* Phase 48 — status chips. Toggle "Banned" to surface only the
-          banned rows + their Unban action; clear it to return to the
-          default listing (which already excludes anonymised users). */}
+      {/* Status chips: toggle "Banned" to surface banned rows + Unban; the
+          default listing already excludes anonymised users. */}
       <div className="mb-4 flex gap-2 text-xs">
         <Link
           href={(() => {
@@ -216,9 +213,7 @@ export default async function AdminUsers({
             case "user":
               return (
                 <div className="flex items-center gap-3">
-                  {/* Phase 11 / F15 — Avatar primitive renders initials
-                      over a deterministic colour when profileImage is
-                      missing, instead of leaving a flat yellow disc. */}
+                  {/* Avatar falls back to initials over a deterministic colour. */}
                   <Avatar
                     name={`${u.firstName} ${u.lastName}`}
                     email={u.username}

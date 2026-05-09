@@ -11,11 +11,8 @@ interface Settings {
 }
 
 /**
- * / 26 — settings form (slimmed down).
- * Toggles + percent input. Submit sends a partial PATCH (only the
- * fields that changed) so the audit log captures a clean diff.
- * dropped: walletEnabled, chatEnabled, promptpayId,
- * withdrawalFeePercent — replaced by Stripe Connect in Phase 27.
+ * Toggles + percent input. Submit sends a partial PATCH (only changed
+ * fields) so the audit log captures a clean diff.
  */
 export function SettingsForm({ initial }: { initial: Settings }) {
   const router = useRouter();
@@ -69,8 +66,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
           onChange={setFavoritesEnabled}
         />
 
-        {/* Phase 20.1 / 26 — fee knob. Phase 27 will wire this directly
-            into Stripe's `application_fee_amount` parameter at checkout. */}
+        {/* Platform fee knob — wired to Stripe `application_fee_amount`. */}
         <PercentInput
           id="platform-fee-percent"
           label="Platform fee %"

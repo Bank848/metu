@@ -5,29 +5,10 @@ import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 
 /**
- * / Step 2 — dropdown row-actions menu.
- * Centralises the "three-dots → list of operations" pattern that admin
- * tables reach for (delete user, suspend store, refund txn, etc.). The
- * dismiss-on-click-outside behaviour is lifted from
- * `LocaleSwitcher.tsx:32-39` so all dropdowns in the app feel the same.
- * Tone semantics map to the Wave-1 palette:
- *   - default     = metu-yellow (primary)
- *   - primary     = metu-yellow (alias for default — explicit when an
- *                   action is the "main" one in the list)
- *   - destructive = coral (soft alert) — note we do NOT use metu-red,
- *                   per docs/design-system.md §9 don'ts. Red stays
- *                   reserved for hard destructive actions like irrevers-
- *                   ible deletions. Coral is the "this is destructive
- *                   but recoverable" register that admin actions
- *                   typically inhabit.
- *   - safe        = mint (success / "live" / positive)
- * / F19 — the `confirm` prop now opens an in-page
- * <ConfirmDialog> primitive instead of the native `window.confirm()`.
- * Public API is unchanged: callers pass `confirm: "Are you sure …?"`
- * and the row action dispatches only after the user clicks the modal's
- * primary button. The native dialog couldn't be styled, locked Chrome
- * MCP in admin moderation flows, and clashed with the rest of the
- * polished chrome (see `reports/qa-2026-04-25.md` §F19).
+ * Three-dots row-actions dropdown for admin tables.
+ * Tone palette: default/primary = gold, destructive = coral (recoverable),
+ * safe = mint. When `confirm` is set, picking the action opens an in-page
+ * <ConfirmDialog> instead of native `window.confirm()`.
  */
 export type ActionTone = "default" | "primary" | "destructive" | "safe";
 
@@ -57,24 +38,13 @@ export interface ActionRowProps {
 export function ActionRow({ actions, ariaLabel = "Row actions", className }: ActionRowProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  // flip the popover above the trigger when the
-  // trigger sits near the bottom of the viewport. Without this, a row
-  // dropdown on the last user/store in the table dangled below the
-  // page bottom and forced a scrollbar (see screenshot in chat). We
-  // measure on each open + on resize so the direction stays correct
-  // even when the user scrolls the page or rotates a device.
+  // Flip the popover upwards when the trigger is near the viewport bottom.
   const [openUp, setOpenUp] = useState(false);
-  // / F19 — when a picked action carries a `confirm: string`
-  // we stash the action here and open the in-page <ConfirmDialog>
-  // primitive instead of calling `window.confirm()`. The dropdown
-  // closes immediately on pick so the modal can take over the page.
+  // Stashed action whose `confirm` modal is awaiting user response.
   const [pendingAction, setPendingAction] = useState<ActionRowItem | null>(null);
 
-  // Approximate menu height — tall enough to cover all admin menus
-  // (5 items × 36px ≈ 180, plus padding). We don't measure the menu
-  // itself because that would require a render pass; this estimate
-  // is comfortably larger than every existing menu, so the flip is
-  // accurate as long as menus stay under ~6 items.
+  // Comfortable upper bound on menu height (5-6 items). We don't measure
+  // the rendered menu to avoid a double-render flicker.
   const ESTIMATED_MENU_HEIGHT = 220;
 
   function decideDirection() {
@@ -139,15 +109,8 @@ export function ActionRow({ actions, ariaLabel = "Row actions", className }: Act
         <ul
           role="menu"
           className={cn(
-            // Anchor right so the menu doesn't push off the right edge of
-            // a table row. shadow-floating matches the elevation scale
-            // intended for popovers (see tailwind.config.ts §boxShadow).
+            // Right-anchored so the menu doesn't push off table-row edges.
             "absolute right-0 w-48 rounded-xl border border-line bg-space-900 shadow-floating py-1 z-50",
-            // flip up when there isn't enough room
-            // below the trigger so the menu never dangles past the
-            // viewport bottom (admin tables routinely had this on the
-            // last row). `bottom-full` anchors the menu's bottom edge
-            // to the trigger's top instead of dropping below.
             openUp ? "bottom-full mb-1.5" : "top-full mt-1.5",
           )}
         >
@@ -180,9 +143,6 @@ export function ActionRow({ actions, ariaLabel = "Row actions", className }: Act
         title="Confirm action"
         body={pendingAction?.confirm}
         confirmLabel={pendingAction?.label ?? "Confirm"}
-        // Map ActionRow's destructive tone to the dialog's destructive
-        // tone so the primary button paints coral (matches the row
-        // hover colour). All other tones use the default gold.
         tone={pendingAction?.tone === "destructive" ? "destructive" : "default"}
         onConfirm={() => {
           const action = pendingAction;

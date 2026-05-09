@@ -71,7 +71,7 @@ beforeEach(async () => {
   });
 });
 
-describe("POST /cart/items — already-owned guard (Phase 48)", () => {
+describe("POST /cart/items — already-owned guard", () => {
   it("blocks re-adding a non-stackable product the user already paid for", async () => {
     // Product is non-stackable (e.g. download / streaming default).
     (prisma.productItem.findUnique as any).mockResolvedValue({

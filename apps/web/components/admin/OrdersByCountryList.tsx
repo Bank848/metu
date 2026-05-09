@@ -45,11 +45,7 @@ export function OrdersByCountryList({ rows }: { rows: CountryRow[] }) {
           {rows.map((r, i) => {
             const pct = (r.orders / max) * 100;
             const sharePct = totalOrders > 0 ? ((r.orders / totalOrders) * 100).toFixed(1) : "0.0";
-            // 8 distinct hues — all chosen to read clearly on the
-            // dark surface (no muted tones that "sink"). Earlier rev
-            // used `bg-info` which isn't a defined token in
-            // tailwind.config.ts, so the Singapore bar rendered
-            // transparent + got swallowed by the panel background.
+            // 8 distinct hues that all read clearly on the dark surface.
             const tones = [
               "bg-mint",          // 1. Thailand-class — bright green
               "bg-sky-400",       // 2. clear bright blue (was "info")

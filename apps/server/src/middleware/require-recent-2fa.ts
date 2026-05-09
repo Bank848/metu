@@ -3,10 +3,8 @@ import { prisma } from "../db/prisma.js";
 import { auth as betterAuth } from "../lib/auth.js";
 import { AppError } from "../utils/errors.js";
 
-// TOTP step-up middleware: requires a recent TOTP code on top of a
-// valid session before sensitive actions go through. Default mode
-// pass-throughs for users who have not enrolled TOTP yet. Admin-only
-// routes can pass `{ requireTotpEnrolled: true }` to hard-fail instead.
+// TOTP step-up middleware: require a recent TOTP code for sensitive
+// actions. Pass-through for non-enrolled users unless requireTotpEnrolled.
 
 async function readBetterAuthSessionId(req: Request): Promise<number | null> {
   try {
@@ -46,10 +44,7 @@ export function requireRecent2FA(
       });
       if (!user) throw new AppError(401, "Unauthorized");
 
-      // Step-up only matters once 2FA is enrolled UNLESS the route
-      // explicitly opts into strict mode (admin SQL playground): a
-      // caller who never enrolled TOTP cannot satisfy a step-up
-      // challenge by definition, so reject rather than pass-through.
+      // Non-enrolled users pass-through unless route opts into strict.
       if (!user.totpEnabled) {
         if (options.requireTotpEnrolled) {
           throw new AppError(

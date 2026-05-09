@@ -15,11 +15,8 @@ import type {
  * created on the next POST /items.
  */
 async function getOrCreateActiveCart(userId: number) {
-  // Pick the LATEST active cart deterministically. An earlier
-  // cart-restore experiment could leave more than one active row for
-  // the same user; without an explicit orderBy, /cart would flicker
-  // between snapshots. Latest-by-cartId always wins so the buyer
-  // sees a stable cart.
+  // Pick the latest active cart deterministically (legacy data may have
+  // multiple active rows for one user).
   const existing = await prisma.cart.findFirst({
     where: { userId, status: "active" },
     orderBy: { cartId: "desc" },
@@ -29,10 +26,8 @@ async function getOrCreateActiveCart(userId: number) {
 }
 
 /**
- * Read the current cart with its lines + the joins needed to render
- * a row (product name + store + thumbnail + computed unit price).
- * Same shape as the legacy BFF `GET /api/cart` route — included
- * `stock` so the cart UI can cap quantity input.
+ * Read the active cart with line joins needed for rendering, plus
+ * `stock` so the UI can cap the quantity input.
  */
 export async function getCart(userId: number): Promise<CartResponse> {
   const cart = await getOrCreateActiveCart(userId);
@@ -80,43 +75,24 @@ export async function getCart(userId: number): Promise<CartResponse> {
 }
 
 /**
- * Add (or merge) a productItem into the cart. The unique
- * `(cartId, productItemId)` constraint means duplicate adds collapse
- * into a quantity bump — UX expectation is "click + again, see qty 2",
- * not "see two rows".
- * enforce the cap promised in
- * `addToCartSchema`'s "server enforces the real cap" comment:
- *   - Digital deliveryMethods (download / email / license_key /
- *     streaming) are single-use, so the merged quantity caps at 1.
- *     Without this cap, "Add to cart" + "Buy now" on a digital item
- *     bumped it to qty=2 (frontend max=1 disagreed with stored state,
- *     so the qty stepper looked broken and the line refused to update).
- *   - Physical / service lines cap at the variant's `stock` so we
- *     never reserve more than the seller has on hand.
+ * Add or merge a productItem into the cart. Duplicate adds collapse
+ * via the unique (cartId, productItemId) constraint and quantity is
+ * capped: digital methods at 1, physical at the variant's stock.
  */
 export async function addItem(
   userId: number,
   input: AddToCartInput,
 ): Promise<{ cartItem: unknown; merged: boolean }> {
-  // single source of truth for "is this productItem buyable
-  // right now?". Throws 404 ProductItemNotFound, 409 ProductUnavailable,
-  // or 409 StoreUnavailable for any availability gate failure.
+  // Single buyability gate; throws on any availability failure.
   const item = await loadPurchasableProductItem(input.productItemId);
 
-  // Guard: a store owner shouldn't buy from their own store. We catch
-  // it here so the BFF gives a clean 400 even if the frontend's hide-
-  // the-button check is bypassed (e.g. someone hits the API directly).
+  // Owner-buys-own-store guard.
   if (item.product.store.ownerId === userId) {
     throw new AppError(400, "CannotBuyOwnProduct", "You can't buy from your own store.");
   }
 
-  // already-owned guard. Single-copy products
-  // (download / streaming / email — anything with isStackable=false)
-  // can't be bought twice by the same buyer. license_key items
-  // bypass this rule per-variant: the same product can ship a
-  // download AND a license_key variant, and the license_key variant
-  // is meant to be re-purchasable even when the parent product is
-  // not stackable (each purchase mints a fresh key).
+  // Already-owned guard for non-stackable products. license_key
+  // variants are exempt (each purchase mints a fresh key).
   if (!item.product.isStackable && item.deliveryMethod !== "license_key") {
     const owned = await prisma.order.findFirst({
       where: {
@@ -172,15 +148,8 @@ export async function addItem(
 }
 
 /**
- * Update a single line's quantity. Ownership check ensures one user
- * can't edit another user's cart line — the controller throws 404
- * on either "no such row" or "row belongs to someone else" (don't
- * leak whether the id exists).
- * also re-validates availability + caps quantity through
- * the same `loadPurchasableProductItem` path that addItem uses, so
- * a PATCH to qty=10 on a digital line caps to 1 instead of writing
- * the raw value (the previous code path didn't cap at all, which
- * let the digital cap from addItem be bypassed).
+ * Update a line's quantity with ownership + availability re-validation.
+ * Caps via the same loadPurchasableProductItem path as addItem.
  */
 export async function updateItem(
   userId: number,

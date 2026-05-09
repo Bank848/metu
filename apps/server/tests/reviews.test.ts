@@ -71,7 +71,7 @@ describe("POST /products/:productId/reviews", () => {
 
   it("creates a review on a valid product", async () => {
     (prisma.product.findFirst as any).mockResolvedValue({ productId: 100 });
-    // Phase 51: requires a paid order on this product + no existing review.
+    // Requires a paid order on this product + no existing review.
     (prisma.order.findFirst as any).mockResolvedValue({ orderId: 200 });
     (prisma.productReview.findFirst as any).mockResolvedValue(null);
     (prisma.productReview.create as any).mockResolvedValue({

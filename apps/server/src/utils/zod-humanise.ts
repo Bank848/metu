@@ -65,17 +65,13 @@ function humaniseIssue(issue: ZodIssue, field: string): string {
 }
 
 /**
- * Convert a ZodError into a single user-readable message + the field
- * that triggered it. Used by the Express error handler to replace the
- * raw `error.errors` JSON dump that buyers/sellers used to see.
+ * Convert a ZodError into one user-readable message + the offending field.
  */
 export function humaniseZodError(err: ZodError): {
   message: string;
   field: string | null;
 } {
-  // Use `issues` directly — `errors` is just a getter alias in v3 and
-  // some duplicated copies of zod (test runner / monorepo) don't ship
-  // the alias.
+  // Read `issues` directly; cross-realm zod copies may not expose `errors`.
   const issues = (err as { issues?: ZodIssue[] }).issues ?? err.errors ?? [];
   const first = issues[0];
   if (!first) return { message: "Validation failed.", field: null };

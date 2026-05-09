@@ -12,14 +12,9 @@ import { PreviewPane } from "@/components/forms/PreviewPane";
 type BusinessType = { typeId: number; name: string; description: string };
 
 /**
- * / Step 3a — onboarding form rebuilt against Step 2 primitives.
- * Two `<FormSection>` blocks: Identity (name, business type) and
- * Storefront (description, profile + cover imagery — mint surface so the
- * "this is what shoppers see" section reads as the celebratory part).
- * The right rail mirrors EditStoreForm's preview by using the shared
- * `<PreviewPane variant="store">` so first-time sellers see exactly the
- * card their store will become — same component, same markup as the
- * editing flow they'll use forever after.
+ * Become-seller onboarding: two <FormSection> blocks (Identity,
+ * Storefront) with a shared <PreviewPane variant="store"> so first-
+ * time sellers see exactly the card the editing flow will produce.
  */
 export function BecomeSellerForm({ businessTypes }: { businessTypes: BusinessType[] }) {
   const router = useRouter();

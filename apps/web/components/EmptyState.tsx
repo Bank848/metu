@@ -4,23 +4,11 @@ import { EmptyCart } from "./illustrations/EmptyCart";
 import { NoResults } from "./illustrations/NoResults";
 
 /**
- * Generic empty-state card.
- * Wave-2 rebrand:
- *  - New `variant` prop swaps the centered lucide-icon-in-a-circle for
- *    one of the hand-rolled SVG illustrations under
- *    `components/illustrations/`. The two highest-traffic empty
- *    contexts (cart-empty, no-results) get bespoke marks tinted with
- *    the new mint / coral accents — see docs/design-system.md §7.
- *  - Legacy callers that pass `icon={…}` keep the old circle treatment
- *    so the cart, browse, favorites, etc. pages render identically
- *    until they opt into the new variants.
- *  - Card surface switched from `vibrant-mesh` (heavy gold radials) to
- *    `surface-editorial` (Wave-1 flat panel). The illustration carries
- *    the colour now; the surface stays out of its way.
- * Variants:
- *   - `cart`       → <EmptyCart />, mint tint
- *   - `noResults`  → <NoResults />, coral tint
- *   - `default`    → fall back to the icon-in-a-circle (legacy)
+ * Generic empty-state card. The `variant` prop swaps the icon-in-circle
+ * for a tinted illustration:
+ *   - `cart`      → <EmptyCart />, mint
+ *   - `noResults` → <NoResults />, coral
+ *   - `default`   → icon-in-circle (legacy callers passing `icon={…}`)
  */
 type Variant = "default" | "cart" | "noResults";
 
@@ -42,17 +30,12 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        // surface-editorial + soft inset → no harsh border, no dashed
-        // frame. The dashed frame was part of the AI-tell ("every
-        // empty state looks like a dropzone").
         "surface-editorial relative overflow-hidden rounded-3xl p-10 text-center md:p-14",
         className,
       )}
     >
       <div className="relative mx-auto flex max-w-xl flex-col items-center gap-5">
-        {/* Children stagger in on mount so the empty state never feels
-            like a blank panel — illustration first, then heading,
-            description, action. Reduced-motion is honoured globally. */}
+        {/* Stagger reveal: illustration → heading → description → action. */}
         <div
           className="animate-[stagger-rise_0.55s_cubic-bezier(0.22,1,0.36,1)_both]"
           style={{ animationDelay: "0ms" }}

@@ -1,11 +1,6 @@
 /**
- * Phase 22 / 26 — security hardening tests.
- *   • Helmet ships standard hardening headers on every response,
- *     even on 401 / 404 paths (no auth needed).
- * Phase 26 — dropped the message-route profanity + rate-limit suites
- * after the messaging surface was removed. The profanity util itself
- * stays in the codebase (used by reviews, product questions had been
- * a consumer too) and is exercised indirectly through review tests.
+ * Security hardening tests — confirms Helmet ships the standard
+ * hardening headers on every response, including 401 / 404 paths.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
@@ -40,10 +35,8 @@ beforeEach(() => {
 });
 
 describe("Helmet — security headers", () => {
-  // /auth/me is a cheap auth-gated endpoint that doesn't need a DB
-  // mock — it short-circuits with 401 before any prisma call. We only
-  // care that the security headers are attached to the response, not
-  // the status code.
+  // /auth/me short-circuits with 401 before any prisma call, so it's
+  // a cheap target — we only care that the headers are attached.
   it("ships HSTS on a 401 path (no DB mock needed)", async () => {
     const res = await request(buildApp()).get("/auth/me");
     expect(res.headers["strict-transport-security"]).toBeDefined();

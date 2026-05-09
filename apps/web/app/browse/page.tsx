@@ -26,16 +26,10 @@ function parseSort(v: string | undefined): SortKey {
 }
 
 /**
- * Resolve `?category=` to a categoryId.
- * / F3 — historically this used `Number(searchParams.category)`
- * which silently coerced non-numeric slugs to `NaN` and dropped the
- * filter, so /browse?category=fonts returned the unfiltered grid. We now
- * accept either the numeric categoryId or a slug-style name and look the
- * latter up against the existing categories list (already cached for an
- * hour by `getCategories()`, so the lookup is a pure in-memory match).
- * Returns `undefined` when the slug is unknown — the caller treats that
- * as "no category filter" rather than throwing, mirroring how every
- * other browse param is forgiving of bad input.
+ * Resolve `?category=` to a categoryId. Accepts either a numeric id or
+ * a slug-style name, looking the latter up against the cached category
+ * list. Returns `undefined` when unknown so the caller treats it as
+ * "no category filter."
  */
 function resolveCategoryId(
   raw: string | undefined,
@@ -86,10 +80,8 @@ export default async function BrowsePage({
   const activeSort = searchParams.sort ?? "newest";
   const activeQ = searchParams.q ?? "";
 
-  // / F19 — count active filters (excluding `q`, which is
-  // the search bar, and `sort` / `page`, which are presentation state).
-  // The mobile sheet trigger shows this badge so users know at a
-  // glance how many filters are narrowing the result.
+  // Count active filters for the mobile sheet trigger badge.
+  // Excludes `q` (search) and `sort`/`page` (presentation state).
   const activeFilterCount =
     (searchParams.category ? 1 : 0) +
     (searchParams.tags ? searchParams.tags.split(",").filter(Boolean).length : 0) +
@@ -109,19 +101,10 @@ export default async function BrowsePage({
           }
         />
 
-        {/* Phase 11.1 hotfix — `1fr` is shorthand for `minmax(auto,1fr)`,
-            and `auto` lets the column grow past 1fr when its contents
-            overflow. The inner product grid uses
-            `grid-cols-[repeat(auto-fill,minmax(230px,1fr))]` which
-            packs as many 230px tracks as fit, so on wide viewports it
-            was pushing the right column past the viewport edge.
-            `minmax(0,1fr)` floors the minimum at 0 so the column
-            constrains and the inner grid wraps to the actual width. */}
+        {/* `minmax(0,1fr)` floors the column min at 0 so the inner
+            auto-fill product grid can't push the layout past the viewport. */}
         <div className="grid md:grid-cols-[260px_minmax(0,1fr)] gap-6 md:gap-8">
-          {/* Phase 11 / F19 — sidebar is desktop-only. Mobile users
-              see the <BrowseFiltersSheet> trigger at the top of the
-              section (next to Sort) and open filters in a bottom-sheet
-              instead of scrolling past four cards to reach products. */}
+          {/* Sidebar is desktop-only; mobile uses <BrowseFiltersSheet>. */}
           <aside className="hidden md:block">
             <FilterPanel
               categories={categories}
@@ -132,21 +115,9 @@ export default async function BrowsePage({
           </aside>
 
           <section>
-            {/* Phase 11 / F11 — Sort row no longer wraps a submit
-                button. F22 (run #1) wired the dropdown to auto-submit
-                via `router.push()`, which made the adjacent yellow
-                "Apply" button dead UI: clicking it after a sort change
-                fired a no-op submit because the URL had already been
-                updated. Filters in the sidebar are anchor links
-                (instant nav), so there's nothing left for the form to
-                batch — we render the bar as a flex container instead.
-                Hidden inputs that used to preserve other params are
-                gone for the same reason: SortSelect builds the next
-                URL from `window.location` directly.
-
-                Phase 11 / F19 — the mobile filters trigger lives
-                inline in this row so the sort + filter controls share
-                a single mental model on small screens. */}
+            {/* Sort row: SortSelect auto-submits via router.push() and the
+                sidebar filters are instant-nav anchor links, so the bar is
+                a plain flex container with the mobile filter trigger inline. */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <BrowseFiltersSheet activeCount={activeFilterCount}>
                 <FilterPanel
@@ -194,10 +165,6 @@ export default async function BrowsePage({
 
             {result.items.length === 0 ? (
               activeQ ? (
-                // Search-with-no-results — opt into the Wave-2 `noResults`
-                // variant so the bespoke <NoResults /> illustration replaces
-                // the lucide SearchX icon. Keeps the empty state visually
-                // distinct from the "filters returned nothing" state below.
                 <EmptyState
                   variant="noResults"
                   title={`No products match “${activeQ}”`}
@@ -213,32 +180,14 @@ export default async function BrowsePage({
                 />
               )
             ) : (
-              // Wave-3 / F18: drop the fixed 2/3/4/4/5 column template
-              // for `auto-fill` + `minmax`. The previous template left a
-              // 2-column gap on the final row whenever
-              // `result.items.length` wasn't a multiple of the active
-              // breakpoint's column count (e.g. pageSize=16 against 3
-              // cols → orphan card). `auto-fill` lets the browser drop
-              // the trailing slot when the row would otherwise stretch
-              // a card into giant whitespace, so the grid balances
-              // itself on every page size. The 230px min was chosen so
-              // the card count per row matches the previous breakpoints
-              // (3 at md, 4 at lg, 5 at 2xl) within ~5% — no visible
-              // layout shift for full pages. Mobile (<480px) drops to a
-              // single column at this min, matching `grid-cols-1`
-              // rather than the previous `grid-cols-2`; a 2-column
-              // layout at 320px wide produced cards too narrow to read.
+              // `auto-fill` + minmax(230px) keeps card count close to the
+              // old 3/4/5 breakpoints while preventing orphan slots when
+              // pageSize doesn't divide the active column count.
               <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-5">
                 {result.items.map((p, i) => (
-                  // / F4 (priority={i<4}) → QA r3/F1 narrowed to
-                  // priority={i===0}. Stacking ≥2 priority+fill <Image>
-                  // reliably triggers React #418 + #422 in Next 14 App
-                  // Router (the multiple <link rel="preload"> injections
-                  // post-render don't match the SSR snapshot). Promoting
-                  // only the first card preserves the LCP win on the
-                  // hero tile — the next 3 cards drop back to lazy and
-                  // arrive a tick later, which is invisible at typical
-                  // 4G/wifi latencies. Below the fold stays lazy.
+                  // Only the LCP hero tile gets `priority`. Stacking
+                  // multiple priority+fill <Image> nodes triggers React
+                  // #418/#422 in Next 14 App Router.
                   <ProductCard
                     key={p.productId}
                     product={p}
@@ -272,10 +221,8 @@ function FilterPanel({
   categories: Category[];
   tags: Tag[];
   params: Record<string, string | undefined>;
-  // Pre-resolved on the server — accepts the slug-style `?category=fonts`
-  // path as well as the legacy numeric `?category=35` (Phase 11 / F3).
-  // Falls back to coercing `params.category` directly so any in-flight
-  // numeric URL keeps working without a hydration mismatch.
+  // Pre-resolved on the server. Accepts both slug (`?category=fonts`) and
+  // legacy numeric (`?category=35`) forms.
   activeCategoryId?: number;
 }) {
   const activeCategory =
@@ -290,25 +237,16 @@ function FilterPanel({
     return `/browse?${p.toString()}`;
   };
 
-  // Wave-3 visual: filter cards now use `surface-flat` (no glassy
-  // backdrop-blur) with mixed radii — the category panel is the
-  // anchor card (`rounded-2xl`) while the chip groups land on smaller
-  // `rounded-xl` and `rounded-lg` so the sidebar reads as a layered
-  // stack rather than four identical glass squares. Active filters
-  // pick up the new mint accent so the "what's selected" signal is
-  // visually distinct from the metu-yellow primary CTA colour.
+  // Mint-accented active row distinguishes selected filters from the
+  // metu-yellow primary CTA colour.
   const activeRowClass =
     "bg-mint/15 text-mint font-semibold border border-mint/30";
   const idleRowClass =
     "border border-transparent text-ink-secondary hover:bg-white/5 hover:text-white";
 
   return (
-    // / F19 — sticky sidebar gets a max-height + scroll so a
-    // tall filter list (lots of tags) doesn't run off-screen on
-    // shorter laptops. `top-28` keeps it clear of the TopNav.
-    // The whole tree converted from <a> to <Link scroll={false}> so
-    // toggling a filter no longer jumps the user back to the top of
-    // the product grid.
+    // Sticky sidebar with max-height + scroll so a tall filter list
+    // doesn't run off-screen on shorter laptops.
     <div className="space-y-4 md:sticky md:top-28 md:max-h-[calc(100vh-7rem)] md:overflow-y-auto md:pr-1">
       <div className="surface-flat rounded-2xl p-5">
         <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3 flex items-center gap-2">
@@ -342,9 +280,7 @@ function FilterPanel({
         </ul>
       </div>
 
-      {/* Tag chips — smaller radius (xl) than the anchor card (2xl) so
-          the sidebar mixes radii per playbook §4. Active chips switch
-          to the new `success` (mint) Badge variant. */}
+      {/* Tag chips */}
       <div className="surface-flat rounded-xl p-5">
         <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
           Tags
@@ -439,10 +375,8 @@ function Pagination({
     return `/browse?${qs.toString()}`;
   };
   return (
-    // Pagination intentionally KEEPS scroll-to-top behaviour (no
-    // `scroll={false}`) — moving to a new page should land the user
-    // at the top of the new grid, not in the middle. Only the
-    // sidebar filter toggles preserve scroll (Phase 11 / F19).
+    // Pagination keeps scroll-to-top so a new page lands at the top.
+    // Only the sidebar filter toggles preserve scroll.
     <div className="mt-10 flex items-center justify-center gap-2">
       {page > 1 && (
         <Link href={buildHref(page - 1)} className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50">

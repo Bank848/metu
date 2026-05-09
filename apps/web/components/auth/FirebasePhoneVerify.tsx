@@ -1,21 +1,10 @@
 "use client";
 /**
- * drop-in phone verification using Firebase Phone Auth.
- * Flow:
- *   1. User types phone (with country picker — reuses our PhoneInput).
- *   2. We render an invisible reCAPTCHA + call signInWithPhoneNumber.
- *   3. Firebase sends SMS via its own pipeline — first 10 verifications
- *      per day are free on the Spark plan; pay-as-you-go after.
- *   4. User enters the 6-digit code; we confirm via Firebase, get an
- *      ID token, then POST the token to /api/auth/verify-phone-firebase
- *      so our server stamps `phoneVerifiedAt` for the current session.
- * If `firebaseConfigured` is false (env vars not set yet on Fly), the
- * component renders a polite notice and a "use in-house OTP instead"
- * button so the page stays usable in pre-Firebase environments.
- * NOTE: this component is opt-in. /verify-phone still works with our
- * existing in-house OTP flow. We use this component on the
- * /profile/edit "Verify phone (recommended)" banner CTA so users with
- * unverified phones can pick whichever flow is wired up.
+ * Drop-in phone verification using Firebase Phone Auth.
+ * Flow: phone input → invisible reCAPTCHA → signInWithPhoneNumber →
+ * SMS code → confirm → POST Firebase ID token to verifyUrl so the
+ * server can stamp `phoneVerifiedAt`. When `firebaseConfigured` is
+ * false the component renders a notice pointing to the in-house OTP.
  */
 import { useEffect, useRef, useState } from "react";
 import { GlassButton } from "@/components/visual/GlassButton";

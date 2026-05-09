@@ -2,22 +2,15 @@
 import { useEffect } from "react";
 import { play } from "@/lib/sound";
 
-// Pure-CSS confetti burst — no external dep required for the demo.
-// Pairs with the new `purchase` audio cue (lib/sound.ts) so the
-// celebratory triad-arpeggio + sparkle topper lands the moment the
-// confetti starts falling. The cue is muted by the existing
-// `metu-sound-muted` localStorage flag if the user has muted sounds.
+// Pure-CSS confetti burst paired with the `purchase` audio cue.
 export function Confetti() {
   useEffect(() => {
-    // Tell every cart-badge subscriber to refetch — the order is paid,
-    // so the active cart was cleared server-side via clearCartAfterPayment
-    // / finalizeOrder, but useCartCount otherwise has to wait up to 60s
-    // for its polling backstop to notice.
+    // Tell cart-badge subscribers to refetch — the active cart was
+    // cleared server-side, so don't wait for the polling backstop.
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("cart:update"));
     }
-    // Defer audio one tick so a parent that unmounts on the same render
-    // frame (e.g. router replace mid-effect) skips the cue entirely.
+    // Defer audio one tick so unmount-mid-render skips the cue.
     let cancelled = false;
     const audioTimer = window.setTimeout(() => {
       if (!cancelled) play("purchase");

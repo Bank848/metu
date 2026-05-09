@@ -24,9 +24,8 @@ function expressHeadersToFetch(req: Request): Headers {
 
 export { expressHeadersToFetch };
 
-// Forward Set-Cookie headers from a better-auth Web Response onto
-// the Express response. appendHeader so multi-cookie responses
-// (session + csrf + dontRememberMe) all land intact.
+// Forward Set-Cookie headers from a better-auth Response to Express.
+// appendHeader keeps multi-cookie responses intact.
 export function forwardSetCookieHeaders(res: Response, webResponse: { headers: { getSetCookie?: () => string[] } }) {
   const headers = webResponse.headers;
   if (!headers || typeof headers.getSetCookie !== "function") return;
@@ -59,11 +58,7 @@ export function requireAuth(roles?: UserRole[]) {
       const uid = await readBetterAuthUserId(req);
       if (uid === null) throw new AppError(401, "Unauthorized");
 
-      // Slim shape — middleware only needs auth + role + store presence.
-      // Full user object (with bio + addresses) was 54KB on /auth/me
-      // and ran on every authed request. The store join is kept (slim:
-      // storeId only) because requireStore() downstream gates /seller/**
-      // on its presence and seller controllers read `.storeId`.
+      // Slim user shape: middleware only needs auth + role + storeId.
       const user = await prisma.user.findUnique({
         where: { userId: uid },
         select: {

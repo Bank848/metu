@@ -4,13 +4,9 @@ import { useRouter } from "next/navigation";
 import { Loader2, ArrowDownToLine, X } from "lucide-react";
 
 /**
- * Manual payout trigger. Stripe TH Connect schedules payouts weekly
- * by default; this button lets the seller pull funds to their bank
- * on demand. Disabled when availableSatang <= 0 (Stripe rejects empty
- * payouts). Amount field defaults to full available balance, editable
- * down (leave a buffer for refunds). Replaced the prior native
- * window.prompt() with an in-app modal so the UI matches the rest of
- * the app and keyboard nav / focus trap work properly.
+ * Manual payout trigger over Stripe Connect. Disabled when balance is
+ * zero. Amount defaults to the full balance and is editable down so
+ * sellers can leave a buffer for refunds.
  */
 export function RequestPayoutButton({ availableSatang }: { availableSatang: number }) {
   const router = useRouter();

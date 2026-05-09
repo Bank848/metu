@@ -6,22 +6,13 @@ import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
 
 /**
- * / Step 2 — live render of how the marketplace will show the
- * thing being edited.
- * Three variants today:
- *   - product → renders the real `<ProductCard variant="default">`
- *     against the form state, so a seller sees the actual card update
- *     as they type. Pulling in the real component (rather than a
- *     replica) means the preview can never drift from production.
- *   - store   → cover + profile + name preview, modelled on the inline
- *     preview at EditStoreForm.tsx:80–106 but extracted so future store
- *     forms can reuse it without copying markup.
- *   - coupon  → coral pill summarising code + discount + minimum spend
- *     + expiry. Coral because coupons are the "hot promo" signal in the
- *     palette (see globals.css §coral).
- * The pane is sticky-friendly: callers in a two-column grid can wrap
- * with `<div className="sticky top-32">` (or pass the class via
- * `className`) so the preview stays in view while the form scrolls.
+ * Live preview of how the marketplace will render the thing being
+ * edited. Variants:
+ *   - product → renders the real <ProductCard /> so the preview can't
+ *     drift from production
+ *   - store   → cover + profile + name
+ *   - coupon  → coral pill summarising code, discount, min spend, expiry
+ * Sticky-friendly: callers can wrap the pane to keep it in view.
  */
 export type ProductPreviewState = {
   name: string;

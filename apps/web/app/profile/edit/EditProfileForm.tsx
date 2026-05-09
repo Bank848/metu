@@ -697,10 +697,8 @@ export function EditProfileForm({
         )}
       </section>
 
-      {/* Password: SET (Google-only) vs CHANGE based on hasPassword. */}
-      {/* Phase 45 follow-up — `id="set-password"` is the scroll target
-          for the "Set a password" banner up at the top of the page so
-          Google-only users land directly on this form. */}
+      {/* Password: SET (Google-only) vs CHANGE based on hasPassword.
+          `id="set-password"` is the scroll target from the banner above. */}
       <form id="set-password" onSubmit={changePassword} className="rounded-2xl glass-morphism p-6 space-y-4">
         <h2 className="font-display font-bold text-white flex items-center gap-2">
           <Lock className="h-4 w-4 text-metu-yellow" />

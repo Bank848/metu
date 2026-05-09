@@ -1,8 +1,7 @@
 // better-auth instance, mounted via toNodeHandler() at /auth/better/*.
 // Owns the session cookie for both password and Google sign-ins.
 import { betterAuth } from "better-auth";
-// Direct import of the adapter dodges a flaky re-export chain that
-// fails under Fly's `npm ci --ignore-scripts` Docker build.
+// Direct adapter import (avoids a flaky re-export chain in Fly's build).
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma as realPrisma } from "../db/prisma.js";
@@ -55,11 +54,8 @@ const userProxy = new Proxy(realPrisma.user, {
   get(target, prop, receiver) {
     const value = Reflect.get(target, prop, receiver);
     if (typeof value === "function" && typeof prop === "string") {
-      // must mirror userId → id on create + update results
-      // too. The OAuth flow does `createdUser.id` immediately after
-      // user.create to set the new account's userId; without the
-      // mirror that read returns undefined and the account create
-      // ends with "Argument user is missing" → "unable_to_create_user".
+      // Mirror userId → id on create + update results too — OAuth
+      // reads createdUser.id immediately to attach the account row.
       if (/^find/.test(prop)) {
         return (args?: unknown) =>
           (value as (a?: unknown) => Promise<unknown>)
@@ -128,11 +124,7 @@ const BASE_URL =
   process.env.BETTER_AUTH_URL ??
   "http://localhost:3000";
 
-// Hosts the browser is allowed to call sign-in / OAuth from. better-auth
-// rejects POST /api/auth/better/* with 403 when the request's Origin header
-// doesn't match baseURL or one of these. Includes metu.online (canonical
-// custom domain), metu.fly.dev (legacy Fly host that we 301 from), and
-// localhost for local dev. Additional hosts can be added via the
+// Hosts allowed to call sign-in / OAuth. Additional hosts via the
 // BETTER_AUTH_TRUSTED_ORIGINS env var (comma-separated).
 const TRUSTED_ORIGINS = [
   "https://metu.online",
@@ -178,13 +170,8 @@ export const auth = betterAuth({
       createdAt: "createdDate",
       updatedAt: "updatedAt",
     },
-    // declare every extra User column so better-auth's
-    // hook layer doesn't strip them from the create payload. Without
-    // this list, the user.create.before hook returns
-    // `{ ...user, firstName, lastName, username }` but better-auth
-    // filters down to only its known fields, Prisma rejects the
-    // create with "username: String" missing, and the OAuth callback
-    // ends in "unable_to_create_user".
+    // Declare extra User columns so better-auth doesn't strip them
+    // from the create payload (else OAuth fails with missing username).
     additionalFields: {
       firstName: { type: "string", required: true, input: false },
       lastName:  { type: "string", required: true, input: false },
@@ -205,11 +192,8 @@ export const auth = betterAuth({
     },
   },
 
-  // Fill in NOT NULL fields better-auth doesn't know about. Account
-  // linking by trusted provider (below) keeps a Google sign-in for an
-  // already-registered email from creating a duplicate user; the
-  // dedicated unique index on `users.email` is the safety net if a
-  // race manages to slip through.
+  // Fill in NOT NULL fields better-auth doesn't know about; trusted-
+  // provider linking below merges Google → existing local accounts.
   databaseHooks: {
     user: {
       create: {
@@ -234,10 +218,8 @@ export const auth = betterAuth({
     },
   },
 
-  // automatically merge a new Google sign-in into an
-  // existing local account when the email matches. Without this the
-  // user hits "An account already exists with that email" instead of
-  // a smooth link.
+  // Auto-merge Google sign-in into an existing local account when
+  // emails match (instead of the duplicate-email error).
   account: {
     accountLinking: {
       enabled: true,

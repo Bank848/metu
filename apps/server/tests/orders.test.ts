@@ -30,7 +30,7 @@ vi.mock("../src/lib/auth.js", () => {
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-// Phase 16.3 — Mode A: ceremonial cookie (better-auth getSession is mocked).
+// Cookie value is ceremonial — getSession is mocked.
 const cookie = "better-auth.session_token=fake-test-cookie";
 
 beforeEach(async () => {
@@ -46,8 +46,7 @@ beforeEach(async () => {
 
 describe("POST /orders", () => {
   it("returns 401 without a cookie", async () => {
-    // Phase 16.3 — beforeEach signs the user in by default; explicitly
-    // sign out to test the anonymous path.
+    // beforeEach signs the user in; sign out to test anonymous path.
     const { signedOut } = await import("./_authMock.js");
     await signedOut();
     const res = await request(buildApp()).post("/orders").send({});

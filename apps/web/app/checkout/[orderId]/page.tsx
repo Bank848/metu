@@ -7,15 +7,10 @@ import { CheckoutForm } from "./CheckoutForm";
 export const dynamic = "force-dynamic";
 
 /**
- * Stripe Elements checkout confirmation page.
- * The cart's `POST /orders` endpoint returns a clientSecret + redirects
- * here. We re-validate the order (must belong to the buyer and still be
- * in `pending` Stripe state) and hand the clientSecret off to the
- * client component that mounts <PaymentElement />.
- * `?cs=` carries the clientSecret in the URL so a direct refresh keeps
- * working. The secret only lets the bearer confirm THIS payment intent
- * for THIS order amount, so URL exposure is acceptable (matches Stripe's
- * own redirect flow patterns).
+ * Stripe Elements checkout confirmation. POST /orders returns a
+ * clientSecret and redirects here; we re-validate the order and hand
+ * the secret to <CheckoutForm /> which mounts <PaymentElement />.
+ * `?cs=` carries the clientSecret in the URL so a refresh works.
  */
 export default async function CheckoutPage({
   params,
@@ -33,11 +28,9 @@ export default async function CheckoutPage({
   const order = await prisma.order.findUnique({
     where: { orderId },
     include: {
-      // Direct-charge PIs live on the seller's Connect account, so
-      // Stripe.js scopes with stripeAccount: <sellerAcct>. Single-store
-      // orders only, so any surviving item gives us the right account —
-      // we load all so a hard-deleted item[0] (productItem set null)
-      // doesn't leave us with a null Stripe account.
+      // Single-store orders only — load every item so a hard-deleted
+      // item[0] (productItem set null) doesn't strand us with no
+      // Stripe account.
       items: {
         include: {
           productItem: {
@@ -63,16 +56,8 @@ export default async function CheckoutPage({
 
   const clientSecret = searchParams.cs;
   if (!clientSecret) {
-    // No clientSecret in the URL. Three cases:
-    //   1. order is already settled → handled above (line 59).
-    //   2. order is `pending` but the user landed here via browser-back
-    //      from the receipt — the original ?cs= is gone from history.
-    //      Route to the receipt instead of /cart so a paid order never
-    //      "disappears". Stripe webhook may have settled the row between
-    //      the load and now; receipt page handles the still-pending state
-    //      with PendingOrderRefresher.
-    //   3. true demo mode (no Stripe key) — the API never returned a
-    //      clientSecret in the first place; treat as cart bounce.
+    // Pending order without ?cs= → user came back via browser-back; bounce
+    // to receipt where PendingOrderRefresher handles the wait.
     if (order.status === "pending") {
       redirect(`/orders/${orderId}`);
     }
@@ -109,11 +94,8 @@ export default async function CheckoutPage({
           clientSecret={clientSecret}
           publishableKey={publishableKey}
           stripeAccount={
-            // Hard-deleted variants surface as null productItem on
-            // OrderItem (set-null FK). Find the first surviving item so
-            // we can still derive the seller's Stripe account — otherwise
-            // Stripe.js loads in platform context and the Element hangs
-            // on a PI that lives on the connected account.
+            // Find the first surviving item — null productItem rows show up
+            // when a variant is hard-deleted (set-null FK).
             order.items.find((i) => i.productItem)?.productItem?.product.store.stripeAccountId ?? null
           }
         />

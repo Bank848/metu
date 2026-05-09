@@ -11,9 +11,8 @@ vi.mock("../src/db/prisma.js", () => ({
       upsert: vi.fn(),
       deleteMany: vi.fn(),
     },
-    // Phase 17.x — favorites service now reads system_setting to gate
-    // writes behind the favoritesEnabled flag. Default the mock to
-    // flag=true so the existing happy-path assertions still pass.
+    // favorites service reads system_setting to gate writes behind the
+    // favoritesEnabled flag; default the mock to flag=true.
     systemSetting: {
       findUnique: vi.fn().mockResolvedValue({
         id: 1,

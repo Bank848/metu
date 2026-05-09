@@ -5,12 +5,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  // Public counters — exclude soft-deleted rows.
-  // / F10 (CEO Decision 3) — `sellers` now counts `Store` rows
-  // (mirroring `getStats()` in lib/server/queries.ts) so the JSON
-  // endpoint returns the same number the homepage renders.
-  // run #2 / F14 — products count now also gates on live store
-  // (matches `/admin/stores` summation so all four surfaces agree).
+  // Public counters. `sellers` counts Store rows so this JSON matches
+  // what the homepage and /admin surfaces render.
   const [sellers, products, orders, reviews] = await Promise.all([
     prisma.store.count(),
     prisma.product.count(),

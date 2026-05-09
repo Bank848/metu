@@ -1,14 +1,6 @@
-/**
- * AppError — the one error class controllers + services throw to
- * communicate intent (HTTP status + machine-readable code + human
- * message). Caught by `middleware/error.ts` and serialised to a
- * uniform JSON shape: `{ error: code, message }`.
- * Anything else thrown (raw Error, Prisma errors, etc.) → 500 +
- * full Pino log.
- */
-// Default human-readable copy for the common error codes. Used when an
-// AppError is thrown without an explicit message — keeps the response
-// readable instead of returning the bare code string.
+// AppError carries an HTTP status + machine code + human message;
+// caught by middleware/error.ts and serialised as { error, message }.
+// DEFAULT_MESSAGES supplies copy when no explicit message is passed.
 const DEFAULT_MESSAGES: Record<string, string> = {
   Unauthorized: "You need to sign in to do that.",
   Forbidden: "You don't have permission to do that.",
@@ -65,12 +57,7 @@ const DEFAULT_MESSAGES: Record<string, string> = {
 export class AppError extends Error {
   readonly status: number;
   readonly code: string;
-  /**
-   * optional structured payload echoed in the JSON
-   * response. Used by the cart's `AlreadyOwned` error to surface
-   * the existing `orderId` so the frontend can render a
-   * "view your order" CTA without a follow-up round-trip.
-   */
+  /** Optional structured payload echoed in the JSON response. */
   readonly details?: Record<string, unknown>;
 
   constructor(

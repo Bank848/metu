@@ -102,8 +102,7 @@ export const deleteStore: RequestHandler<{ id: string }> = async (req, res, next
 
 export const getStats: RequestHandler = async (req, res, next) => {
   try {
-    // ?days= drives the daily revenue series window. Default 14 to
-    // keep the legacy chart unchanged when no param is sent.
+    // ?days= drives the daily revenue window; default 14.
     const days = Number(req.query.days);
     const stats = await service.getStats(Number.isFinite(days) ? days : 14);
     res.json(stats);
@@ -112,7 +111,7 @@ export const getStats: RequestHandler = async (req, res, next) => {
   }
 };
 
-// Admin Dashboard Requirements §5 — full analytics roll-up.
+// Full analytics roll-up for /admin.
 export const getDashboard: RequestHandler = async (_req, res, next) => {
   try {
     const metrics = await service.getDashboardMetrics();
@@ -147,24 +146,12 @@ export const refreshTopStoresMatview: RequestHandler = async (req, res, next) =>
 export const createMasterCoupon: RequestHandler = async (req, res, next) => {
   try {
     const auth = currentAuth(req)!;
-    // Validate via the shared couponInputSchema — already enforces:
-    //   - code: 3-50 chars, uppercase alphanumeric
-    //   - discountType: "percent" | "fixed"
-    //   - percent ≤ 100 (refine)
-    //   - startDate / endDate: ISO datetime
-    //   - endDate >= startDate (refine)
-    //   - usageLimit: positive int
-    // Earlier rev did ad-hoc Number()/String() coercion + new Date()
-    // in the service — bad input ("asdf" for startDate) fell through
-    // to Prisma which crashed with a 500 leaking schema info. Zod
-    // turns those into a clean 400 ValidationError.
+    // Validate via the shared couponInputSchema (code, dates, usage).
     const parsed = couponInputSchema.safeParse(req.body);
     if (!parsed.success) {
       throw parsed.error;
     }
-    // Force the code to uppercase. Schema already enforces uppercase
-    // alphanumeric so this is just defence-in-depth in case the
-    // refine accepts mixed case in the future.
+    // Force uppercase (defence-in-depth alongside the schema refine).
     const code = parsed.data.code.toUpperCase();
     const created = await service.createMasterCoupon({
       ...parsed.data,

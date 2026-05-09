@@ -1,10 +1,6 @@
-// Time helpers anchored to Asia/Bangkok (UTC+7, no DST).
-//
-// Sellers / admins pick coupon dates in <input type="date"> which lands
-// at UTC midnight after `z.coerce.date()`. Storing that raw produces a
-// 7-hour misalignment in Bangkok: a coupon with endDate=2026-12-31
-// expires at 07:00 ICT instead of 23:59:59 ICT. These helpers snap a
-// Date or "YYYY-MM-DD" string to the seller-intended day boundary.
+// Time helpers anchored to Asia/Bangkok (UTC+7). Snap a Date or
+// "YYYY-MM-DD" string to the local day boundary so date-input values
+// don't drift 7 hours.
 
 const BANGKOK_FMT = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Bangkok",

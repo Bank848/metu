@@ -1,8 +1,5 @@
-// HTML email layout helper.
-// Most email clients (Outlook, Gmail mobile, ProtonMail, etc.) render
-// inline styles only - no <style> blocks, no external CSS, limited
-// support for flexbox/grid. We use 600px-wide tables, hex colors only,
-// and font-family fallbacks.
+// HTML email layout helper. Uses 600px-wide tables + inline styles
+// for cross-client rendering (Outlook / Gmail mobile / ProtonMail).
 
 interface LayoutOptions {
   /** Big headline at the top of the body card. */

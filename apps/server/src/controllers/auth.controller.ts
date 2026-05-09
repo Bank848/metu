@@ -32,8 +32,7 @@ import { AppError } from "../utils/errors.js";
 import { verifyTurnstile } from "../utils/turnstile.js";
 
 // We own validation + bcrypt + TOTP via service.login(); better-auth
-// only mints the session cookie. asResponse:true returns a Web
-// Response whose Set-Cookie headers we forward to Express.
+// just mints the session cookie. Forward its Set-Cookie to Express.
 async function issueBetterAuthCookie(req: import("express").Request, res: import("express").Response, email: string, password: string) {
   const webResponse = await betterAuth.api.signInEmail({
     body: { email, password },
@@ -47,14 +46,8 @@ async function issueBetterAuthCookie(req: import("express").Request, res: import
 }
 
 /**
- * single-session enforcement. After every successful
- * sign-in we drop every OTHER session row for the same user, so a
- * concurrent login from another browser kicks the previous tab out
- * (its next API request gets 401 and the BFF bounces it to /login).
- * The "newest session row wins" heuristic is good enough — we just
- * minted one through better-auth, so the most recent createdAt for
- * this userId is ours. A second simultaneous sign-in race would only
- * keep one anyway, which is exactly the desired behavior.
+ * Single-session enforcement: drop every session row for this user
+ * except the most recent (the one we just minted).
  */
 async function enforceSingleSession(userId: number): Promise<void> {
   const { prisma } = await import("../db/prisma.js");
@@ -76,10 +69,7 @@ export const login: RequestHandler = async (req, res, next) => {
       throw parsed.error;
     }
 
-    // CAPTCHA on login too. Without this a botnet can
-    // distribute credential-stuffing across IPs and dodge the per-IP
-    // rate limit. The Step-2 admin-OTP round-trip skips CAPTCHA so
-    // submitting the OTP code doesn't require a fresh widget render.
+    // CAPTCHA on the password leg of login (admin-OTP step skips it).
     if (!parsed.data.adminOtp) {
       const captchaToken =
         typeof req.body?.captchaToken === "string" ? req.body.captchaToken : undefined;
@@ -96,11 +86,8 @@ export const login: RequestHandler = async (req, res, next) => {
     // Step 1 — password + TOTP + verify gates. Throws on failure.
     const { user } = await service.login(parsed.data);
 
-    // Step 2 — Phase 49 admin-OTP gate. Only fires for guarded
-    // accounts (defaults to admin@metu.dev — the public seed account
-    // anyone with the URL can attempt to sign in to). Trusted devices
-    // (the user ticked "trust for 7 days" on a previous successful
-    // OTP) skip the gate entirely.
+    // Step 2 — admin-OTP gate for guarded accounts (skipped on
+    // trusted devices).
     const { isGuardedAccount, issueAdminOtp, verifyAdminOtp } = await import(
       "../utils/admin-login-otp.js"
     );
@@ -137,14 +124,8 @@ export const login: RequestHandler = async (req, res, next) => {
       }
     }
 
-    // Step 2.5 — universal verify gate. Every credential login that
-    // isn't 2FA-protected and isn't on a trusted device pauses here
-    // for a second-factor confirmation (SMS or email OTP). 2FA-on
-    // users already passed the TOTP gate inside service.login. The
-    // admin-OTP path above is independent — it gates admin accounts
-    // even when 2FA is off — and falls through to here for any user
-    // that's already cleared admin-OTP but still needs the universal
-    // verify (i.e. admins without 2FA on a fresh device).
+    // Step 2.5 — universal verify gate (SMS / email OTP) for non-TOTP
+    // logins on untrusted devices. TOTP-on users skip it.
     {
       const trusted = await isTrustedDevice(req, user.userId);
       const userTotpEnabled = (user as any).totpEnabled === true;
@@ -156,8 +137,7 @@ export const login: RequestHandler = async (req, res, next) => {
           email: parsed.data.email,
           password: parsed.data.password,
         });
-        // Build redacted hints for the channel picker. service.login
-        // enforced phoneVerifiedAt > 0 already, so phone is non-null.
+        // Build redacted hints for the channel picker.
         const phoneTail = userPhone ? userPhone.slice(-4) : "????";
         const emailParts = parsed.data.email.split("@");
         const local = emailParts[0] ?? "";
@@ -183,13 +163,10 @@ export const login: RequestHandler = async (req, res, next) => {
     // Step 3 — issue the better-auth session cookie.
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
 
-    // Step 4 — single-session kick-out. Any concurrent session for
-    // this user gets dropped; the previously-logged-in browser will
-    // 401 on its next API call.
+    // Step 4 — single-session kick-out for any concurrent session.
     await enforceSingleSession(user.userId);
 
-    // Step 5 — if the user ticked "trust this device for 7 days"
-    // alongside a successful OTP gate, mint the trust cookie now.
+    // Step 5 — mint trust-device cookie when ticked + admin-OTP passed.
     if (
       parsed.data.trustDevice &&
       parsed.data.confirmOwner &&
@@ -206,13 +183,8 @@ export const login: RequestHandler = async (req, res, next) => {
 
 /**
  * POST /auth/login/request-otp — request an OTP for the universal
- * verify step. Body: { token, channel: "sms" | "email" }. The token
- * comes from the preAuthToken returned alongside the 401 NeedsVerify
- * response from /auth/login.
- *
- * Reuses the same Verification identifier (`phone-otp:<userId>`) as
- * the in-session OTP request, so only one pending OTP per user
- * across channels (avoids replay across paths).
+ * verify step. Body: { token, channel: "sms" | "email" }. Reuses the
+ * Verification identifier so only one pending OTP per user.
  */
 export const loginRequestOtp: RequestHandler = async (req, res, next) => {
   try {
@@ -232,9 +204,7 @@ export const loginRequestOtp: RequestHandler = async (req, res, next) => {
     if (!user) throw new AppError(400, "InvalidPreAuth", "User not found.");
 
     if (channel === "sms") {
-      // SMS now goes through Firebase Phone Auth client-side. The
-      // client should call POST /auth/login/firebase-verify with the
-      // resulting Firebase ID token instead of asking us for a code.
+      // SMS verification moved to Firebase Phone Auth client-side.
       throw new AppError(
         410,
         "SmsChannelMoved",
@@ -296,8 +266,7 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
     });
     if (!user) throw new AppError(400, "InvalidPreAuth", "User not found.");
 
-    // Verify the code against the Verification row. Hash target is
-    // phone for SMS, email for email — same as ensureSensitiveOtp.
+    // Verify the code against the Verification row (phone or email target).
     const { hashCode, otpIdentifier } = await import("../utils/otp.js");
     const identifier = otpIdentifier(payload.userId);
     const pending = await prisma.verification.findFirst({
@@ -330,12 +299,7 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
     const phoneOk = user.phone && hashCode(payload.userId, user.phone, code) === pending.value;
     const emailOk = hashCode(payload.userId, user.email, code) === pending.value;
     if (!phoneOk && !emailOk) {
-      // Brute-force gate: each wrong code increments the attempt
-      // counter for this pre-auth token. After 5 misses the token is
-      // burned and the attacker has to re-enter the password (and
-      // pass loginLimiter again, capped 5/min) before they can guess
-      // a fresh OTP. The 1M-space 6-digit OTP becomes infeasible to
-      // brute force across the 5-min token TTL.
+      // Brute-force gate: 5 misses burns the pre-auth token.
       const { remaining, locked } = await recordFailedLoginAttempt(token);
       await audit({
         actorId: payload.userId,
@@ -363,8 +327,7 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
     await prisma.verification.delete({ where: { id: pending.id } });
     await consumeLoginPreAuthToken(token);
 
-    // Mint the better-auth session by replaying signInEmail with the
-    // credentials we held under the pre-auth token.
+    // Mint the better-auth session by replaying signInEmail.
     await issueBetterAuthCookie(req, res, payload.email, payload.password);
     await enforceSingleSession(payload.userId);
 
@@ -380,24 +343,10 @@ export const loginVerify: RequestHandler = async (req, res, next) => {
 };
 
 /**
- * POST /auth/login/phone-for-sms — returns the phone number bound to a
- * valid pre-auth token so the Firebase Phone Auth widget can fire its
- * SMS round-trip without making the buyer re-type a number they
- * already own (they got here by entering the right password). Single-
- * use of the pre-auth token IS consumed here and rotated into a child
- * `token` returned in the response — the next call must be /firebase-
- * verify with that child token.
- *
- * Returns:
- *   - `phone`: full E.164 number (Firebase needs this for signInWithPhoneNumber)
- *   - `phoneMasked`: country prefix + last 4 digits (safe to display)
- *   - `token`: rotated child preAuthToken
- *
- * Returning the full phone is acceptable here because the caller has
- * already proven possession of the password, and the masked tail
- * already leaks enough info for SIM-swap social engineering. Trading
- * the marginal disclosure for the better UX (no manual re-entry) is
- * deliberate.
+ * POST /auth/login/phone-for-sms — returns the user's E.164 phone +
+ * masked tail bound to a valid pre-auth token so Firebase Phone Auth
+ * can run signInWithPhoneNumber. Rotates the pre-auth token to a
+ * single-use child `token`; next call must be /firebase-verify.
  */
 export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
   try {
@@ -415,15 +364,9 @@ export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
       throw new AppError(400, "NoPhone", "This account has no phone on file.");
     }
 
-    // Rotate the preAuthToken to a single-use child token so the
-    // original can't be replayed for repeated phone disclosure
-    // within the 5-minute window. The client must use the new
-    // token on the subsequent /firebase-verify call.
+    // Rotate the preAuthToken to a single-use child to prevent replay.
     const consumeResult = await consumeLoginPreAuthToken(token);
-    // deleted === 0 means the token was already burned (replay or
-    // race). Emit the replay audit row, then refuse to issue a new
-    // child token or disclose the masked phone — otherwise the
-    // "blocked" name is a lie.
+    // Already-consumed token: emit replay audit and refuse.
     if (consumeResult.deleted === 0) {
       await audit({
         actorId: payload.userId,
@@ -447,21 +390,15 @@ export const loginPhoneForSms: RequestHandler = async (req, res, next) => {
   }
 };
 
-// maskPhoneTail moved to apps/server/src/utils/phone.ts so audit
-// emit sites can share the same implementation.
-
 /**
- * POST /auth/login/firebase-verify — finishes the two-step login when
- * the second factor is a Firebase Phone Auth ID token (client did the
- * SMS round-trip via reCAPTCHA + signInWithPhoneNumber). Body:
- * { token, firebaseIdToken, trustDevice? }. Mints the better-auth
- * session and (optionally) the trusted-device cookie for 7d.
+ * POST /auth/login/firebase-verify — finishes login when 2nd factor
+ * is a Firebase Phone Auth ID token. Body: { token, firebaseIdToken,
+ * trustDevice? }. Mints the better-auth session.
  */
 export const loginVerifyFirebase: RequestHandler = async (req, res, next) => {
   try {
     const token = typeof req.body?.token === "string" ? req.body.token : "";
-    // Accept both `idToken` (matches register endpoint) and
-    // `firebaseIdToken` (more explicit) for callers' convenience.
+    // Accept both `idToken` and `firebaseIdToken`.
     const idToken =
       typeof req.body?.idToken === "string"
         ? req.body.idToken
@@ -484,11 +421,7 @@ export const loginVerifyFirebase: RequestHandler = async (req, res, next) => {
     try {
       decoded = await verifyFirebaseIdToken(idToken);
     } catch (verifyErr) {
-      // Bucket the firebase-admin error code into a coarse reason so
-      // SOC's firebase-verify-failure-burst rule can distinguish bad
-      // signatures from expired tokens. firebase-admin emits
-      // err.code = "auth/id-token-expired" | "auth/argument-error" |
-      // "auth/id-token-revoked" | "auth/invalid-id-token" | etc.
+      // Bucket the firebase-admin error code into a coarse reason.
       const code =
         typeof (verifyErr as { code?: unknown })?.code === "string"
           ? (verifyErr as { code: string }).code
@@ -537,11 +470,7 @@ export const loginVerifyFirebase: RequestHandler = async (req, res, next) => {
       select: { phone: true },
     });
     if (!user) throw new AppError(400, "InvalidPreAuth", "User not found.");
-    // Normalize both sides to E.164 before comparing — Firebase always
-    // returns E.164 (+66...) but legacy User.phone rows may hold local
-    // format ("0812345678") or whitespace variants. Strict-equals
-    // would let a phone-mismatched account pass when the DB string
-    // drifted from canonical form.
+    // Normalize to E.164 before comparing — handles legacy non-canonical phones.
     const { normalizeThaiPhone } = await import("../utils/phone.js");
     const dbPhoneE164 = normalizeThaiPhone(user.phone);
     const fbPhoneE164 = normalizeThaiPhone(firebasePhone);
@@ -600,10 +529,7 @@ export const register: RequestHandler = async (req, res, next) => {
     }
     const { user, role, demo } = await service.register(parsed.data, req);
     await issueBetterAuthCookie(req, res, parsed.data.email, parsed.data.password);
-    // register also enforces single-session for symmetry
-    // with login (a malicious party can't keep a stale session alive
-    // by re-registering with the same address; the fresh session is
-    // the only one that survives).
+    // Register also enforces single-session for symmetry with login.
     await enforceSingleSession(user.userId);
     res.json({ user, role, ...(demo ? { demo } : {}) });
   } catch (err) {
@@ -630,9 +556,7 @@ export const me: RequestHandler = async (req, res) => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  // Targeted select — middleware now keeps req.user slim, so /auth/me
-  // does its own query for the BFF-consumed fields. Notably skips the
-  // full `store` relation (was responsible for ~54KB responses).
+  // Targeted select for the BFF-consumed fields.
   const { prisma } = await import("../db/prisma.js");
   const user = await prisma.user.findUnique({
     where: { userId: auth.uid },
@@ -690,17 +614,8 @@ export const updateMe: RequestHandler = async (req, res, next) => {
 };
 
 /**
- * GDPR self-delete. Authed user removes their own account.
- * Body must contain `{ confirmation: string }` matching their
- * username so a misclick on the button doesn't blow the account
- * away. Internally calls `admin.service.deleteUser(uid, uid, ...)`
- * with no reason, which routes through the hybrid path:
- *   - fresh accounts (no orders/reviews/transactions) → hard delete
- *   - accounts with history → anonymise (PII removed, ledger kept)
- * Bypasses the SelfDeleteForbidden guard inside admin.service by
- * checking it here first, then delegating with `actor === target`
- * disabled via a tiny direct flow (we can't reuse admin.service
- * verbatim because of that guard).
+ * GDPR self-delete. Body must include `{ confirmation }` matching the
+ * username. Routes through service.selfDelete (hard-delete or anonymise).
  */
 export const deleteMe: RequestHandler = async (req, res, next) => {
   try {
@@ -716,10 +631,7 @@ export const deleteMe: RequestHandler = async (req, res, next) => {
       );
     }
     await service.selfDelete(auth.uid, req);
-    // Best-effort cookie clear so the browser doesn't keep a session
-    // for an account that no longer exists. better-auth's session row
-    // is gone (cascade or anonymise drops it) but the cookie copy
-    // lingers until the browser hits an authed endpoint.
+    // Best-effort cookie clear; the session row is already gone.
     res.clearCookie("better-auth.session_token", { path: "/" });
     res.json({ ok: true });
   } catch (err) {
@@ -876,9 +788,7 @@ export const revokeAllOtherSessions: RequestHandler = async (req, res, next) => 
  */
 export const forgotPassword: RequestHandler = async (req, res, next) => {
   try {
-    // CAPTCHA gate so a botnet can't email-bomb arbitrary
-    // users via the password-reset endpoint (each request burns
-    // Resend quota and clutters the victim's inbox).
+    // CAPTCHA gate to block botnet email-bombing via reset-password.
     const captchaToken =
       typeof req.body?.captchaToken === "string" ? req.body.captchaToken : undefined;
     const ip =
@@ -887,8 +797,7 @@ export const forgotPassword: RequestHandler = async (req, res, next) => {
       undefined;
     const captcha = await verifyTurnstile(captchaToken, ip);
     if (!captcha.ok) {
-      // Same generic OK response — don't leak whether CAPTCHA was
-      // the failure reason vs. the email being unknown.
+      // Generic OK response; don't leak which check failed.
       res.json({
         ok: true,
         message: "If that email is registered, a reset link is on the way.",
@@ -910,11 +819,9 @@ export const forgotPassword: RequestHandler = async (req, res, next) => {
 };
 
 /**
- * Validity probe without consuming the token.
+ * Validity probe (doesn't consume the token).
  *   POST /auth/reset-password/check  body: { token }
  *   GET  /auth/reset-password/check?token=xxx (legacy)
- * The POST shape keeps the token off URLs and access logs (Phase 42
- * URL hardening); the GET shape is preserved for backward compat.
  */
 export const checkResetToken: RequestHandler = async (req, res, next) => {
   try {
@@ -991,9 +898,7 @@ export const verifyPhoneRegister: RequestHandler = async (req, res, next) => {
   }
 };
 
-// verify a Firebase Phone Auth ID token + stamp our
-// `phoneVerifiedAt`. Authed route — caller must be the user we'll
-// stamp. Body: { idToken: string }.
+// Authed: verify a Firebase Phone Auth ID token + stamp phoneVerifiedAt.
 export const verifyPhoneFirebase: RequestHandler = async (req, res, next) => {
   try {
     const auth = currentAuth(req);
@@ -1072,10 +977,7 @@ export const verifyPhoneFirebaseByEmail: RequestHandler = async (req, res, next)
   }
 };
 
-// Server-side gate the client must pass BEFORE asking Firebase to send
-// an SMS. Firebase Phone Auth bypasses our backend (browser → Firebase),
-// so without this gate the client-side localStorage limit is the only
-// throttle and easily bypassed (clear storage / incognito / scripts).
+// Server-side gate before Firebase Phone Auth fires an SMS.
 export const requestFirebaseSms: RequestHandler = async (req, res, next) => {
   try {
     const email = String((req.body ?? {}).email ?? "").trim();
@@ -1129,9 +1031,7 @@ export const totpEnrollVerify: RequestHandler = async (req, res, next) => {
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
-    // Returns the freshly-minted backup codes ONCE. Client must save
-    // them — there's no way to retrieve afterwards (only regenerate,
-    // which invalidates the previous set).
+    // Returns the freshly-minted backup codes once; only regenerate after.
     const result = await service.totpEnrollVerify(auth.uid, parsed.data.code);
     res.json({ ok: true, backupCodes: result.backupCodes });
   } catch (err) {

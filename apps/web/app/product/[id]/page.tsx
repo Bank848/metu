@@ -222,9 +222,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 More like this
               </h2>
             </div>
-            {/* Wave-3 asymmetry — first card uses the `feature` variant
-                (mint surface + bigger image + gold hairline) so the grid
-                stops reading as four identical tiles. */}
+            {/* First card uses the `feature` variant for visual asymmetry. */}
             <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-5">
               {related.map((p, i) => (
                 <ProductCard

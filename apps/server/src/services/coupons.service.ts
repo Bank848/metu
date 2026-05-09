@@ -10,12 +10,8 @@ const GENERIC_REJECTION = "Coupon is not valid";
  * a generic `reason` for the cart UI to surface inline.
  */
 export async function validateCoupon(code: string): Promise<CouponValidateResult> {
-  // When the same code exists on both a master coupon and a seller's
-  // coupon (rare but allowed by the schema's partial unique index),
-  // pick the master coupon first — it's platform-wide so it carries
-  // the broader intent and the seller coupon will still be findable
-  // by its scoped UI flow. orderBy stabilises the lookup so the result
-  // is deterministic instead of whichever Prisma feels like that day.
+  // Master coupons (storeId NULL) win over seller coupons with the
+  // same code; orderBy makes the lookup deterministic.
   const coupon = await prisma.coupon.findFirst({
     where: { code, isActive: true },
     include: { store: { select: { storeId: true, name: true } } },

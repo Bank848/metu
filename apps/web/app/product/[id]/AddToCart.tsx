@@ -98,13 +98,8 @@ export function AddToCart({
       setJustAdded(true);
       play("cart");
       setTimeout(() => setJustAdded(false), 900);
-      // run #2 / F8 — broadcast a cart-mutation event so the
-      // <CartNavIcon> in TopNav re-fetches `/api/cart` immediately.
-      // `router.refresh()` alone wasn't enough because the count lives
-      // in a client component that owns its own state; the event lets
-      // the badge update within ~200ms instead of waiting for the next
-      // 60s background poll. The optional-chain guard keeps this safe
-      // for SSR where `window` is undefined.
+      // Tell <CartNavIcon> to refetch immediately rather than waiting
+      // for its 60s background poll.
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("cart:update"));
       }
@@ -167,9 +162,6 @@ export function AddToCart({
   }
 
   return (
-    // Wave-3: anchor the buy-box on the mint accent surface so it reads
-    // as the "look here" card on the page. Gold-gradient is now reserved
-    // for the price + the "Buy now" CTA only — see docs/design-system.md §5.
     <div className="rounded-2xl surface-accent p-6 shadow-flat">
       <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim mb-3">
         Choose a variant
@@ -281,9 +273,7 @@ export function AddToCart({
         </div>
       </div>
 
-      {/* Phase 26 — out-of-stock variants now show a static notice
-          instead of the StockAlertButton (restock-notification feature
-          was removed alongside the messaging surface). */}
+      {/* Out-of-stock variants show a static notice. */}
       {!isDigital && active?.stock === 0 && (
         <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3">
           <span className="text-sm text-amber-200">This variant is out of stock.</span>

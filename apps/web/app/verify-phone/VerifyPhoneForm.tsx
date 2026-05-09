@@ -12,10 +12,8 @@ import { firebaseConfigured, getFirebaseAuth } from "@/lib/firebase";
 //      DEMO_REVEAL_TOKENS mode and surfaced in a yellow banner on the
 //      page. Never sends a real SMS.
 
-// Rate-limit knobs for the Firebase resend button. Phone-auth abuse is
-// real (every text Firebase sends costs us / hits the daily quota) so
-// we throttle on the client AND let Firebase's own quota be the second
-// line of defence.
+// Rate-limit knobs for the Firebase resend button. Throttle on the
+// client; Firebase's quota is the second line of defence.
 const COOLDOWN_MS = 5 * 60 * 1000;       // wait 5 min between sends
 const HOURLY_CAP = 5;                     // max sends per rolling hour
 const HOURLY_WINDOW_MS = 60 * 60 * 1000;  // rolling hour
@@ -161,11 +159,8 @@ export function VerifyPhoneForm({
     setBusy(true);
     setFbStep("sending");
     try {
-      // Server gate: must pass before we let Firebase ship an SMS. The
-      // server tracks per-user / per-phone cooldowns in audit_log so
-      // clearing localStorage or opening incognito does NOT reset the
-      // limit. Firebase Phone Auth bills per send, so this gate is what
-      // actually keeps the bill bounded.
+      // Server gate. Tracks per-user/per-phone cooldowns in audit_log
+      // so localStorage/incognito tricks can't reset the limit.
       const gateRes = await fetch("/api/auth/request-firebase-sms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -235,11 +230,8 @@ export function VerifyPhoneForm({
       setBusy(false);
     }
   }, [e164, email]);
-  // Note: removed auto-fire on mount. Sending an SMS the moment a buyer
-  // lands on /verify-phone meant a refresh / accidental re-visit burned
-  // a Firebase SMS each time. Now the user explicitly clicks "Send SMS"
-  // (or "Resend code" on the verify step). Server-side rate limit at
-  // /api/auth/request-firebase-sms is the second line of defence.
+  // No auto-fire on mount: the user must click "Send SMS" so a refresh
+  // doesn't burn a Firebase SMS.
   void sentOnceRef;
 
   async function firebaseVerify(e: React.FormEvent) {

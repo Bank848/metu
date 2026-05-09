@@ -39,13 +39,9 @@ export function moneyCompact(n: number | string | null | undefined): string {
 
 /**
  * Default money formatter: always returns "฿X.XX" — including ฿0.00.
- * Use this for revenue, GMV, stat tiles, dashboard charts, order totals,
- * coupon discount amounts, transaction amounts. ANY context where 0 means
- * "no money moved" rather than "this thing is free."
- *
- * Earlier rev returned "Free" at 0 — broke the admin dashboard because
- * a zero-revenue day rendered as "Free" inside a Revenue chart hover.
- * "Free" semantics moved to `coinsOrFree()` for product-price contexts.
+ * Use this anywhere 0 means "no money moved" (revenue, GMV, totals,
+ * chart hovers). For product-price contexts where 0 means free, use
+ * `coinsOrFree()`.
  */
 export function coins(n: number | string | null | undefined): string {
   const num = typeof n === "string" ? Number(n) : (n ?? 0);

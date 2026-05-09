@@ -4,15 +4,9 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/EmptyState";
 
 /**
- * / Step 2 — minimal table abstraction for admin & seller lists.
- * The admin pages (users, stores, transactions, etc.) all reach for the
- * same recipe: a sticky header on a `surface-flat` table, hover-tinted
- * rows, an actions cell on the right, optional pagination beneath. This
- * primitive owns that shape so each page only writes a `columns` array
- * and a `renderCell` function.
- * Generic over the row type. We do NOT virtualise — the demo has at
- * most a few hundred rows per page, and a virtualised table here would
- * cost more in bundle size than it saves in render time.
+ * Minimal table primitive for admin/seller lists. Sticky header on a
+ * `surface-flat` table, hover-tinted rows, optional actions cell, and
+ * optional pagination. Generic over the row type; not virtualised.
  */
 export type DataTableAlign = "left" | "right" | "center";
 
@@ -138,15 +132,8 @@ export function DataTable<T>({
         </div>
       </div>
 
-      {/* ─── Mobile (<md): card-collapse view ───
-          Tables don't fit on phones — even with `overflow-x-auto`, the
-          horizontal scroll is awkward and hides actions. Each row
-          becomes a stacked card showing column-header → value pairs.
-          The first column (usually identity/avatar) gets prominent
-          treatment as the card header; remaining columns become a
-          two-column meta grid below; actions row sits at the bottom.
-          aria-label declares the surface as a list, not a table, so
-          screen readers don't try to apply table semantics. */}
+      {/* Mobile card-collapse: each row becomes a stacked card with the
+          first column as the header and the rest as a meta grid. */}
       <ul aria-label={ariaLabel} className="md:hidden space-y-2.5">
         {rows.map((row) => {
           const [first, ...restCols] = columns;
@@ -193,12 +180,8 @@ export function DataTable<T>({
 }
 
 /**
- * Pagination footer mirroring the inline `Pagination` from
- * apps/web/app/browse/page.tsx (lines 286–318) so the visual rhythm of
- * paged surfaces stays consistent across browse + admin lists.
- * Two modes:
- *  - `buildHref` for server-component pages (no JS roundtrip)
- *  - `onChange`  for client-driven tables
+ * Pagination footer matching /browse so paged surfaces look consistent.
+ * `buildHref` for server pages; `onChange` for client-driven tables.
  */
 function DataTablePaginationFooter({ pagination }: { pagination: DataTablePagination }) {
   const { page, totalPages, onChange, buildHref } = pagination;

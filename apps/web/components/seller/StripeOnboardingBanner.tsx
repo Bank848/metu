@@ -5,19 +5,9 @@ import { useEffect, useState } from "react";
 import { CreditCard } from "lucide-react";
 
 /**
- * the "Connect Stripe to start accepting payments" CTA
- * lived in the seller layout and rendered on every /seller/* page,
- * including /seller/onboarding itself. Clicking the banner button
- * while already on the destination did nothing, so users tapped it
- * repeatedly with no feedback.
- * the banner used to read its visibility from a server-
- * side `needsStripe` prop. App Router caches layouts across sibling
- * navigation, so `needsStripe` stayed at the value captured on the
- * first render and a seller who finished Stripe-Connect onboarding
- * still saw "Set up Stripe →" on the dashboard until they hard-
- * refreshed. The banner now self-fetches `/api/seller/stripe/status`
- * on mount and on every pathname change, so it disappears the moment
- * the account.updated webhook flips chargesEnabled in the DB.
+ * Self-fetches `/api/seller/stripe/status` on mount + on every pathname
+ * change so it disappears the moment account.updated flips
+ * chargesEnabled. Hidden on /seller/onboarding to avoid a dead-link CTA.
  */
 export function StripeOnboardingBanner() {
   const pathname = usePathname() ?? "";

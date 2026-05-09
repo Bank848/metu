@@ -1,15 +1,7 @@
 /**
- * Trusted-device cookie + DB row helpers.
- * The browser holds a 32-byte hex cookie (`metu-trust`); the DB
- * stores SHA-256(cookie) so a leaked DB dump can't be replayed to
- * impersonate a trusted device. On every guarded login we:
- *   1. Read the cookie. If present, hash it and look for a row that
- *      belongs to the user being signed in AND hasn't expired yet.
- *      Match → skip the email-OTP gate.
- *   2. After a successful OTP verify, if the user ticked "trust this
- *      device for 7 days", mint a fresh cookie + insert a row.
- * Cookies are HttpOnly + SameSite=Lax + Secure (in prod), Path=/.
- * Expiry matches the DB row at TRUST_DAYS days from now.
+ * Trusted-device cookie + DB row helpers. Browser holds a 32-byte
+ * hex cookie; DB stores its sha256. Cookie is HttpOnly + SameSite=Lax
+ * + Secure(prod), expiry matches the DB row.
  */
 import crypto from "node:crypto";
 import type { Request, Response } from "express";
@@ -71,11 +63,8 @@ export async function isTrustedDevice(
 }
 
 /**
- * Mint a fresh cookie + DB row for `userId`. Sets the response cookie
- * via Express's `res.cookie` so the browser stores it; subsequent
- * logins from the same browser within TRUST_DAYS skip the OTP gate.
- * Idempotent — if the request already had a valid trust cookie for
- * this user, we extend its expiry instead of minting a new one.
+ * Mint a trust cookie + DB row. Idempotent — extends the expiry on
+ * an already-valid cookie for this user.
  */
 export async function trustThisDevice(
   req: Pick<Request, "cookies" | "headers">,
@@ -90,9 +79,8 @@ export async function trustThisDevice(
       : undefined;
   const label = deriveLabel(ua);
 
-  // Reuse the existing cookie value when it already resolves to this
-  // user — keeps the cookie value stable across logins so a user with
-  // multiple tabs doesn't get a forced re-login on the older tab.
+  // Reuse the existing cookie when it already resolves to this user
+  // so multi-tab sessions keep a stable trust value.
   if (existing && typeof existing === "string" && existing.length >= 32) {
     const fingerprintHash = hashCookie(existing);
     const row = await prisma.trustedDevice.findUnique({

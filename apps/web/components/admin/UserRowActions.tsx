@@ -22,17 +22,10 @@ function hardRefresh() {
 }
 
 /**
- * / Step 3b — repackaged as an `<ActionRow>` dropdown.
- * The bespoke role-select + trash-button cluster is replaced with a
- * three-dots menu that exposes:
- *   - "Make admin" / "Make seller" / "Make buyer"  (current role disabled)
- *   - "Delete user"                                (destructive / coral)
- * The role-change and delete API calls are IDENTICAL to the previous
- * implementation — only the trigger UI changed. Self-row protection is
- * still respected (every action is `disabled` when `isSelf`).
- * Errors used to render inline next to the buttons; now they surface as
- * a small badge above the dropdown so the dropdown trigger stays the
- * same width across rows.
+ * Three-dots <ActionRow> dropdown for admin user-table rows. Exposes
+ * role changes (admin/seller/buyer) and delete (destructive). Self-row
+ * actions are disabled. Errors render as a badge above the trigger so
+ * the dropdown stays the same width across rows.
  */
 export function UserRowActions({
   userId,
@@ -100,13 +93,8 @@ export function UserRowActions({
         setBusy(null);
         return;
       }
-      // used to call BOTH router.refresh() AND
-      // window.location.reload(); they raced and on a slow network
-      // the reload sometimes fired before the server component had
-      // re-rendered, leaving the badge stale on the post-reload paint.
-      // A single hard reload is sufficient — `dynamic = "force-dynamic"`
-      // on /admin/users + `cache: "no-store"` in apiAuth guarantee
-      // the new page render reads fresh role data.
+      // Single hard reload — force-dynamic + cache:"no-store" guarantee
+      // the next paint reads fresh role data.
       hardRefresh();
     } catch {
       setError("Network error");

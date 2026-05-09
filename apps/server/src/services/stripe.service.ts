@@ -1,11 +1,6 @@
-// Stripe Connect (test mode) integration. Stripe owns the payment
-// state; we persist only the IDs we need. Module is isConfigured()
-// guarded so a deploy without STRIPE_SECRET_KEY still boots in demo mode.
-//
-// Money-direction policy (buyer-favourable):
-//   - Buyer charge:  Math.floor(baht * 100)  — sub-satang lost to buyer's favour
-//   - Buyer refund:  Math.round(baht * 100)  — buyer gets the cent back
-//   - Seller payout: Stripe owns the math; we never compute it locally
+// Stripe Connect (test mode) integration. Module is isConfigured()
+// guarded so an unconfigured deploy still boots in demo mode.
+// Money-direction: charges floor(), refunds round() — buyer-favourable.
 import Stripe from "stripe";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
@@ -44,9 +39,7 @@ export async function createConnectAccount(storeId: number): Promise<string> {
   if (!store) throw new AppError(404, "StoreNotFound");
   if (store.stripeAccountId) return store.stripeAccountId;
 
-  // TH compliance: explicit `controller` shape so Stripe is loss-
-  // liable and runs the hosted onboarding flow. `type:"express"`
-  // isn't allowed in Thailand.
+  // TH compliance: explicit controller shape (express isn't TH-allowed).
   const acct = await stripe.accounts.create({
     country: "TH",
     email: undefined,
@@ -92,11 +85,9 @@ export async function createOnboardingLink(storeId: number): Promise<string> {
 }
 
 /**
- * Pull the latest capability flags + requirements from Stripe and
- * persist the boolean flags locally. Stripe also tells us *why* an
- * account can't make charges (currentlyDue + disabledReason) — we
- * surface those so the seller wallet UI can show actionable next
- * steps instead of a vague "cannot make charges" toast.
+ * Pull capability flags + requirements from Stripe, persist the
+ * booleans, and return the `currently_due` / `disabled_reason` bits
+ * so the wallet UI can render actionable next steps.
  */
 export async function refreshAccountStatus(storeId: number) {
   const stripe = getClient();
@@ -118,8 +109,7 @@ export async function refreshAccountStatus(storeId: number) {
     data: { stripePayoutsEnabled: payoutsEnabled, stripeChargesEnabled: chargesEnabled },
   });
 
-  // Pull the actionable bits from the requirements object so the UI
-  // can tell the seller exactly which fields Stripe still wants.
+  // Surface the actionable requirement bits to the UI.
   const req = acct.requirements ?? {};
   const requirements = {
     disabledReason: (req as { disabled_reason?: string | null }).disabled_reason ?? null,
@@ -154,9 +144,7 @@ export async function createPaymentIntent(opts: {
   buyerEmail?: string;
 }): Promise<{ paymentIntentId: string; clientSecret: string }> {
   const stripe = getClient();
-  // Buyer charge: floor satang so any sub-satang fragment lost is in
-  // the buyer's favour (they pay slightly less, never slightly more
-  // than what we displayed).
+  // Floor satang so sub-satang fragments are buyer-favourable.
   const amountSatang = Math.floor(opts.amountBaht * 100);
   const applicationFeeSatang = Math.floor(
     (amountSatang * opts.applicationFeePercent) / 100,
@@ -166,12 +154,8 @@ export async function createPaymentIntent(opts: {
     {
       amount: amountSatang,
       currency: "thb",
-      // Explicit card-only allowlist. `automatic_payment_methods` with
-      // `allow_redirects: never` was supposed to hide redirect methods
-      // like PromptPay but Stripe kept showing PromptPay anyway — be
-      // explicit. PromptPay etc. settle async via
-      // `payment_intent.processing` which our webhook does not handle,
-      // so orders would sit pending forever.
+      // Card-only — async methods (PromptPay etc.) need a webhook we
+      // don't handle, so explicit allowlist beats automatic_payment_methods.
       payment_method_types: ["card"],
       application_fee_amount: applicationFeeSatang,
       receipt_email: opts.buyerEmail,
@@ -228,13 +212,9 @@ export async function listStoreCharges(stripeAccountId: string, limit = 20) {
 }
 
 /**
- * Platform-wide Stripe activity feed for the admin overview. METU runs
- * Stripe Connect with direct charges, so charge / refund / payout /
- * transfer events fire on the seller's connected account, NOT on the
- * platform — a plain `events.list({})` call comes back empty for any
- * marketplace activity. Fan out across every store with a connected
- * account, merge by `created` DESC, and cache for 60s so admin
- * page-refreshes don't hammer Stripe.
+ * Platform-wide Stripe activity feed for the admin overview. Direct
+ * charges fire events on the connected account, so we fan out across
+ * stores and merge by `created` DESC. 60s cache.
  */
 const ACTIVITY_TTL_MS = 60_000;
 const _activityCache = new Map<

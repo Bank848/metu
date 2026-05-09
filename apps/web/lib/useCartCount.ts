@@ -1,23 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 
-// Shared cart-count store. Without this, both CartNavIcon (top nav)
-// and MobileBottomNav (bottom nav on phone) independently polled
-// `/api/cart` every 60 seconds AND on every cart:update event. That
-// meant every render of a page with both navs fired 2 simultaneous
-// requests; on slow connections we measured /api/cart taking
-// 1.2-1.3s — duplicated.
-//
-// This hook centralises the fetch:
-//   1. Module-level `count` + listener set so all subscribers share
-//      one piece of state.
-//   2. The first subscriber kicks off the polling timer + window
-//      event listeners; subsequent subscribers reuse the same loop.
-//   3. When the last subscriber unmounts, the timer stops.
-//   4. On cart:update or window focus, refetch immediately (same
-//      behaviour as before).
-//
-// Result: 1 request per polling tick instead of 2 (or N).
+// Shared cart-count store. CartNavIcon and MobileBottomNav both
+// subscribe to one polling loop instead of fetching independently.
+// Refetches on `cart:update` and window focus.
 
 let cachedCount = 0;
 const subscribers = new Set<(n: number) => void>();
@@ -30,9 +16,7 @@ function emit(n: number) {
 }
 
 async function refresh(): Promise<number> {
-  // Coalesce concurrent calls — if a fetch is already in flight, the
-  // duplicate caller awaits the same promise. Prevents 2 simultaneous
-  // useEffect mounts from racing.
+  // Coalesce concurrent calls so simultaneous mounts don't race.
   if (inFlight) return inFlight;
   inFlight = (async () => {
     try {

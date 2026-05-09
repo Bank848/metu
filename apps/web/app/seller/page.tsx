@@ -56,8 +56,7 @@ export default async function SellerOverview() {
 
   return (
     <>
-      {/* Wave-3: hero greeting card lives in the editorial surface so it
-          breaks the row-of-cards rhythm and reads as a magazine pull-out. */}
+      {/* Hero greeting card — magazine pull-out style. */}
       <div className="surface-editorial rounded-3xl px-6 py-6 md:px-8 md:py-8 mb-6">
         <PageHeader
           title={stats.store.name}
@@ -78,9 +77,6 @@ export default async function SellerOverview() {
       </div>
 
       {lowStock.length > 0 && (
-        // Wave-3: low-stock banner picks up the coral border (= "needs
-        // attention" in the new accent register). Inner copy keeps the
-        // amber tones since the buyer-facing meaning hasn't changed.
         <div className="mb-6 rounded-2xl border border-coral/40 bg-amber-400/10 p-4 flex items-start gap-3 shadow-flat">
           <AlertTriangle className="h-5 w-5 text-coral shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
@@ -106,14 +102,10 @@ export default async function SellerOverview() {
         </div>
       )}
 
-      {/* Wave-3: lead stat (revenue) gets `highlight` — single mint card
-          to call out the headline number. Rest stay default. */}
+      {/* Revenue uses `highlight`; the rest stay default. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {/* Phase 11.2 — `coinsCompact(thbToCoins())` formats as "฿45.6K" / "฿1.2M"
-            so the headline number always fits the highlight slot.
-            `valueTooltip` exposes the precise figure on hover for
-            sellers who need the exact amount before reaching for
-            /seller/analytics. */}
+        {/* Compact-format the headline so it fits the highlight slot;
+            hover shows the precise figure. */}
         <StatCard
           variant="highlight"
           icon={Banknote}

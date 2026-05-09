@@ -16,11 +16,9 @@ function hardRefresh() {
 }
 
 /**
- * / Step 3b — repackaged as an `<ActionRow>` dropdown.
- * adds a Suspend/Unsuspend toggle ABOVE the destructive
- * Delete. Suspended stores are HIDDEN from public surfaces (browse,
- * /store/[id], featured, sitemap) but the row + products + history
- * stay intact. Reversible — vs Delete which is permanent.
+ * <ActionRow> dropdown for admin store rows. Suspend/Unsuspend hides
+ * the store from public surfaces but keeps the row + products intact
+ * (reversible). Delete is permanent.
  */
 export function StoreActions({
   storeId,

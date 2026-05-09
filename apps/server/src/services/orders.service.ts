@@ -17,8 +17,6 @@ import type {
 } from "../models/orders.model.js";
 
 // HMAC of orderId + recipient email, truncated to 32 base64url chars.
-// Lets the gift email link to a public /gift page that verifies the
-// token + the signed-in user's email before disclosing license keys.
 function giftTokenSecret(): string {
   const s = process.env.JWT_SECRET;
   if (!s || s.length < 16) {
@@ -43,8 +41,7 @@ export function verifyGiftToken(
 ): boolean {
   if (typeof token !== "string" || token.length !== 32) return false;
   const expected = signGiftToken(orderId, recipientEmail);
-  // Equal lengths guaranteed by the slice above; timingSafeEqual still
-  // throws on mismatched lengths, so wrap defensively.
+  // timingSafeEqual throws on mismatched buffer lengths.
   try {
     return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
   } catch {
@@ -60,11 +57,7 @@ export async function checkout(
   userId: number,
   input: CheckoutInput,
 ): Promise<CheckoutResponse> {
-  // Cancel any of this user's still-pending orders before creating a new one.
-  // The buyer cancelled out of Stripe / closed the tab and is now retrying;
-  // letting both orders sit pending would double-decrement non-digital stock
-  // and clutter the orders list with abandoned rows. Restores stock as it
-  // goes, so the stock reservation we're about to make below is clean.
+  // Clear any prior pending orders so retries don't double-reserve stock.
   await cancelUserPendingOrders(userId).catch((err) => {
     // eslint-disable-next-line no-console
     console.warn("[orders.checkout] cancel-pending failed (non-fatal):", err);
@@ -91,12 +84,8 @@ export async function checkout(
   let unselectedItems = selectedSet
     ? cart.items.filter((ci) => !selectedSet.has(ci.cartItemId))
     : [];
-  // Stale-id check: a buyer who backed out of Stripe and clicked
-  // Checkout again may send OLD cartItemIds (cart was recreated; ids
-  // changed). Earlier rev silently treated a zero-match as "select
-  // everything" — that path silently over-charged buyers who had
-  // deselected items. Fail-fast with a clear 400 so the client can
-  // refetch the cart and re-confirm what the buyer wants to pay for.
+  // Stale-id guard: if selection ids were sent but match nothing, fail
+  // loud so the client refetches instead of silently selecting all.
   if (selectedSet && selectedItems.length === 0 && cart.items.length > 0) {
     throw new AppError(
       400,
@@ -108,11 +97,8 @@ export async function checkout(
     throw new AppError(400, "EmptyCart", "No items selected for checkout.");
   }
 
-  // Gift-form validation. Reject empty/whitespace-only recipient
-  // addresses so the buyer can't sneak past the client-side check by
-  // submitting a stripped JSON body, and reject self-addressed gifts
-  // since those defeat the whole point of the gift flow (and would
-  // otherwise let the buyer claim their own gift via /gift/[id]).
+  // Gift-form validation: reject empty/whitespace, malformed, and
+  // self-addressed recipient emails.
   if (input.giftRecipientEmail !== undefined && input.giftRecipientEmail !== null) {
     const trimmed = input.giftRecipientEmail.trim();
     if (!trimmed) {
@@ -143,17 +129,11 @@ export async function checkout(
         "Gifts can't go to your own email — pick a different recipient or untick the gift checkbox.",
       );
     }
-    // Replace the input so the rest of checkout sees the trimmed value.
     input = { ...input, giftRecipientEmail: trimmed };
   }
 
-  // defence in depth. Cart's addItem/updateItem already
-  // run this gate, but a buyer who held a cart open through a seller
-  // pause / store suspension / soft-delete shouldn't be able to push
-  // through with a stale row. Each line gets re-validated against the
-  // same `loadPurchasableProductItem` rules, and any over-cap quantity
-  // is rejected (we don't silently cap at checkout — the buyer needs
-  // to see what changed in their cart before paying).
+  // Re-validate every selected line so a stale / paused / over-cap
+  // row can't slip through to payment.
   for (const ci of selectedItems) {
     const fresh = await loadPurchasableProductItem(ci.productItemId);
     const cap = capQuantity(ci.quantity, fresh);
@@ -167,13 +147,9 @@ export async function checkout(
     }
   }
 
-  // Already-owned guard. Non-stackable products (license_key, download,
-  // streaming, email) shouldn't ship to the same account twice. Whose
-  // ownership we check depends on the order shape:
-  //   - Self-purchase: check the BUYER's existing orders.
-  //   - Gift: check the RECIPIENT's existing orders if their email
-  //     matches a registered user. Otherwise the duplicate check runs
-  //     again at /gift/[id] claim time, after the recipient signs in.
+  // Already-owned guard for non-stackable products. Self-purchase
+  // checks buyer; gift checks recipient if their email is registered
+  // (otherwise the gift-claim page rechecks at claim time).
   const nonStackableProductIds = selectedItems
     .filter((ci) => !ci.productItem.product.isStackable)
     .map((ci) => ci.productItem.product.productId);
@@ -231,11 +207,8 @@ export async function checkout(
     }
   }
 
-  // Active row inside the date window. Note: usage limit + per-user
-  // checks happen INSIDE the order transaction below to avoid TOCTOU
-  // (parallel checkouts both passing the gate). The unique index
-  // on (couponId, userId) provides the per-user enforcement, the
-  // count() inside tx provides the global limit enforcement.
+  // Resolve active coupon by date window. Usage-limit and per-user
+  // enforcement happen inside the order transaction below (TOCTOU-safe).
   let resolvedCoupon: Awaited<ReturnType<typeof prisma.coupon.findFirst>> | null = null;
   if (input.couponCode) {
     const now = new Date();
@@ -249,7 +222,7 @@ export async function checkout(
     });
   }
 
-  // Decimal math: float arithmetic on percent discounts loses cents.
+  // Use Decimal so percent discounts don't drift on cents.
   const unitPrice = (ci: (typeof selectedItems)[number]) =>
     new Prisma.Decimal(ci.productItem.price).mul(
       new Prisma.Decimal(100 - (ci.productItem.discountPercent ?? 0)).div(100),
@@ -257,8 +230,8 @@ export async function checkout(
 
   let subtotal = new Prisma.Decimal(0);
   let couponEligibleSubtotal = new Prisma.Decimal(0);
-  // Master coupon (storeId === null) is platform-wide; per-store
-  // coupons only discount lines belonging to that store.
+  // Master coupon (storeId === null) applies platform-wide; per-store
+  // coupons only discount lines from that store.
   const couponIsMaster = resolvedCoupon !== null && resolvedCoupon.storeId === null;
   for (const ci of selectedItems) {
     const line = unitPrice(ci).mul(ci.quantity);
@@ -288,15 +261,13 @@ export async function checkout(
   }
   const total = subtotal.sub(couponDiscount);
 
-  // reject zero-total orders (large fixed-coupon abuse).
+  // Reject zero-total orders (fixed-coupon abuse guard).
   if (total.lte(0)) {
     throw new AppError(400, "InvalidTotal", "Order total must be greater than zero.");
   }
 
   // Single-store + Stripe-configured carts get a real PaymentIntent.
-  // multi-store carts are blocked when any store has
-  // Stripe connected. Previously the code silently fell back to demo
-  // mode, giving the buyer free products from all stores.
+  // Multi-store checkout is blocked whenever any store has Stripe live.
   const storeIds = new Set(selectedItems.map((ci) => ci.productItem.product.storeId));
   const singleStoreId = storeIds.size === 1 ? selectedItems[0]!.productItem.product.storeId : null;
   let useStripe = false;
@@ -306,12 +277,8 @@ export async function checkout(
       where: { storeId: singleStoreId },
       select: { stripeAccountId: true, stripeChargesEnabled: true },
     });
-    // The DB flag can drift from Stripe's runtime state — Stripe might disable
-    // charges for the seller (capability lost, identity verification expired,
-    // etc.) without our webhook landing in time. Refresh from Stripe before
-    // checkout so the buyer doesn't get sent to a Stripe page that immediately
-    // errors out at confirm time. One extra API call per checkout is cheap
-    // compared to a busted purchase flow.
+    // Refresh the seller's chargesEnabled flag from Stripe — the DB
+    // copy can drift if a webhook was missed.
     let chargesEnabled = Boolean(store?.stripeChargesEnabled);
     if (store?.stripeAccountId) {
       try {
@@ -326,9 +293,8 @@ export async function checkout(
       useStripe = true;
       sellerStripeAccountId = store.stripeAccountId;
     } else if (store?.stripeAccountId && !chargesEnabled) {
-      // Connected but Stripe is restricting the account — silently
-      // falling back to demo mode would hand the buyer a free product.
-      // Block checkout with a clear message instead.
+      // Connected but Stripe is restricting the account; block rather
+      // than fall back to demo (which would hand out a free product).
       throw new AppError(
         400,
         "SellerNotReadyForPayments",
@@ -356,9 +322,8 @@ export async function checkout(
 
   const settings = await getSettings();
 
-  // create PaymentIntent BEFORE the DB transaction so
-  // stock is never decremented if Stripe is unavailable. The buyer
-  // simply gets a 502 and can retry; no orphaned pending orders.
+  // Create the PaymentIntent before the DB transaction so a Stripe
+  // outage never leaves stock decremented behind an orphaned order.
   let stripeClientSecret: string | null = null;
   let stripePaymentIntentId: string | null = null;
   if (useStripe && sellerStripeAccountId) {
@@ -399,12 +364,9 @@ export async function checkout(
       data: {
         userId,
         totalPrice: total,
-        // All orders start `pending`. Stripe webhook flips to `paid`;
-        // demo orders require admin approval.
+        // Stripe webhook flips this to `paid`; demo orders need admin approval.
         status: "pending",
-        // Business Rule 4j — payment session lasts 15 minutes. The
-        // sweepExpiredOrders cron flips status='cancelled' once
-        // expiredAt slips into the past.
+        // 15-minute payment window; sweepExpiredOrders cron cancels expired.
         expiredAt: new Date(Date.now() + 15 * 60_000),
         stripePaymentIntentId,
         transactionId: txn.transactionId,
@@ -446,13 +408,10 @@ export async function checkout(
       }
     }
 
-    // Order has a UNIQUE(cart_id) constraint so each order needs its own
-    // cart. Flip the current cart to checked_out, mint a fresh active one,
-    // and copy the unselected items + a snapshot of the selected items
-    // forward — that way a back-button-out-of-Stripe leaves the buyer's
-    // cart intact (items can be retried) while the unique-cart invariant
-    // is preserved. cancelUserPendingOrders() above clears any stale
-    // pending order before this point so we never double-decrement stock.
+    // UNIQUE(cart_id) on Order means each order needs its own cart.
+    // Flip the current to checked_out, mint a fresh active one, and
+    // forward unselected + snapshot of selected items so the buyer's
+    // /cart still reflects what they were paying for.
     await tx.cart.update({
       where: { cartId: cart.cartId },
       data: { status: "checked_out" },
@@ -466,9 +425,8 @@ export async function checkout(
         data: { cartId: newCart.cartId },
       });
     }
-    // Re-create the selected items in the new cart so /cart still shows
-    // what the buyer was about to pay for. They get cleared on payment
-    // success via clearCartAfterPayment() in the webhook handler.
+    // Re-create the selected items in the new cart; cleared by
+    // clearCartAfterPayment() once the webhook confirms payment.
     for (const ci of selectedItems) {
       await tx.cartItem.create({
         data: {
@@ -479,10 +437,8 @@ export async function checkout(
       });
     }
     if (resolvedCoupon) {
-      // TOCTOU-safe limit check: count INSIDE the tx so
-      // a concurrent checkout can't sneak past. The unique
-      // (couponId, userId) index prevents the same buyer from
-      // double-using; we map the P2002 to a clean 400.
+      // TOCTOU-safe count inside the tx; unique (couponId, userId)
+      // index handles per-user double-use (P2002 → 400).
       const usedSoFar = await tx.couponUsage.count({
         where: { couponId: resolvedCoupon.couponId },
       });
@@ -503,7 +459,7 @@ export async function checkout(
     return { order, txn };
   });
 
-  // Update Stripe PI metadata with actual orderId (was placeholder 0).
+  // Patch the PI metadata with the real orderId (was a 0 placeholder).
   if (stripePaymentIntentId && useStripe) {
     try {
       const stripe = getClient();
@@ -513,7 +469,7 @@ export async function checkout(
         { stripeAccount: sellerStripeAccountId! },
       );
     } catch {
-      // Non-fatal — webhook uses PI metadata but also has order lookup
+      // Non-fatal: webhook also has order lookup as a fallback.
       // eslint-disable-next-line no-console
       console.warn("[orders.checkout] failed to update PI metadata with orderId");
     }
@@ -606,8 +562,7 @@ function generateLicenseKey(template: string | null): string {
   return template.replace(/X{4}/g, () => {
     let block = "";
     for (let i = 0; i < 4; i++) {
-      // crypto.randomInt — predictable license keys would let a single
-      // legitimate purchase leak future keys to a piracy ring.
+      // crypto.randomInt — license keys must not be guessable.
       block += alphabet[crypto.randomInt(0, alphabet.length)];
     }
     return block;
@@ -661,29 +616,19 @@ export async function finalizeOrder(orderId: number): Promise<void> {
   });
 }
 
-// Idempotency cache for sendOrderReceipt. Stripe webhook + buyer-
-// triggered /sync can both reach finalizeOrder for the same orderId
-// and would otherwise double-fire the receipt email. We can't
-// persist a receiptSentAt column without a schema change (out of
-// scope for this round), so we combine an in-memory Set with a
-// Postgres advisory lock keyed on orderId. The advisory lock makes
-// it safe across multiple Node instances on the same DB; the Set
-// avoids hammering pg for repeats inside one process.
+// Idempotency for sendOrderReceipt: in-memory Set + Postgres advisory
+// lock so multi-instance + multi-call (webhook + /sync) don't double-send.
 const receiptSent = new Set<number>();
 
 async function tryAcquireReceiptLock(orderId: number): Promise<boolean> {
-  // pg_try_advisory_xact_lock would auto-release at transaction
-  // end, but sendOrderReceipt isn't in a transaction here. Use the
-  // session-scoped variant + explicit unlock so a crashed call
-  // doesn't permanently block the orderId.
+  // Session-scoped lock + explicit unlock so a crash doesn't pin the orderId.
   try {
     const rows = await prisma.$queryRaw<Array<{ ok: boolean }>>`
       SELECT pg_try_advisory_lock(73310, ${orderId}::int) AS ok
     `;
     return rows[0]?.ok === true;
   } catch {
-    // If advisory locks aren't available (e.g. a future non-pg
-    // backend), fall back to the in-memory check only.
+    // Non-pg backend: fall back to the in-memory Set only.
     return true;
   }
 }
@@ -698,7 +643,6 @@ async function releaseReceiptLock(orderId: number): Promise<void> {
 
 // Render + send the buyer's receipt email, grouped by store.
 export async function sendOrderReceipt(orderId: number): Promise<void> {
-  // Idempotency guard — see comment on receiptSent above.
   if (receiptSent.has(orderId)) return;
   const got = await tryAcquireReceiptLock(orderId);
   if (!got) return;
@@ -742,9 +686,7 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
   const buyer = order.user;
   if (!buyer?.email) return;
 
-  // Group items by store so the email reads as one section per store
-  // (multi-store cart was a documented requirement even though the
-  // current Stripe flow constrains to single-store at checkout time).
+  // Group items by store so each store renders as its own section.
   type StoreInfo = { storeId: number; name: string; contactEmail: string | null; phone: string | null };
   type Bucket = { store: StoreInfo; lines: typeof order.items };
   const ORPHAN_STORE_ID = -1;
@@ -850,11 +792,9 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
       text: textLines.join("\n"),
     });
   } else {
-    // Gift order: buyer NEVER sees the goods, only the recipient does.
-    // Send a "Gift sent" confirmation with item names + masked recipient
-    // + claim URL the buyer can forward manually if the original email
-    // bounced. License keys + download URLs are deliberately omitted so
-    // a refund-then-claim play by the buyer can't happen.
+    // Gift order: buyer gets a confirmation with item names + masked
+    // recipient + a forwardable claim URL. License keys / download
+    // URLs are omitted so the buyer can't refund-then-claim.
     const recipientMasked = maskEmailForDisplay(order.giftRecipientEmail!);
     const claimToken = signGiftToken(orderId, order.giftRecipientEmail!);
     const claimUrl = `${SITE_URL}/gift/${orderId}?t=${claimToken}`;
@@ -919,22 +859,13 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
     });
   }
 
-  // Gift flow — when the buyer ticked "this is a gift" at checkout,
-  // also notify the recipient that something's waiting for them. The
-  // recipient sees ONLY product names + the buyer's first name + the
-  // gift message. License keys, download URLs, store contact details,
-  // and buyer's lastName/email are stripped (the recipient never
-  // consented to receive that PII; the buyer forwards keys manually).
+  // Notify the gift recipient. They see only product names + buyer
+  // first name + sanitized gift message — no keys/URLs/store contacts.
   if (order.giftRecipientEmail) {
     const recipientSubject = `🎁 ${buyer.firstName} sent you a METU gift — claim it now`;
-    // Sanitize buyer-controlled message: strip CR/LF + ANSI + bidi
-    // overrides + cap at 500 chars. Without this the plain-text branch
-    // lets the buyer inject fake "Subject:"/"From:" lines into the
-    // recipient's email client.
+    // Sanitize buyer-controlled message before embedding in email.
     const safeGiftMessage = sanitizePlainTextGiftMessage(order.giftMessage ?? "");
-    // HMAC-signed claim token. The /gift page verifies token + the
-    // signed-in user's email matches giftRecipientEmail before any
-    // license key or download URL is rendered.
+    // HMAC-signed claim token, verified at /gift page.
     const claimToken = signGiftToken(orderId, order.giftRecipientEmail);
     const claimUrl = `${SITE_URL}/gift/${orderId}?t=${claimToken}`;
     const giftIntroText = `${buyer.firstName} just bought you a digital gift on METU. Click the link below and sign in (or create a free account) with this email address to claim it.${safeGiftMessage ? `\n\nMessage from ${buyer.firstName}: "${safeGiftMessage}"` : ""}`;
@@ -960,12 +891,8 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
       "",
       "— METU Marketplace",
     ].join("\n");
-    // Audit row BEFORE the actual send so SOC has visibility into
-    // gift volume even if Resend bounces. recipient_hash is sha256
-    // of the lowercased trimmed email — never the raw address — so
-    // we can correlate giftspam patterns without keeping recipient
-    // PII in the audit log. has_message reveals whether the buyer
-    // included a custom note (after sanitization).
+    // Audit before send so we capture volume even on bounce. We log
+    // a sha256 of the recipient email, not the raw address.
     const recipientNormalized = order.giftRecipientEmail.trim().toLowerCase();
     const recipientHash = crypto
       .createHash("sha256")
@@ -1003,11 +930,9 @@ function maskEmailForDisplay(email: string): string {
   return `${head}${"*".repeat(Math.max(1, local.length - head.length))}@${domain}`;
 }
 
-// Public-by-token gift access. The /gift/:orderId page calls this with
-// the URL token + the signed-in user's email (or null). Returns enough
-// shape for the page to either render the goods, prompt sign-in, or
-// surface a polite "wrong account" error without leaking the recipient
-// address to anyone who didn't already have the email.
+// Public-by-token gift access. /gift/:orderId calls this with the URL
+// token + the signed-in user's email; returns one of several shapes
+// without leaking the recipient address.
 export type GiftItem = {
   orderItemId: number;
   quantity: number;
@@ -1091,12 +1016,8 @@ export async function getGiftAccess(
   });
   if (!full) return { status: "not-found" };
 
-  // Recipient duplicate guard. Non-stackable products (license keys,
-  // single-use downloads, streaming, email-delivery) shouldn't land in
-  // the same account twice — a recipient who already owns one of the
-  // gifted products gets a polite refusal so they can ask the buyer to
-  // refund or send something else. Mirrors the checkout-time check on
-  // the buyer side, but runs against the recipient's account.
+  // Recipient-side duplicate guard for non-stackable products.
+  // Mirrors the buyer-side check at checkout time.
   const recipientUser = await prisma.user.findUnique({
     where: { email: order.giftRecipientEmail.toLowerCase() },
     select: { userId: true },
@@ -1193,10 +1114,8 @@ export async function getGiftAccess(
   };
 }
 
-// Render a redacted card list for the gift recipient. Strips license
-// keys, download URLs, and store contact details — those are PII the
-// recipient never consented to receive. Buyer forwards delivery
-// payload manually if they want.
+// Render the recipient-facing card list with keys / URLs / store
+// contact details stripped (recipient PII minimization).
 function buildRecipientStoreCards(
   stores: Array<{ store: { name: string }; lines: Array<{ quantity: number; productItem: { product: { name: string } } | null; productNameSnapshot: string }> }>,
   escape: (s: string) => string,
@@ -1220,21 +1139,9 @@ function buildRecipientStoreCards(
   return cards;
 }
 
-// Sanitize a buyer-controlled gift message for inclusion in BOTH the
-// plain-text and HTML email bodies. The HTML branch's escape() handles
-// angle brackets but leaves CR/LF/control chars intact; without this
-// helper, the plain-text branch (Black-confirmed C2-002) lets the
-// attacker inject newlines, fake "Subject:"/"From:" lines that some
-// MUA quoted-reply views render verbatim, ANSI escape sequences (CLI
-// mail clients), or unicode bidi overrides. Steps:
-//   1. Strip ANSI escape (\x1b[...m) and other C0/C1 control chars
-//      EXCEPT a tab — keep printable whitespace only.
-//   2. Collapse CR/LF runs to a single space (no newline injection).
-//   3. Strip unicode bidi overrides (U+202A..U+202E, U+2066..U+2069)
-//      so an attacker can't reverse text direction in the recipient
-//      preview pane.
-//   4. Hard-cap at 500 chars (schema cap is also 500; this is a
-//      belt-and-braces in case schema drifts).
+// Sanitize buyer-controlled gift message: strip ANSI / C0 / C1 / DEL,
+// collapse CR/LF runs to spaces, strip unicode bidi controls, and cap
+// at 500 chars. Defends against header-injection in the plain-text body.
 function sanitizePlainTextGiftMessage(input: string): string {
   if (!input) return "";
   let s = input;
@@ -1296,11 +1203,8 @@ export async function listForUser(userId: number): Promise<OrderListItem[]> {
   });
 }
 
-// Single order; ownership gated via order.userId. When the order was
-// placed as a gift, the buyer never gets to see the license keys or
-// download URLs — those belong to the recipient. The buyer instead
-// gets a giftStatus object so the /orders/:id page can render the
-// "sent as a gift" treatment with a copy-link affordance.
+// Single order; ownership gated via order.userId. Gift orders strip
+// delivery payloads and return a giftStatus block instead.
 export async function findByIdForUser(
   userId: number,
   orderId: number,
@@ -1340,11 +1244,8 @@ export async function findByIdForUser(
     } as OrderDetail;
   }
 
-  // Buyer is the only caller (userId match in the where clause). Strip
-  // delivered payloads so the buyer can't sidestep the recipient and
-  // claim the gift themselves; the goods stay reachable for the
-  // recipient via /gift/:id?t=<token>. Also redact the raw recipient
-  // email — only the masked tail surfaces on the buyer's order page.
+  // Strip delivered payloads + raw recipient email; the buyer only
+  // sees the masked recipient and a forwardable claim URL.
   const recipientEmail = order.giftRecipientEmail!;
   const claimToken = signGiftToken(order.orderId, recipientEmail);
   const redactedItems = order.items.map((it) => ({
@@ -1365,21 +1266,9 @@ export async function findByIdForUser(
 }
 
 /**
- * Cancel every pending order this user has and restore their stock. Called
- * at the start of each checkout so a buyer who backed out of Stripe and is
- * now retrying doesn't end up with two pending orders fighting for the same
- * inventory.
- */
-/**
- * Per CPE241 Business Rule 4j, a pending order's payment session
- * lasts 15 minutes — past that, the order auto-cancels. Order.expiredAt
- * is set to createdAt + 15 minutes; this sweep finds every pending
- * order whose expiredAt has slipped into the past and cancels them in
- * one batch (releasing limited-stock variants the same way
- * cancelUserPendingOrders does).
- *
- * Called from a setInterval at server startup — see app.ts. Returns
- * the count cancelled so the caller can log non-zero sweeps.
+ * Sweep pending orders past their 15-minute payment window: cancel
+ * them and restore non-digital stock. Called from a setInterval in
+ * app.ts; returns the count cancelled.
  */
 export async function sweepExpiredOrders(): Promise<number> {
   const expired = await prisma.order.findMany({
@@ -1452,11 +1341,9 @@ export async function cancelUserPendingOrders(userId: number): Promise<void> {
       });
     });
   }
-  // Note: don't restore the checked_out cart here. checkout() already
-  // copies the selected items into the fresh active cart at order
-  // create time, so the user's /cart shows what they were about to
-  // pay for. Restoring an old cart on top of that creates a dual-
-  // active-cart bug where /cart flickers between two snapshots.
+  // Don't restore the checked_out cart — checkout() already copied the
+  // selected items into the new active cart, and restoring would leave
+  // two carts active at once.
 }
 
 /**

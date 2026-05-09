@@ -160,14 +160,10 @@ export default async function EditProfilePage({
           }}
         />
 
-        {/* Phase 18 — Connected social accounts (Link / Unlink Google).
-            Separate card mirroring the data-export pattern below. The
-            component fetches from /api/auth/connected-accounts on mount. */}
+        {/* Connected social accounts (Link/Unlink Google). */}
         <ConnectedAccounts hasPassword={me.hasPassword} />
 
-        {/* Phase 23.1 — Active sessions link. The full list lives on
-            its own page so the table can fan out to many rows without
-            cluttering the edit form. */}
+        {/* Active sessions link — full list lives on its own page. */}
         <section className="mt-8 rounded-2xl bg-space-850 border border-line p-6">
           <h2 className="font-display text-base font-bold text-white mb-1">
             Active sessions

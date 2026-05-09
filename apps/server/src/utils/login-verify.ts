@@ -1,24 +1,6 @@
-// Login two-step verify — pre-auth state holder. After password is
-// validated but before the better-auth session is minted, the server
-// stashes the credentials encrypted under a short-lived token. The
-// /auth/login/verify endpoint pulls them back out, validates the
-// second-factor code, then replays signInEmail to actually mint the
-// session.
-//
-// Encryption is AES-256-GCM with a key derived from JWT_SECRET via
-// SHA-256 (so we don't need a second env secret). The encrypted blob
-// includes a random 12-byte IV + 16-byte auth tag, so a leaked token
-// can't be replayed against another user or after the TTL.
-//
-// State row lives in the Verification table (TTL 5 minutes, identifier
-// `login-verify:<token>`). Single-use — successful verify deletes the
-// row. Multiple parallel logins from the same user mint distinct rows.
-//
-// Trade-off: we hold the plaintext password (encrypted) for 5 minutes
-// in DB. The threat model is "attacker who already has the password
-// is trying to MFA past it" — i.e. they ALREADY know the credential,
-// so the encrypted row is no incremental leak. The encryption is
-// belt-and-suspenders against DB-snooping admins / backup leaks.
+// Login two-step verify pre-auth holder. Stashes credentials AES-256-GCM
+// encrypted (key from JWT_SECRET) in a Verification row keyed by
+// `login-verify:<token>`. 5-min TTL, single-use on successful verify.
 
 import crypto from "node:crypto";
 import { prisma } from "../db/prisma.js";
@@ -111,10 +93,7 @@ export async function resolveLoginPreAuthToken(
   }
 }
 
-/** Single-use — call this on successful verify so the token can't be replayed.
- *  Returns the number of pre-auth rows actually deleted (caller can
- *  treat 0 as a replay attempt and emit an audit row). The
- *  attempt-counter cleanup is best-effort and not counted. */
+/** Single-use consumer; returns deleted count so the caller can spot replays. */
 export async function consumeLoginPreAuthToken(token: string): Promise<{ deleted: number }> {
   let deleted = 0;
   try {
@@ -125,8 +104,7 @@ export async function consumeLoginPreAuthToken(token: string): Promise<{ deleted
   } catch {
     // swallow — keep deleted=0
   }
-  // Also clear any attempt-counter row for this token so we don't
-  // leave per-token DB litter.
+  // Clear the matching attempt-counter row.
   await prisma.verification
     .deleteMany({ where: { identifier: `login-verify-attempts:${token}` } })
     .catch(() => {});
@@ -134,18 +112,9 @@ export async function consumeLoginPreAuthToken(token: string): Promise<{ deleted
 }
 
 /**
- * Per-token OTP attempt limiter. Login two-step verify accepts a
- * 6-digit code — without a counter, an attacker who already has the
- * password could brute-force the OTP via repeated /auth/login/verify
- * POSTs (the loginLimiter caps requests/min per IP, but the same IP
- * can keep guessing). Cap at 5 wrong codes per pre-auth token; on
- * the 5th miss we burn the token entirely so the attacker has to
- * start over from the password screen.
- *
- * State lives in a sibling Verification row keyed on
- * `login-verify-attempts:<token>` whose `value` is a JSON
- * `{ count: N }`. Same TTL as the pre-auth token (auto-cleanup via
- * the Verification cron sweep).
+ * Per-token OTP attempt limiter (5 wrong codes burns the pre-auth
+ * token). State lives in a sibling Verification row keyed on
+ * `login-verify-attempts:<token>` with the same TTL.
  */
 const MAX_OTP_ATTEMPTS = 5;
 
@@ -181,8 +150,7 @@ export async function recordFailedLoginAttempt(
   const remaining = Math.max(0, MAX_OTP_ATTEMPTS - count);
   const locked = count >= MAX_OTP_ATTEMPTS;
   if (locked) {
-    // Burn the pre-auth token so the attacker has to re-enter the
-    // password before they can guess again.
+    // Burn the pre-auth token; attacker must restart from the password.
     await consumeLoginPreAuthToken(token);
   }
   return { remaining, locked };

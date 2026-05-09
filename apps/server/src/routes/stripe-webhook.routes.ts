@@ -51,25 +51,11 @@ router.post(
       return res.status(400).json({ error: "InvalidSignature" });
     }
 
-    // Idempotency: a previous version of this handler did
-    // findFirst → handleEvent → create as separate steps, which left a
-    // TOCTOU window — two concurrent Stripe retries for the same
-    // event.id (e.g. our first response was slow, Stripe re-fired)
-    // could both pass the existence check and both run handleEvent,
-    // double-finalising an order or double-refunding a charge.
-    //
-    // Fix: serialise per-event with a Postgres advisory transaction
-    // lock keyed on a 32-bit hash of event.id, then re-check existence
-    // inside the same transaction. The lock auto-releases on commit /
-    // rollback so there's no leak if handleEvent throws. We don't need
-    // a unique index migration on auditLog.meta — the lock alone
-    // serialises the check + write for any given event.id, and the
-    // two-phase (findFirst → create) becomes safe as long as both
-    // calls share the locked transaction.
+    // Per-event idempotency via Postgres advisory transaction lock
+    // keyed on a 32-bit hash of event.id. Lock auto-releases on commit.
     try {
       const result = await prisma.$transaction(async (tx) => {
-        // Lock key derived from event.id (FNV-1a 32-bit). Any 32-bit
-        // signed integer works for pg_advisory_xact_lock(int).
+        // FNV-1a 32-bit hash of event.id for pg_advisory_xact_lock(int).
         const lockKey = fnv1a32(event!.id);
         await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${lockKey})`);
 
@@ -92,9 +78,7 @@ router.post(
         });
         return { idempotent: false as const };
       }, {
-        // Webhook handlers can take a few seconds (especially refund
-        // processing). Bump the default 5s timeout so the lock-holding
-        // transaction doesn't get killed mid-handler.
+        // Bump default 5s tx timeout — refund handlers can be slow.
         timeout: 30_000,
         maxWait: 10_000,
       });
@@ -129,10 +113,8 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
   const orderId = Number(pi.metadata?.orderId ?? 0);
   if (!orderId) return;
 
-  // defence-in-depth: confirm the amount Stripe collected
-  // matches the order total we recorded at checkout. If they diverge,
-  // something tampered with the PI between create and confirm — flag
-  // for manual review instead of auto-finalising.
+  // Confirm Stripe's charged amount matches the order total; on
+  // mismatch flag for review instead of auto-finalising.
   const order = await prisma.order.findUnique({
     where: { orderId },
     select: { totalPrice: true, status: true, userId: true },
@@ -143,13 +125,7 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     await finalizeOrder(orderId);
     return;
   }
-  // Cancelled / refunded orders must NOT be flipped back to paid by a
-  // late PI succeed. Earlier rev only short-circuited paid|fulfilled,
-  // so a buyer who created order O1, backed out, called checkout
-  // again (cancelUserPendingOrders flipped O1 to cancelled + restored
-  // stock), and then had Stripe finally succeed PI₁ async would see
-  // O1 resurrected — license keys minted, receipt sent, inventory off.
-  // Audit + bail on any non-pending status.
+  // Don't flip cancelled/refunded back to paid on a late PI succeed.
   if (order.status !== "pending") {
     await prisma.auditLog.create({
       data: {
@@ -161,9 +137,7 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     });
     return;
   }
-  // Mirror createPaymentIntent's buyer-favourable floor (see
-  // stripe.service.ts header). PI was charged at floor; expected here
-  // must match or the amount_mismatch audit fires on legitimate orders.
+  // Mirror createPaymentIntent's floor() so legitimate charges match.
   const expectedSatang = Math.floor(Number(order.totalPrice) * 100);
   if (pi.amount_received !== expectedSatang) {
     // eslint-disable-next-line no-console
@@ -196,11 +170,8 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     },
   });
 
-  // Bump Transaction.date to payment-success time so the admin Recent
-  // Transactions widget sorts paid orders ahead of stale checkouts.
-  // Idempotent: re-stamping `now()` on a Stripe retry is harmless.
-  // Transaction <-> Order is many-to-one via Order.transactionId, so
-  // filter via the relation rather than a non-existent orderId column.
+  // Stamp Transaction.date to payment-success time so the admin
+  // widget sorts paid orders ahead of stale checkouts.
   await prisma.transaction.updateMany({
     where: {
       transactionType: "purchase",
@@ -209,9 +180,7 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
     data: { date: new Date() },
   });
 
-  // Now that the charge is real, drop the purchased items from whatever
-  // active cart the buyer carried forward. Cart row itself stays open
-  // for any unrelated items still in it.
+  // Drop the purchased items from the buyer's active cart.
   await clearCartAfterPayment(order.userId, orderId).catch((err) => {
     // eslint-disable-next-line no-console
     console.warn("[stripe-webhook] clearCartAfterPayment failed (non-fatal):", err);
@@ -226,9 +195,7 @@ async function onPaymentIntentFailed(event: Stripe.Event) {
   const orderId = Number(pi.metadata?.orderId ?? 0);
   if (!orderId) return;
   const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
-  // Cancel the order AND restore any non-digital stock it held, in one tx.
-  // Without the stock restore, every failed PromptPay attempt would burn
-  // inventory on a real-goods listing.
+  // Cancel the order + restore non-digital stock in one tx.
   await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { orderId },
@@ -263,8 +230,7 @@ async function onChargeRefunded(event: Stripe.Event) {
       userId: true,
       totalPrice: true,
       stripeAmountReceived: true,
-      // We use stripeRefundId presence as the "in-app refund already
-      // wrote a negative-payout Transaction" sentinel — see below.
+      // stripeRefundId presence = in-app refund already booked a payout.
       stripeRefundId: true,
       status: true,
     },
@@ -273,14 +239,7 @@ async function onChargeRefunded(event: Stripe.Event) {
 
   const lastRefund = charge.refunds?.data[0];
   const fullyRefunded = charge.amount === charge.amount_refunded;
-  // Detect a refund that originated outside our app (e.g. Stripe
-  // Dashboard, support reversal). The in-app paths
-  // (seller.refundOrder + admin.refundTransaction) write a
-  // negative-payout Transaction synchronously AND set
-  // order.stripeRefundId before the webhook fires; if we don't see
-  // that sentinel and the order isn't already flagged refunded,
-  // this webhook is the first signal — book the ledger entry here so
-  // the admin transactions widget stays consistent.
+  // Dashboard-originated refund: no in-app sentinel + not already refunded.
   const dashboardOriginated =
     fullyRefunded && !order.stripeRefundId && order.status !== "refunded";
 
@@ -295,10 +254,7 @@ async function onChargeRefunded(event: Stripe.Event) {
   });
 
   if (dashboardOriginated) {
-    // Refunds book as a negative `payout` row to mirror the in-app
-    // flow (see admin.service.ts:refundTransaction +
-    // seller.service.ts:refundOrder). Same shape so the admin widget
-    // can't tell the difference between the two refund origins.
+    // Book a negative-payout Transaction (mirrors in-app refund flows).
     await prisma.transaction.create({
       data: {
         userId: order.userId,
@@ -324,17 +280,7 @@ async function onPayoutPaid(_event: Stripe.Event) {
   // No-op: seller-wallet UI fetches payout history live from Stripe.
 }
 
-/**
- * FNV-1a 32-bit hash. Used to derive a stable advisory-lock key from a
- * Stripe event.id. Postgres `pg_advisory_xact_lock(int)` takes a
- * 32-bit signed int, so we mask down to that range. Returning a
- * positive int is fine — Postgres treats both signs as distinct slots.
- *
- * Why FNV-1a and not crypto.createHash: we don't need cryptographic
- * properties, just a fast, deterministic, well-distributed 32-bit
- * digest. The whole call runs in microseconds and stays in the same
- * Node process — no extra round-trip.
- */
+/** FNV-1a 32-bit hash. Used as advisory-lock key from event.id. */
 function fnv1a32(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {

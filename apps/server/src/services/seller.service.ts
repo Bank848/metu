@@ -53,10 +53,8 @@ export async function listProducts(storeId: number) {
 }
 
 /**
- * Single product, scoped to the seller's store. Throws 404 if the
- * product doesn't exist, 403 if it belongs to a different store.
- * The two errors are deliberately distinct so the dashboard UI can
- * tell them apart (404 = stale link; 403 = bug or attempt).
+ * Single product scoped to the seller's store. 404 when missing,
+ * 403 when it belongs to another store.
  */
 export async function getProduct(productId: number, storeId: number) {
   const product = await prisma.product.findUnique({
@@ -75,10 +73,8 @@ export async function getProduct(productId: number, storeId: number) {
 }
 
 /**
- * Analytics dashboard payload. Five queries fan out in parallel
- * because they touch different tables; the two raw aggregates +
- * top-products query stay serial because they hit overlapping
- * indexes and bursts hurt Neon's free tier.
+ * Analytics dashboard payload. Mixed parallel + serial queries to
+ * stay friendly to Neon's free-tier connection budget.
  */
 export async function getStats(storeId: number): Promise<SellerStatsResponse> {
   const [store, productCount, recentReviews, totals] = await Promise.all([
@@ -132,12 +128,8 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
     ORDER BY day
   `;
 
-  // topProducts must mirror the KPI status filter so the overview
-  // tells one story: revenue and units below come from the same
-  // paid+fulfilled orders the headline numbers count.
-  // FILTER (WHERE o.order_id IS NOT NULL) is the gate — the LEFT JOIN
-  // returns NULL for orders columns when status didn't match, which
-  // is the signal we drop the order_item from the aggregate.
+  // Mirror the KPI status filter so revenue/units match the headline
+  // numbers. FILTER (WHERE o.order_id IS NOT NULL) drops non-settled lines.
   const topProducts = await prisma.$queryRaw<
     Array<{ product_id: number; name: string; revenue: string; units: bigint }>
   >`
@@ -179,12 +171,9 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
 }
 
 /**
- * Orders the seller should care about — every order containing at
- * least one line from their store. Optional ?status filter passes
- * through to Prisma's enum check.
- * Scoped sub-includes: nested `items` only resolve to lines for THIS
- * store so we don't leak details about competitors' products if the
- * order is multi-store.
+ * Orders containing at least one line from this store. Sub-includes
+ * are scoped to the seller's lines so multi-store orders don't leak
+ * competitors' details.
  */
 export async function listOrders(storeId: number, status?: string) {
   return prisma.order.findMany({
@@ -273,9 +262,7 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
 
   for (const o of orders) {
     for (const li of o.items) {
-      // Skip lines belonging to OTHER stores — order may be multi-store.
-      // When productItem is null (product hard-deleted), the line is
-      // not ours to export; skip too.
+      // Skip non-our and orphaned lines.
       if (!li.productItem) continue;
       if (li.productItem.product.storeId !== storeId) continue;
       const subtotal = Number(li.pricePerUnit) * li.quantity;
@@ -313,10 +300,8 @@ function maskEmail(email: string): string {
 
 function escapeCsv(value: unknown): string {
   let s = value === null || value === undefined ? "" : String(value);
-  // neutralise spreadsheet formula injection. A buyer with
-  // a username like `=cmd|'/c calc'!A0` would execute when the seller
-  // opens this CSV in Excel/Sheets. Prefix with single quote so the
-  // cell renders as text instead of evaluating.
+  // Neutralise spreadsheet formula injection by prefixing risky
+  // leading chars with a single quote.
   if (/^[=+\-@\t\r]/.test(s)) {
     s = "'" + s;
   }
@@ -327,17 +312,8 @@ function escapeCsv(value: unknown): string {
 }
 
 /**
- * admin-driven version of becomeSeller. Used when an
- * operator promotes a buyer to seller from /admin/users.
- * Behaviour differs from the user-facing `becomeSeller`:
- *   - Picks defaults for `name`, `description`, `businessTypeId` so
- *     the admin doesn't have to fill the form upfront.
- *   - **Restores** a soft-deleted store instead of refusing — the
- *     "Make seller" action is idempotent so re-promoting after a
- *     "Make buyer" demotion doesn't create an orphan store row.
- *   - Doesn't audit on its own; the caller (admin.service.updateUserRole)
- *     writes its own `store.create` / `store.restore` audit row so
- *     the meta carries the originating admin's id.
+ * Admin-driven becomeSeller. Picks default name/description/business
+ * type, idempotent on re-promote. Caller writes the audit row.
  */
 export async function adminCreateStore(userId: number, username: string) {
   const existing = await prisma.store.findUnique({
@@ -415,10 +391,8 @@ export async function becomeSeller(userId: number, input: BecomeSellerInput) {
 }
 
 /**
- * PATCH /seller/store — partial update of the seller's own store.
- * Body keys not present are not touched (Prisma treats `undefined`
- * as no-op). The controller passes only the keys the user sent so
- * blanking an image (sending null) actually clears it.
+ * PATCH /seller/store — partial update; only the keys present in
+ * `input` are touched.
  */
 export async function updateStore(storeId: number, input: UpdateStoreInput) {
   const data: Record<string, unknown> = {};
@@ -440,16 +414,10 @@ export async function updateStore(storeId: number, input: UpdateStoreInput) {
 
 /** POST /seller/products — create a product (with variants, images, tags). */
 export async function createProduct(storeId: number, input: ProductInput) {
-  // Product now carries its own deliveryMethod (per the
-  // docx report). We mirror the first variant's method onto Product;
-  // the seller form lists all variants with the same method today, so
-  // the two stay in sync. The variant-level column is kept for now
-  // until every consumer migrates to read from Product.
+  // Mirror the first variant's deliveryMethod onto Product (seller
+  // form keeps every variant on the same method).
   const productDeliveryMethod = input.items[0]!.deliveryMethod;
-  // isStackable defaults from delivery method when the
-  // seller doesn't pass an explicit override:
-  //   license_key → true (resellable, can buy multiple keys)
-  //   everything else (download/streaming/email) → false (single copy)
+  // isStackable defaults: license_key → true, others → false.
   const isStackable = input.isStackable ?? (productDeliveryMethod === "license_key");
   return prisma.product.create({
     data: {
@@ -461,10 +429,7 @@ export async function createProduct(storeId: number, input: ProductInput) {
       isStackable,
       items: {
         create: input.items.map((it, idx) => ({
-          // ProductItem.name is required (the report models
-          // each variant as a sellable line with its own name). Until
-          // the seller form exposes per-variant naming, default to
-          // "<product> — Variant N" so the column always has a value.
+          // ProductItem.name is required; default to "<product> — Variant N".
           name:
             input.items.length > 1
               ? `${input.name} — Variant ${idx + 1}`.slice(0, 100)
@@ -475,10 +440,8 @@ export async function createProduct(storeId: number, input: ProductInput) {
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
           sampleUrl: it.sampleUrl,
-          // Only persist deliveryUrl/licenseKeyTemplate when the
-          // delivery method actually uses them — the controller still
-          // accepts the fields but we strip them to avoid leaking a
-          // download link that nobody will ever consume.
+          // Persist deliveryUrl / licenseKeyTemplate only when the
+          // method uses them.
           deliveryUrl:
             it.deliveryMethod === "download" || it.deliveryMethod === "streaming"
               ? it.deliveryUrl ?? null
@@ -498,7 +461,7 @@ export async function createProduct(storeId: number, input: ProductInput) {
       productNTags: {
         create: input.tagIds.map((tagId) => ({ tagId })),
       },
-      // CPE241 Business Rule 4g — additional info rows.
+      // Additional info rows (per Product details).
       details: {
         create: (input.details ?? []).map((d) => ({
           detailName: d.detailName,
@@ -510,13 +473,9 @@ export async function createProduct(storeId: number, input: ProductInput) {
 }
 
 /**
- * PATCH /seller/products/:id — fast-path for the pause toggle
- * ({ isActive: boolean } only) AND the full edit replacing
- * name/description/category + images + variants + tags.
- * Variants are tricky — OrderItem + CartItem FK into ProductItem,
- * so we don't blindly delete. Existing variants get UPDATEd in
- * order; extra incoming variants get CREATEd. Removing variants
- * is intentionally not supported (matches the legacy BFF route).
+ * PATCH /seller/products/:id — fast-path pause toggle, otherwise
+ * full edit. Variants are upserted by index (existing UPDATE, extras
+ * CREATE); removal isn't supported because OrderItem/CartItem FK in.
  */
 export async function updateProduct(
   productId: number,
@@ -538,8 +497,7 @@ export async function updateProduct(
   const input = body as ProductInput;
   await prisma.$transaction(async (tx) => {
     const productDeliveryMethod = input.items[0]!.deliveryMethod;
-    // same default rule as createProduct so an edit form
-    // that doesn't expose the checkbox still picks the right value.
+    // Same isStackable default rule as createProduct.
     const isStackable =
       input.isStackable ?? (productDeliveryMethod === "license_key");
     await tx.product.update({
@@ -548,8 +506,6 @@ export async function updateProduct(
         name: input.name,
         description: input.description,
         categoryId: input.categoryId,
-        // keep Product.deliveryMethod in sync with the
-        // first variant's method (see createProduct rationale).
         deliveryMethod: productDeliveryMethod,
         isStackable,
       },
@@ -568,8 +524,7 @@ export async function updateProduct(
         data: input.tagIds.map((tagId) => ({ productId, tagId })),
       });
     }
-    // Replace ProductDetail rows (Business Rule 4g). Replace-all is
-    // safe — these aren't FK targets, no cart/order references them.
+    // Replace-all is safe for ProductDetail (not an FK target).
     await tx.productDetail.deleteMany({ where: { productId } });
     if ((input.details ?? []).length > 0) {
       await tx.productDetail.createMany({
@@ -611,8 +566,7 @@ export async function updateProduct(
         await tx.productItem.create({
           data: {
             productId,
-            // ProductItem.name is required. Mirror the
-            // create flow's naming convention.
+            // Required ProductItem.name; mirror createProduct convention.
             name:
               input.items.length > 1
                 ? `${input.name} — Variant ${i + 1}`.slice(0, 100)
@@ -636,11 +590,8 @@ export async function updateProduct(
 }
 
 /**
- * DELETE /seller/products/:id — hard-delete the product. OrderItem
- * rows survive via SetNull on productItemId + the snapshot fields
- * (productNameSnapshot/productImageSnapshot) so receipts stay valid.
- * Writes a `product.delete` AuditLog row with the pre-delete name
- * snapshot so the audit feed reads cleanly.
+ * DELETE /seller/products/:id — hard-delete; OrderItem snapshot
+ * fields keep historical receipts valid. Writes a `product.delete` audit row.
  */
 export async function deleteProduct(
   productId: number,
@@ -661,10 +612,8 @@ export async function deleteProduct(
 }
 
 /**
- * POST /seller/products/:id/duplicate — clone a product (variants +
- * images + tags) but skip reviews + sales history. The clone is
- * created PAUSED (isActive=false) so the seller can polish before
- * exposing.
+ * POST /seller/products/:id/duplicate — clone variants/images/tags
+ * (no reviews/history). Clone starts paused.
  */
 export async function duplicateProduct(sourceId: number, storeId: number) {
   const source = await prisma.product.findFirst({
@@ -687,15 +636,11 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
       name: newName,
       description: source.description,
       isActive: false,
-      // copy the source product's deliveryMethod onto the
-      // clone (Product now owns this field; see createProduct).
       deliveryMethod: source.deliveryMethod,
       isStackable: source.isStackable,
       items: {
         create: source.items.map((it) => ({
-          // ProductItem.name is required; carry the source
-          // variant's name forward (it might be the per-variant label
-          // we set on create, or the bare product name).
+          // Carry the source variant's name forward.
           name: it.name,
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
@@ -774,11 +719,9 @@ export async function createCoupon(storeId: number, input: CouponInput) {
 }
 
 /**
- * PATCH /seller/orders/:id — flip an order to fulfilled OR cancelled.
- * Guardrails (mirror the legacy BFF route):
- *   • Order must contain at least one line from the seller's store
- *   • Refunded orders can never be re-flipped (409 AlreadyRefunded)
- *   • fulfilled requires status='paid' (409 InvalidTransition otherwise)
+ * PATCH /seller/orders/:id — flip to fulfilled or cancelled.
+ * Order must own at least one line from the seller's store; refunded
+ * orders can't be re-flipped; fulfilled requires status='paid'.
  */
 export async function updateOrderStatus(
   orderId: number,
@@ -844,12 +787,8 @@ export async function updateOrderStatus(
       "Only paid orders can be fulfilled.",
     );
   }
-  // Block paid→cancelled: a seller used to silently flip a paid order
-  // to "cancelled" with no Stripe refund call, no transaction record,
-  // and no stock restock. Money sat on the seller's connected account
-  // while the buyer saw "Cancelled" in their order list. Force the
-  // seller through the refund path which calls Stripe and records the
-  // money trail. Keeping pending→cancelled allowed (no money to refund).
+  // Block paid→cancelled; force sellers through the refund path so
+  // the money trail is consistent. pending→cancelled stays allowed.
   if (input.status === "cancelled" && order.status === "paid") {
     await audit({
       actorId,
@@ -946,9 +885,7 @@ export async function refundOrder(
     );
   }
 
-  // actually call Stripe so the buyer's card is refunded.
-  // Without this the seller-facing UI says "refunded" but the money
-  // never leaves the seller's connected account → silent fraud.
+  // Issue the Stripe refund so the buyer's card is actually credited.
   let stripeRefundId: string | null = null;
   if (order.stripePaymentIntentId) {
     const store = await prisma.store.findUnique({
@@ -974,14 +911,8 @@ export async function refundOrder(
     }
   }
 
-  // Restore non-digital stock so a refund un-burns the inventory the
-  // checkout consumed. All current delivery methods (download / email
-  // / license_key / streaming) are digital so this loop is a no-op
-  // today, but the moment a non-digital method ships (physical /
-  // print-on-demand) the refund flow MUST restock or the unit stays
-  // sold-but-paid-back. Same DIGITAL_METHODS set the
-  // payment_intent.payment_failed webhook + sweepExpiredOrders use —
-  // keep them in sync.
+  // Restore non-digital stock on refund (kept in sync with the same
+  // DIGITAL_METHODS set used by webhook + sweepExpiredOrders).
   const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
   await prisma.$transaction(async (tx) => {
     for (const item of order.items) {
@@ -1026,11 +957,7 @@ export async function refundOrder(
   });
 }
 
-/**
- * Helper for product-related write controllers — confirm the product
- * exists and belongs to the seller's store. 404 vs 403 distinct so
- * dashboard UI can tell stale links from bug attempts.
- */
+/** Confirm a product belongs to the seller's store; 404 vs 403 distinct. */
 export async function assertProductOwnership(
   productId: number,
   storeId: number,

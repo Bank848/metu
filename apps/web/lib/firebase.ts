@@ -1,24 +1,8 @@
 /**
- * Firebase client SDK initialiser, used to drive the SMS
- * OTP flow for phone verification (10 free SMS/day on the Spark plan).
- * Setup (in Firebase Console):
- *   1. Create a Firebase project (or pick an existing one).
- *   2. Authentication → Sign-in method → enable "Phone".
- *   3. Project Settings → "Your apps" → add a Web app → copy the
- *      generated config object.
- *   4. Set these env vars on Fly (`metu` web app), prefixed
- *      NEXT_PUBLIC_ so they're inlined at build time:
- *        flyctl secrets set \
- *          NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSy... \
- *          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=<project>.firebaseapp.com \
- *          NEXT_PUBLIC_FIREBASE_PROJECT_ID=<project-id> \
- *          -a metu
- * If any of these are missing, `firebaseConfigured` is false and the
- * phone-verify component falls back to the existing in-house OTP flow
- * (with the OTP printed to Fly logs in DEMO_REVEAL_TOKENS mode).
- * Why public-by-design? Firebase relies on App Check / reCAPTCHA +
- * Authentication security rules, not key secrecy. The "API key"
- * here is a project identifier, not a credential.
+ * Firebase client SDK initialiser for the SMS OTP phone-verify flow.
+ * Reads NEXT_PUBLIC_FIREBASE_* env vars at build time. When any are
+ * missing `firebaseConfigured` is false and the phone-verify component
+ * falls back to the in-house OTP flow.
  */
 "use client";
 import { type FirebaseApp, getApp, getApps, initializeApp } from "firebase/app";
@@ -30,12 +14,8 @@ const config = {
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "",
 };
 
-// Dockerfile defaults each ARG to a "build-placeholder" string so a
-// `next build` without --build-arg still type-checks and ships an
-// image. Treat any of those placeholders as "unconfigured" — otherwise
-// Firebase JS SDK throws auth/api-key-not-valid the moment the user
-// clicks Send SMS code, with a confusing error message that looks like
-// a runtime bug instead of a deploy-time config gap.
+// Treat the Dockerfile build-time placeholders as "unconfigured" so we
+// don't surface auth/api-key-not-valid as a runtime bug.
 function looksLikePlaceholder(v: string): boolean {
   return !v || v.includes("placeholder") || v.includes("build-");
 }

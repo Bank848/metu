@@ -1,16 +1,8 @@
 /**
- * Tiny email facade — port of apps/web/lib/server/email.ts to the
- * Express server. Two providers:
- *   - "console"  (default): logs the message to stdout. The demo
- *                doesn't have real recipient infra, so this is what
- *                actually runs locally + on Fly. Tokens land in
- *                `flyctl logs -a metu-api`.
- *   - "resend"   (when RESEND_API_KEY is set): hits Resend's REST
- *                endpoint. Free tier covers far more than this demo
- *                will ever send. Falls back to console on any failure
- *                so a flaky API key never hard-blocks a flow.
- * Adding more providers later is a matter of dropping another branch
- * into `sendEmail`. Call sites stay identical.
+ * Tiny email facade. Two providers:
+ *   - "console" (default): logs to stdout.
+ *   - "resend"  (when RESEND_API_KEY set): POSTs to Resend's REST API,
+ *               falling back to console on any failure.
  */
 
 export type SendEmailInput = {
@@ -35,10 +27,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const from = input.from ?? process.env.RESEND_FROM ?? DEFAULT_FROM;
   const text = input.text ?? stripHtml(input.html);
 
-  // Header injection guard. CR/LF in any header field lets an
-  // attacker smuggle Bcc:/Reply-To:/From: lines that ride the
-  // server's DKIM-signed domain. Throw rather than silently strip
-  // so a controller bug surfaces in tests instead of in prod email.
+  // Header injection guard — refuse CR/LF in to/from/subject.
   assertHeaderSafe("to", input.to);
   assertHeaderSafe("subject", input.subject);
   assertHeaderSafe("from", from);

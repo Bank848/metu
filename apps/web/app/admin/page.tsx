@@ -172,9 +172,7 @@ export default async function AdminOverview({
 
   return (
     <>
-      {/* Wave-3: editorial hero card mirrors the seller dashboard — gives
-          the admin overview a magazine-style anchor instead of a bare
-          PageHeader floating above the stats grid. */}
+      {/* Editorial hero card matches the seller dashboard. */}
       <div className="surface-editorial rounded-3xl px-6 py-6 md:px-8 md:py-8 mb-6">
         <PageHeader
           title="Marketplace overview"

@@ -12,11 +12,6 @@ type Country = { countryId: number; name: string };
 // don't render the widget at all and the server-side verify is a no-op.
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
-// .x — Google sign-up button visibility now reads the live
-// `googleEnabled` flag (computed server-side from GOOGLE_CLIENT_ID
-// presence). Earlier hard-coded `true` produced a hard 404 /
-// PROVIDER_NOT_FOUND on deployments without OAuth credentials.
-
 const TODAY = new Date();
 // Don't allow signups with a future or impossibly-recent birthday — gate the
 // max date to "must be at least 13 years old" so the picker enforces it.

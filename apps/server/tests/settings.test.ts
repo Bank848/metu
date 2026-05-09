@@ -1,10 +1,7 @@
 /**
- * Phase 17.1 / 26 — settings tests (slimmed down).
+ * Settings tests:
  *   GET   /settings           public read, returns flags
  *   PATCH /admin/settings     admin-only, updates flags + writes audit
- * Phase 26 — dropped /wallet, /admin/users/:id/grant-coins suites
- * after the wallet/coin layer was removed in favour of Stripe Connect
- * (Phase 27).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import request from "supertest";
@@ -53,8 +50,8 @@ describe("GET /settings", () => {
     expect(res.body.settings).toMatchObject({
       favoritesEnabled: true,
       platformFeePercent: 5,
-      // Phase 17.x — derived from env at request time. In the test
-      // env GOOGLE_CLIENT_ID is unset → googleEnabled is false.
+      // Derived from env at request time. GOOGLE_CLIENT_ID is unset
+      // in the test env → googleEnabled is false.
       googleEnabled: false,
     });
   });

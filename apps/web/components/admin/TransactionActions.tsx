@@ -5,10 +5,8 @@ import { RotateCcw, Trash2 } from "lucide-react";
 import { ActionRow, type ActionRowItem } from "./ActionRow";
 
 /**
- * / Step 3b — repackaged as an `<ActionRow>` dropdown.
- * Both API calls (POST /refund and DELETE) are identical to the prior
- * implementation — only the trigger surface changed. The `type` prop
- * still gates Refund: it only appears for purchases.
+ * <ActionRow> dropdown for admin transaction rows. Refund only appears
+ * when `type === "purchase"`.
  */
 export function TransactionActions({
   transactionId,

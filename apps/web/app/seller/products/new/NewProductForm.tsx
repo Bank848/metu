@@ -26,13 +26,9 @@ const DEFAULT_VARIANT: Variant = {
 };
 
 /**
- * / Step 3a — refactored against Step 2 primitives.
- * Structure: 4 `<FormSection>` blocks (Basics / Imagery / Tags / Variants)
- * laid out in a `lg:grid-cols-[1fr_360px]` two-column shell with the live
- * `<PreviewPane variant="product">` sticky on the right. Mobile collapses
- * cleanly to a single column with the preview rendered below.
- * Form state lives in a shared object so the preview can subscribe to
- * every keystroke. POST body shape is unchanged from Phase 9.
+ * Four <FormSection> blocks (Basics / Imagery / Tags / Variants) in a
+ * two-column shell with a sticky <PreviewPane>. Form state is a shared
+ * object so the preview can subscribe to every keystroke.
  */
 export function NewProductForm({ categories, tags }: { categories: Category[]; tags: Tag[] }) {
   const router = useRouter();

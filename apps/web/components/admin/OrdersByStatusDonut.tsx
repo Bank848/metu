@@ -37,10 +37,8 @@ export function OrdersByStatusDonut({
 }) {
   const router = useRouter();
   const [hovered, setHovered] = useState<string | null>(null);
-  // Track keyboard focus separately from hover so a tabbing user always
-  // sees a visible ring on the focused slice — the prior rev set
-  // `outline: none` on the path with no replacement, which hid the
-  // focus indicator entirely (a11y violation).
+  // Keyboard focus separate from hover so the focused slice keeps a
+  // visible ring (a11y).
   const [focused, setFocused] = useState<string | null>(null);
   const total = useMemo(() => data.reduce((sum, s) => sum + s.count, 0), [data]);
 
@@ -86,15 +84,8 @@ export function OrdersByStatusDonut({
             // Clockwise stagger so the eye follows the donut as it
             // assembles. 80ms per slice * up to 6 statuses ≈ 480ms.
             const delayMs = 90 + i * 80;
-            // Earlier rev wrapped this <path> in <Link>, but a Next.js
-            // <Link> renders an <a> element, and an <a> inside <svg>
-            // is invalid HTML — Next 14 hydration mismatches on it,
-            // and that hydration error was knocking out click handlers
-            // on neighbouring components (the KPI cards above).
-            // Fix: drive navigation from a path-level onClick that
-            // calls router.push directly. `pointer-events: auto` on
-            // the path is implicit; the surrounding <svg> doesn't
-            // intercept.
+            // Navigate via path-onClick; <Link> would inject an <a>
+            // inside <svg> which is invalid HTML and breaks hydration.
             const isFocused = focused === seg.status;
             return (
               <path

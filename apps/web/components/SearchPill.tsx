@@ -6,19 +6,9 @@ import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 /**
- * Search input for the TopNav.
- * Wave-2 rebrand decisions:
- *  - Switched off the all-pills monoculture (every nav element used
- *    `rounded-pill`). The search now uses `rounded-xl` so it visually
- *    contrasts with the round avatar / pill CTA / square cluster
- *    container next to it. This is the "mix radii within a section"
- *    rule from docs/design-system.md §4.
- *  - Focused-state ring picks up `mint` instead of yellow — yellow is
- *    the brand colour and we don't need both the search ring AND the
- *    primary CTA shouting at the user simultaneously. Mint reads as
- *    "this is the active input" without competing with the gold CTA.
- *  - The "/" hotkey hint is now mono-uppercase + slightly muted, so it
- *    feels like a keyboard cue rather than a pill chip.
+ * Search input for the TopNav. `rounded-xl` (not pill) so it contrasts
+ * with the surrounding avatar/CTA shapes; mint focus ring keeps the
+ * gold CTA from competing visually.
  */
 export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
   const router = useRouter();
@@ -62,8 +52,6 @@ export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
     >
       <label
         className={cn(
-          // rounded-xl (not pill) — breaks the all-pills monoculture
-          // identified in the design audit.
           "relative flex items-center rounded-xl bg-surface-3/80 backdrop-blur transition border",
           focused
             ? "border-mint/60 ring-2 ring-mint/25"

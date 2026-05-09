@@ -5,24 +5,10 @@ import { Home, Search, ShoppingBag, Heart, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCartCount } from "@/lib/useCartCount";
 
-// Mobile-only bottom tab bar (5 destinations: Home, Browse, Cart,
-// Favorites, Account). Shows below md, hidden on desktop where the
-// TopNav already exposes everything.
-//
-// Why bottom nav on phone:
-// - Thumb-reach: top header is hard to tap one-handed at any modern
-//   phone height. Bottom strip puts every primary destination in
-//   thumb range.
-// - "Native marketplace app feel" — Shopee / Lazada / Amazon all use
-//   this pattern; doing the same gives buyers a familiar surface.
-// - Frees up TopNav: cart icon stays at the top too (so the badge is
-//   visible when the buyer is in the middle of shopping), but the
-//   primary nav verbs live here.
-//
-// Cart count comes from the same /api/cart endpoint that CartNavIcon
-// polls. Reusing the cart:update window event so this badge refreshes
-// the moment AddToCart fires, and listening for `focus` so out-of-band
-// changes (e.g. checkout finished in another tab) sync.
+// Mobile-only bottom tab bar (Home, Browse, Cart, Favorites, Account).
+// Hidden on desktop where TopNav covers the same destinations.
+// Cart count comes from the shared `useCartCount` hook so this badge
+// and CartNavIcon share one polling loop.
 
 interface Tab {
   href: string;
@@ -64,11 +50,7 @@ const TABS: Tab[] = [
     href: "/profile",
     label: "Account",
     icon: User,
-    // /admin is intentionally NOT in this match set — the bottom nav
-    // sends the user to /profile which is a *different* destination
-    // from /admin. Highlighting "Account" while sitting on /admin
-    // implied tapping it would keep the operator on the admin
-    // dashboard, which it doesn't.
+    // /admin is intentionally NOT matched: tapping "Account" leaves /admin.
     match: (p) =>
       p.startsWith("/profile") ||
       p.startsWith("/orders") ||
@@ -78,16 +60,9 @@ const TABS: Tab[] = [
 
 export function MobileBottomNav({ favoritesEnabled = true }: { favoritesEnabled?: boolean }) {
   const pathname = usePathname();
-  // Shared store. CartNavIcon (top nav) subscribes to the same value,
-  // so the page only ever has one /api/cart polling loop running —
-  // not two simultaneous requests every 60s.
   const cartCount = useCartCount();
 
-  // Hide entire bar on auth pages + checkout + admin to keep those
-  // flows distraction-free. Bottom nav re-emerges on the buyer path.
-  // /admin is hidden because the bottom-nav destinations are
-  // buyer-oriented and the admin already has the strip-nav at the
-  // top of the layout.
+  // Hide on auth pages, checkout, and admin to keep those flows clean.
   const HIDE_ON = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-pending", "/verify-phone", "/feature-tour", "/admin"];
   if (HIDE_ON.some((p) => pathname?.startsWith(p))) return null;
 
@@ -95,9 +70,7 @@ export function MobileBottomNav({ favoritesEnabled = true }: { favoritesEnabled?
 
   return (
     <>
-      {/* Spacer below body so the floating nav doesn't cover content
-          on short pages. Height matches the nav (62px) + safe-area
-          inset for notched phones. */}
+      {/* Spacer so the floating nav doesn't cover short-page content. */}
       <div aria-hidden className="md:hidden h-[62px]" />
       <nav
         aria-label="Primary"
@@ -120,16 +93,14 @@ export function MobileBottomNav({ favoritesEnabled = true }: { favoritesEnabled?
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-semibold transition",
-                    // Min tap target ≥ 44px high so iOS HIG / Material
-                    // touch-target requirements pass.
+                    // Min tap target >= 44px (iOS HIG / Material).
                     "min-h-[56px]",
                     active
                       ? "text-metu-yellow"
                       : "text-ink-secondary hover:text-white active:text-white",
                   )}
                 >
-                  {/* Active pill above the icon — slim mint hairline so
-                      the active state is unmistakable without shouting. */}
+                  {/* Active pill above the icon. */}
                   {active && (
                     <span
                       aria-hidden

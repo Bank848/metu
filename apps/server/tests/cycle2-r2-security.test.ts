@@ -1,28 +1,13 @@
 /**
- * Cycle-2 round-2 regression tests — locks in the 5 fix commits the
- * defender shipped for surfaces C2-001, C2-003, C2-004, C2-005,
- * C2-007 + F-008, and the W-002 receipt-idempotency lane.
- *
- * Scope-only: every test here pins behaviour the CVE fix introduced.
- * If a test starts failing it means the fix has regressed (or been
- * narrowed) — read the surface ID in the failing block and re-check
- * the matching commit in `.claude/pentest/cycle2-round2-defender.md`.
- *
- *   • C2-001    auth.controller.ts — phone E.164 normalize before mismatch
- *   • C2-003    schemas/auth.ts + utils/email.ts — CRLF guards
- *   • C2-004    services/admin.service.ts — IDOR on /sync collapses to 404
- *   • C2-005    services/orders.service.ts — gift recipient PII redaction
- *   • C2-W-002  services/orders.service.ts — sendOrderReceipt single-fire
- *   • C2-007    auth.controller.ts — phone-for-sms consumes preAuth + masks phone
- *   • C2-F-008  auth.controller.ts — phone-for-sms returns rotated child token
+ * Security regression tests covering: phone normalization, CRLF/header
+ * injection guards, IDOR collapse on /orders/:id/sync, gift-recipient PII
+ * redaction, sendOrderReceipt idempotency, and phone-for-sms hardening
+ * (parent-token consumption + masked phone + rotated child token).
  */
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import request from "supertest";
 
-// ===========================================================================
-// Shared mocks. We assemble a single prisma stub the whole file shares so the
-// cross-feature tests (auth + orders + email) can route through buildApp().
-// ===========================================================================
+// Shared prisma stub for cross-feature tests (auth + orders + email).
 
 const sendEmailMock = vi.fn(async () => ({ ok: true, provider: "console" as const }));
 
@@ -96,25 +81,19 @@ const ordersSvc = await import("../src/services/orders.service.js");
 beforeEach(() => {
   vi.clearAllMocks();
   sendEmailMock.mockResolvedValue({ ok: true, provider: "console" });
-  // Prisma mocks need an awaited shape so `.catch(...)` chains in the
-  // service layer don't blow up on the returned undefined.
+  // Awaited shapes so service-layer `.catch(...)` chains don't blow up.
   (prisma.verification.deleteMany as any).mockResolvedValue({ count: 0 });
   (prisma.verification.delete as any).mockResolvedValue({});
-  // Default null for user lookups so a leftover mockResolvedValue from a
-  // previous describe block doesn't make a downstream test see a phantom
-  // user. Specific tests override with mockResolvedValueOnce/mockResolvedValue.
+  // Default null lookups so leftover mocks from a previous describe block
+  // don't bleed into downstream tests. Specific tests override.
   (prisma.user.findUnique as any).mockResolvedValue(null);
   (prisma.order.findUnique as any).mockResolvedValue(null);
   (prisma.verification.findFirst as any).mockResolvedValue(null);
 });
 
-// ===========================================================================
-// C2-001 — phone normalization on /auth/login/firebase-verify.
-// ===========================================================================
-describe("C2-001 — phone normalize on /auth/login/firebase-verify", () => {
-  // Round-trip a real preAuth token through the encryption helper so the
-  // controller doesn't 400 InvalidPreAuth before reaching the mismatch
-  // branch. JWT_SECRET is required by issueLoginPreAuthToken.
+describe("phone normalize on /auth/login/firebase-verify", () => {
+  // Round-trip a real preAuth token so the controller doesn't 400
+  // InvalidPreAuth before reaching the mismatch branch.
   const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
   beforeEach(() => {
     process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-secret-at-least-16-chars";
@@ -145,7 +124,7 @@ describe("C2-001 — phone normalize on /auth/login/firebase-verify", () => {
       phone_number: "+66812345678",
       uid: "fb-uid-1",
     });
-    // DB row stores the legacy "0..." form.
+    // DB stores the legacy "0..." form.
     (prisma.user.findUnique as any).mockResolvedValue({ phone: "0812345678" });
 
     const token = await mintToken(7);
@@ -153,10 +132,8 @@ describe("C2-001 — phone normalize on /auth/login/firebase-verify", () => {
       .post("/auth/login/firebase-verify")
       .send({ token, firebaseIdToken: "fb-id-token" });
 
-    // Pre-fix this would have been 403 PhoneMismatch because
-    // "+66812345678" !== "0812345678". The fix normalizes both sides
-    // to E.164 before equality. We accept any non-PhoneMismatch
-    // outcome here; the cookie-mint side requires more wiring.
+    // Both sides normalize to E.164 before equality. Accept any
+    // non-PhoneMismatch outcome (cookie-mint needs more wiring).
     expect(res.body?.error).not.toBe("PhoneMismatch");
   });
 
@@ -178,13 +155,10 @@ describe("C2-001 — phone normalize on /auth/login/firebase-verify", () => {
   });
 
   it("normalizeThaiPhone helper turns a malformed string into a non-matching value (defence-in-depth)", () => {
-    // The helper is the source of the equality guarantee — pin its
-    // contract so a future refactor can't quietly weaken normalisation.
     expect(phoneUtil.normalizeThaiPhone("+66812345678")).toBe("+66812345678");
     expect(phoneUtil.normalizeThaiPhone("0812345678")).toBe("+66812345678");
     expect(phoneUtil.normalizeThaiPhone("66812345678")).toBe("+66812345678");
-    // Garbage in → garbage out, but guaranteed non-equal to any valid
-    // E.164 form so the controller's mismatch branch fires.
+    // Garbage in → guaranteed non-equal so the mismatch branch fires.
     const garbage = phoneUtil.normalizeThaiPhone("not-a-phone");
     expect(garbage).not.toBe("+66812345678");
   });
@@ -195,17 +169,11 @@ describe("C2-001 — phone normalize on /auth/login/firebase-verify", () => {
   });
 });
 
-// ===========================================================================
-// C2-003 — header injection guards (zod CRLF on names + sendEmail header guard).
-// ===========================================================================
-describe("C2-003 — CRLF / header injection guards", () => {
+describe("CRLF / header injection guards", () => {
   it("source registerSchema rejects firstName with CRLF — pins the zod regex contract", async () => {
-    // Import the SOURCE schema (not the @metu/shared dist bundle) so
-    // we exercise the freshly-edited regex regardless of whether the
-    // dist build is up to date. The runtime register endpoint also
-    // uses @metu/shared dist; if dist is stale, defense-in-depth from
-    // sendEmail's assertHeaderSafe still blocks the smuggle (covered
-    // in the next two tests).
+    // Import the SOURCE schema (not @metu/shared dist) so we exercise
+    // the regex regardless of dist staleness. sendEmail's
+    // assertHeaderSafe still blocks the smuggle as defense-in-depth.
     const sharedSrc = await import(
       // @ts-ignore — direct .ts source path
       "../../../packages/shared/src/schemas/auth.ts"
@@ -214,8 +182,7 @@ describe("C2-003 — CRLF / header injection guards", () => {
       username: "newuser1",
       email: "new@metu.dev",
       password: "Newone#123",
-      // Classic header-injection payload: a CRLF + Bcc: line would
-      // split the From: header and inject a Bcc.
+      // CRLF + Bcc: would split the From: header and inject a Bcc.
       firstName: "Bob\r\nBcc: attacker@evil.test",
       lastName: "Smith",
       phone: "+66812345678",
@@ -230,8 +197,8 @@ describe("C2-003 — CRLF / header injection guards", () => {
   });
 
   it("sendEmail throws when the `to` address contains CRLF", async () => {
-    // Import the REAL module past the file-wide vi.mock so we exercise
-    // the actual assertHeaderSafe guard, not the orders-test mock.
+    // Import the REAL module past the file-wide vi.mock to exercise
+    // the actual assertHeaderSafe guard.
     const real = await vi.importActual<typeof import("../src/utils/email.js")>(
       "../src/utils/email.js",
     );
@@ -258,11 +225,9 @@ describe("C2-003 — CRLF / header injection guards", () => {
   });
 });
 
-// ===========================================================================
-// C2-005 + C2-W-002 — gift email redaction + receipt idempotency.
-// Both are tested through the same orders.service.sendOrderReceipt entry.
-// ===========================================================================
-describe("C2-005 — gift recipient PII redaction", () => {
+// Both gift redaction + receipt idempotency are exercised via the same
+// orders.service.sendOrderReceipt entry.
+describe("gift recipient PII redaction", () => {
   function fixtureOrder(overrides: Record<string, unknown> = {}) {
     return {
       orderId: 555,
@@ -298,8 +263,8 @@ describe("C2-005 — gift recipient PII redaction", () => {
   it("recipient email body strips license keys, download URLs, store contact + buyer last name", async () => {
     (prisma.order.findUnique as any).mockResolvedValue(fixtureOrder());
 
-    // sendOrderReceipt runs sendEmail twice — first for the buyer, then
-    // for the recipient. The recipient send is the one we lock down.
+    // sendOrderReceipt runs sendEmail twice (buyer, then recipient).
+    // The recipient send is the one we lock down.
     await ordersSvc.sendOrderReceipt(778);
 
     expect(sendEmailMock).toHaveBeenCalled();
@@ -309,23 +274,21 @@ describe("C2-005 — gift recipient PII redaction", () => {
     expect(recipientCall).toBeDefined();
     const args = recipientCall![0];
 
-    // Negative assertions — none of the buyer-private fields land in
-    // the recipient's email (HTML or text).
+    // None of the buyer-private fields land in the recipient's email.
     const haystack = args.html + "\n" + (args.text ?? "");
     expect(haystack).not.toContain("GAME-KEY-AAAA-BBBB-CCCC");
     expect(haystack).not.toContain("https://downloads.metu.dev/mystery-game.zip");
     expect(haystack).not.toContain("support@indie.test");
     expect(haystack).not.toContain("+66999999999");
 
-    // Positive — the redacted card still names the product so the
-    // recipient knows what they got.
+    // The redacted card still names the product.
     expect(haystack).toContain("Mystery Game");
   });
 });
 
-describe("C2-W-002 — sendOrderReceipt idempotency (single email per order)", () => {
-  // Using a unique orderId per test so the in-process Set guard from a
-  // previous test doesn't pre-trip this one.
+describe("sendOrderReceipt idempotency (single email per order)", () => {
+  // Use a unique orderId per test so the in-process Set guard from
+  // a previous test doesn't pre-trip this one.
   it("two parallel sendOrderReceipt calls for the same order → email transport hit at most once", async () => {
     const orderId = 999_001;
     (prisma.order.findUnique as any).mockResolvedValue({
@@ -349,9 +312,8 @@ describe("C2-W-002 — sendOrderReceipt idempotency (single email per order)", (
       giftRecipientEmail: null,
       giftMessage: null,
     });
-    // Advisory-lock try succeeds the first call, fails the second so we
-    // also exercise the lock branch (the in-memory Set would also stop
-    // the second call but we want both layers covered).
+    // Advisory-lock try succeeds first then fails — exercises both
+    // the lock branch and the in-memory Set guard.
     (prisma.$queryRaw as any)
       .mockResolvedValueOnce([{ ok: true }])
       .mockResolvedValueOnce([{ ok: false }]);
@@ -366,12 +328,9 @@ describe("C2-W-002 — sendOrderReceipt idempotency (single email per order)", (
   });
 });
 
-// ===========================================================================
-// C2-004 — IDOR enumeration on /orders/:id/sync collapses to 404.
-// ===========================================================================
-describe("C2-004 — /orders/:id/sync IDOR collapse", () => {
-  // The sync route hits stripe.service.isConfigured first; we patch the
-  // env so that gate doesn't 503.
+describe("/orders/:id/sync IDOR collapse", () => {
+  // sync route hits stripe.service.isConfigured first; patch env so
+  // that gate doesn't 503.
   process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY ?? "sk_test_mock";
 
   it("returns 404 OrderNotFound when the order belongs to a DIFFERENT user (no 403 oracle)", async () => {
@@ -392,7 +351,7 @@ describe("C2-004 — /orders/:id/sync IDOR collapse", () => {
         },
       ],
     });
-    // Buyer-facing user lookup performed by requireAuth/me middleware.
+    // Buyer user lookup performed by requireAuth.
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
       stats: { role: "buyer" },
@@ -416,13 +375,13 @@ describe("C2-004 — /orders/:id/sync IDOR collapse", () => {
       store: null,
     });
 
-    // Case 1 — genuinely missing.
+    // Case 1: genuinely missing.
     (prisma.order.findUnique as any).mockResolvedValueOnce(null);
     const missing = await request(buildApp())
       .post("/orders/9001/sync")
       .set("Cookie", "better-auth.session_token=fake-test-cookie");
 
-    // Case 2 — exists but other user.
+    // Case 2: exists but other user.
     (prisma.order.findUnique as any).mockResolvedValueOnce({
       orderId: 9002,
       userId: 99,
@@ -443,21 +402,16 @@ describe("C2-004 — /orders/:id/sync IDOR collapse", () => {
     expect(otherOwner.status).toBe(404);
     expect(missing.body.error).toBe("OrderNotFound");
     expect(otherOwner.body.error).toBe("OrderNotFound");
-    // Same shape — neither response leaks an "exists-but-forbidden"
-    // marker that an attacker could use to enumerate orderIds.
+    // Same shape — no "exists-but-forbidden" marker for enumeration.
     expect(Object.keys(missing.body).sort()).toEqual(
       Object.keys(otherOwner.body).sort(),
     );
   });
 });
 
-// ===========================================================================
-// C2-007 + C2-F-008 — phone-for-sms consumes parent token + masks phone +
-// returns rotated child token.
-// ===========================================================================
-describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
+describe("phone-for-sms hardening", () => {
   // Each test mints a real token through the same util the controller
-  // uses, so we exercise the actual consume + reissue path end-to-end.
+  // uses, exercising the actual consume + reissue path end-to-end.
   process.env.JWT_SECRET = process.env.JWT_SECRET ?? "test-secret-at-least-16-chars";
 
   async function mintTokenAndArmFindFirst(userId: number) {
@@ -481,10 +435,9 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
   it("response body returns the full phone, a MASKED display tail, and a NEW child token", async () => {
     const token = await mintTokenAndArmFindFirst(7);
     (prisma.user.findUnique as any).mockResolvedValue({ phone: "+66812345678" });
-    // Cycle 4 R2 fix: phone-for-sms now refuses to mint a child token
-    // unless the parent token's deleteMany actually removed a row.
-    // Override the default `{ count: 0 }` mock with `{ count: 1 }` so
-    // this happy-path test exercises the issuance branch.
+    // phone-for-sms refuses to mint a child token unless the parent's
+    // deleteMany removed a row. Override default `{ count: 0 }` so this
+    // happy path exercises the issuance branch.
     (prisma.verification.deleteMany as any).mockResolvedValue({ count: 1 });
 
     const res = await request(buildApp())
@@ -492,16 +445,12 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
       .send({ token });
 
     expect(res.status).toBe(200);
-    // Cycle 5 UX revision: the response now ships the full E.164 phone
-    // alongside the masked tail. Firebase Phone Auth needs the full
-    // number to fire signInWithPhoneNumber, and forcing the buyer to
-    // re-type a number they already proved they own at the password
-    // step was bouncing real users at demo. The masked tail still
-    // ships in `phoneMasked` for safe-to-display copy.
+    // The response ships the full E.164 phone alongside the masked
+    // tail — Firebase Phone Auth needs the full number to fire
+    // signInWithPhoneNumber. Masked tail in `phoneMasked` for display.
     expect(res.body.phone).toBe("+66812345678");
-    // Mask format from maskPhoneTail: prefix (+ up to 3 digits via the
-    // /^\+\d{1,3}/ regex) + " *** *** " + last-4. For "+66812345678"
-    // the regex's 1-3 greedy match yields "+668".
+    // Mask format from maskPhoneTail: prefix (+ up to 3 digits) +
+    // " *** *** " + last-4. For "+66812345678" the regex yields "+668".
     expect(res.body.phoneMasked).toMatch(/^\+\d{1,3} \*\*\* \*\*\* \d{4}$/);
     expect(res.body.phoneMasked.endsWith(" 5678")).toBe(true);
     expect(res.body.phoneMasked).not.toContain("1234");
@@ -522,9 +471,8 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
       .send({ token });
 
     // consumeLoginPreAuthToken issues two deleteMany calls — one for
-    // the login-verify row, one for the per-token attempts row. We
-    // check that the first carries the EXACT identifier of the parent
-    // token, proving the old token can't be reused on /firebase-verify.
+    // the login-verify row, one for per-token attempts. The first must
+    // carry the EXACT parent token identifier so it can't be replayed.
     expect(prisma.verification.deleteMany).toHaveBeenCalled();
     const deleteCalls = (prisma.verification.deleteMany as any).mock.calls;
     const parentDelete = deleteCalls.find(
@@ -536,8 +484,7 @@ describe("C2-007 + C2-F-008 — phone-for-sms hardening", () => {
   it("rejects with 400 InvalidPreAuth when the parent token was already consumed (replay)", async () => {
     const token = await mintTokenAndArmFindFirst(7);
     (prisma.user.findUnique as any).mockResolvedValue({ phone: "+66812345678" });
-    // Replay scenario: deleteMany finds zero rows, meaning a prior
-    // call already burned this token. Default mock = { count: 0 }.
+    // Replay: deleteMany finds zero rows. Default mock = { count: 0 }.
     (prisma.verification.deleteMany as any).mockResolvedValue({ count: 0 });
 
     const res = await request(buildApp())

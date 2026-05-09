@@ -11,11 +11,8 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 export const metadata = { title: "Check your inbox — METU" };
 
-// → 42 — bounce target when the user still has an unverified
-// email. Reads the address from (a) an active session if the user is
-// signed in, otherwise (b) a short-lived signed `metu_pv` cookie set
-// by the BFF on register / verify-blocked login. The address never
-// appears in the URL or referrer.
+// Bounce target when the user still has an unverified email. Reads the
+// address from the session, or a signed `metu_pv` cookie during register.
 
 export default async function VerifyPendingPage() {
   const me = await getMe();

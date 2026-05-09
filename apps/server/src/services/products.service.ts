@@ -66,28 +66,15 @@ async function listProducts(
   });
 }
 
-/**
- * Browse — the workhorse query for /browse. Mirrors the legacy
- * `apps/web/lib/server/queries.ts:browseProducts()` 1:1 so the BFF
- * layer can switch from direct-Prisma to fetch-this-service without
- * any consumer-visible behavior change.
- */
+/** Browse — the workhorse query for /browse. */
 export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseResponse> {
   const { category, tags, minPrice, maxPrice, delivery, q, sort } = filters;
-  // Defaults mirror the zod schema (page=1, pageSize=12). The
-  // double-fallback keeps strict TS happy across packages even when
-  // `BrowseQuery`'s `default()` types resolve as optional in the
-  // consumer's tsconfig context.
+  // Defaults mirror the zod schema.
   const page = (filters.page as number | undefined) ?? 1;
   const pageSize = (filters.pageSize as number | undefined) ?? 12;
 
-  // Public catalogue gates: paused, soft-deleted, deleted-store,
-  // suspended-store, and (when any store has finished Stripe Connect
-  // onboarding) only stores that can actually accept payment. The
-  // "any store ready" check is a safety fallback so /browse isn't
-  // empty in pre-onboarding demos — users still see the catalogue,
-  // and our cart guard rejects checkout against non-ready stores
-  // with a clear error.
+  // Public catalogue gates: active products, non-suspended stores,
+  // and (when any store finished Stripe onboarding) charges-enabled stores.
   const anyStoreReady = await prisma.store.count({
     where: { stripeChargesEnabled: true, suspendedAt: null },
   });
@@ -124,25 +111,13 @@ export async function findProducts(filters: BrowseQuery): Promise<ProductBrowseR
     };
   }
 
-  // price sort needs to be DB-side so pagination is
-  // correct across the whole result set. Previously we ordered by
-  // `productId` then sorted by `minPrice` in JS *after* paginating,
-  // which meant cheap products on later pages stayed there — the
-  // user's "cheapest first" page was actually "cheapest within an
-  // arbitrary id slice". For price sort we run a separate
-  // `groupBy(productItem)` to compute MIN(effective price), then
-  // page through the resulting id list and load the cards by id.
+  // Price sort runs DB-side via groupBy(productItem) so pagination
+  // is correct across the whole result set.
   if (sort === "price_asc" || sort === "price_desc") {
     return findProductsOrderedByPrice(where, page, pageSize, sort);
   }
   if (sort === "rating") {
-    // "Top rated" used to use Prisma's `reviews: { _count: "desc" }`,
-    // which sorts by *review count*, not *average rating*. A 1-star
-    // product with 200 reviews would outrank a 5-star product with 5
-    // reviews — exactly the inverse of what the UI label promises.
-    // Switch to a raw-SQL ORDER BY AVG(rating) with NULLS LAST so
-    // unreviewed products fall to the bottom (consistent with how
-    // findProductsOrderedByPrice handles items without variants).
+    // ORDER BY AVG(rating) NULLS LAST so unreviewed products fall last.
     return findProductsOrderedByRating(where, page, pageSize);
   }
 

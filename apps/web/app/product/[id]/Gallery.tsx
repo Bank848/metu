@@ -5,12 +5,8 @@ import { Package } from "lucide-react";
 import { cn, isDataUrl } from "@/lib/utils";
 
 /**
- * run #2 / F5 — when an image URL 404s (or returns a non-image
- * payload), Next.js silently leaves the slot blank, which produced the
- * "empty rounded rectangle" QA flagged on /product/100's second
- * thumbnail. We track which indexes failed in state and substitute the
- * lucide Package fallback that the main hero already uses, so the slot
- * never reads as "broken UI".
+ * Tracks broken thumbnails in state and substitutes the Package fallback
+ * so a 404'd image URL doesn't leave an empty rounded rectangle.
  */
 export function Gallery({ images, alt }: { images: string[]; alt: string }) {
   const [active, setActive] = useState(0);

@@ -22,18 +22,18 @@ vi.mock("../src/db/prisma.js", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
-      delete: vi.fn(),    // Phase 48 — hybrid hard-delete path
+      delete: vi.fn(),    // hybrid hard-delete path
     },
-    // Phase 48 — userStats.count for the last-admin guard.
+    // userStats.count for the last-admin guard.
     userStats: { findUnique: vi.fn(), upsert: vi.fn(), count: vi.fn() },
     store: {
-      findUnique: vi.fn(),  // Phase 48 — adminCreateStore lookup
+      findUnique: vi.fn(),  // adminCreateStore lookup
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
     },
-    // Phase 48 — adminCreateStore picks the first BusinessType row.
+    // adminCreateStore picks the first BusinessType row.
     businessType: { findFirst: vi.fn() },
     product: { count: vi.fn() },
     productReview: { count: vi.fn() },
@@ -43,7 +43,7 @@ vi.mock("../src/db/prisma.js", () => ({
       findMany: vi.fn(),
       delete: vi.fn(),
       create: vi.fn(),
-      count: vi.fn(),    // Phase 48 — hybrid delete history check
+      count: vi.fn(),    // hybrid delete history check
     },
     auditLog: { create: vi.fn() },
     $queryRaw: vi.fn(),
@@ -157,10 +157,8 @@ describe("PATCH /admin/users/:id (role change)", () => {
     (prisma.userStats.findUnique as any).mockResolvedValue({ role: "buyer" });
     (prisma.userStats.upsert as any).mockResolvedValue({});
     (prisma.auditLog.create as any).mockResolvedValue({});
-    // Phase 48 — Make seller now provisions a placeholder store via
-    // adminCreateStore. Mock a fresh user (no existing store row) so
-    // the create-new branch fires + the helper can pick a default
-    // BusinessType.
+    // Make-seller provisions a placeholder store via adminCreateStore;
+    // mock no existing store + a default BusinessType.
     (prisma.store.findUnique as any).mockResolvedValue(null);
     (prisma.businessType.findFirst as any).mockResolvedValue({ typeId: 1 });
     (prisma.$transaction as any).mockImplementation(async (cb: any) => {
@@ -183,7 +181,7 @@ describe("PATCH /admin/users/:id (role change)", () => {
       update: { role: "seller" },
       create: { userId: 9, role: "seller" },
     });
-    // Phase 48 — meta now carries side-effect ids alongside from/to.
+    // meta carries side-effect ids alongside from/to.
     expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         action: "user.role_change",
@@ -206,9 +204,8 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
   });
 
   it("no reason + fresh user → 'user.delete' audit, hard delete", async () => {
-    // Phase 48 — fresh accounts (no orders/reviews/transactions) get
-    // the hard-delete branch. Mock the count queries to return 0 so
-    // the service routes through prisma.user.delete().
+    // Fresh accounts (no orders/reviews/transactions) get the
+    // hard-delete branch. Mock counts to 0 so service hits user.delete.
     (prisma.userStats.findUnique as any).mockResolvedValue({ role: "buyer" });
     (prisma.userStats.count as any).mockResolvedValue(0);
     (prisma.order.count as any).mockResolvedValue(0);
@@ -228,14 +225,12 @@ describe("DELETE /admin/users/:id (soft-delete vs ban)", () => {
   });
 
   it("with reason → 'user.ban' audit, bannedAt + bannedReason + sessions dropped", async () => {
-    // Phase 48 — last-admin guard runs first; mock target as buyer
-    // and admin-count > 1 so the guard passes.
+    // Last-admin guard runs first; target is buyer + admin-count > 1.
     (prisma.userStats.findUnique as any).mockResolvedValue({ role: "buyer" });
     (prisma.userStats.count as any).mockResolvedValue(2);
     (prisma.auditLog.create as any).mockResolvedValue({});
-    // Phase 48 follow-up — ban path now wraps user.update +
-    // session.deleteMany in a transaction so the kick-out is atomic.
-    // Capture the tx mock so we can assert both writes happened.
+    // Ban wraps user.update + session.deleteMany in a transaction so
+    // the kick-out is atomic. Capture the tx mock to assert both writes.
     const txUserUpdate = vi.fn().mockResolvedValue({});
     const txSessionDeleteMany = vi.fn().mockResolvedValue({ count: 3 });
     (prisma.$transaction as any).mockImplementation(async (cb: any) => {
@@ -293,8 +288,8 @@ describe("DELETE /admin/stores/:id", () => {
 
 describe("GET /admin/stats", () => {
   it("composes the KPI payload from a single counts CTE + daily series", async () => {
-    // Refactor: 7 separate prisma.*.count() calls collapsed into one
-    // $queryRaw CTE so all KPI tiles come back in a single round trip.
+    // 7 separate count() calls collapsed into one $queryRaw CTE so
+    // all KPI tiles come back in a single round trip.
     (prisma.transaction.findMany as any).mockResolvedValue([]);
     (prisma.$queryRaw as any)
       // 1st call: counts CTE
@@ -411,14 +406,10 @@ describe("GET /admin/reports/:name", () => {
   });
 });
 
-// =============================================================================
-//  Phase 15.5 — admin force-password-reset
-// =============================================================================
-describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
+describe("POST /admin/users/:id/require-password-reset", () => {
   it("403 for non-admin", async () => {
-    // requireAuth's dual-stack does the user lookup BEFORE the role
-    // check (Phase 14.2), so the buyer needs a real prisma user to
-    // get past the 401 and reach the 403 forbidden gate.
+    // requireAuth does the user lookup before the role check, so the
+    // buyer needs a real prisma user to reach the 403 forbidden gate.
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
       stats: { role: "buyer" },
@@ -452,8 +443,8 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
   });
 
   it("happy: SET (value=true) updates User + writes audit row", async () => {
-    // Phase 48 — service now reads back email + firstName for the
-    // notification email + tries to send via sendEmail (best-effort).
+    // Service reads back email + firstName for the notification email
+    // and best-effort sends via sendEmail.
     (prisma.user.update as any).mockResolvedValue({
       email: "buyer@example.test",
       firstName: "Buyer",
@@ -494,10 +485,7 @@ describe("POST /admin/users/:id/require-password-reset (Phase 15.5)", () => {
   });
 });
 
-// =============================================================================
-//  Phase 16.1 — store-suspended toggle
-// =============================================================================
-describe("POST /admin/stores/:id/suspend (Phase 16.1)", () => {
+describe("POST /admin/stores/:id/suspend", () => {
   it("400 ValidationError when body.value is missing or not boolean", async () => {
     const res = await request(buildApp())
       .post("/admin/stores/11/suspend")

@@ -6,11 +6,8 @@ import { ConfirmDialog } from "@/components/forms/ConfirmDialog";
 
 type Status = "pending" | "paid" | "fulfilled" | "cancelled" | "refunded";
 
-// / F19 — pending confirm-dialog state. Each entry maps a
-// transition kind to the human-readable copy shown in the modal body
-// and the destructive tone (refund/cancel = destructive, fulfil =
-// neutral). The handler reads back through this map on confirm so the
-// dialog can drive every transition without three separate components.
+// Pending confirm-dialog state. One entry per transition kind so the
+// modal can drive every action without three separate components.
 type Pending =
   | { kind: "fulfilled"; title: string; body: string; confirmLabel: string }
   | { kind: "cancelled"; title: string; body: string; confirmLabel: string }
@@ -121,14 +118,8 @@ export function OrderStatusActions({
 
   if (!canFulfilOrCancel && !canRefund) return null;
 
-  // run #2 / F22 — pixel-position clicks on these action
-  // buttons were failing in QA (only `button.click()` via devtools
-  // triggered the dialog). Most likely cause: a transparent ancestor
-  // (or a sibling growing on hover via the row-card transform) was
-  // floating above the button's hit-box at the rendered coordinates.
-  // We pin the action row to `relative z-10` and stop click propagation
-  // so each button owns its rectangle outright. Belt-and-braces — the
-  // change is purely defensive, no visual delta.
+  // Pin the action row to `relative z-10` and stop click propagation so
+  // each button owns its hit-rectangle outright.
   return (
     <div className="relative z-10 flex flex-wrap items-center gap-2 mt-3">
       {canFulfilOrCancel && (

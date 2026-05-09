@@ -14,12 +14,9 @@ function isoLocal(d: Date) {
 }
 
 /**
- * / Step 3a — coupon form rebuilt against Step 2 primitives.
- * Two `<FormSection>` blocks (Coupon details / Schedule + limits) plus a
- * sticky `<PreviewPane variant="coupon">` on the right that renders the
- * coral promo pill exactly as buyers will see it. The preview reacts to
- * every keystroke so sellers can sanity-check the code formatting and
- * discount math before submitting.
+ * Coupon form: two <FormSection> blocks (details / schedule) plus a
+ * sticky <PreviewPane variant="coupon"> that renders the promo pill
+ * live as the seller types.
  */
 export function NewCouponForm() {
   const router = useRouter();

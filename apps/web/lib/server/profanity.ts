@@ -1,28 +1,12 @@
 /**
- * Server-side profanity guard.
- * run #2 / F3 (CEO Decision 1) — wraps `leo-profanity` so the
- * register + profile-edit flows can refuse usernames / display names
- * that contain slurs. The library ships an English dictionary (~1500
- * words). We extend it with:
- *   1. A short custom blocklist of slurs the library misses or
- *      l33t-spells around (leo-profanity matches whole words only).
- *   2. A few transliterated Thai slurs — leo-profanity has no Thai
- *      dictionary on npm so we ship the most-flagged ones inline.
- * The check is intentionally cheap: we lower-case the input, strip
- * spaces / punctuation that bury a slur ("nig ger", "n.i.g.g.e.r"),
- * then run `check()`. False positives are acceptable for a moderation
- * gate — the user can pick a different name. A future iteration can
- * tighten the matcher with a proper word-boundary regex.
- * The dictionary is only loaded once per Node process (Next caches the
- * module). No I/O at request time.
+ * Server-side profanity guard. Wraps `leo-profanity` (English) and adds
+ * a short custom blocklist plus inline Thai slurs (leo-profanity has no
+ * Thai dictionary). Lower-cases + strips punctuation/spaces before
+ * `check()` so common spacing tricks ("nig ger", "n.i.g.g.e.r") still trip.
  */
 import filter from "leo-profanity";
 
-// Slurs the default English dictionary doesn't catch (variants /
-// transliterations from F3's offending Phase-10 username plus a small
-// hand-picked extension). Keep this list short and obvious — a longer
-// list creeps into "let's police every word" territory which isn't the
-// goal here.
+// Slurs the default dictionary doesn't catch — keep it short.
 const CUSTOM_BLOCKLIST = [
   "niigga",
   "niggas",

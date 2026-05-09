@@ -165,8 +165,7 @@ function AddStoreButton({
   hasStore: boolean;
   label: string;
 }) {
-  // Caller in <TopNav> already gates this on `me` being truthy (F11),
-  // so we no longer render a /login bounce route here.
+  // Caller already gates on `me` being truthy, so no /login bounce here.
   const href = hasStore ? "/seller" : "/become-seller";
   return (
     <Link

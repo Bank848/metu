@@ -2,11 +2,9 @@ import { forwardRef, type InputHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * / Step 2 — number input primitive.
- * Same chrome as TextInput but locked to `type="number"` and with
- * explicit min/max/step props for ergonomics. We keep the native number
- * spinners (no `[appearance:textfield]` strip) — the seller flow is a
- * desktop-first authoring surface where the spinners are useful.
+ * Number input primitive — same chrome as TextInput, locked to
+ * type="number" with explicit min/max/step. Keeps the native spinners
+ * since the seller flow is desktop-first.
  */
 export interface NumberInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
   label?: string;

@@ -30,12 +30,8 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-// Prompt — Cadson Demak's Bangkok-designed family. Wired here per
-// docs/design-system.md §3.1 so any Thai-locale string can opt in via
-// the `font-thai` Tailwind class (e.g. `<span lang="th"
-// className="font-thai">…</span>`). Restricted to body weights — Thai
-// display sizes inherit from the same family without needing the heavy
-// 800 cut, which would balloon the font payload.
+// Prompt — Thai-locale strings opt in via the `font-thai` Tailwind
+// class. Body weights only; Thai display reuses the same family.
 const thai = Prompt({
   subsets: ["thai", "latin"],
   weight: ["400", "500", "600", "700"],
@@ -83,18 +79,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // before the client provider takes over.
   const locale = getServerLocale();
   return (
-    // QA round #3 / F1 — `suppressHydrationWarning` on <html>
-    // is defensive: the `themeBootstrapScript` mounted in <head> below
-    // intentionally rewrites this element's className BEFORE React
-    // hydrates (e.g. dark → light when the user has saved that pref).
-    // Without the flag, React would compare its rendered attribute
-    // against the post-bootstrap DOM and warn. The flag scopes to the
-    // html element only; child trees still hydrate strictly. Standard
-    // Next.js theme-toggle pattern (cf. next-themes). Note: the actual
-    // root-cause of the QA r3/F1 console errors turned out to be Next
-    // 14 App Router's multi-`priority` <Image> hydration bug — see the
-    // `priority={i===0}` / `loading="lazy"` narrowing in commit 907ee5b.
-    // We keep this flag because it's the right pattern for theme bootstrap.
+    // `suppressHydrationWarning` — themeBootstrapScript rewrites the html
+    // class before React hydrates; standard next-themes pattern.
     <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} ${thai.variable} dark`} suppressHydrationWarning>
       <head>
         {/*
@@ -124,10 +110,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <KeyboardShortcuts />
           <CompareDrawer />
-          {/* Mobile-only thumb-reach nav. Auto-hides on auth /
-              checkout / kiosk pages. Settings.favoritesEnabled isn't
-              read here (root layout is RSC and we'd need an extra
-              fetch); the nav itself just always renders the heart. */}
+          {/* Mobile-only thumb-reach nav. Always renders the heart;
+              the favoritesEnabled flag isn't threaded into this RSC. */}
           <MobileBottomNav />
         </I18nProvider>
         <PlausibleScript />

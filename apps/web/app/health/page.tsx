@@ -34,8 +34,6 @@ async function getCounts() {
   // Wrapped so a Neon hiccup downgrades the page to "degraded" rather
   // than crashing — health pages must never 500.
   try {
-    // run #2 / F14 — products count now also gates on live
-    // store so /health matches /admin overview + /admin/stores.
     const [users, stores, products, orders] = await Promise.all([
       prisma.user.count(),
       prisma.store.count(),
@@ -58,8 +56,6 @@ function fmtUptime(seconds: number): string {
 }
 
 function pingTone(ms: number, ok: boolean): { label: string; tone: string } {
-  // Wave-3: green/orange tones map onto the new mint/coral palette so
-  // the page reads as part of the marketplace, not a stock dashboard.
   if (!ok) return { label: "DOWN", tone: "red" };
   if (ms < 100) return { label: "FAST", tone: "mint" };
   if (ms < 500) return { label: "OK",   tone: "yellow" };
@@ -96,9 +92,7 @@ export default async function HealthPage() {
           subtitle="Live diagnostics — DB connectivity, latency, and basic catalogue stats."
         />
 
-        {/* Top status banner — mint when healthy, red when degraded.
-            Sits on `surface-flat` instead of a glass-y panel so the
-            tone classes carry the colour (Wave-3 token alignment). */}
+        {/* Top status banner — mint when healthy, red when degraded. */}
         <section
           className={`mb-8 rounded-2xl border p-6 flex items-center gap-4 ${
             overall
@@ -124,12 +118,9 @@ export default async function HealthPage() {
           </span>
         </section>
 
-        {/* Stat tiles — Wave-3: the DB-ping tile is the lead metric on
-            this page so it gets the `StatCard variant="highlight"`
-            treatment (mint surface-accent, icon-left, oversized value).
-            The other three stay on the leaner local <Tile /> on the
-            new `surface-flat` token so the row reads as 1 anchor + 3
-            supporting tiles instead of four identical glass squares. */}
+        {/* Stat tiles — DB ping is the lead metric (highlighted StatCard);
+            the rest use the leaner <Tile /> so the row reads as
+            1 anchor + 3 supporting tiles. */}
         <div className="grid sm:grid-cols-2 gap-4 mb-8">
           <div className="sm:col-span-2">
             <StatCard

@@ -30,16 +30,14 @@ vi.mock("../src/lib/auth.js", () => {
 const { prisma } = await import("../src/db/prisma.js");
 const { buildApp } = await import("../src/app.js");
 
-// Phase 16.3 — Mode A: cookie value irrelevant since better-auth's
-// getSession is mocked. We still set Cookie on requests so middleware
-// IP/UA capture has something realistic.
+// Cookie value is ceremonial — better-auth's getSession is mocked.
+// We still set Cookie so middleware IP/UA capture has something.
 const cookie = "better-auth.session_token=fake-test-cookie";
 
 beforeEach(async () => {
   const { signedInAs } = await import("./_authMock.js");
   vi.clearAllMocks();
-  // Every coupon test runs as user 7 (the cookie constant above is
-  // ceremonial — getSession is mocked).
+  // Every coupon test runs as user 7.
   await signedInAs(7);
   (prisma.user.findUnique as any).mockResolvedValue({
     userId: 7,

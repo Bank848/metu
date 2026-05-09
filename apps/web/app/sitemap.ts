@@ -2,27 +2,10 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/server/prisma";
 
 /**
- * Dynamic sitemap — emits the static landing pages plus every published
- * product (top 200 by review count) and every public store, with their
- * `updatedAt` so search engines recrawl only what changed.
- * Soft-deleted rows and paused products are excluded so we never advertise
- * a URL that 404s. The list is intentionally capped: 200 products is well
- * inside the 50k URL / 50 MB sitemap budget and keeps the response cheap
- * to render even on a cold Neon compute wake.
- * Next 14 reads this file at /sitemap.xml automatically.
- * fixes:
- *   - `force-dynamic` so the sitemap is generated per-request from
- *     live data. Previously it baked at build time, which on the
- *     first deploy meant Next tried to query a Postgres at
- *     `localhost:5432` (no DB env in that build phase) and silently
- *     fell back to the static surfaces only — every product/store
- *     URL went missing from the live sitemap.
- *   - `/features` → `/feature-tour` (the static link was 404ing).
- *   - `revalidate = 3600` so once we're at runtime, search engines
- *     get a fresh list at most every hour without us hitting the DB
- *     on every crawler request.
- *   - DB error logged instead of silently swallowed, so the next
- *     occurrence shows up in Sentry / app logs.
+ * Dynamic sitemap — static landing pages plus the top 200 published
+ * products (by review count) and every public store, with `updatedAt`
+ * so crawlers recrawl only what changed. Soft-deleted/paused rows are
+ * excluded. `force-dynamic` + `revalidate = 3600` cap DB load.
  */
 export const dynamic = "force-dynamic";
 export const revalidate = 3600;

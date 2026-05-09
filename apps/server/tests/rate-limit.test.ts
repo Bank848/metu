@@ -1,10 +1,8 @@
 /**
- * Phase 15.1 — rate-limit middleware tests.
- * Mounts a tiny throwaway Express app with a fresh limiter so we
- * can verify the boundary behaviour without contaminating the real
- * loginLimiter / registerLimiter singletons (which other tests share
- * via buildApp()). Same approach as the controller-layer tests:
- * isolate, mount, hit, assert.
+ * rate-limit middleware tests — mounts a throwaway Express app with a
+ * fresh limiter so the production loginLimiter / registerLimiter
+ * singletons stay clean. Same isolate-mount-hit-assert pattern as the
+ * controller-layer tests.
  */
 import { describe, it, expect } from "vitest";
 import express from "express";
@@ -16,9 +14,9 @@ import { cookieFor } from "./_authMock.js";
 function makeApp(max: number, windowMs: number) {
   const app = express();
   app.set("trust proxy", true);
-  // Phase 49 — `enforceInTests: true` re-enables the limiter under
-  // NODE_ENV=test (the production limiters bypass in tests so the
-  // shared bucket doesn't poison login tests across the suite).
+  // `enforceInTests: true` re-enables the limiter under NODE_ENV=test
+  // (production limiters bypass in tests so the shared bucket doesn't
+  // poison login tests).
   app.get("/limited", rateLimit({ max, windowMs, enforceInTests: true }), (_req, res) => {
     res.json({ ok: true });
   });
@@ -76,12 +74,10 @@ describe("rateLimit middleware", () => {
   });
 
   it("Fly-Client-IP wins over X-Forwarded-For — Fly inner proxy can't be spoofed via XFF", async () => {
-    // Regression coverage for cycle-4 R1 finding C4-T-002: under Fly,
-    // req.ip is the inner reverse-proxy IP and XFF is set by the outer
-    // Fly edge. The canonical Fly-Client-IP header carries the real
-    // visitor IP and MUST take precedence over XFF in defaultKey() —
-    // otherwise a single shared bucket throttles every visitor on the
-    // machine.
+    // Under Fly, req.ip is the inner reverse-proxy IP and XFF is set
+    // by the outer edge. Fly-Client-IP carries the real visitor IP and
+    // MUST take precedence over XFF; otherwise a single shared bucket
+    // throttles every visitor on the machine.
     const app = makeApp(2, 60_000);
     // Two requests where Fly-Client-IP differs but XFF is identical:
     // each must get its own bucket (proves Fly-Client-IP is the key).

@@ -95,12 +95,9 @@ export default async function OrderDetail({
   const canReview =
     !order.giftStatus?.isGift && (order.status === "paid" || order.status === "fulfilled");
 
-  // `?new=1` is set when Stripe redirects after a payment confirm. Don't trust
-  // the URL alone — Stripe will redirect even when the buyer cancels a redirect-
-  // based method (PromptPay, FPX, etc.), and an old `?new=1` URL stays in
-  // browser history. Only show the celebration UI when the order is actually
-  // paid/fulfilled. Show a "processing" hero while waiting on the webhook, and
-  // a "didn't go through" hero when the order ended up cancelled.
+  // `?new=1` is set when Stripe redirects after payment. Pair with the
+  // server status because Stripe redirects even on buyer-cancel and stale
+  // ?new=1 URLs linger in history.
   const newFlag = Boolean(searchParams.new);
   const isPaidHero = newFlag && (order.status === "paid" || order.status === "fulfilled");
   const isPendingHero = newFlag && order.status === "pending";
@@ -131,9 +128,7 @@ export default async function OrderDetail({
             All orders
           </Link>
 
-          {/* Receipt card — Wave-3: surface-flat replaces glass so the
-              receipt reads as a printable, calm panel rather than a
-              floating glass slab. */}
+          {/* Receipt card */}
           <div className="rounded-3xl surface-flat overflow-hidden shadow-raised">
             {/* Hero / status header */}
             <header className="relative px-7 py-8 border-b border-white/8">
@@ -332,8 +327,7 @@ export default async function OrderDetail({
                         </div>
                       )}
 
-                      {/* Phase 33 — delivered goods. Renders only once
-                          finalizeOrder() has stamped the snapshot. */}
+                      {/* Delivered goods — present after finalizeOrder() snapshots them. */}
                       {it.deliveredKey && (
                         <div className="mt-3 rounded-lg border border-mint/30 bg-mint/5 p-3">
                           <div className="text-[10px] font-semibold uppercase tracking-wider text-mint mb-1.5">

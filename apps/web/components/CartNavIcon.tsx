@@ -5,11 +5,8 @@ import { useI18n } from "@/lib/i18n/client";
 import { useCartCount } from "@/lib/useCartCount";
 
 /**
- * TopNav cart pill with a live count badge. Earlier rev did its own
- * /api/cart polling, but MobileBottomNav also polls — duplicate
- * requests doubled the load. Both now subscribe to the shared
- * `useCartCount` hook which maintains a single polling loop +
- * cart:update / focus listeners across the whole page.
+ * TopNav cart pill with a live count badge. Subscribes to the shared
+ * `useCartCount` hook so MobileBottomNav can share one polling loop.
  */
 export function CartNavIcon() {
   const { t } = useI18n();

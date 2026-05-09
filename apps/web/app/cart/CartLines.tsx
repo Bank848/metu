@@ -213,9 +213,7 @@ export function CartLines({
         l.cartItemId === cartItemId ? { ...l, quantity, lineTotal: l.unitPrice * quantity } : l,
       ),
     });
-    // run #2 / F8 — keep the TopNav cart badge in sync with
-    // the local count. The +/- controls don't navigate so the badge
-    // would otherwise stay stale until the next 60s poll.
+    // Notify the TopNav cart badge so it doesn't wait for the next poll.
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("cart:update"));
     }
@@ -230,9 +228,7 @@ export function CartLines({
         credentials: "include",
       });
     } catch {
-      // used to silently swallow network errors,
-      // so the trash icon looked broken when the BFF was unreachable.
-      // Surface a per-line message instead of pretending it worked.
+      // Surface a per-line message when the BFF is unreachable.
       setLineError((p) => ({ ...p, [cartItemId]: "Network error — please try again" }));
       return;
     }
@@ -246,9 +242,7 @@ export function CartLines({
     }
     const remaining = cart.items.filter((l) => l.cartItemId !== cartItemId);
     setCart({ ...cart, items: remaining });
-    // run #2 / F8 — keep the TopNav badge in sync after a
-    // line removal (otherwise a buyer empties the cart but the icon
-    // still shows the old count for ~60s).
+    // Keep the TopNav badge in sync after a line removal.
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("cart:update"));
     }
@@ -387,10 +381,8 @@ export function CartLines({
         window.localStorage.removeItem(GIFT_STORAGE_KEY);
         window.localStorage.removeItem(SELECTION_STORAGE_KEY);
       } catch { /* noop */ }
-      // run #2 / F8 — checkout empties the active cart server
-      // side; tell the TopNav badge before we navigate away so the
-      // icon doesn't briefly flash the pre-checkout count on the
-      // /orders/[id] page.
+      // Tell the TopNav badge before we navigate away so the icon
+      // doesn't flash the pre-checkout count on /orders/[id].
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("cart:update"));
       }
@@ -506,15 +498,8 @@ export function CartLines({
                         className="relative h-16 w-16 sm:h-20 sm:w-20 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8 hover:border-metu-yellow/40 transition"
                       >
                         {l.image && (
-                          // / F10 (originally `priority` on every
-                          // cart line) → QA r3/F1 reverted to lazy → Phase 44
-                          // QA caught lazy-loading the 80×80 images leaves
-                          // them as empty boxes when Next's IntersectionObserver
-                          // doesn't fire (small viewport box, full-page paint
-                          // already complete). `loading="eager"` loads them
-                          // immediately; the F10 hydration risk only manifests
-                          // with `priority` (which inserts <link rel=preload>
-                          // into <head>), not eager.
+                          // Eager-load thumbs — lazy can leave 80x80 cart
+                          // images as empty boxes when the IO doesn't fire.
                           <Image
                             src={l.image}
                             alt=""
@@ -655,9 +640,6 @@ export function CartLines({
       </div>
 
       {/* ───── Summary ───── */}
-      {/* Wave-3: surface-accent (mint) pins the summary as the right
-          column's anchor card. Toast colours follow the new tokens —
-          mint for success, coral for error. */}
       <aside className="rounded-2xl surface-accent p-6 lg:sticky lg:top-28 shadow-flat">
         {toast && (
           <p

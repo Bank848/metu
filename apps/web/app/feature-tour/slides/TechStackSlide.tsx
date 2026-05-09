@@ -1,10 +1,8 @@
 "use client";
 import { Layers } from "lucide-react";
 
-// Tech-stack slide. Originally a flat 8-tile grid of names; redone
-// with simple inline-SVG marks (so we ship without bundling logos),
-// staggered fade-in animation, and a gentle pulse on hover so the
-// surface feels alive on a kiosk monitor.
+// Tech-stack slide — inline-SVG marks (no bundled logos), stagger
+// fade-in, and a hover pulse so the kiosk monitor feels alive.
 
 interface StackItem {
   name: string;

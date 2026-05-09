@@ -1,12 +1,9 @@
 /**
- * Phase 51 — pure utility tests.
- * Covers the low-level helpers we hardened during the security audit:
- *   - generateCode (otp.ts) — uses crypto.randomInt, 6-digit zero-padded
+ * Pure utility tests for security-critical helpers:
+ *   - generateCode (otp.ts) — crypto.randomInt, 6-digit zero-padded
  *   - hashCode    (otp.ts) — SHA-256 of `<userId>:<phone>:<code>` so a
- *                            leaked code can't be replayed against
- *                            another account
- *   - escapeHtml  (email-template.ts) — neutralises angle brackets in
- *                                       email template substitutions
+ *                            leaked code can't be replayed elsewhere
+ *   - escapeHtml  (email-template.ts) — neutralises angle brackets
  *   - findFirstProfaneField (profanity.ts) — register/profile gate
  */
 import { describe, it, expect } from "vitest";

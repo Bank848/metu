@@ -13,9 +13,8 @@ import { getServerT } from "@/lib/i18n/server";
 export const dynamic = "force-dynamic";
 
 export default async function FavoritesPage() {
-  // .x — feature flag gate. When admin disables favorites
-  // we 404 the route entirely so navigation stays consistent
-  // (TopNav heart icon already hidden by the same flag).
+  // Feature-flag gate: 404 when admin disables favorites so navigation
+  // stays consistent with the TopNav heart icon.
   const settings = await safeGetSettings();
   if (!settings.favoritesEnabled) notFound();
 
@@ -44,9 +43,6 @@ export default async function FavoritesPage() {
         />
 
         {products.length === 0 ? (
-          // Wave-3: noResults variant picks up the new coral-tinted
-          // illustration so the empty favorites screen lands in the
-          // same family as cart-empty and search-no-results.
           <EmptyState
             variant="noResults"
             title={t("favorites.empty.title")}

@@ -2,23 +2,11 @@ import Image from "next/image";
 import { avatarHue, cn, getInitials, isDataUrl } from "@/lib/utils";
 
 /**
- * / F15 — shared user-avatar primitive with a non-empty
- * fallback.
- * Before this primitive landed, several callsites (admin/users rows,
- * the topbar AuthMenu avatar, the /messages contact list, the /profile
- * header) rendered a plain coloured circle when `profileImage` was
- * null. Visually that read as "asset still loading" or "avatar broken"
- * rather than "no photo set". The fix is the convention used by
- * Gmail / Slack / GitHub: when the photo is missing, render the
- * person's initials over a colour seeded deterministically from their
- * username so the bubble is stable across pages.
- * The primitive is intentionally tiny — it owns ONLY the visual + the
- * fallback content, not loading state or click behaviour. Callers wrap
- * it in `<button>`, `<Link>`, etc. as needed.
- * Sizes use a `size` token rather than free-form Tailwind classes so
- * the avatar reads consistently across pages. Pixel sizing is mirrored
- * to `next/image`'s `sizes` hint so the optimiser picks the right
- * variant.
+ * Shared user-avatar primitive. When `profileImage` is null, renders
+ * initials over a colour seeded deterministically from the username
+ * (Gmail/Slack/GitHub convention) so the bubble is stable across pages.
+ * Tiny by design: owns the visual + fallback only. Sizes use a token
+ * so spacing reads consistently.
  */
 type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 

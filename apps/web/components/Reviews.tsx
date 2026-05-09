@@ -51,9 +51,7 @@ export function Reviews({
   const [sort, setSort] = useState<SortKey>("newest");
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  // / F19 — destructive moderation now flows through the
-  // in-app <ConfirmDialog> primitive instead of native window.confirm().
-  // Carries the row's reviewId so the modal knows which row to delete.
+  // Stashes the row's reviewId so <ConfirmDialog> knows what to delete.
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   const sorted = useMemo(() => {
@@ -113,8 +111,6 @@ export function Reviews({
   }
 
   if (reviews.length === 0) {
-    // Wave-3: pass through to EmptyState so the new illustration system
-    // owns the empty case (matches the cart-empty / no-results treatment).
     return (
       <>
         <EmptyState
@@ -142,7 +138,7 @@ export function Reviews({
 
   return (
     <div className="grid lg:grid-cols-[300px_1fr] gap-6">
-      {/* Aggregate panel (left) — Wave-3: surface-flat instead of glass */}
+      {/* Aggregate panel (left) */}
       <aside className="rounded-2xl surface-flat p-5 h-fit lg:sticky lg:top-32 shadow-flat">
         <div className="text-center pb-4 border-b border-white/8">
           <div className="font-display text-5xl font-extrabold text-gold-gradient">
@@ -254,17 +250,8 @@ export function Reviews({
                     </div>
                   </div>
                   {/* Moderation cluster: edit + delete. Visible to the
-                      review's author OR any admin.
-                      Earlier rev rendered an inline "MOD" coral pill
-                      next to the reviewer's name when an admin viewed
-                      someone else's review — it read like a role badge
-                      ("this reviewer is a Moderator") which is the
-                      opposite of the intent. Now the admin-acting-on-
-                      another-user signal moves onto the action buttons
-                      themselves: coral background + coral icon ring
-                      when admin is moderating. The buyer's own
-                      edit/delete keeps the neutral hover (yellow for
-                      edit, coral on hover for delete). */}
+                      author or admins. Admin-moderating buttons paint
+                      coral; the author's own edit/delete stay neutral. */}
                   {canModerate && !isEditing && (() => {
                     const adminModerating = isAdmin && !isOwner;
                     const moderationTitle = adminModerating

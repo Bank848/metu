@@ -2,14 +2,9 @@ import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * / Wave 2 — non-glass card primitive.
- * Wraps the `surface-flat` class from Wave 1 (see `globals.css:172`) so
- * other components can opt into a flat surface without re-deriving the
- * padding + radius rules each time. Pair with `lift-on-hover` (also
- * Wave 1) for hover states. See docs/design-system.md §5.
- * Deliberately tiny — no animation, no built-in hover, no children
- * polymorphism. If a consumer needs anchor or button semantics they
- * compose this inside their own element. We only own the surface.
+ * Non-glass card primitive over the `surface-flat` class. Pair with
+ * `lift-on-hover` for hover states. Deliberately small — no animation,
+ * no polymorphism; compose for anchor/button semantics.
  */
 type Padding = "none" | "sm" | "md" | "lg";
 type Radius = "lg" | "xl" | "2xl";
@@ -38,7 +33,7 @@ export interface FlatCardProps extends React.HTMLAttributes<HTMLDivElement> {
   padding?: Padding;
   radius?: Radius;
   tone?: Tone;
-  /** Adds the Wave-1 `lift-on-hover` class — opt-in. */
+  /** Adds the `lift-on-hover` class — opt-in. */
   interactive?: boolean;
 }
 

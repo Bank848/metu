@@ -41,19 +41,14 @@ interface Wallet {
 }
 
 /**
- * Stripe-backed seller wallet.
- * Lives on /seller/wallet, fetches every figure live from Stripe via
- * the /api/seller/wallet proxy. Nothing is materialised in our DB —
- * Stripe is the system of record for balance / payout / charge
- * history. The talking point for the CPE241 defense: "we deliberately
- * chose not to duplicate external system state".
+ * Stripe-backed seller wallet. Reads every figure live via
+ * /api/seller/wallet — Stripe is the system of record, nothing is
+ * materialised in our DB.
  */
 export default async function SellerWalletPage() {
   const wallet = await fetchWallet();
 
-  // Layout's <main> already provides horizontal padding + the only
-  // valid <main> per document. Wrap in <section> with no extra
-  // horizontal padding so phone widths don't double-pad.
+  // Layout's <main> handles padding; wrap in <section> to avoid double-pad.
   return (
     <section className="max-w-4xl">
       <PageHeader
@@ -73,9 +68,7 @@ export default async function SellerWalletPage() {
 }
 
 async function fetchWallet(): Promise<Wallet> {
-  // Use the shared apiFetch helper so the seller's session cookie
-  // reaches the API, otherwise requireAuth()+requireStore() reject
-  // with 401 and the page falls back to the "not configured" view.
+  // Use apiFetch so the session cookie reaches the API.
   try {
     return await apiFetch<Wallet>("/seller/wallet");
   } catch (err) {

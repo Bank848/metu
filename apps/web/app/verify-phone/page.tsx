@@ -11,9 +11,8 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 export const metadata = { title: "Verify your phone — METU" };
 
-// → 42 — phone-only verify step. Email comes from the active
-// session (when signed in) or a short-lived signed `metu_pv` cookie
-// (between register and full sign-in). It never sits in the URL.
+// Phone-only verify step. Email comes from the active session, or a
+// signed `metu_pv` cookie between register and sign-in — never the URL.
 
 function safeNextRedirect(next: string | undefined): string | null {
   if (!next) return null;

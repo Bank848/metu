@@ -131,11 +131,8 @@ if (isMainModule) {
     console.log(`[metu-server] CORS origin: ${CORS_ORIGIN}`);
   });
 
-  // Business Rule 4j — pending orders auto-cancel after 15 minutes.
-  // Cheap in-process sweep every 60 seconds; the underlying SQL is one
-  // indexed pass over orders WHERE status='pending' AND expiredAt < now.
-  // .unref() so the timer doesn't block process exit during graceful
-  // shutdown / hot reloads.
+  // Sweep pending orders past their 15-min payment window every 60s.
+  // .unref() so the timer doesn't block process exit.
   const SWEEP_INTERVAL_MS = 60_000;
   setInterval(() => {
     import("./services/orders.service.js")
@@ -152,14 +149,8 @@ if (isMainModule) {
       });
   }, SWEEP_INTERVAL_MS).unref();
 
-  // Top-stores leaderboard freshness — REFRESH MATERIALIZED VIEW
-  // CONCURRENTLY every 5 minutes so the /admin "Top stores (30d)"
-  // widget stays current during a live demo without the operator
-  // having to click the manual Refresh button. CONCURRENTLY = readers
-  // never block (UNIQUE index on store_id is created in the matview
-  // migration). Errors are logged + swallowed so a transient DB blip
-  // doesn't crash the server. Tracked on globalThis so dev hot-reload
-  // doesn't stack up duplicate intervals.
+  // Refresh top_stores_30d concurrently every 5 min; tracked on
+  // globalThis so dev hot-reload doesn't stack timers.
   const MATVIEW_REFRESH_MS = 5 * 60_000;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = globalThis as any;

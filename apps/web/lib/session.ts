@@ -3,26 +3,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { apiFetch, ApiError } from "./server/api";
 
-// getMe calls GET /auth/me. apiFetch threads the request cookie.
-// Returns null on 401; anything else propagates.
-//
-// `cache()` memoises the call within a single SSR request. The
-// homepage previously did getMe() in the page loader, again in
-// <TopNav />, and again in <Footer /> — three identical /auth/me
-// round trips per request, each ~250-400ms in production. With cache
-// the API gets hit once and the other two callers reuse the same
-// promise. Same trick applied to safeGetSettings (called by TopNav +
-// admin guards). Net win: ~600-800ms TTFB on the homepage.
+// getMe calls GET /auth/me, returns null on 401. `cache()` memoises
+// across the SSR request so multiple components don't repeat the call.
 export const getMe = cache(async () => {
-  // Short-circuit for guests. If there's no session cookie at all,
-  // we know the API will return 401 — skip the round trip entirely.
-  // The homepage is the most-trafficked surface and most visitors are
-  // logged-out browsers; skipping /auth/me for them saves ~150-300ms
-  // on every page render.
-  // Better-auth cookie name carries a __Secure- prefix in production
-  // (per WHATWG cookie-prefix rules when `secure: true`) and is bare
-  // in dev — match both shapes. Missing the production prefix used to
-  // short-circuit valid sessions to logged-out.
+  // Short-circuit for guests: skip /auth/me when there's no session
+  // cookie. Better-auth's cookie carries a `__Secure-` prefix in prod
+  // and is bare in dev — match both.
   const cookieJar = cookies();
   const all = cookieJar.getAll();
   const hasSession = all.some((c) => {

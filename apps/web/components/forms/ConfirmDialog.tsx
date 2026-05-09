@@ -7,32 +7,13 @@ import { cn } from "@/lib/utils";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 
 /**
- * / F19 — reusable in-page confirm modal.
- * Replaces the native `window.confirm()` calls scattered across
- * destructive UI surfaces (review delete, Q&A delete, ActionRow row
- * actions, seller order status flips, product delete, bulk price
- * adjust). The native dialog clashes with the rest of the polished
- * chrome, can't be styled, and the QA report (`reports/qa-2026-04-25.md`
- * §F19) flagged that it locks Chrome MCP in admin moderation flows.
- * Pattern (per `reports/decisions/RESOLVED-2026-04-25.md` Decision 4):
- *   - Sits next to the other Step-2 form primitives (`FormSection`,
- *     `TextInput`, etc.) so dialogs and inputs live in one place.
- *   - Mirrors the `<WriteReviewDialog>` modal shape — fixed-position
- *     overlay, glass-morphism panel, X close button, ESC + click-outside
- *     dismiss.
- *   - Uses `useFocusTrap` from `lib/useFocusTrap.ts` so keyboard users
- *     can't `Tab` out of the open dialog (WCAG 2.1.2 / 2.4.3).
- *   - Primary "confirm" button is auto-focused on open so a single
- *     Enter keypress completes the action.
- *   - `tone="destructive"` paints the confirm button coral — matches
- *     the destructive-row colour used in `ActionRow.tsx` and the
- *     design-system §9 don'ts (red stays reserved for hard / final
- *     destructive moments; coral is the recoverable register).
- * The component is render-controlled — callers own the `open` state
- * and pass `onConfirm` / `onCancel` callbacks. `onConfirm` may return
- * a Promise so async delete handlers can await the network response
- * before the dialog closes (callers typically close it themselves
- * inside the success branch).
+ * Reusable in-page confirm modal — replaces native window.confirm().
+ * Glass-morphism panel, ESC + click-outside dismiss, focus-trapped per
+ * WCAG 2.1.2/2.4.3, confirm button auto-focused. `tone="destructive"`
+ * paints the confirm button coral (red stays reserved for hard / final
+ * destructive moments). Render-controlled: callers own `open` state.
+ * `onConfirm` may return a Promise so async handlers can await the
+ * network response before closing.
  */
 
 export type ConfirmTone = "default" | "destructive";

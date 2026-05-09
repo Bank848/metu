@@ -117,9 +117,8 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
     }
   }
 
-  // verification gates. Run AFTER password+TOTP so we
-  // don't leak which step failed. The frontend uses these distinct
-  // codes to bounce the user to the right verify page.
+  // Verification gates run after password + TOTP so we don't leak
+  // which step failed. Codes route the frontend to the right page.
   if (!user.emailVerified) {
     throw new AppError(403, "EmailNotVerified", "Confirm your email to finish signing in.");
   }
@@ -167,22 +166,13 @@ export async function register(input: RegisterInput, req?: AuditReq): Promise<Au
     );
   }
 
-  // Normalise phone to E.164 BEFORE persisting so the firebase SMS
-  // cross-account guard (`gateFirebaseSmsRequest`) can do an exact
-  // string match. Earlier rev stored the raw input — an attacker
-  // could register one phone in three formats (`+66812345678`,
-  // `66812345678`, `0812345678`) across three accounts and bypass
-  // the per-phone cooldown, SMS-bombing the victim 5 times faster.
-  // Returns null if the input is not a valid Thai number; we keep
-  // the (validated by zod) input as a fallback so register doesn't
-  // 500 on edge inputs the regex passed.
+  // Normalize phone to E.164 before persisting so the SMS cross-account
+  // cooldown can match exactly across registration formats.
   const normalizedPhone = normalizeThaiPhone(input.phone) ?? input.phone;
 
   const hash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-  // wrap create in try/catch for the race where two
-  // concurrent registers slip past the dup pre-check above. The DB
-  // unique constraint catches it, we map P2002 to a clean 409 instead
-  // of bubbling up as a 500.
+  // Wrap in try/catch for the race where two concurrent registers
+  // slip past the dup pre-check; map P2002 to a clean 409.
   let user: Prisma.UserGetPayload<{ include: { stats: true } }>;
   try {
     user = await prisma.user.create({
@@ -227,8 +217,7 @@ export async function register(input: RegisterInput, req?: AuditReq): Promise<Au
 
   await syncCredentialAccount(user.userId, user.email, hash);
 
-  // mandatory verify flow. Email link goes to inbox; phone
-  // OTP goes to console (real SMS would replace logPhoneOtp).
+  // Mandatory verify flow: email link to inbox, phone OTP to console.
   const [rawEmailToken, otp] = await Promise.all([
     issueEmailVerifyToken(user.userId),
     issuePhoneOtp(user.userId),
@@ -248,12 +237,8 @@ export async function register(input: RegisterInput, req?: AuditReq): Promise<Au
     req,
   });
 
-  // demo escape hatch. When DEMO_REVEAL_TOKENS=true, the
-  // raw OTP and email-verify token come back in the response so the
-  // BFF can surface them on the verify pages. The Resend sandbox
-  // sender only delivers email to the account owner and SMS isn't
-  // wired to a real provider, so without this escape hatch a fresh
-  // demo register has no way to read the values.
+  // Demo escape hatch — when DEMO_REVEAL_TOKENS=true, return the raw
+  // OTP + email-verify token so the verify pages can show them.
   const demo =
     DEMO_REVEAL_TOKENS
       ? { otp, emailToken: rawEmailToken }
@@ -336,8 +321,7 @@ export async function verifyPhoneRegister(email: string, code: string, req?: Aud
   }
   const hash = crypto.createHash("sha256").update(code).digest("hex");
   if (hash !== user.phoneOtpHash) {
-    // Brute-force guard: shorten TTL on each wrong guess; after ~5
-    // attempts the OTP auto-expires and the user must re-request.
+    // Brute-force guard: shorten TTL on each wrong guess.
     const remaining = user.phoneOtpExpiresAt.getTime() - Date.now();
     const penalty = 2 * 60_000;
     if (remaining <= penalty) {
@@ -510,13 +494,8 @@ export async function verifyPhoneFirebaseByEmail(
   if (!user) {
     return { phone: firebasePhone, phoneVerifiedAt: new Date() };
   }
-  // Mirror loginVerifyFirebase: legacy User.phone rows may hold local
-  // format ("0812345678") or whitespace variants while Firebase always
-  // returns E.164. Strict-equals would tunnel through and the update
-  // branch below would then OVERWRITE the user's stored phone with
-  // whatever the Firebase token holds — letting an attacker who proves
-  // ownership of any Thai number rewrite a legacy victim's recovery
-  // channel. Normalize both sides before comparing.
+  // Normalize both sides before comparing — legacy User.phone rows
+  // may hold local-format strings while Firebase always returns E.164.
   const dbPhoneE164 = normalizeThaiPhone(user.phone);
   const fbPhoneE164 = normalizeThaiPhone(firebasePhone);
   if (
@@ -527,10 +506,8 @@ export async function verifyPhoneFirebaseByEmail(
   ) {
     return { phone: user.phone!, phoneVerifiedAt: user.phoneVerifiedAt };
   }
-  // If the user already has a verified phone that DOESN'T match the
-  // Firebase number (after normalization), refuse the rewrite — this
-  // path is only meant for first-time verification, not for swapping
-  // a verified number under attacker control.
+  // Refuse rewrite when an already-verified phone doesn't match —
+  // this path is only for first-time verification.
   if (user.phoneVerifiedAt && dbPhoneE164 && fbPhoneE164 && dbPhoneE164 !== fbPhoneE164) {
     throw new AppError(
       403,
@@ -578,9 +555,7 @@ export async function verifyPhoneFirebase(
   userId: number,
   idToken: string,
 ): Promise<{ phone: string; phoneVerifiedAt: Date }> {
-  // Lazy-import so unconfigured envs don't crash module load. Phase 46
-  // landing without Firebase secrets keeps the API healthy; only the
-  // route that calls this service surfaces the 503.
+  // Lazy-import so unconfigured envs don't crash module load.
   const { verifyFirebaseIdToken } = await import("../lib/firebase-admin.js");
   const decoded = await verifyFirebaseIdToken(idToken);
   const firebasePhone = decoded.phone_number; // e.g. "+66812345678"
@@ -597,10 +572,8 @@ export async function verifyPhoneFirebase(
     select: { phone: true, phoneVerifiedAt: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
-  // Mirror loginVerifyFirebase + verifyPhoneFirebaseByEmail: normalize
-  // both sides before comparing so a legacy non-canonical user.phone
-  // doesn't fall through to the update branch and let an attacker who
-  // already holds the session rewrite the verified phone.
+  // Normalize both sides before comparing — guards against rewrite
+  // attacks via legacy non-canonical user.phone rows.
   const dbPhoneE164 = normalizeThaiPhone(user.phone);
   const fbPhoneE164 = normalizeThaiPhone(firebasePhone);
   if (
@@ -654,8 +627,7 @@ export async function resendPhoneOtp(
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || user.phoneVerifiedAt) return {};
   if (!user.phone) return {};
-  // cooldown: if the existing OTP still has >8 min left
-  // (issued <2 min ago), don't re-issue. Prevents SMS/email spam.
+  // 2-minute cooldown between resends.
   if (user.phoneOtpExpiresAt) {
     const remaining = user.phoneOtpExpiresAt.getTime() - Date.now();
     const COOLDOWN_MS = 2 * 60_000; // 2-minute cooldown
@@ -694,10 +666,7 @@ export async function updateProfile(
   if (profane) {
     throw new AppError(400, "ProfanityRejected", profane.message);
   }
-  // Email + phone changes require an OTP-confirmed flow so a stolen
-  // session can't trivially hijack the account by swapping recovery
-  // contact info. Use POST /auth/me/email-change/{start,verify} and
-  // POST /auth/me/phone-change/{start,verify} instead.
+  // Email + phone changes require the OTP-confirmed flow.
   if (input.email && input.email !== currentEmail) {
     throw new AppError(
       400,
@@ -821,8 +790,7 @@ export async function verifyEmailChange(userId: number, currentEmail: string, ne
     where: { userId, providerId: "credential", accountId: currentEmail },
     data: { accountId: trimmed },
   });
-  // Send a verify-email link to the NEW address so we know the buyer
-  // owns it before lifting the gate.
+  // Send verify-link to the new address before lifting the gate.
   const newToken = await issueEmailVerifyToken(userId);
   await sendEmailVerifyMessage(trimmed, updated.firstName, newToken).catch((err) => {
     // eslint-disable-next-line no-console
@@ -839,16 +807,12 @@ export async function verifyEmailChange(userId: number, currentEmail: string, ne
 }
 
 export async function startPhoneChange(userId: number, currentEmail: string, newPhone: string): Promise<void> {
-  // Accept Thai input in any format (0812345678, 812345678, +66812345678,
-  // "+66 81 234 5678") — normalise to E.164 (+66XXXXXXXXX) for storage
-  // + Firebase Phone Auth. Rejects anything that doesn't normalise to
-  // a valid 9-digit Thai number.
+  // Normalize to Thai E.164 for storage + Firebase Phone Auth.
   const normalized = normalizeThaiPhone(newPhone);
   if (!isValidThaiE164(normalized)) {
     throw new AppError(400, "InvalidPhone", "Phone must be a 9-digit Thai number (with or without +66 / leading 0).");
   }
-  // Same-as-current short-circuit so the user gets a clear message
-  // instead of a successful OTP they can never act on.
+  // Short-circuit if same as current.
   const me = await prisma.user.findUnique({
     where: { userId },
     select: { phone: true },
@@ -856,9 +820,7 @@ export async function startPhoneChange(userId: number, currentEmail: string, new
   if (me?.phone === normalized) {
     throw new AppError(400, "SamePhone", "New phone is the same as the current one.");
   }
-  // Dup-check against other users. phone is not @unique in the schema
-  // (legacy data has duplicates), so we enforce uniqueness here at the
-  // application layer for the change flow.
+  // App-level uniqueness check — phone is not @unique in schema (legacy dupes).
   const dup = await prisma.user.findFirst({
     where: { phone: normalized, userId: { not: userId } },
     select: { userId: true },
@@ -882,8 +844,7 @@ export async function verifyPhoneChange(userId: number, newPhone: string, code: 
   if (!verifySensitiveOtp(u, "phone", normalized, code)) {
     throw new AppError(400, "InvalidOtp", "That code didn't match or has expired.");
   }
-  // Re-check dup at verify time — the OTP may have been issued at T0
-  // and another user could have grabbed the number between T0 and now.
+  // Re-check dup at verify time (TOCTOU between start and verify).
   const dup = await prisma.user.findFirst({
     where: { phone: normalized, userId: { not: userId } },
     select: { userId: true },
@@ -932,8 +893,7 @@ export async function changePassword(
   const ok = await bcrypt.compare(input.currentPassword, user.password);
   if (!ok) throw new AppError(401, "InvalidCurrentPassword");
 
-  // Three-channel second factor — TOTP (with backup-code fallback) /
-  // SMS / email. See ensureSensitiveOtp for the priority order.
+  // Three-channel 2FA: TOTP / SMS / email — see ensureSensitiveOtp.
   await ensureSensitiveOtp(userId, user, {
     otpCode: input.otpCode,
     totpCode: input.totpCode,
@@ -947,12 +907,8 @@ export async function changePassword(
     select: { email: true },
   });
   await syncCredentialAccount(userId, updated.email, hash);
-  // Revoke every other better-auth session and trusted-device row so
-  // a stolen-credential or shared-laptop scenario doesn't keep old
-  // sessions alive after the owner rotates the password. The current
-  // session lives in the better-auth cookie of THIS request and is
-  // not in our local Session table — it stays valid for the user
-  // who just changed the password.
+  // Revoke other sessions + trusted devices on password rotation.
+  // (The current better-auth cookie stays valid for this request.)
   await prisma.$transaction([
     prisma.session.deleteMany({ where: { userId } }),
     prisma.trustedDevice.deleteMany({ where: { userId } }),
@@ -1005,22 +961,9 @@ export async function setPassword(
 }
 
 /**
- * Require a fresh second factor for sensitive password ops. Three
- * channels in priority order:
- *
- *   1. TOTP (when totpEnabled) — replaces SMS/email entirely. The
- *      caller can also pass a `backupCode` to use a single-use recovery
- *      code in place of a live TOTP.
- *   2. SMS OTP (when phone is verified) — same flow as before, code
- *      from /auth/request-otp.
- *   3. Email OTP (when no phone verified) — code from
- *      /auth/request-email-otp, sent to user.email. NEW: closes the
- *      hole where a phoneless user could change password without any
- *      second factor.
- *
- * Consumes the verification row on success. Throws 400 OtpRequired /
- * TotpRequired / InvalidOtp / InvalidTotp / InvalidBackupCode /
- * NoPendingOtp / OtpExpired.
+ * Require a fresh 2nd factor for sensitive password ops. Channel
+ * priority: TOTP (with backup-code fallback) → SMS OTP → email OTP.
+ * Consumes the verification row on success.
  */
 async function ensureSensitiveOtp(
   userId: number,
@@ -1037,7 +980,7 @@ async function ensureSensitiveOtp(
     backupCode?: string;
   },
 ): Promise<void> {
-  // Path 1 — TOTP-as-primary
+  // TOTP-as-primary
   if (user.totpEnabled && user.totpSecret) {
     if (input.backupCode) {
       const ok = await consumeBackupCode(userId, input.backupCode);
@@ -1050,9 +993,8 @@ async function ensureSensitiveOtp(
     return;
   }
 
-  // Path 2 + 3 — OTP via Verification table. Hash target is phone for
-  // SMS, email for email-OTP. Identifier is the same so only one
-  // pending OTP per user across channels (avoids replay across paths).
+  // OTP via Verification table; hash target is phone (SMS) or email.
+  // Single identifier ensures one pending OTP per user across channels.
   if (!input.otpCode) throw new AppError(400, "OtpRequired");
   const target = (user.phone && user.phoneVerifiedAt) ? user.phone : user.email;
 
@@ -1074,10 +1016,8 @@ async function ensureSensitiveOtp(
   await prisma.verification.delete({ where: { id: pending.id } });
 }
 
-/** Issue an email OTP for sensitive password ops when the user has no
- *  verified phone. Uses the same Verification row as SMS OTP — only
- *  one pending per user — so the same /auth/request-otp UX works
- *  except the code lands in their email inbox.  */
+/** Issue an email OTP for sensitive ops when the user has no verified
+ *  phone. Reuses the Verification row schema as SMS OTP. */
 export async function requestEmailOtpForSensitive(userId: number): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { userId },
@@ -1162,11 +1102,7 @@ export async function updatePhone(
   userId: number,
   input: UpdatePhoneInput,
 ): Promise<void> {
-  // Strip non-digits / non-plus-sign first to clean up paste-from-Word
-  // garbage, then run through Thai E.164 normalisation so the stored
-  // string is canonical (`+66812345678` regardless of how the user
-  // typed it). Same fix the register() path got — keeps the firebase
-  // SMS cross-account guard's exact-match working.
+  // Strip non-digit/plus chars, then normalize to canonical Thai E.164.
   const cleaned = input.phone.replace(/[^\d+]/g, "");
   if (cleaned.length < 7) throw new AppError(400, "PhoneTooShort");
   const normalised = normalizeThaiPhone(cleaned) ?? cleaned;
@@ -1350,11 +1286,7 @@ async function issueEmailVerifyToken(userId: number): Promise<string> {
   return raw;
 }
 
-// generate 6-digit OTP, hash + store on User, return raw OTP
-// to console-log. Real SMS would replace this with a Twilio send.
-// crypto.randomInt instead of Math.random — OTP space is
-// only 1M so anything predictable enough to leak the seed leaks every
-// in-flight OTP. crypto.randomInt is CSPRNG-backed, not Mersenne Twister.
+// Generate 6-digit OTP via CSPRNG, hash + store on User, return the raw.
 async function issuePhoneOtp(userId: number): Promise<string> {
   const code = String(crypto.randomInt(0, 10 ** PHONE_OTP_LENGTH))
     .padStart(PHONE_OTP_LENGTH, "0");
@@ -1520,10 +1452,8 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
 
   await syncCredentialAccount(row.userId, updatedUser.email, hash);
 
-  // After a password reset (forgot-password flow), nuke every existing
-  // session + trusted-device row so the actor who just regained access
-  // is the only one with a foothold. The reset-link consumer hasn't
-  // logged in yet — they'll mint a fresh session on the next sign-in.
+  // Nuke all sessions + trusted-devices on reset; reset-link consumer
+  // hasn't signed in yet, so they'll mint a fresh session next.
   await prisma.$transaction([
     prisma.session.deleteMany({ where: { userId: row.userId } }),
     prisma.trustedDevice.deleteMany({ where: { userId: row.userId } }),
@@ -1816,13 +1746,8 @@ export async function unlinkGoogle(userId: number): Promise<void> {
 }
 
 /**
- * GDPR self-delete. The user removes their own account
- * via DELETE /auth/me. Mirrors admin.deleteUser's hybrid logic
- * (fresh = hard delete, history = anonymise) but skips the
- * SelfDeleteForbidden guard because here actor === target by
- * design.
- * Audit row uses `user.self_delete` so the operator audit feed
- * tells self-initiated removals apart from admin-initiated ones.
+ * GDPR self-delete via DELETE /auth/me. Hard-delete if no history,
+ * anonymize otherwise. Audited as `user.self_delete`.
  */
 export async function selfDelete(
   userId: number,
@@ -1847,11 +1772,8 @@ export async function selfDelete(
     }
   }
 
-  // block self-delete while a Stripe
-  // PaymentIntent is still pending. If we anonymise the buyer
-  // mid-checkout, the webhook flips the order to paid later and
-  // sendOrderReceipt mails `deleted_<id>@deleted.invalid` which
-  // bounces. Cancel/finish the checkout first, then erase.
+  // Block self-delete while a Stripe PI is pending — anonymizing the
+  // buyer mid-checkout would bounce the receipt to deleted_*@invalid.
   const pendingOrders = await prisma.order.count({
     where: { userId, status: "pending" },
   });

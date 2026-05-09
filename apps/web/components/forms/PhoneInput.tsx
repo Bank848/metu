@@ -2,21 +2,10 @@
 import { useId, useMemo } from "react";
 
 /**
- * → 44 — phone input with a small country-code picker.
- * The component owns the dial-code dropdown and the digit field. Its
- * `value` is always the canonical E.164 string (e.g. `+66812345678`)
- * so callers can drop it straight into a JSON payload without parsing.
- * For Thailand we enforce the international form at the input layer:
- * the user MUST type 9 digits with no leading 0 (e.g. `812345678`).
- * Any leading zeros they paste in get stripped silently so the
- * 0812345678 habit doesn't surface as a validation error. Storage is
- * canonical: `+66` + 9 digits.
- * Other dial codes accept up to 15 digits without the leading-0 rule
- * because that prefix is country-specific.
- * The country list is intentionally short. We picked the common ASEAN
- * markets plus a handful of global ones the demo audience cares about.
- * Each option has an inline SVG flag so the dropdown looks the same
- * on every OS (Windows in particular doesn't ship colour emoji flags).
+ * Phone input with country-code picker. `value` is always canonical
+ * E.164 (e.g. `+66812345678`). For TH we strip leading zeros and require
+ * 9 digits; other countries accept up to 15. Inline SVG flags so the
+ * dropdown looks the same on every OS.
  */
 
 const TH_LOCAL_DIGITS = 9;

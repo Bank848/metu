@@ -180,16 +180,11 @@ export function ErDiagramView({ kioskMode = false }: { kioskMode?: boolean } = {
   const DRAG_THRESHOLD = 4;
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
-    // pan from anywhere except action buttons. Previously
-    // entity cards blocked the drag, so the only way to pan was to
-    // click in the gaps between cards (which got harder as you
-    // zoomed in). Now any drag pans.
+    // Pan from anywhere except interactive elements.
     const target = e.target as HTMLElement;
     if (target.closest("button, a, input, [contenteditable]")) return;
-    // Suppress the browser's text-selection / native-drag default that
-    // would otherwise hijack the pointer when the press lands on text
-    // inside an entity card. Without this the user sees ghost copies
-    // of the card being "dragged" instead of the canvas panning.
+    // Suppress text-selection / native-drag so the pointer pans the canvas
+    // instead of dragging ghost text from an entity card.
     e.preventDefault();
     dragStateRef.current = {
       active: true,

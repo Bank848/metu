@@ -5,26 +5,9 @@ import { coins, thbToCoins } from "@/lib/format";
 type Point = { day: string; revenue: number; orderCount: number };
 
 /**
- * Pure-SVG bar chart for daily paid revenue. No deps — keeps the admin
- * overview lean.
- *
- * Improvements vs. the v1 render:
- * - **Adaptive bucketing.** ≤30 days renders day-by-day. >30 days
- *   buckets into 7-day windows (so 90d → 13 fat bars instead of 90
- *   sliver bars you can't hover). The header label updates accordingly.
- * - **Sparse x-axis labels.** Show every Nth tick based on bucket
- *   density so labels never overlap.
- * - **Colour coding.** Weekends render in a desaturated mint shade,
- *   weekdays in the brighter mint, the maximum bar gets the brand
- *   gold accent, and the active hover bar tints brighter.
- * - **React-state hover tooltip.** A floating panel above the chart
- *   shows date + revenue + orders for the hovered bar — the prior SVG
- *   `<title>` only worked at large bar widths. Now it's a full
- *   pointer-events overlay that catches even sliver bars.
- *
- * Stays a "use client" component because the hover state is interactive
- * and the SSR fallback is fine (no flash since we render the chart
- * fully on first paint).
+ * Pure-SVG bar chart for daily paid revenue. Buckets into 7-day windows
+ * past 30 days so bars stay hoverable, sparse x-axis labels by density,
+ * weekend/weekday/max colour coding, and a React-state hover tooltip.
  */
 export function RevenueChart({ data }: { data: Point[] }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -125,13 +108,8 @@ export function RevenueChart({ data }: { data: Point[] }) {
             <stop offset="0%" stopColor="#A7F3D0" stopOpacity="1" />
             <stop offset="100%" stopColor="#10B981" stopOpacity="0.85" />
           </linearGradient>
-          {/* Peak-on-hover gradient — keeps the gold hue family but
-              brightens it so the peak bar "lifts" the same way mint
-              bars do. Earlier rev mapped peak-on-hover to bar-hover
-              (mint), which made the peak appear to flip to a totally
-              different color when the user pointed at it — confusing
-              ("which one IS the peak?"). Distinct token preserves the
-              gold identity through hover. */}
+          {/* Peak-on-hover gradient — brightened gold so the peak lifts
+              without losing its identity. */}
           <linearGradient id="bar-spike-hover" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#FFE08A" stopOpacity="1" />
             <stop offset="100%" stopColor="#D48F20" stopOpacity="0.85" />

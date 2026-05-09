@@ -81,17 +81,8 @@ export function FileImageInput({
       </div>
 
       {/*
-        Layout policy (Phase 10 Step 3a.5):
-        - Empty state: NO oversized aspect-ratio preview slot. Compact
-          64×64 (square) or 96×64 (wide) thumbnail next to the input.
-          User feedback: "ช่องใส่รูปมันใหญ่ไปหน่อย" — the empty wide
-          slot was reserving ~400 px of vertical space per image row.
-        - Filled state: small inline preview (h-20 / h-24) so the
-          seller sees what they uploaded without dominating the form.
-          Click the preview to see the full image in a new tab.
-        - The compact two-column flex layout works for BOTH aspects
-          now; the old `grid-cols-1` for wide-mode was the trigger for
-          the giant box.
+        Compact preview: 64x64 / 96x64 thumb when empty, h-20/h-24 inline
+        preview when filled. Click opens the full image in a new tab.
       */}
       <div className="flex items-start gap-3">
         {/* Preview thumbnail — small, fixed height, doesn't reserve

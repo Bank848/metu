@@ -21,38 +21,34 @@ vi.mock("../src/db/prisma.js", () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
-    // Phase 14.4 — OTP storage uses better-auth's verification table.
+    // OTP storage uses better-auth's verification table.
     verification: {
       findFirst: vi.fn(),
       create: vi.fn(),
       delete: vi.fn(),
       deleteMany: vi.fn(),
     },
-    // Phase 15.2 — sessions UI reads/writes better-auth's session table.
-    // Phase 49 — login also calls findFirst (newest session) to scope
-    // the single-session deleteMany; default mock returns null so the
-    // happy login path doesn't try to drop anything.
+    // sessions UI reads better-auth's session table; login findFirst
+    // returns null so the happy path doesn't try to drop sessions.
     session: {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn(),
       deleteMany: vi.fn(),
     },
-    // Phase 49 — admin-OTP gate hits trustedDevice.findUnique before
-    // deciding whether to send the OTP. Default = no trusted device,
-    // so guarded accounts always go through the OTP flow.
+    // admin-OTP gate hits trustedDevice.findUnique. Default = no
+    // trusted device, so guarded accounts go through the OTP flow.
     trustedDevice: {
       findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
       // changePassword + resetPassword nuke every trusted device row
-      // for the user; the mock just needs to exist for the call.
+      // for the user; mock just needs to exist for the call.
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
-    // Phase 16.3 — credential `account` row stays in sync with
-    // user.password via syncCredentialAccount(). All four
-    // password-write paths (register / changePassword / setPassword
-    // / resetPassword) call upsert here.
+    // credential `account` row stays in sync with user.password via
+    // syncCredentialAccount(); register/changePassword/setPassword/
+    // resetPassword all call upsert here.
     account: {
       upsert: vi.fn(),
       updateMany: vi.fn(),
@@ -88,11 +84,9 @@ beforeEach(async () => {
 
 describe("POST /auth/login", () => {
   it("returns 401 NeedsVerify on valid credentials when device isn't trusted (universal verify gate)", async () => {
-    // Behaviour change: every credential login now passes through a
-    // second-factor confirmation unless the device is already trusted
-    // (cookie + DB row) OR 2FA is on. Without a trust cookie or
-    // totpCode, the response is 401 + a preAuthToken the client
-    // hands back to /auth/login/verify.
+    // Every credential login passes through a second-factor confirm
+    // unless the device is trusted (cookie + DB row) or 2FA is on.
+    // Without trust cookie / totpCode, response is 401 + preAuthToken.
     const hash = await bcrypt.hash("Buyer#123", 4);
     (prisma.user.findUnique as any).mockResolvedValue({
       userId: 7,
@@ -143,12 +137,10 @@ describe("POST /auth/login", () => {
     expect(res.body.error).toBe("InvalidCredentials");
   });
 
-  // Phase 49 — guarded admin demo account requires an email-OTP gate
-  // before the session cookie is issued. The fingerprint registry in
-  // admin-login-otp.ts only matches the prod recipient, so for tests
-  // we set ADMIN_OTP_DEV_REVEAL=true which bypasses the registry +
-  // returns the code in the response body.
-  describe("Phase 49 — admin OTP gate", () => {
+  // Guarded admin demo account requires an email-OTP gate before the
+  // session cookie issues. Set ADMIN_OTP_DEV_REVEAL=true so tests bypass
+  // the prod-only fingerprint registry and get the code in the body.
+  describe("admin OTP gate", () => {
     const originalRecipient = process.env.ADMIN_OTP_RECIPIENT_EMAIL;
     const originalReveal = process.env.ADMIN_OTP_DEV_REVEAL;
 
@@ -239,9 +231,8 @@ describe("POST /auth/register", () => {
         phone: "+66812345678",
       });
     expect(res.status).toBe(409);
-    // Phase 43 — error codes split into UsernameTaken / EmailTaken so
-    // the frontend can render a tailored message instead of the bare
-    // word "email" / "username".
+    // Error codes split UsernameTaken / EmailTaken so the frontend can
+    // render a tailored message.
     expect(res.body.error).toBe("EmailTaken");
   });
 
@@ -320,10 +311,7 @@ describe("GET /auth/me", () => {
   });
 });
 
-// =============================================================================
-//  Phase 14.3 — POST /auth/set-password
-// =============================================================================
-describe("POST /auth/set-password (Phase 14.3)", () => {
+describe("POST /auth/set-password", () => {
 
   it("returns 401 without auth", async () => {
     const res = await request(buildApp())
@@ -354,10 +342,9 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
   });
 
   it("happy: hashes + persists + writes audit row when password was NULL (with email OTP)", async () => {
-    // OAuth-only first-time set-password now requires SOME second
-    // factor — for users with no phone + no 2FA the path is email
-    // OTP. The test mocks the verification row that matches the
-    // hashed OTP so the happy path completes.
+    // OAuth-only first-time set-password requires a second factor.
+    // For users with no phone + no 2FA the path is email OTP; mock the
+    // verification row matching the hashed OTP so happy path completes.
     const code = "123456";
     const cryptoMod = await import("node:crypto");
     const expectedHash = cryptoMod.default
@@ -428,10 +415,7 @@ describe("POST /auth/set-password (Phase 14.3)", () => {
   });
 });
 
-// =============================================================================
-//  Phase 14.4 — phone + OTP scaffold
-// =============================================================================
-describe("Phase 14.4 — phone + OTP", () => {
+describe("phone + OTP", () => {
 
   describe("PATCH /auth/phone", () => {
     it("401 without auth", async () => {
@@ -611,16 +595,13 @@ describe("Phase 14.4 — phone + OTP", () => {
       expect(res.body.error).toBe("InvalidOtp");
     });
 
-    // =============================================================
-    //  Phase 15.3 — OTP enforcement on sensitive password ops
-    // =============================================================
-    describe("OTP-on-password-change (Phase 15.3)", () => {
+    describe("OTP-on-password-change", () => {
       const phone = "+66912345678";
 
       it("change-password: 400 OtpRequired when phone is verified but no otpCode in body", async () => {
-        // requireAuth findUnique (no select) returns the full user;
-        // changePassword's findUnique uses select for password+phone+
-        // phoneVerifiedAt. Differentiate by `select`.
+        // requireAuth findUnique (no select) returns full user;
+        // changePassword uses select for password+phone+phoneVerifiedAt.
+        // Differentiate by `select`.
         (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
           if (select?.password) {
             return Promise.resolve({
@@ -729,11 +710,9 @@ describe("Phase 14.4 — phone + OTP", () => {
       });
 
       it("change-password: now requires email-OTP when phone is NOT verified (closes the no-second-factor hole)", async () => {
-        // Behaviour change: ensureSensitiveOtp now requires SOME second
-        // factor on every change-password. When the user has no
-        // verified phone and no 2FA, the path falls through to email
-        // OTP — which means an empty body returns OtpRequired instead
-        // of silently succeeding.
+        // ensureSensitiveOtp requires a second factor on every
+        // change-password. With no verified phone + no 2FA the path
+        // falls through to email OTP, so empty body returns OtpRequired.
         (prisma.user.findUnique as any).mockImplementation(({ select, where }: any) => {
           if (select?.password)
             return Promise.resolve({
@@ -811,10 +790,7 @@ describe("Phase 14.4 — phone + OTP", () => {
   });
 });
 
-// =============================================================================
-//  Phase 16.2 — TOTP 2FA
-// =============================================================================
-describe("Phase 16.2 — TOTP 2FA", () => {
+describe("TOTP 2FA", () => {
 
   describe("POST /auth/totp/enroll-start", () => {
     it("401 without auth", async () => {
@@ -975,7 +951,7 @@ describe("Phase 16.2 — TOTP 2FA", () => {
     });
   });
 
-  describe("POST /auth/login (Phase 16.2 NeedsTotp gate)", () => {
+  describe("POST /auth/login (NeedsTotp gate)", () => {
     it("401 NeedsTotp when password ok + totpEnabled=true + no totpCode in body", async () => {
       const bcrypt = await import("bcryptjs");
       vi.spyOn(bcrypt.default, "compare").mockResolvedValue(true as any);
@@ -1020,10 +996,7 @@ describe("Phase 16.2 — TOTP 2FA", () => {
   });
 });
 
-// =============================================================================
-//  Phase 15.2 — sessions UI
-// =============================================================================
-describe("Phase 15.2 — sessions UI", () => {
+describe("sessions UI", () => {
 
   describe("GET /auth/sessions", () => {
     it("401 without auth", async () => {
@@ -1051,9 +1024,8 @@ describe("Phase 15.2 — sessions UI", () => {
         .set("Cookie", await cookieFor(7));
       expect(res.status).toBe(200);
       expect(res.body.sessions).toHaveLength(1);
-      // Phase 16.3 — Mode A: better-auth's getSession resolves the
-      // current session row (mocked id=1 by signedInAs). The "current"
-      // marker on the UI should match.
+      // better-auth's getSession resolves the current session row
+      // (mocked id=1 by signedInAs); the "current" marker should match.
       expect(res.body.currentSessionId).toBe(1);
     });
   });
@@ -1096,7 +1068,7 @@ describe("Phase 15.2 — sessions UI", () => {
   });
 
   describe("DELETE /auth/sessions/all-others", () => {
-    it("revokes all OTHER sessions, keeps current row (Mode A)", async () => {
+    it("revokes all OTHER sessions, keeps current row", async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         userId: 7,
         stats: { role: "buyer" },
@@ -1109,9 +1081,8 @@ describe("Phase 15.2 — sessions UI", () => {
         .set("Cookie", await cookieFor(7));
       expect(res.status).toBe(200);
       expect(res.body.revoked).toBe(4);
-      // Phase 16.3 — Mode A: getSession resolves the current row
-      // (mocked id=1). deleteMany filters NOT id=1 so the actor
-      // doesn't sign themselves out by accident.
+      // getSession resolves the current row (mocked id=1); deleteMany
+      // filters NOT id=1 so the actor doesn't sign themselves out.
       expect(prisma.session.deleteMany).toHaveBeenCalledWith({
         where: { userId: 7, id: { not: 1 } },
       });

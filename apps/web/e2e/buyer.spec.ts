@@ -46,15 +46,9 @@ test.describe("buyer", () => {
   });
 
   test("checkout (demo mode) → /orders/[id] shows delivery payload", async ({ page }) => {
-    // Phase 33 — fast end-to-end of the delivery happy path. We rely
-    // on demo-mode checkout (no Stripe) so the test stays self-contained:
-    //   • login as buyer
-    //   • add first product
-    //   • POST /api/orders/checkout
-    //   • follow returned orderId
-    //   • assert either a "Download" button OR a license key card
-    //
-    // Skips when there's no eligible product (empty seed).
+    // End-to-end demo-mode checkout (no Stripe): login, add first
+    // product, POST /api/orders/checkout, follow orderId, assert a
+    // Download button or license-key card. Skips on empty seed.
     await login(page, "buyer");
 
     await page.goto("/browse");
@@ -81,8 +75,8 @@ test.describe("buyer", () => {
       timeout: 10_000,
     });
 
-    // At least one of the delivery affordances must be present per
-    // Phase 33: either a license-key card or a Download button.
+    // At least one delivery affordance must be present: a license-key
+    // card or a Download button.
     const hasDelivery = await Promise.race([
       page.getByText(/license key/i).first().waitFor({ state: "visible", timeout: 12_000 }).then(() => true),
       page.getByRole("link", { name: /^download$/i }).first().waitFor({ state: "visible", timeout: 12_000 }).then(() => true),

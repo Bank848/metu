@@ -6,10 +6,8 @@ import { SettingsForm } from "./SettingsForm";
 export const dynamic = "force-dynamic";
 
 /**
- * / 26 — admin settings page (slimmed down).
- * Shows the runtime feature flag + platform fee config plus a small
- * explainer card. Phase 26 dropped the wallet / chat / PromptPay
- * surfaces ; Phase 27 will expose Stripe Connect status here instead.
+ * Admin settings page — runtime feature flags + platform fee config
+ * with a short explainer card.
  */
 export default async function AdminSettingsPage() {
   const settings = await getSettings();
@@ -41,7 +39,7 @@ export default async function AdminSettingsPage() {
               <div>
                 <span className="font-semibold text-white">Platform fee % —</span>{" "}
                 The cut the platform takes from every order at checkout. Default 5 means a seller earns 95 baht for every 100-baht sale.
-                Phase 27 wires this into Stripe&#x2019;s <code>application_fee_amount</code> parameter so the platform&#x2019;s share routes to the platform&#x2019;s Stripe account at charge time.
+                This wires into Stripe&#x2019;s <code>application_fee_amount</code> parameter so the platform&#x2019;s share routes to the platform&#x2019;s Stripe account at charge time.
               </div>
             </li>
           </ul>

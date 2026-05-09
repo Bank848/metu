@@ -17,9 +17,7 @@ router.post("/users/:id/require-password-reset", ctrl.setRequirePasswordReset);
 
 // Stores
 router.get("/stores",                 ctrl.listStores);
-// Specific sub-paths must register before the generic /:id GET so Express
-// matches /:id/products/:pid first. Both verbs (GET / PATCH / DELETE)
-// disambiguate, but keeping ordering explicit avoids surprises.
+// Sub-paths register before /:id so /:id/products/:pid matches first.
 router.get("/stores/:id/products",                 ctrl.listStoreProducts);
 router.get("/stores/:id/products/:pid",            ctrl.getStoreProduct);
 router.patch("/stores/:id/products/:pid",          ctrl.updateStoreProduct);
@@ -44,16 +42,13 @@ router.post("/coupons",               ctrl.createMasterCoupon);
 router.delete("/transactions/:id",    ctrl.deleteTransaction);
 router.post("/transactions/:id/refund", ctrl.refundTransaction);
 
-// Order recovery — re-fetch a Stripe PaymentIntent and replay the
-// payment_intent.succeeded handler. Used when the live webhook missed
-// the original event (signature mismatch, network blip, etc.).
+// Re-fetch a Stripe PI + replay the success handler when the webhook missed.
 router.post("/orders/:id/sync-from-stripe", ctrl.syncOrderFromStripe);
 
 // Reports
 router.get("/reports/:name",          ctrl.runReport);
 
-// Database inspector — strict step-up: admin must have TOTP enrolled
-// AND have completed a fresh challenge within the last 15 minutes.
+// Database inspector — strict step-up (TOTP enrolled + fresh challenge).
 router.get(
   "/db/snapshot",
   requireRecent2FA(15, { requireTotpEnrolled: true }),

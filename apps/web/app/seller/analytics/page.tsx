@@ -167,8 +167,7 @@ export default async function SellerAnalyticsPage() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {/* Phase 11.2 — lifetime revenue can run into 7+ digits;
-            compact notation keeps the card from clipping at md. */}
+        {/* Compact notation keeps 7+ digit revenue from clipping at md. */}
         <StatCard
           icon={TrendingUp}
           label="Revenue (lifetime)"

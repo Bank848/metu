@@ -1,18 +1,10 @@
 import { ShieldCheck } from "lucide-react";
 import { SqlTechniqueBadge } from "./SqlTechniqueBadge";
 
-// Section 5c of the CPE241 final report — User Information Integrity
-// & Product Order. The report wants two ratios:
-//   1. share of users with a "complete" profile
-//   2. share of (settled) orders that came from such a user
-//
-// "Complete" = firstName + lastName + dateOfBirth + countryId + phone
-// + profileImage all populated (six fields). Missing any one = the
-// user is bucketed as incomplete. The bigger gap between the two
-// ratios, the more skewed conversion is towards engaged buyers — a
-// signal admin can act on (e.g. require profile completion before
-// checkout, or surface "complete your profile" prompts to incomplete
-// users to lift the second ratio).
+// User Information Integrity card — surfaces two ratios:
+//   1. share of users with a complete profile (six fields populated)
+//   2. share of settled orders placed by such users
+// A bigger gap between them = conversion is skewed toward engaged buyers.
 
 interface Props {
   totalUsers: number;
@@ -29,12 +21,7 @@ export function UserInfoIntegrityCard({
 }: Props) {
   const userRate = totalUsers > 0 ? (completeUsers / totalUsers) * 100 : 0;
   const orderRate = totalOrders > 0 ? (ordersFromComplete / totalOrders) * 100 : 0;
-  // Conversion lift = how much more likely a complete-profile user is
-  // to have placed an order than the average. Computed as the ratio
-  // of "share of orders from complete users" to "share of complete
-  // users". Above 1.0 → complete users over-index on orders. Below
-  // 1.0 → incomplete users somehow place more orders (rare, usually
-  // means seed data is skewed).
+  // Lift > 1 → complete-profile users over-index on orders.
   const lift = userRate > 0 ? orderRate / userRate : 0;
 
   const liftMeaningful = userRate > 0 && orderRate > 0;
@@ -52,8 +39,7 @@ export function UserInfoIntegrityCard({
         </div>
       </header>
 
-      {/* Lead with the lift — that's the actual insight. The two ratios
-          below are supporting context. */}
+      {/* Lead with the lift; the two ratios below are supporting context. */}
       {liftMeaningful && (
         <div
           className={

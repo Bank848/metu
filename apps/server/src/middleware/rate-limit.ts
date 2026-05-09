@@ -12,13 +12,7 @@ interface LimiterOptions {
   windowMs: number;
   /** Optional key override; defaults to req.ip. */
   keyFn?: (req: Request) => string;
-  /**
-   * when true, the limiter still throttles even under
-   * `NODE_ENV=test`. Used by `rate-limit.test.ts` to assert the
-   * boundary behaviour. The shared production limiters
-   * (loginLimiter, registerLimiter, etc.) leave this false so the
-   * rest of the test suite can hammer /auth/login without tripping.
-   */
+  /** When true, the limiter throttles even under NODE_ENV=test. */
   enforceInTests?: boolean;
 }
 
@@ -36,9 +30,7 @@ function bucketsFor(options: LimiterOptions): Map<string, Bucket> {
 }
 
 function defaultKey(req: Request): string {
-  // Under Fly.io, req.ip resolves to the inner reverse-proxy IP, not
-  // the real visitor — `clientIp()` reads the canonical Fly-Client-IP
-  // header first, then falls back to XFF[0] / req.ip for local dev.
+  // clientIp() canonicalizes the Fly-Client-IP / XFF / req.ip chain.
   return clientIp(req) ?? "unknown";
 }
 
@@ -48,11 +40,7 @@ export function rateLimit(options: LimiterOptions) {
   const buckets = bucketsFor(options);
 
   return (req: Request, res: Response, next: NextFunction) => {
-    // Tests share a singleton bucket per limiter and would otherwise
-    // trip the 5/min ceiling halfway through the suite. Bypass the
-    // limiter under NODE_ENV=test (vitest sets this automatically),
-    // unless the caller explicitly opts back in via `enforceInTests`
-    // (the rate-limit unit tests do this).
+    // Bypass under tests unless `enforceInTests` is set.
     if (process.env.NODE_ENV === "test" && !options.enforceInTests) {
       next();
       return;
@@ -98,16 +86,12 @@ function sweep(buckets: Map<string, Bucket>, cutoff: number) {
   }
 }
 
-// Singleton limiters per route so the WeakMap state actually persists.
-// `registerLimiter` is mounted on a single route (/register) so a
-// shared bucket is fine. `requestOtpLimiter` is shared between
-// /request-otp + /request-email-otp + /login/request-otp deliberately
-// so SMS / email cost can't be amplified by hopping endpoints.
+// Singleton limiters: requestOtpLimiter is shared across /request-otp
+// + /request-email-otp + /login/request-otp so cost can't be amplified
+// by hopping endpoints.
 export const registerLimiter = rateLimit({ max: 3, windowMs: 60_000 });
 export const requestOtpLimiter = rateLimit({ max: 3, windowMs: 60_000 });
-// Legacy aliases kept only so unrelated `import` lines still compile.
-// Never mount as middleware — each route should call `makeLimiter()`
-// for its own bucket; sharing a bucket is the cross-route DoS surface.
+// Legacy aliases for back-compat imports; new routes should call makeLimiter().
 export const loginLimiter = rateLimit({ max: 5, windowMs: 60_000 });
 export const forgotPasswordLimiter = rateLimit({
   max: 3,

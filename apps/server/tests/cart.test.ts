@@ -14,10 +14,9 @@ vi.mock("../src/db/prisma.js", () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
-    // Phase 42 — addItem checks the productItem's owning store so a
-    // seller can't buy from their own store. Tests default the lookup
-    // to a different owner so the existing happy-path expectations
-    // still pass.
+    // addItem checks the productItem's owning store so a seller can't
+    // buy from their own store. Tests default to a different owner so
+    // happy-path expectations still pass.
     productItem: { findUnique: vi.fn() },
   },
 }));
@@ -51,15 +50,11 @@ beforeEach(async () => {
     stats: { role: "buyer" },
     store: null,
   });
-  // Default: the product belongs to a different seller (ownerId: 99)
-  // so the own-store guard never fires for these happy-path tests.
-  // Phase 48 — `isStackable: true` so the already-owned guard skips
-  // straight through; tests that need the guard active set their own
-  // mock with `isStackable: false` + an `order.findFirst` return.
-  // `loadPurchasableProductItem` reads `product.isActive`,
-  // `product.name`, `product.storeId`, `store.suspendedAt`, and
-  // `store.stripeChargesEnabled`; mock the happy-state values so the
-  // availability gate passes for existing tests.
+  // Default: product belongs to a different seller (ownerId: 99) so
+  // the own-store guard never fires. `isStackable: true` so the
+  // already-owned guard skips through. `loadPurchasableProductItem`
+  // reads isActive/name/storeId/store.suspendedAt/stripeChargesEnabled;
+  // mock the happy-state values so the availability gate passes.
   (prisma.productItem.findUnique as any).mockResolvedValue({
     productItemId: 200,
     deliveryMethod: "download",
@@ -162,9 +157,8 @@ describe("PATCH /cart/items/:id", () => {
     expect(res.body.error).toBe("CartItemNotFound");
   });
 
-  // Phase 50 — PATCH used to write the raw quantity, bypassing the
-  // digital cap that addItem enforced. Now the same purchasable gate
-  // runs on update, so qty=10 on a download line caps at 1.
+  // PATCH runs the same purchasable gate as addItem, so qty=10 on a
+  // download line caps at 1.
   it("caps digital quantity at 1 even when user submits a higher number", async () => {
     (prisma.cartItem.findUnique as any).mockResolvedValue({
       cartItemId: 100,
@@ -189,10 +183,9 @@ describe("PATCH /cart/items/:id", () => {
   });
 });
 
-// Phase 50 — availability gate: addItem refuses paused / soft-deleted
-// products, suspended / deleted stores. The four cases below mirror
-// the bullet list in docs/source-code-bug-review-plan.md (P1 cart).
-describe("Phase 50 — POST /cart/items availability gate", () => {
+// Availability gate: addItem refuses paused / soft-deleted products
+// and suspended / deleted stores.
+describe("POST /cart/items availability gate", () => {
   beforeEach(() => {
     (prisma.cart.findFirst as any).mockResolvedValue({ cartId: 11, userId: 7, status: "active" });
   });

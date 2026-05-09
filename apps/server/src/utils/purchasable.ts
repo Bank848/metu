@@ -1,16 +1,7 @@
 /**
- * Centralised "is this product item buyable right now?"
- * gate. Used by `cart.service.addItem` + `cart.service.updateItem` +
- * `orders.service.checkout` so every write path enforces the same
- * availability rules. Without this, a buyer who knows a productItemId
- * could:
- *   - PATCH a cart line for a paused / soft-deleted product
- *   - PATCH a digital cart line to qty > 1 (the addItem cap was
- *     bypassable through update)
- *   - Carry a stale cart through checkout after the seller paused or
- *     suspended the store
- * Throws a single `AppError(409, "ProductUnavailable", …)` for any
- * gate failure so the BFF surfaces a consistent error shape.
+ * Centralised "is this productItem buyable?" gate. Shared by cart
+ * addItem / updateItem and checkout so every write path enforces
+ * the same availability rules.
  */
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
@@ -44,13 +35,9 @@ export interface PurchasableProductItem {
 }
 
 /**
- * Resolve a productItemId to a fully-validated, ready-to-purchase row.
- * Throws when the product or store is in any state that should block
- * purchase. Returns the loaded shape so callers can keep the value
- * around without re-querying.
- * Deliberately does NOT enforce the actor's "isn't the store owner"
- * rule — that's caller-specific (only `cart.service.addItem` cares;
- * checkout has already accepted the line).
+ * Resolve a productItemId to a validated, ready-to-purchase row;
+ * throws on any blocking state. Caller-specific guards (e.g. owner
+ * buys own store) are not enforced here.
  */
 export async function loadPurchasableProductItem(
   productItemId: number,
@@ -82,8 +69,8 @@ export async function loadPurchasableProductItem(
   if (!row) {
     throw new AppError(404, "ProductItemNotFound");
   }
-  // Public-catalogue gates — match `findProducts`'s `where` clause so a
-  // line that wouldn't surface on /browse can't sneak through cart.
+  // Match findProducts's where clause so a line that wouldn't surface
+  // on /browse can't slip through cart.
   if (!row.product.isActive) {
     throw new AppError(
       409,
@@ -118,10 +105,7 @@ export async function loadPurchasableProductItem(
 }
 
 /**
- * Cap a desired quantity at the variant's ceiling. Digital lines max
- * at 1, physical lines max at stock. Returns the capped value (>= 1
- * when `desired >= 1`; the caller decides whether to silently cap or
- * throw).
+ * Cap desired qty: digital → 1, physical → stock. Returns >= 1.
  */
 export function capQuantity(
   desired: number,

@@ -41,8 +41,6 @@ export default async function ProfilePage() {
 
         <div className="grid md:grid-cols-[280px_1fr] gap-6 md:gap-8 items-start">
           <aside className="rounded-2xl surface-flat p-6 text-center shadow-flat">
-            {/* Phase 11 / F15 — Avatar primitive renders the photo OR
-                initials over a deterministic colour for the empty state. */}
             <div className="mx-auto w-fit">
               <Avatar
                 name={`${me.user.firstName} ${me.user.lastName}`}
@@ -56,9 +54,6 @@ export default async function ProfilePage() {
               {me.user.firstName} {me.user.lastName}
             </h2>
             <p className="text-sm text-ink-dim">@{me.user.username}</p>
-            {/* Phase 11 / F6 — multi-role badges share the AuthMenu
-                primitive so the dropdown and the profile header agree
-                on what roles a user holds. */}
             <div className="mt-3 flex justify-center">
               <RoleBadges role={role} hasStore={hasStore} />
             </div>

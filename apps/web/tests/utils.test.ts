@@ -54,7 +54,7 @@ describe("cardImage", () => {
   });
 });
 
-describe("getInitials (Phase 11 / F15 avatar fallback)", () => {
+describe("getInitials (avatar fallback)", () => {
   it("returns first letter of the first two words, uppercased", () => {
     expect(getInitials("Mei Huang")).toBe("MH");
     expect(getInitials("kanda chitra")).toBe("KC");
@@ -92,7 +92,7 @@ describe("getInitials (Phase 11 / F15 avatar fallback)", () => {
   });
 });
 
-describe("avatarHue (Phase 11 / F15 deterministic colour seed)", () => {
+describe("avatarHue (deterministic colour seed)", () => {
   it("returns the same hue for the same input", () => {
     expect(avatarHue("buyer@metu.dev")).toBe(avatarHue("buyer@metu.dev"));
     expect(avatarHue("Mei Huang")).toBe(avatarHue("Mei Huang"));
