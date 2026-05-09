@@ -50,6 +50,15 @@ export const couponInputSchema = z
       message: "startDate cannot be in the past",
       path: ["startDate"],
     },
+  )
+  // 5-year ceiling — a 10y-future coupon would block its `code` slot
+  // forever and amplifies C3-AD-004 master-vs-seller orderBy collision.
+  .refine(
+    (v) => v.startDate.getTime() <= Date.now() + 5 * 365 * 86_400_000,
+    {
+      message: "startDate must be within 5 years",
+      path: ["startDate"],
+    },
   );
 
 export type ValidateCouponInput = z.infer<typeof validateCouponSchema>;
