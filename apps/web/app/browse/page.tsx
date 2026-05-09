@@ -107,7 +107,7 @@ export default async function BrowsePage({
 
         {/* ── LEFT: Fixed filter sidebar ── */}
         <aside className="hidden md:flex flex-col w-[260px] shrink-0">
-          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto scrollbar-hide border-r border-white/5 bg-[#0a0a0a]">
+          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto overscroll-contain scrollbar-hide border-r border-white/5 bg-[#0a0a0a]">
             <FilterPanel
               categories={categories}
               tags={tags}

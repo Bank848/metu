@@ -112,7 +112,7 @@ export function FilterPanel({
   }
 
   return (
-    <div className="md:sticky md:top-28 md:overflow-y-auto md:pr-1 scrollbar-hide bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden">
+    <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden">
       {/* Header */}
       <div className="px-12 pt-7 pb-4 border-b border-white/5">
         <h3 className="text-white text-[18px] font-black uppercase tracking-tighter">Filters</h3>
