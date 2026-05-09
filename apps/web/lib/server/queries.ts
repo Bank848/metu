@@ -491,7 +491,7 @@ export async function browseProducts(params: {
   if (params.originalMaxPrice !== undefined)
     itemConditions.push(Prisma.sql`price <= ${params.originalMaxPrice}`);
   if (delivery)
-    itemConditions.push(Prisma.sql`delivery_method = ${delivery}`);
+    itemConditions.push(Prisma.sql`delivery_method = ${delivery}::"DeliveryMethod"`);
 
   if (itemConditions.length) {
     conditions.push(Prisma.sql`EXISTS (
