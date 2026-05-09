@@ -110,13 +110,15 @@ export default async function ProductPage({ params }: { params: { id: string } }
           <span className="text-white font-medium truncate">{product.name}</span>
         </nav>
 
-        <div className="grid lg:grid-cols-[1fr_400px] gap-8 xl:gap-12 items-start">
+        <div className="grid lg:grid-cols-[1fr_400px] gap-6 sm:gap-8 xl:gap-12 items-start">
 
-          {/* ── LEFT COLUMN ── */}
-          <div className="space-y-6 min-w-0">
-
-            {/* Gallery */}
+          {/* Gallery — left col on desktop, top of stack on mobile. */}
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
             <Gallery images={allImages} alt={product.name}/>
+          </div>
+
+          {/* ── LEFT COLUMN (description / specs / reviews) ── */}
+          <div className="space-y-6 min-w-0 lg:col-start-1 lg:row-start-2">
 
             {/* Description */}
             <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-6 py-5">
@@ -177,7 +179,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
           </div>
 
           {/* ── RIGHT COLUMN — sticky purchase panel ── */}
-          <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
+          <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-24 lg:self-start space-y-4">
 
             {/* Title + meta */}
             <div>
