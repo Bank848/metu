@@ -12,17 +12,22 @@ function safeDelivery(v: string | undefined): DeliveryMethod | undefined {
   return VALID_DELIVERY.includes(v as DeliveryMethod) ? (v as DeliveryMethod) : undefined;
 }
 
-export async function getStats() {
-  // Public counters: exclude soft-deletes; products gate on live store
-  // too so /, /health, /admin all show the same number.
-  const [sellers, products, orders, reviews] = await Promise.all([
-    prisma.store.count(),
-    prisma.product.count(),
-    prisma.order.count(),
-    prisma.productReview.count(),
-  ]);
-  return { sellers, products, orders, reviews };
-}
+// Public counter set used on `/` hero. Cache 60s so a hard refresh
+// within a minute doesn't re-count the four tables — single biggest
+// SSR cost on the home page.
+export const getStats = unstable_cache(
+  async () => {
+    const [sellers, products, orders, reviews] = await Promise.all([
+      prisma.store.count(),
+      prisma.product.count(),
+      prisma.order.count(),
+      prisma.productReview.count(),
+    ]);
+    return { sellers, products, orders, reviews };
+  },
+  ["public-stats"],
+  { revalidate: 60, tags: ["public-stats"] },
+);
 
 /** Set of productIds the user has favourited — cheap lookup for hydrating
  *  FavoriteButton initial state on the browse / product detail / store pages. */
@@ -96,14 +101,30 @@ export async function getFavoriteProducts(userId: number) {
 }
 
 // Server endpoint hardcodes 8; slice client-side for smaller N.
-export async function getFeaturedProducts(take = 8) {
-  const items = await apiFetch<Array<Awaited<ReturnType<typeof apiFetch<unknown[]>>>[number]>>(
-    "/products/featured",
-  );
-  return (items as any[]).slice(0, take);
-}
+// Cache 5 min — featured list is hand-curated by sales count, not
+// real-time data, so SSR cost can be amortised across many home views.
+export const getFeaturedProducts = unstable_cache(
+  async (take = 8) => {
+    const items = await apiFetch<Array<Awaited<ReturnType<typeof apiFetch<unknown[]>>>[number]>>(
+      "/products/featured",
+      { skipAuth: true },
+    );
+    return (items as any[]).slice(0, take);
+  },
+  ["featured-products"],
+  { revalidate: 300, tags: ["featured-products"] },
+);
 
-export async function getTopSellerProducts(take = 8) {
+// Top-sellers grid on /browse top section. Heavy SQL with 6 subqueries
+// per product. Cache 5 min — list is gated on seller_level >= 3 which
+// shifts only on payout/onboarding events.
+export const getTopSellerProducts = unstable_cache(
+  _getTopSellerProductsImpl,
+  ["top-seller-products"],
+  { revalidate: 300, tags: ["top-seller-products"] },
+);
+
+async function _getTopSellerProductsImpl(take = 8) {
   type Row = {
     product_id: number;
     name: string;
@@ -195,7 +216,15 @@ export async function getTopSellerProducts(take = 8) {
   }));
 }
 
-export async function getFeaturedStores(take = 4) {
+// Home featured-stores carousel. Cache 5 min — top stores by
+// seller_level / rating shift slowly.
+export const getFeaturedStores = unstable_cache(
+  _getFeaturedStoresImpl,
+  ["featured-stores"],
+  { revalidate: 300, tags: ["featured-stores"] },
+);
+
+async function _getFeaturedStoresImpl(take = 4) {
   type Row = {
     store_id: number;
     name: string;
@@ -240,7 +269,15 @@ export async function getFeaturedStores(take = 4) {
 }
 
 
-export async function getFeaturedCoupons(take = 6) {
+// Active-coupon strip on /. Cache 60s — short TTL because coupons can
+// expire mid-day and we want to drop them from the strip promptly.
+export const getFeaturedCoupons = unstable_cache(
+  _getFeaturedCouponsImpl,
+  ["featured-coupons"],
+  { revalidate: 60, tags: ["featured-coupons"] },
+);
+
+async function _getFeaturedCouponsImpl(take = 6) {
   type Row = {
     coupon_id: number;
     code: string;
