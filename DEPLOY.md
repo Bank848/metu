@@ -101,11 +101,14 @@ npm run db:reset     # drops + re-migrates + re-seeds
 
 This gives you back the three demo accounts with fresh stories:
 
-| Role   | Email              | Password   |
-|--------|--------------------|------------|
-| admin  | admin@metu.dev     | Admin#123  |
-| seller | seller@metu.dev    | Seller#123 |
-| buyer  | buyer@metu.dev     | Buyer#123  |
+| Role   | Email              |
+|--------|--------------------|
+| admin  | admin@metu.dev     |
+| seller | seller@metu.dev    |
+| buyer  | buyer@metu.dev     |
+
+Passwords live in `packages/db/seed.ts` (fresh seed) or the live DB
+(rotated separately) — keep them out of the deploy guide.
 
 ---
 

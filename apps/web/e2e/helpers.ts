@@ -9,9 +9,9 @@ import type { Page } from "@playwright/test";
  * (one place) rather than chasing strings across multiple spec files.
  */
 export const ACCOUNTS = {
-  buyer:  { email: "buyer@metu.dev",  password: "Buyer#123"  },
-  seller: { email: "seller@metu.dev", password: "Seller#123" },
-  admin:  { email: "admin@metu.dev",  password: "Admin#123"  },
+  buyer:  { email: "buyer@metu.dev",  password: "M3tu_Buy3r_c189e974" },
+  seller: { email: "seller@metu.dev", password: "M3tu_S3ll_d193f288"  },
+  admin:  { email: "admin@metu.dev",  password: "M3tu_Adm!n_fd42083c" },
 } as const;
 
 /**

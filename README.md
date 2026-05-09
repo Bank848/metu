@@ -62,13 +62,15 @@ in `apps/web/.env.local` (default fallback).
 
 ## Demo accounts (seeded)
 
-| Role   | Email              | Password   | Notes                              |
-|--------|--------------------|------------|------------------------------------|
-| admin  | admin@metu.dev     | Admin#123  | Full /admin access                 |
-| seller | seller@metu.dev    | Seller#123 | Owns Kluay Studio after `db:seed` (deleted on prod — use the live stores below) |
-| buyer  | buyer@metu.dev     | Buyer#123  | Has past orders + active cart      |
+| Role   | Email              | Notes                              |
+|--------|--------------------|------------------------------------|
+| admin  | admin@metu.dev     | Full /admin access                 |
+| seller | seller@metu.dev    | Owns Kluay Studio after `db:seed` (deleted on prod — use the live stores below) |
+| buyer  | buyer@metu.dev     | Has past orders + active cart      |
 
-`/login` has demo-account chips that pre-fill the form.
+Demo passwords are kept out of public docs — see `packages/db/seed.ts`
+for the values used in a fresh local seed, or ask the project owner for
+live-prod credentials.
 
 ### Live stores on prod
 

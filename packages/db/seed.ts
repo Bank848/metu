@@ -210,14 +210,14 @@ async function seedUsers(countries: { countryId: number; name: string }[]) {
   const users: Array<Parameters<typeof prisma.user.create>[0]["data"]> = [
     // --- Admin ---
     {
-      username: "admin", email: "admin@metu.dev", password: await pw("Admin#123"),
+      username: "admin", email: "admin@metu.dev", password: await pw("M3tu_Adm!n_fd42083c"),
       firstName: "Pim", lastName: "Ratanapol", gender: "female",
       profileImage: AVATAR("admin-pim"), countryId: thaiId,
       dateOfBirth: new Date("1995-06-12"),
     },
     // --- Sellers ---
     {
-      username: "kluay", email: "seller@metu.dev", password: await pw("Seller#123"),
+      username: "kluay", email: "seller@metu.dev", password: await pw("M3tu_S3ll_d193f288"),
       firstName: "Sarin", lastName: "Chaiyasit", gender: "male",
       profileImage: AVATAR("seller-kluay"), countryId: thaiId,
       dateOfBirth: new Date("1997-09-03"),
@@ -242,7 +242,7 @@ async function seedUsers(countries: { countryId: number; name: string }[]) {
     },
     // --- Buyers ---
     {
-      username: "demo_buyer", email: "buyer@metu.dev", password: await pw("Buyer#123"),
+      username: "demo_buyer", email: "buyer@metu.dev", password: await pw("M3tu_Buy3r_c189e974"),
       firstName: "Thana", lastName: "Siri", gender: "male",
       profileImage: AVATAR("buyer-thana"), countryId: thaiId,
       dateOfBirth: new Date("2000-01-15"),
@@ -1120,9 +1120,9 @@ async function summary() {
   console.log("\n=== ROW COUNTS ===");
   for (const [t, c] of rows) console.log(`  ${String(t).padEnd(16)} ${c}`);
   console.log("\n=== DEMO ACCOUNTS ===");
-  console.log("  admin@metu.dev   / Admin#123");
-  console.log("  seller@metu.dev  / Seller#123  (owns Kluay Studio)");
-  console.log("  buyer@metu.dev   / Buyer#123   (has past orders + active cart)");
+  console.log("  admin@metu.dev   / M3tu_Adm!n_fd42083c");
+  console.log("  seller@metu.dev  / M3tu_S3ll_d193f288   (owns Kluay Studio)");
+  console.log("  buyer@metu.dev   / M3tu_Buy3r_c189e974  (has past orders + active cart)");
   console.log("\n=== URLS ===");
   console.log("  Web:     http://localhost:3000");
   console.log("  API:     http://localhost:4000");

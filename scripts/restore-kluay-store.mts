@@ -274,7 +274,7 @@ async function main() {
   console.log(
     `\n✓ ${created} new product(s), ${skipped} skipped (already existed).`,
   );
-  console.log(`Login: seller@metu.dev · password: Seller#123`);
+  console.log(`Login: seller@metu.dev · password: see packages/db/seed.ts`);
   await prisma.$disconnect();
 }
 
