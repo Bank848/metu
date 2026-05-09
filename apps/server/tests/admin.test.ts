@@ -302,6 +302,8 @@ describe("GET /admin/stats", () => {
           orders: 20n,
           pending_orders: 3n,
           gmv: "12345.67",
+          platform_earnings: "617.28",
+          platform_fee_percent: "5.00",
         },
       ])
       // 2nd call: 14-day revenue series

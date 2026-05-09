@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Users, Store, Package, ShoppingBag, Banknote, Clock, Ticket, MessageSquare, TrendingUp, Tag as TagIcon, Database, Wallet, AlertTriangle, RefreshCw } from "lucide-react";
+import { Users, Store, Package, ShoppingBag, Banknote, Clock, Ticket, MessageSquare, TrendingUp, Tag as TagIcon, Database, Wallet, AlertTriangle, RefreshCw, Coins } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -25,6 +25,10 @@ import { isDataUrl } from "@/lib/utils";
 type Stats = {
   users: number; stores: number; products: number; reviews: number; orders: number;
   gmv: number; pendingOrders: number;
+  /** Net platform fee captured on settled orders (after refund clawback), baht. */
+  platformEarnings: number;
+  /** Current platform fee % applied — used for the KPI tile subtitle. */
+  platformFeePercent: number;
   recentTransactions: Array<{
     transactionId: number;
     transactionType: string;
@@ -196,6 +200,20 @@ export default async function AdminOverview({
           sparkline={dashboard.kpiSparklines?.gmv ?? []}
           sparkColor="rgb(244 192 79)"
           deltaPct={dashboard.kpiDeltas?.gmv.pct ?? undefined}
+        />
+        {/* Platform's net cut sitting in our Stripe balance — GMV ×
+            platformFeePercent ÷ 100, minus any clawback on refunds.
+            Click-through goes to /admin/settings where the % lives. */}
+        <ClickableStatCard
+          tone="highlight"
+          href="/admin/settings"
+          icon={<Coins className="h-3.5 w-3.5" />}
+          label={`Platform earnings (${stats.platformFeePercent}%)`}
+          value={coinsCompact(thbToCoins(stats.platformEarnings))}
+          countUpTo={thbToCoins(stats.platformEarnings)}
+          countUpFormat="compact-coins"
+          valueTooltip={`${coins(thbToCoins(stats.platformEarnings))} — net of refund clawback (Stripe refund_application_fee)`}
+          sparkColor="rgb(244 192 79)"
         />
         <ClickableStatCard
           href="/admin/users"

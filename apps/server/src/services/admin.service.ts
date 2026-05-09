@@ -586,6 +586,8 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
     orders: bigint;
     pending_orders: bigint;
     gmv: string;
+    platform_earnings: string;
+    platform_fee_percent: string;
   };
   const [counts, recentTransactions, daily] = await Promise.all([
     prisma.$queryRaw<CountsRow[]>`
@@ -606,7 +608,19 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
             AND created_at >= NOW() - INTERVAL '30 minutes')                       AS pending_orders,
         (SELECT COALESCE(SUM(total_price), 0)::text
            FROM "orders"
-          WHERE status IN ('paid', 'fulfilled'))                                   AS gmv
+          WHERE status IN ('paid', 'fulfilled'))                                   AS gmv,
+        -- Platform's net cut: (settled total - refunded satang/100) × pct ÷ 100.
+        -- Includes status='refunded' rows so partial refunds net out correctly;
+        -- fully refunded rows contribute 0 because total_price = refunded/100.
+        (SELECT COALESCE(SUM(
+                 (total_price - stripe_amount_refunded::numeric / 100.0)
+                 * (SELECT platform_fee_percent FROM "system_setting" WHERE id = 1)
+                 / 100.0
+               ), 0)::text
+           FROM "orders"
+          WHERE status IN ('paid', 'fulfilled', 'refunded'))                       AS platform_earnings,
+        (SELECT platform_fee_percent::text
+           FROM "system_setting" WHERE id = 1)                                     AS platform_fee_percent
     `,
     // Recent transactions — settled rows only, ordered by payment-moment date.
     prisma.transaction.findMany({
@@ -662,6 +676,8 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
     orders: Number(c.orders),
     gmv: Number(c.gmv),
     pendingOrders: Number(c.pending_orders),
+    platformEarnings: Number(c.platform_earnings),
+    platformFeePercent: Number(c.platform_fee_percent),
     recentTransactions,
     daily: daily.map((d) => ({
       day: d.day,

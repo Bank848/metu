@@ -54,6 +54,10 @@ export interface AdminStatsResponse {
   orders: number;
   gmv: number;
   pendingOrders: number;
+  /** Net platform fee captured on settled orders, in baht (after refund clawback). */
+  platformEarnings: number;
+  /** Current platformFeePercent applied — surfaced for the KPI card subtitle. */
+  platformFeePercent: number;
   recentTransactions: unknown[];
   daily: { day: string; revenue: number; orderCount: number }[];
 }
