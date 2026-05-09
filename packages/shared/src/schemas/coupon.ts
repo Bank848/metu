@@ -42,6 +42,14 @@ export const couponInputSchema = z
       message: "endDate must be on or after startDate",
       path: ["endDate"],
     },
+  )
+  // 5-min grace so a form submitted right at the chosen minute still passes.
+  .refine(
+    (v) => v.startDate.getTime() >= Date.now() - 5 * 60_000,
+    {
+      message: "startDate cannot be in the past",
+      path: ["startDate"],
+    },
   );
 
 export type ValidateCouponInput = z.infer<typeof validateCouponSchema>;

@@ -117,6 +117,7 @@ export function NewCouponForm() {
             <TextInput
               label="Starts"
               type="datetime-local"
+              min={isoLocal(now)}
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               required
@@ -124,6 +125,7 @@ export function NewCouponForm() {
             <TextInput
               label="Ends"
               type="datetime-local"
+              min={startDate}
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
               required
