@@ -1,158 +1,250 @@
 "use client";
 import Image from "next/image";
-import { useRef, useState } from "react";
-import { Upload, Link as LinkIcon, X, ImageIcon } from "lucide-react";
+import { useRef, useState, useCallback } from "react";
+import Cropper from "react-easy-crop";
+import { Upload, X, ImageIcon, ZoomIn, ZoomOut, Check } from "lucide-react";
 import { cn, isDataUrl } from "@/lib/utils";
 
-const MAX_BYTES = 1_000_000; // 1 MB safeguard — DB stores as TEXT (data URL)
+// ─── Constants ───────────────────────────────────────────────────────────────
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB upload limit
+const MAX_OUTPUT_PX = 1200;         // max dimension after crop
 
-/**
- * Image input that accepts EITHER a public URL OR a file upload.
- * On upload, the file is read as a base64 data URL and emitted via onChange
- * so the parent can store it in the DB's TEXT column. No external bucket
- * is required, which keeps the demo deployable on Vercel free tier.
- * Recommended dimensions are surfaced inline so sellers know what to upload.
- */
+type AspectPreset = "square" | "wide" | "cover" | "portrait";
+
+const ASPECT_MAP: Record<AspectPreset, number> = {
+  square:   1,
+  wide:     16 / 9,
+  cover:    8 / 3,
+  portrait: 4 / 5,
+};
+
+async function getCroppedDataUrl(
+  imageSrc: string,
+  pixelCrop: { x: number; y: number; width: number; height: number },
+  maxPx = MAX_OUTPUT_PX,
+): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const i = new window.Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = imageSrc;
+  });
+
+  const scale = Math.min(1, maxPx / Math.max(pixelCrop.width, pixelCrop.height));
+  const outW = Math.round(pixelCrop.width * scale);
+  const outH = Math.round(pixelCrop.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, outW, outH);
+  return canvas.toDataURL("image/jpeg", 0.88);
+}
+
+interface Props {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  aspect?: AspectPreset | number;
+  recommended?: { w: number; h: number };
+  helperText?: string;
+  maxSizeMB?: number;
+  dropZoneClassName ?: string,
+}
+
 export function FileImageInput({
   label,
   value,
   onChange,
-  recommended,
   aspect = "square",
-}: {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-  recommended: { w: number; h: number; note?: string };
-  aspect?: "square" | "wide";
-}) {
+  recommended,
+  helperText,
+  maxSizeMB = 5,
+  dropZoneClassName,
+}: Props) {
+  const aspectRatio: number =
+    typeof aspect === "number"
+      ? (isNaN(aspect) || aspect <= 0 ? 1 : aspect)
+      : (ASPECT_MAP[aspect] ?? 1);
+
+  const isWide = aspectRatio > 1.2;
+
   const fileRef = useRef<HTMLInputElement>(null);
-  const [mode, setMode] = useState<"url" | "upload">(value?.startsWith("data:") ? "upload" : "url");
   const [error, setError] = useState<string | null>(null);
 
-  function pickFile(file: File) {
+  // Cropper state
+  const [tempSrc, setTempSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedPixels, setCroppedPixels] = useState<any>(null);
+  const [cropping, setCropping] = useState(false);
+
+  const onCropComplete = useCallback((_: any, pixels: any) => {
+    setCroppedPixels(pixels);
+  }, []);
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setError("Please pick an image file (PNG, JPG, WebP).");
+      setError("Please pick a PNG or JPEG image.");
       return;
     }
-    if (file.size > MAX_BYTES) {
-      setError(`Image is ${Math.round(file.size / 1024)} KB — please pick one under 1 MB.`);
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      setError(`File exceeds ${maxSizeMB} MB limit.`);
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => onChange(String(reader.result ?? ""));
+    reader.onload = () => {
+      setTempSrc(reader.result as string);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+    };
     reader.onerror = () => setError("Couldn't read that file. Try another.");
     reader.readAsDataURL(file);
+    // reset so same file can be picked again
+    e.target.value = "";
+  }
+
+  async function confirmCrop() {
+    if (!tempSrc || !croppedPixels) return;
+    setCropping(true);
+    try {
+      const dataUrl = await getCroppedDataUrl(tempSrc, croppedPixels);
+      onChange(dataUrl);
+      setTempSrc(null);
+    } catch {
+      setError("Crop failed. Try again.");
+    } finally {
+      setCropping(false);
+    }
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-sm font-semibold text-white">{label}</span>
-        <span className="text-[10px] text-ink-dim font-mono">
-          recommended {recommended.w}×{recommended.h}
-          {recommended.note ? ` · ${recommended.note}` : ""}
-        </span>
-      </div>
+    <>
+      <div className="space-y-2 w-full h-full">
+        <div className="flex items-baseline justify-between">
+          <span className="text-xs font-bold uppercase tracking-widest text-zinc-400">{label}</span>
+        </div>
 
-      {/* Tab toggle */}
-      <div className="inline-flex gap-1 p-1 rounded-full bg-surface-3 border border-white/8">
-        <button
-          type="button"
-          onClick={() => setMode("upload")}
-          className={cn(
-            "px-3 py-1 text-[11px] font-semibold rounded-full transition inline-flex items-center gap-1",
-            mode === "upload" ? "button-gradient text-surface-1" : "text-ink-secondary hover:text-white",
-          )}
-        >
-          <Upload className="h-3 w-3" /> Upload
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("url")}
-          className={cn(
-            "px-3 py-1 text-[11px] font-semibold rounded-full transition inline-flex items-center gap-1",
-            mode === "url" ? "button-gradient text-surface-1" : "text-ink-secondary hover:text-white",
-          )}
-        >
-          <LinkIcon className="h-3 w-3" /> Paste URL
-        </button>
-      </div>
-
-      {/*
-        Compact preview: 64x64 / 96x64 thumb when empty, h-20/h-24 inline
-        preview when filled. Click opens the full image in a new tab.
-      */}
-      <div className="flex items-start gap-3">
-        {/* Preview thumbnail — small, fixed height, doesn't reserve
-            an aspect-ratio slot when empty. */}
         <div
           className={cn(
-            "relative rounded-xl overflow-hidden bg-surface-2 border border-white/10 flex items-center justify-center shrink-0",
-            value
-              ? aspect === "wide"
-                ? "h-20 w-32"   //  128 × 80 — 8:5
-                : "h-20 w-20"   //   80 × 80 — square
-              : aspect === "wide"
-                ? "h-16 w-24"   // empty: smaller still
-                : "h-16 w-16",
+            "group relative rounded-xl overflow-hidden bg-zinc-950 border-2 border-dashed border-zinc-800",
+            "flex items-center justify-center cursor-pointer",
+            "hover:border-amber-400/40 transition-all duration-300",
+            !dropZoneClassName && (isWide ? "h-32 w-full" : "h-[7.5rem] w-[7.5rem]"),
+            dropZoneClassName,
           )}
+          onClick={() => fileRef.current?.click()}
         >
           {value ? (
             <>
-              <Image src={value} alt="" fill sizes="128px" className="object-cover" unoptimized={isDataUrl(value)} />
+              <img src={value} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                <Upload className="h-4 w-4 text-amber-400" />
+                <span className="text-[11px] font-bold text-amber-400">Replace</span>
+              </div>
               <button
                 type="button"
-                onClick={() => onChange("")}
+                onClick={(e) => { e.stopPropagation(); onChange(""); }}
+                className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/70 text-zinc-400 hover:text-white hover:bg-red-500/80 transition z-10"
                 aria-label="Remove image"
-                className="absolute top-1 right-1 p-1 rounded-full bg-surface-1/80 text-white hover:bg-metu-red/30"
               >
                 <X className="h-3 w-3" />
               </button>
             </>
           ) : (
-            <ImageIcon className="h-6 w-6 text-ink-dim/40" strokeWidth={1.5} />
+            <div className="flex flex-col items-center gap-2 px-3 select-none">
+              <ImageIcon className="h-5 w-5 text-zinc-700 group-hover:text-amber-400 transition shrink-0" strokeWidth={1.5} />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 group-hover:text-amber-400/80 transition">
+                Upload
+              </span>
+              {recommended && (
+                <span className="text-[9px] font-mono text-zinc-600 leading-tight">
+                  {recommended.w}×{recommended.h}
+                </span>
+              )}
+              <div className={cn(
+                "flex flex-col items-center gap-0.5 text-[9px] font-mono text-zinc-700 leading-tight",
+                isWide && "flex-row gap-1.5",
+              )}>
+                <span>PNG / JPEG</span>
+                {isWide && <span className="text-zinc-800">·</span>}
+                <span>Max {maxSizeMB} MB</span>
+              </div>
+              {helperText && (
+                <span className="text-[9px] text-zinc-600 text-center leading-tight">{helperText}</span>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Field */}
-        <div className="flex-1 min-w-0">
-          {mode === "upload" ? (
-            <>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) pickFile(f);
-                }}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full rounded-xl border border-dashed border-white/15 bg-surface-2 hover:border-metu-yellow/50 hover:bg-white/[0.03] py-3 px-4 text-sm text-ink-secondary text-left transition flex items-center gap-3"
-              >
-                <Upload className="h-4 w-4 text-metu-yellow shrink-0" />
-                <span className="flex-1 min-w-0">
-                  <span className="block font-semibold text-white">Click to upload</span>
-                  <span className="block text-[10px] text-ink-dim">PNG / JPG / WebP · up to 1 MB</span>
-                </span>
-              </button>
-            </>
-          ) : (
-            <input
-              value={value.startsWith("data:") ? "" : value}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder="https://images.unsplash.com/photo-…"
-              className="w-full rounded-xl border border-white/10 bg-surface-2 px-4 py-2.5 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
-            />
-          )}
-          {error && <p className="text-xs text-red-400 mt-1.5">{error}</p>}
-        </div>
+        {error && <p className="text-[11px] text-red-400">{error}</p>}
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={onFileChange} />
       </div>
-    </div>
+
+      {tempSrc && (
+        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center p-6 gap-6">
+          <div
+            className="relative w-full max-w-2xl bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800"
+            style={{ aspectRatio: aspectRatio < 1.5 ? "1/1" : "16/7" }}
+          >
+            <Cropper
+              image={tempSrc}
+              crop={crop}
+              zoom={zoom}
+              aspect={aspectRatio}
+              onCropChange={setCrop}
+              onCropComplete={onCropComplete}
+              onZoomChange={setZoom}
+              showGrid
+              style={{ containerStyle: { borderRadius: "1rem" } }}
+            />
+          </div>
+
+          {/* zoom + actions unchanged */}
+                    <div className="flex items-center gap-3 w-full max-w-2xl">
+            <ZoomOut className="h-4 w-4 text-zinc-500 shrink-0" />
+            <input
+              type="range"
+              min={1}
+              max={3}
+              step={0.05}
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className="flex-1 accent-amber-400 h-1"
+            />
+            <ZoomIn className="h-4 w-4 text-zinc-500 shrink-0" />
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 w-full max-w-2xl">
+            <button
+              type="button"
+              onClick={() => setTempSrc(null)}
+              className="flex-1 py-3.5 rounded-xl bg-zinc-800 text-sm font-bold text-zinc-300 hover:bg-zinc-700 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmCrop}
+              disabled={cropping}
+              className="flex-1 py-3.5 rounded-xl bg-amber-400 text-zinc-950 text-sm font-bold hover:bg-amber-300 transition shadow-[0_0_24px_rgba(251,191,36,0.25)] flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {cropping ? (
+                "Processing…"
+              ) : (
+                <>
+                  <Check className="h-4 w-4" /> Confirm Crop
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

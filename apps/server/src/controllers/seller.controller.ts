@@ -6,11 +6,53 @@ import { AppError } from "../utils/errors.js";
 import {
   becomeSellerSchema,
   updateStoreSchema,
-  productInputSchema,
   couponInputSchema,
   patchVariantSchema,
   updateOrderStatusSchema,
 } from "../models/seller.model.js";
+
+import z from "zod";
+import { DELIVERY_METHOD } from "@metu/shared";
+
+const productItemInputSchema = z.object({
+  name: z.string().max(100), 
+  description: z.string().max(255).nullable(),
+  image: z.string().nullable(),
+  quantity: z.number().int().min(0).nullable().optional(),
+  deliveryMethod: z.enum(DELIVERY_METHOD),
+  price: z.number().positive(),
+  discountPercent: z.number().int().min(0).max(100).default(0),
+  discountAmount: z.number().nonnegative().default(0),
+  deliveryUrl: z
+    .string()
+    .url()
+    .max(500)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  licenseKeyTemplate: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/^[A-Za-z0-9\-_]+$/, "Use letters, digits, hyphens, or underscores only")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+});
+
+const productAddDetailInputSchema = z.object({
+  detailName: z.string().max(100),
+  detailValue: z.string().max(200),
+});
+
+const productInputSchema = z.object({
+  name: z.string().min(2).max(100),
+  description: z.string().min(2).max(255),
+  categoryId: z.number().int().positive(),
+  images: z.array(z.string().url()).min(1).max(5),
+  tagIds: z.array(z.number().int().positive()).max(10).default([]),
+  items: z.array(productItemInputSchema).min(1).max(5),
+  isStackable: z.boolean().optional(),
+  details: z.array(productAddDetailInputSchema).max(6).default([]),
+});
 
 /**
  * GET /seller/store — current seller's store w/ businessType + stats.
@@ -149,15 +191,16 @@ export const updateProduct: RequestHandler<{ id: string }> = async (req, res, ne
     const productId = Number(req.params.id);
     if (!Number.isFinite(productId)) throw new AppError(400, "BadId");
     await service.assertProductOwnership(productId, store.storeId);
-
+    console.log("1522222:")
+    console.log(req.body)
     const body = req.body ?? {};
-    // Pause-toggle fast path: pure { isActive: boolean }.
     if (typeof body?.isActive === "boolean" && Object.keys(body).length === 1) {
       const r = await service.updateProduct(productId, store.storeId, body);
       res.json({ ok: true, isActive: (r as { isActive: boolean }).isActive });
       return;
     }
     const parsed = productInputSchema.safeParse(body);
+    console.log(parsed.data)
     if (!parsed.success) throw parsed.error;
     await service.updateProduct(productId, store.storeId, parsed.data);
     res.json({ ok: true });
@@ -242,7 +285,7 @@ export const updateOrderStatus: RequestHandler<{ id: string }> = async (req, res
     if (!Number.isFinite(orderId)) throw new AppError(400, "BadId");
     const parsed = updateOrderStatusSchema.safeParse(req.body);
     if (!parsed.success) throw parsed.error;
-    await service.updateOrderStatus(orderId, store.storeId, auth.uid, parsed.data, req);
+    await service.updateOrderStatus(orderId, store.storeId, auth.uid, parsed.data);
     res.json({ ok: true });
   } catch (err) {
     next(err);

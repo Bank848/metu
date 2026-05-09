@@ -25,15 +25,16 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^12.12.1",
+    "framer-motion": "^12.38.0",
     "jsonwebtoken": "^9.0.2",
     "leo-profanity": "^1.9.0",
     "lucide-react": "^0.462.0",
-    "next": "15.5.16",
+    "next": "14.2.35",
     "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwind-merge": "^2.5.4",
-    "undici": "^6.21.1"
+    "react-easy-crop": "^5.5.7",
+    "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

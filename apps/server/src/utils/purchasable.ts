@@ -83,12 +83,14 @@ export async function loadPurchasableProductItem(
   }
 
   const isDigital = DIGITAL_DELIVERY.has(row.deliveryMethod);
-  const quantityCap = isDigital ? 1 : Math.max(0, row.quantity);
+  // ProductItem.quantity is nullable post-PR; null = unlimited stock.
+  const stockOrZero = row.quantity ?? 0;
+  const quantityCap = isDigital ? 1 : Math.max(0, stockOrZero);
 
   return {
     productItemId: row.productItemId,
     deliveryMethod: row.deliveryMethod,
-    stock: row.quantity,
+    stock: stockOrZero,
     product: {
       productId: row.product.productId,
       name: row.product.name,

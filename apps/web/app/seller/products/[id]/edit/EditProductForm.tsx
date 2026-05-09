@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Plus, Trash2, Info } from "lucide-react";
+import { Plus, Trash2, Info, Tag as TagIcon } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
 import { cn } from "@/lib/utils";
@@ -10,12 +10,14 @@ import { TextInput } from "@/components/forms/TextInput";
 import { TextareaInput } from "@/components/forms/TextareaInput";
 import { SelectInput } from "@/components/forms/SelectInput";
 import { VariantRow, type VariantRowValue } from "@/components/forms/VariantRow";
+import { AdditionalDetailRow, type AdditionalDetailRowValue } from "@/components/forms/AdditionalDetailRow";
 import { PreviewPane } from "@/components/forms/PreviewPane";
 
 type Category = { categoryId: number; categoryName: string };
 type Tag = { tagId: number; tagName: string };
 
 type Variant = VariantRowValue;
+type AdditionalDetail = AdditionalDetailRowValue;
 
 type Initial = {
   name: string;
@@ -25,26 +27,18 @@ type Initial = {
   tagIds: number[];
   items: Variant[];
   isStackable: boolean;
-  // CPE241 Business Rule 4g — up to 7 freeform key/value rows
-  // (e.g. "Format" / "PNG/JPG", "License" / "Personal use"). Optional;
-  // empty array means the seller didn't fill any in.
   details: { detailName: string; detailValue: string }[];
 };
 
 const DEFAULT_VARIANT: Variant = {
+  name: "Unnamed Product",
   deliveryMethod: "download",
-  quantity: 999,
-  price: 990,
+  price: 100,
   discountPercent: 0,
   discountAmount: 0,
 };
 
-/**
- * Edit form for an existing product — mirrors NewProductForm. Submits
- * via PATCH; existing variants can't be deleted because OrderItem and
- * CartItem FK into them. A mint info banner above Variants explains
- * the lock to sellers.
- */
+
 type Mode = "seller" | "admin";
 
 export function EditProductForm({
@@ -59,17 +53,10 @@ export function EditProductForm({
   initial: Initial;
   categories: Category[];
   tags: Tag[];
-  /** "admin" routes through /api/admin/stores/:storeId/products/:productId
-      and writes an admin-prefixed audit row; default "seller" hits the
-      session-scoped /api/seller/products/:productId. */
   mode?: Mode;
-  /** Required when mode="admin" — used to build the admin endpoint URL
-      and the cancel-button href. Ignored for seller mode. */
   storeId?: number;
 }) {
-  // Endpoint + cancel target keyed off mode. The form layout is the
-  // same in both contexts; only the API target and the secondary CTA
-  // differ.
+
   const endpoint =
     mode === "admin"
       ? `/api/admin/stores/${storeId}/products/${productId}`
@@ -78,6 +65,7 @@ export function EditProductForm({
     mode === "admin" ? `/admin/stores/${storeId}` : "/seller/products";
   const onSavedHref =
     mode === "admin" ? `/admin/stores/${storeId}` : "/seller/products";
+
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,34 +74,15 @@ export function EditProductForm({
   const [categoryId, setCategoryId] = useState<number>(initial.categoryId);
   const [images, setImages] = useState<string[]>(initial.images.length ? initial.images : [""]);
   const [tagIds, setTagIds] = useState<number[]>(initial.tagIds);
-  const [details, setDetails] = useState<{ detailName: string; detailValue: string }[]>(
-    initial.details ?? [],
-  );
+  const [details, setDetails] = useState<AdditionalDetail[]>(initial.details ?? []);
+  const [variants, setVariants] = useState<Variant[]>(initial.items ?? []);
 
-  function addDetail() {
-    if (details.length < 7) {
-      setDetails((prev) => [...prev, { detailName: "", detailValue: "" }]);
-    }
-  }
-  function updateDetail(i: number, patch: Partial<{ detailName: string; detailValue: string }>) {
-    setDetails((prev) => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
-  }
-  function removeDetail(i: number) {
-    setDetails((prev) => prev.filter((_, idx) => idx !== i));
-  }
-  const [variants, setVariants] = useState<Variant[]>(initial.items.length ? initial.items : [{ ...DEFAULT_VARIANT }]);
-  // when false, buyers can't re-purchase this product.
-  // Default seeded from props; the checkbox lets the seller override
-  // the delivery-method-based default (license_key = stackable, the
-  // rest = single-copy).
-  const [isStackable, setIsStackable] = useState<boolean>(initial.isStackable);
-  // Variants that existed at page-load time are protected from in-form
-  // deletion because the API can't drop a ProductItem with FKs.
   const existingVariantCount = initial.items.length;
 
   function toggleTag(id: number) {
     setTagIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   }
+
   function updateImage(i: number, v: string) {
     setImages((prev) => prev.map((u, idx) => (idx === i ? v : u)));
   }
@@ -123,6 +92,7 @@ export function EditProductForm({
   function removeImage(i: number) {
     if (images.length > 1) setImages((prev) => prev.filter((_, idx) => idx !== i));
   }
+
   function updateVariant(i: number, patch: Partial<Variant>) {
     setVariants((prev) => prev.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
   }
@@ -130,19 +100,29 @@ export function EditProductForm({
     if (variants.length < 5) setVariants((prev) => [...prev, { ...DEFAULT_VARIANT }]);
   }
   function removeVariant(i: number) {
-    // Only net-new variants (added in this edit session) can be removed.
     if (i < existingVariantCount) return;
     if (variants.length > 1) setVariants((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  function updateDetail(i: number, patch: Partial<AdditionalDetail>) {
+    setDetails((prev) => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
+  }
+  function addDetail() {
+    if (details.length < 6) setDetails((prev) => [...prev, { detailName: "", detailValue: "" }]);
+  }
+  function removeDetail(i: number) {
+    setDetails((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
   const cleanImages = images.map((u) => u.trim()).filter(Boolean);
-  const prices = variants.map((v) => v.price * (1 - v.discountPercent / 100));
-  const minPrice = prices.length ? Math.min(...prices) : 0;
-  const maxPrice = prices.length ? Math.max(...prices) : 0;
-  const previewDiscount = variants[0]?.discountPercent ?? 0;
-  const tagNames = tags
-    .filter((t) => tagIds.includes(t.tagId))
-    .map((t) => t.tagName);
+  const rawPrices = variants.map((v) => v.price);
+  const discountedPrices = variants.map((v) => v.price * (1 - v.discountPercent / 100));
+  const minPrice = Math.min(...discountedPrices);
+  const maxPrice = Math.max(...discountedPrices);
+  const minRaw = Math.min(...rawPrices);
+  const maxRaw = Math.max(...rawPrices);
+  const previewDiscount = variants.length ? Math.max(...variants.map((v) => v.discountPercent)) : 0;
+  const tagNames = tags.filter((t) => tagIds.includes(t.tagId)).map((t) => t.tagName);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -163,22 +143,27 @@ export function EditProductForm({
           categoryId,
           images: cleanImages,
           tagIds,
-          isStackable,
           details: details
-            .filter((d) => d.detailName.trim() && d.detailValue.trim())
+            .filter((d) => d.detailName?.trim() || d.detailValue?.trim())
             .map((d) => ({
-              detailName: d.detailName.trim().slice(0, 80),
-              detailValue: d.detailValue.trim().slice(0, 255),
+              detailName: d.detailName?.trim().slice(0, 80) ?? "",
+              detailValue: d.detailValue?.trim().slice(0, 255) ?? "",
             })),
           items: variants.map((v) => ({
-            ...v,
+            name: v.name?.trim() || name.trim(),
+            description: v.description?.trim() || description.trim(),
+            image: v.image && v.image.trim() !== "" ? v.image.trim() : null,
+            deliveryMethod: v.deliveryMethod,
+            quantity: v.quantity ?? null,
+            price: v.price,
+            discountPercent: v.discountPercent,
             discountAmount: (v.price * v.discountPercent) / 100,
-            sampleUrl: v.sampleUrl?.trim() || undefined,
             deliveryUrl: v.deliveryUrl?.trim() || undefined,
             licenseKeyTemplate: v.licenseKeyTemplate?.trim() || undefined,
           })),
         }),
       });
+
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data?.message ?? data?.error ?? "Failed to save changes");
@@ -197,6 +182,7 @@ export function EditProductForm({
   return (
     <form onSubmit={submit} className="grid gap-8 lg:grid-cols-[1fr_360px]">
       <div className="space-y-6 min-w-0">
+
         {/* Basics */}
         <FormSection title="Basics" description="Name, pitch, and category — what shows up first in search.">
           <TextInput
@@ -226,37 +212,51 @@ export function EditProductForm({
           />
         </FormSection>
 
-        {/* Imagery */}
+        {/* Imagery — grid layout matching NewProductForm */}
         <FormSection
           title={`Imagery (${images.length}/5)`}
-          description="Upload a file or paste a public URL. The first image becomes the cover."
-          accent="mint"
-          variant="accent"
+          description="The first image becomes the cover."
+
         >
-          {images.map((url, i) => (
-            <div key={i} className="flex gap-2 items-start">
-              <span className="font-mono text-[10px] text-ink-dim w-4 pt-2 shrink-0">{i + 1}</span>
-              <div className="flex-1 min-w-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {images.map((url, i) => (
+              <div key={i} className="relative group flex flex-col gap-1.5">
                 <FileImageInput
-                  label={`Image ${i + 1}${i === 0 ? " · cover" : ""}`}
+                  label={i === 0 ? "Cover" : `Image ${i + 1}`}
                   value={url}
                   onChange={(v) => updateImage(i, v)}
-                  recommended={{ w: 1200, h: 800, note: "landscape product shot" }}
                   aspect="wide"
+                  dropZoneClassName="w-full aspect-[3/2]"
                 />
+                {images.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeImage(i)}
+                    className="absolute top-6 right-1 p-1 rounded-full bg-black/70 text-zinc-400 hover:text-white hover:bg-red-500/80 transition opacity-0 group-hover:opacity-100 z-20"
+                    aria-label="Remove image"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
               </div>
-              {images.length > 1 && (
-                <button type="button" onClick={() => removeImage(i)} className="text-ink-dim hover:text-coral p-2 shrink-0" aria-label="Remove image slot">
-                  <Trash2 className="h-4 w-4" />
+            ))}
+
+            {images.length < 5 && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-bold uppercase tracking-widest text-transparent select-none">
+                  Add
+                </span>
+                <button
+                  type="button"
+                  onClick={addImage}
+                  className="w-full aspect-[3/2] border-2 border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center gap-2 text-zinc-600 hover:border-mint/50 hover:text-mint transition-colors bg-zinc-950"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span className="text-[10px] font-mono uppercase tracking-wider">Add</span>
                 </button>
-              )}
-            </div>
-          ))}
-          {images.length < 5 && (
-            <button type="button" onClick={addImage} className="inline-flex items-center gap-1.5 text-sm text-mint hover:underline">
-              <Plus className="h-3.5 w-3.5" /> Add image
-            </button>
-          )}
+              </div>
+            )}
+          </div>
         </FormSection>
 
         {/* Tags */}
@@ -280,6 +280,7 @@ export function EditProductForm({
                       : "bg-white/5 text-ink-secondary border-white/10 hover:border-mint/40 disabled:opacity-40",
                   )}
                 >
+                  <TagIcon className="inline h-3 w-3 mr-1 -mt-0.5" />
                   {t.tagName}
                 </button>
               );
@@ -287,99 +288,43 @@ export function EditProductForm({
           </div>
         </FormSection>
 
-        {/* CPE241 Business Rule 4g — up to 7 freeform key/value rows
-            for product specs, license terms, file formats, etc. Empty
-            rows are filtered out at submit. */}
+        {/* Additional Details — now uses AdditionalDetailRow component */}
         <FormSection
-          title={`Additional details (${details.length}/7)`}
+          title={`Additional Details (${details.length}/6)`}
           description="Optional spec sheet — name + value pairs. Buyers see this on the product page (e.g. Format · PNG/JPG)."
         >
-          {details.length > 0 && (
-            <div className="space-y-2">
-              {details.map((d, i) => (
-                <div key={i} className="flex gap-2 items-start">
-                  <input
-                    type="text"
-                    value={d.detailName}
-                    onChange={(e) => updateDetail(i, { detailName: e.target.value.slice(0, 80) })}
-                    placeholder="Format"
-                    className="flex-[1] rounded-xl border border-line bg-space-900 px-3 py-2 text-sm text-white outline-none focus:border-metu-yellow"
-                    maxLength={80}
-                  />
-                  <input
-                    type="text"
-                    value={d.detailValue}
-                    onChange={(e) => updateDetail(i, { detailValue: e.target.value.slice(0, 255) })}
-                    placeholder="PNG / JPG · 300 DPI · sRGB"
-                    className="flex-[2] rounded-xl border border-line bg-space-900 px-3 py-2 text-sm text-white outline-none focus:border-metu-yellow"
-                    maxLength={255}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeDetail(i)}
-                    className="text-ink-dim hover:text-coral p-2 shrink-0"
-                    aria-label="Remove detail row"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {details.length < 7 && (
+          {details.map((d, i) => (
+            <AdditionalDetailRow
+              key={i}
+              index={i}
+              value={d}
+              onChange={(patch) => updateDetail(i, patch)}
+              onRemove={() => removeDetail(i)}
+              removable={details.length > 1}
+            />
+          ))}
+          {details.length < 6 && (
             <button
               type="button"
               onClick={addDetail}
               className="inline-flex items-center gap-1.5 text-sm text-mint hover:underline"
             >
-              <Plus className="h-3.5 w-3.5" /> Add row
+              <Plus className="h-3.5 w-3.5" /> Add Detail
             </button>
           )}
         </FormSection>
 
-        {/* Stackable products (license keys etc.) can be re-bought;
-            single-copy products are blocked from repeat orders. */}
+        {/* Variants */}
         <FormSection
-          title="Purchase rule"
-          description="Whether the same buyer can buy this product more than once."
-        >
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={isStackable}
-              onChange={(e) => setIsStackable(e.target.checked)}
-              className="mt-1 h-4 w-4 accent-metu-yellow shrink-0"
-            />
-            <span className="text-sm text-ink-secondary">
-              <span className="font-semibold text-white">
-                Allow customers to buy this product more than once
-              </span>
-              <br />
-              Default behaviour is based on delivery method —{" "}
-              <code className="text-metu-yellow">license_key</code> products
-              are stackable, the rest (download / streaming / email) are
-              single-copy. Override here if you sell multi-pack license
-              keys, custom briefs, or anything else where a repeat purchase
-              from the same buyer is meaningful.
-            </span>
-          </label>
-        </FormSection>
-
-        {/* Variants — coral banner explains the protected (live) variants
-            that the API refuses to drop because they have OrderItem /
-            CartItem FKs. */}
-        <FormSection
-          title={`Variants (${variants.length}/5)`}
-          accent="coral"
-          description="Update price, stock, and discount. Sold variants stay for order history."
+          title={`Variants (${variants.length}/6)`}
+          description="A product can have multiple SKUs (e.g. download vs license key) at different prices."
         >
           {existingVariantCount > 0 && (
-            // Informational banner shown on every edit of a product with
-            // sales history; mint surface keeps it from reading destructive.
             <div className="surface-accent rounded-xl px-4 py-3 flex items-start gap-2.5">
               <Info className="h-4 w-4 text-mint mt-0.5 shrink-0" />
               <p className="text-xs text-ink-secondary leading-relaxed">
-                Variants with sales history are <span className="text-mint font-semibold">locked</span> —
+                Variants with sales history are{" "}
+                <span className="text-mint font-semibold">locked</span> —
                 these can be edited but not deleted.
               </p>
             </div>
@@ -398,8 +343,12 @@ export function EditProductForm({
               />
             );
           })}
-          {variants.length < 5 && (
-            <button type="button" onClick={addVariant} className="inline-flex items-center gap-1.5 text-sm text-mint hover:underline">
+          {variants.length < 6 && (
+            <button
+              type="button"
+              onClick={addVariant}
+              className="inline-flex items-center gap-1.5 text-sm text-mint hover:underline"
+            >
               <Plus className="h-3.5 w-3.5" /> Add variant
             </button>
           )}
@@ -415,6 +364,7 @@ export function EditProductForm({
         </div>
       </div>
 
+      {/* Preview */}
       <div className="lg:sticky lg:top-24 lg:self-start">
         <PreviewPane
           variant="product"
@@ -423,9 +373,12 @@ export function EditProductForm({
             description,
             minPrice,
             maxPrice: maxPrice !== minPrice ? maxPrice : undefined,
+            originalMinPrice: minRaw,
+            originalMaxPrice: maxRaw,
             image: cleanImages[0] ?? "",
             discountPercent: previewDiscount > 0 ? previewDiscount : undefined,
             tags: tagNames.length > 0 ? tagNames : undefined,
+            details: details.filter((d) => d.detailName || d.detailValue),
           }}
         />
       </div>

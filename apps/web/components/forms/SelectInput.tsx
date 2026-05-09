@@ -3,11 +3,6 @@ import { cn } from "@/lib/utils";
 
 export type SelectOption = { value: string; label: string };
 
-/**
- * Select primitive. Same focus/error styling as the other inputs so
- * mixed rows align. Options come as a flat array; native dropdown menu
- * (reskinning the popup needs a custom listbox).
- */
 export interface SelectInputProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> {
   label?: string;
   helperText?: string;
@@ -50,8 +45,8 @@ export const SelectInput = forwardRef<HTMLSelectElement, SelectInputProps>(
           className={cn(
             "w-full rounded-xl border bg-surface-2 px-4 py-2.5 text-white outline-none transition",
             hasError
-              ? "border-coral focus:border-coral focus:ring-2 focus:ring-coral/25"
-              : "border-white/10 focus:border-mint focus:ring-2 focus:ring-mint/25",
+              ? "border-coral"
+              : "border-white/10",
             className,
           )}
           {...rest}

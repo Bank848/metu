@@ -30,8 +30,6 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-// Prompt — Thai-locale strings opt in via the `font-thai` Tailwind
-// class. Body weights only; Thai display reuses the same family.
 const thai = Prompt({
   subsets: ["thai", "latin"],
   weight: ["400", "500", "600", "700"],
@@ -43,8 +41,6 @@ export const metadata: Metadata = {
   title: "METU — Digital Marketplace",
   description:
     "METU is the digital marketplace for Thai creators. Templates, music, courses, art — sell and buy without ever shipping a thing.",
-  // Set the canonical site URL so Open Graph / Twitter cards resolve absolute
-  // image paths and the sitemap helper can derive the same base.
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://metu.fly.dev"),
   applicationName: "METU",
   appleWebApp: {
@@ -65,8 +61,6 @@ export const metadata: Metadata = {
   },
 };
 
-// Browser chrome / iOS status bar tint. Kept separate from `metadata` so
-// it lives on the recommended `viewport` export per Next 14 conventions.
 export const viewport = {
   themeColor: "#0E0E0E",
   width: "device-width",
@@ -74,32 +68,13 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // Read the user's saved locale from cookies so the server-rendered
-  // markup ships with the right language and there's no flash of English
-  // before the client provider takes over.
   const locale = getServerLocale();
   return (
-    // `suppressHydrationWarning` — themeBootstrapScript rewrites the html
-    // class before React hydrates; standard next-themes pattern.
     <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} ${thai.variable} dark`} suppressHydrationWarning>
       <head>
-        {/*
-          Bootstrap the user's saved theme BEFORE hydration so we never
-          flash the wrong palette on hard reload. Runs synchronously in
-          the document head, reads localStorage, swaps the html class.
-          Tiny inline script — no separate request.
-        */}
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className="min-h-screen bg-surface-1 text-ink-primary font-body antialiased">
-        {/*
-          Skip-to-content — first focusable element on every page so
-          keyboard + screen-reader users can bypass the TopNav. Hidden
-          off-screen until focused, then springs into the top-left
-          corner with a brand-yellow pill so it's impossible to miss.
-          Pages render their main content inside <main id="main"> so
-          this anchor always has a target.
-        */}
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-full focus:bg-brand-yellow focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-space-black focus:shadow-2xl focus:outline-none focus:ring-2 focus:ring-brand-yellow/60"
@@ -110,8 +85,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <KeyboardShortcuts />
           <CompareDrawer />
-          {/* Mobile-only thumb-reach nav. Always renders the heart;
-              the favoritesEnabled flag isn't threaded into this RSC. */}
           <MobileBottomNav />
         </I18nProvider>
         <PlausibleScript />

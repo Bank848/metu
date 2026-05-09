@@ -82,58 +82,98 @@ export async function getFeaturedProducts(take = 8) {
   return (items as any[]).slice(0, take);
 }
 
-// 8 product cards from sellers at sellerLevel ≥ 3, ranked by store rating
-// + sellerLevel + reviews. Drives the "From top sellers" carousel on
-// /browse — surfaces high-tier creators above the rest of the grid.
 export async function getTopSellerProducts(take = 8) {
   type Row = {
-    product_id: number; name: string; description: string;
+    product_id: number;
+    name: string;
+    description: string;
     image: string | null;
-    store_name: string; store_id: number;
-    seller_level: number; rating: number;
+    store_name: string;
+    store_id: number;
+    store_image: string | null,
+    seller_level: number;
+    rating: number;
+    review_count: number;
     min_price: string;
+    max_price: string;
+    min_price_original: string;
+    max_price_original: string;
+    max_discount: number;
+    tags: string;
   };
+
   const rows = await prisma.$queryRaw<Row[]>`
     SELECT
-      p.product_id, p.name, p.description,
-      (SELECT pi2.product_image FROM "product_image" pi2
+      p.product_id,
+      p.name,
+      p.description,
+      (
+        SELECT pi2.product_image FROM "product_image" pi2
         WHERE pi2.product_id = p.product_id
-        ORDER BY pi2.sort_order ASC LIMIT 1) AS image,
-      s.name        AS store_name,
-      s.store_id    AS store_id,
+        ORDER BY pi2.sort_order ASC LIMIT 1
+      ) AS image,
+      s.name     AS store_name,
+      s.store_id AS store_id,
+      s.profile_image AS store_image,
       COALESCE(us.seller_level, 0) AS seller_level,
-      s.rating      AS rating,
+      s.rating AS rating,
+      (SELECT COUNT(*) FROM "product_review" pr WHERE pr.product_id = p.product_id)::int AS review_count,
       COALESCE((
         SELECT MIN(price * (100 - COALESCE(discount_percent, 0)) / 100.0)::text
-          FROM "product_item" WHERE product_id = p.product_id
-      ), '0') AS min_price
+        FROM "product_item" WHERE product_id = p.product_id
+      ), '0') AS min_price,
+      COALESCE((
+        SELECT MAX(price * (100 - COALESCE(discount_percent, 0)) / 100.0)::text
+        FROM "product_item" WHERE product_id = p.product_id
+      ), '0') AS max_price,
+      COALESCE((
+        SELECT MIN(price)::text FROM "product_item" WHERE product_id = p.product_id
+      ), '0') AS min_price_original,
+      COALESCE((
+        SELECT MAX(price)::text FROM "product_item" WHERE product_id = p.product_id
+      ), '0') AS max_price_original,
+      COALESCE((
+        SELECT MAX(COALESCE(discount_percent, 0)) FROM "product_item" WHERE product_id = p.product_id
+      ), 0) AS max_discount,
+      COALESCE((
+        SELECT STRING_AGG(t.tag_name, ',')
+        FROM "product_n_tag" pnt
+        JOIN "product_tag" t ON t.tag_id = pnt.tag_id
+        WHERE pnt.product_id = p.product_id
+      ), '') AS tags
     FROM "product" p
-    JOIN "store"   s  ON s.store_id = p.store_id
+    JOIN "store" s ON s.store_id = p.store_id
     LEFT JOIN "user_stats" us ON us.user_id = s.owner_id
     WHERE p.is_active = true
       AND s.suspended_at IS NULL
       AND COALESCE(us.seller_level, 0) >= 3
-    ORDER BY us.seller_level DESC NULLS LAST,
-             s.rating DESC,
-             (SELECT COUNT(*) FROM "product_review" pr WHERE pr.product_id = p.product_id) DESC
+    ORDER BY
+      us.seller_level DESC NULLS LAST,
+      s.rating DESC,
+      review_count DESC
     LIMIT ${take}
   `;
+
   return rows.map((r) => ({
     productId: r.product_id,
     name: r.name,
     description: r.description,
     image: r.image ?? `https://picsum.photos/seed/p${r.product_id}/800/600`,
     minPrice: Number(r.min_price),
+    maxPrice: Number(r.max_price),
+    originalMinPrice: Number(r.min_price_original),
+    originalMaxPrice: Number(r.max_price_original),
     storeName: r.store_name,
     storeId: r.store_id,
+    storeImage: r.store_image,
     sellerLevel: Number(r.seller_level),
     avgRating: r.rating > 0 ? r.rating / 10 : undefined,
+    reviewCount: Number(r.review_count),
+    discountPercent: r.max_discount > 0 ? r.max_discount : undefined,
+    tags: r.tags ? r.tags.split(",").filter(Boolean) : [],
   }));
 }
 
-// Featured stores ranked by owner's sellerLevel, then store rating, then
-// recency. Promotes high-tier sellers on the landing page so newcomers
-// see established storefronts first.
 export async function getFeaturedStores(take = 4) {
   type Row = {
     store_id: number;
@@ -178,8 +218,7 @@ export async function getFeaturedStores(take = 4) {
   }));
 }
 
-// Featured coupons surfaced on the landing page — almost-expiring + scarce
-// ones first, master coupons get a yellow ring (storeId IS NULL).
+
 export async function getFeaturedCoupons(take = 6) {
   type Row = {
     coupon_id: number;
@@ -360,168 +399,194 @@ export const getCountries = unstable_cache(
   { revalidate: 3600, tags: ["countries"] },
 );
 
-/**
- * Browse products. API handles filters/sort/paging/shaping. BFF still
- * owns the minRating HAVING-clause until Reviews migrates server-side.
- */
 export async function browseProducts(params: {
   category?: number;
   tags?: string;
   minPrice?: number;
   maxPrice?: number;
+  originalMinPrice?: number;
+  originalMaxPrice?: number;
   delivery?: string;
   q?: string;
   sort?: "newest" | "price_asc" | "price_desc" | "rating";
   page?: number;
   pageSize?: number;
-  /** 1..5; minimum average review rating. Still BFF-side. */
   minRating?: number;
 }) {
   const sort = params.sort ?? "newest";
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 16;
-
-  const minRating = params.minRating && params.minRating > 0 ? params.minRating : null;
-
-  // minRating is applied BFF-side below.
-  const baseQuery = qs({
-    category: params.category,
-    tags: params.tags,
-    minPrice: params.minPrice,
-    maxPrice: params.maxPrice,
-    delivery: safeDelivery(params.delivery),
-    q: params.q,
-    sort,
-    page,
-    pageSize,
-  });
-
-  type ApiResp = {
-    items: Array<{
-      productId: number;
-      name: string;
-      description: string;
-      image: string;
-      minPrice: number;
-      maxPrice: number;
-      storeName: string;
-      storeId: number;
-      avgRating?: number;
-      reviewCount: number;
-      discountPercent?: number;
-      tags: string[];
-    }>;
-    page: number;
-    pageSize: number;
-    total: number;
-    totalPages: number;
-  };
-
-  if (minRating === null) {
-    return apiFetch<ApiResp>(`/products${baseQuery}`);
-  }
-
-  // minRating branch: resolve qualifying ids via raw SQL, then page.
-  const where: Prisma.ProductWhereInput = {
-    isActive: true,
-  };
-  if (params.category) where.categoryId = params.category;
-  if (params.q) {
-    where.OR = [
-      { name: { contains: params.q, mode: "insensitive" } },
-      { description: { contains: params.q, mode: "insensitive" } },
-      { store: { name: { contains: params.q, mode: "insensitive" } } },
-      { productNTags: { some: { tag: { tagName: { contains: params.q, mode: "insensitive" } } } } },
-    ];
-  }
-  if (params.tags) {
-    const tagIds = params.tags.split(",").map((s) => Number(s)).filter(Boolean);
-    if (tagIds.length) where.productNTags = { some: { tagId: { in: tagIds } } };
-  }
+  const offset = (page - 1) * pageSize;
   const delivery = safeDelivery(params.delivery);
-  if (params.minPrice !== undefined || params.maxPrice !== undefined || delivery) {
-    where.items = {
-      some: {
-        ...(params.minPrice !== undefined ? { price: { gte: params.minPrice } } : {}),
-        ...(params.maxPrice !== undefined ? { price: { lte: params.maxPrice } } : {}),
-        ...(delivery ? { deliveryMethod: delivery } : {}),
-      },
-    };
-  }
-  const orderBy: Prisma.ProductOrderByWithRelationInput =
-    sort === "newest"
-      ? { createdAt: "desc" }
-      : sort === "rating"
-      ? { reviews: { _count: "desc" } }
-      : sort === "price_asc"
-      ? { productId: "asc" }
-      : { productId: "desc" };
 
-  const candidateRows = await prisma.product.findMany({
-    where,
-    orderBy,
-    select: { productId: true },
-  });
-  if (candidateRows.length === 0) {
-    return { items: [], page, pageSize, total: 0, totalPages: 1 };
-  }
-  const candidateIds = candidateRows.map((r) => r.productId);
-  const ratingRows = await prisma.$queryRaw<Array<{ product_id: number }>>`
-    SELECT product_id
-      FROM product_review
-     WHERE product_id IN (${Prisma.join(candidateIds)})
-     GROUP BY product_id
-    HAVING AVG(rating::float) >= ${minRating}
-  `;
-  const qualifyingIds = new Set(ratingRows.map((r) => Number(r.product_id)));
-  if (qualifyingIds.size === 0) {
-    return { items: [], page, pageSize, total: 0, totalPages: 1 };
+  const conditions: Prisma.Sql[] = [
+    Prisma.sql`p.is_active = true`,
+  ];
+
+  if (params.category !== undefined)
+    conditions.push(Prisma.sql`p.category_id = ${params.category}`);
+
+  if (params.q) {
+    const like = `%${params.q}%`;
+    conditions.push(Prisma.sql`(
+      p.name        ILIKE ${like} OR
+      p.description ILIKE ${like} OR
+      s.name        ILIKE ${like} OR
+      EXISTS (
+        SELECT 1 FROM "product_n_tag" pnt2
+        JOIN  "product_tag"   t2 ON t2.tag_id = pnt2.tag_id
+        WHERE pnt2.product_id = p.product_id
+          AND t2.tag_name ILIKE ${like}
+      )
+    )`);
   }
 
-  const effectiveWhere: Prisma.ProductWhereInput = {
-    ...where,
-    productId: { in: [...qualifyingIds] },
+  if (params.tags) {
+    const tagIds = params.tags.split(",").map(Number).filter(Boolean);
+    if (tagIds.length) {
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "product_n_tag" pnt3
+        WHERE pnt3.product_id = p.product_id
+          AND pnt3.tag_id IN (${Prisma.join(tagIds)})
+      )`);
+    }
+  }
+
+  // Price / delivery filters operate on product_item rows
+  const itemConditions: Prisma.Sql[] = [];
+
+  if (params.minPrice !== undefined)
+    itemConditions.push(Prisma.sql`price * (100 - COALESCE(discount_percent, 0)) / 100.0 >= ${params.minPrice}`);
+  if (params.maxPrice !== undefined)
+    itemConditions.push(Prisma.sql`price * (100 - COALESCE(discount_percent, 0)) / 100.0 <= ${params.maxPrice}`);
+  if (params.originalMinPrice !== undefined)
+    itemConditions.push(Prisma.sql`price >= ${params.originalMinPrice}`);
+  if (params.originalMaxPrice !== undefined)
+    itemConditions.push(Prisma.sql`price <= ${params.originalMaxPrice}`);
+  if (delivery)
+    itemConditions.push(Prisma.sql`delivery_method = ${delivery}`);
+
+  if (itemConditions.length) {
+    conditions.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "product_item" pi_f
+      WHERE pi_f.product_id = p.product_id
+        AND ${Prisma.join(itemConditions, " AND ")}
+    )`);
+  }
+
+  if (params.minRating && params.minRating > 0) {
+    conditions.push(Prisma.sql`(
+      SELECT AVG(rating::float) FROM "product_review"
+      WHERE product_id = p.product_id
+    ) >= ${params.minRating}`);
+  }
+
+  const whereClause = Prisma.join(conditions, " AND ");
+
+  // ---------- ORDER BY ----------
+  const orderByClause =
+    sort === "newest"    ? Prisma.sql`p.created_at DESC` :
+    sort === "price_asc" ? Prisma.sql`min_price ASC`     :
+    sort === "price_desc"? Prisma.sql`min_price DESC`    :
+    /* rating */           Prisma.sql`review_count DESC` ;
+
+  // ---------- main query ----------
+  type Row = {
+    product_id: number;
+    name: string;
+    description: string;
+    image: string | null;
+    store_name: string;
+    store_id: number;
+    store_image: string | null;
+    avg_rating: number | null;
+    review_count: number;
+    min_price: string;
+    max_price: string;
+    min_price_original: string;
+    max_price_original: string;
+    max_discount: number;
+    tags: string;
+    total_count: string; // COUNT(*) OVER () — comes back as string from raw query
   };
 
-  const [rows, total] = await Promise.all([
-    prisma.product.findMany({
-      where: effectiveWhere,
-      orderBy,
-      take: pageSize,
-      skip: (page - 1) * pageSize,
-      include: {
-        store: { select: { name: true, storeId: true } },
-        items: { select: { price: true, discountPercent: true } },
-        images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
-        productNTags: { include: { tag: { select: { tagName: true } } } },
-        reviews: { select: { rating: true } },
-      },
-    }),
-    prisma.product.count({ where: effectiveWhere }),
-  ]);
+  const rows = await prisma.$queryRaw<Row[]>`
+    SELECT
+      p.product_id,
+      p.name,
+      p.description,
+      (
+        SELECT pi2.product_image FROM "product_image" pi2
+        WHERE  pi2.product_id = p.product_id
+        ORDER  BY pi2.sort_order ASC LIMIT 1
+      ) AS image,
+      s.name     AS store_name,
+      s.store_id AS store_id,
+      s.profile_image AS store_image,
+      (
+        SELECT AVG(rating::float) FROM "product_review"
+        WHERE  product_id = p.product_id
+      ) AS avg_rating,
+      (
+        SELECT COUNT(*) FROM "product_review"
+        WHERE  product_id = p.product_id
+      )::int AS review_count,
+      COALESCE((
+        SELECT MIN(price * (100 - COALESCE(discount_percent, 0)) / 100.0)::text
+        FROM   "product_item" WHERE product_id = p.product_id
+      ), '0') AS min_price,
+      COALESCE((
+        SELECT MAX(price * (100 - COALESCE(discount_percent, 0)) / 100.0)::text
+        FROM   "product_item" WHERE product_id = p.product_id
+      ), '0') AS max_price,
+      COALESCE((
+        SELECT MIN(price)::text FROM "product_item" WHERE product_id = p.product_id
+      ), '0') AS min_price_original,
+      COALESCE((
+        SELECT MAX(price)::text FROM "product_item" WHERE product_id = p.product_id
+      ), '0') AS max_price_original,
+      COALESCE((
+        SELECT MAX(COALESCE(discount_percent, 0))
+        FROM   "product_item" WHERE product_id = p.product_id
+      ), 0) AS max_discount,
+      COALESCE((
+        SELECT STRING_AGG(t.tag_name, ',')
+        FROM   "product_n_tag" pnt
+        JOIN   "product_tag"   t ON t.tag_id = pnt.tag_id
+        WHERE  pnt.product_id = p.product_id
+      ), '') AS tags,
+      COUNT(*) OVER () AS total_count
+    FROM  "product" p
+    JOIN  "store"   s ON s.store_id = p.store_id
+    WHERE ${whereClause}
+    ORDER BY ${orderByClause}
+    LIMIT  ${pageSize}
+    OFFSET ${offset}
+  `;
 
-  const items = rows.map((p) => {
-    const prices = p.items.map((i) => Number(i.price));
-    const ratings = p.reviews.map((r) => r.rating);
-    const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
-    return {
-      productId: p.productId,
-      name: p.name,
-      description: p.description,
-      image: p.images[0]?.productImage ?? `https://picsum.photos/seed/p${p.productId}/800/600`,
-      minPrice: prices.length ? Math.min(...prices) : 0,
-      maxPrice: prices.length ? Math.max(...prices) : 0,
-      storeName: p.store.name,
-      storeId: p.store.storeId,
-      avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
-      reviewCount: ratings.length,
-      discountPercent: maxDiscount || undefined,
-      tags: p.productNTags.map((nt) => nt.tag.tagName),
-    };
-  });
+  if (rows.length === 0) {
+    return { items: [], page, pageSize, total: 0, totalPages: 1 };
+  }
 
-  if (sort === "price_asc") items.sort((a, b) => a.minPrice - b.minPrice);
-  if (sort === "price_desc") items.sort((a, b) => b.minPrice - a.minPrice);
+  const total = Number(rows[0].total_count);
+
+  const items = rows.map((r) => ({
+    productId: r.product_id,
+    name: r.name,
+    description: r.description,
+    image: r.image ?? `https://picsum.photos/seed/p${r.product_id}/800/600`,
+    minPrice: Number(r.min_price),
+    maxPrice: Number(r.max_price),
+    originalMinPrice: Number(r.min_price_original),
+    originalMaxPrice: Number(r.max_price_original),
+    storeName: r.store_name,
+    storeId: r.store_id,
+    storeImage: r.store_image,
+    avgRating: r.avg_rating != null ? r.avg_rating : undefined,
+    reviewCount: Number(r.review_count),
+    discountPercent: r.max_discount > 0 ? r.max_discount : undefined,
+    tags: r.tags ? r.tags.split(",").filter(Boolean) : [],
+  }));
 
   return {
     items,
@@ -532,13 +597,6 @@ export async function browseProducts(params: {
   };
 }
 
-// Product detail. BFF-direct until Reviews moves server-side.
-// also gate `isActive` and `store.suspendedAt` so paused
-// products + suspended stores can't be reached by direct URL. The
-// rating/count aggregate now uses `_count` + `_avg.rating` instead of
-// counting the `take: 5` review preview list (which capped reviewCount
-// at 5 even for products with hundreds of reviews and skewed avg
-// toward whichever 5 reviews happened to be newest).
 export async function getProduct(id: number) {
   const product = await prisma.product.findFirst({
     where: {
@@ -556,6 +614,7 @@ export async function getProduct(id: number) {
           businessType: { select: { name: true } },
         },
       },
+      details: true,
       category: true,
       // Allowlist — keep deliveryUrl + licenseKeyTemplate out of the
       // RSC Flight payload (mirrors the public API DTO).
@@ -572,7 +631,6 @@ export async function getProduct(id: number) {
           price: true,
           discountPercent: true,
           discountAmount: true,
-          sampleUrl: true,
           createdDate: true,
         },
       },

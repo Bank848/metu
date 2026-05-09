@@ -1,12 +1,8 @@
 import { forwardRef, type InputHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
-import { coinsOrFree, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 
-/**
- * Currency-aware NumberInput. Adds a "Buyer sees: ฿XXX" preview pill
- * inside the field that updates live (handy for discount entry). Only
- * THB renders a symbol; other codes fall through to the code itself.
- */
+
 export interface PriceInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
   label?: string;
   helperText?: string;
@@ -49,8 +45,8 @@ export const PriceInput = forwardRef<HTMLInputElement, PriceInputProps>(
     const previewText =
       currency === "THB"
         ? hasDiscount
-          ? `Buyer sees: ${coinsOrFree(thbToCoins(finalPrice))} after ${discountPercent}% off`
-          : `Buyer sees: ${coinsOrFree(thbToCoins(finalPrice))}`
+          ? `Buyer sees: ${coins(thbToCoins(finalPrice))} after ${discountPercent}% off`
+          : `Buyer sees: ${coins(thbToCoins(finalPrice))}`
         : hasDiscount
           ? `${currency} ${finalPrice.toFixed(2)} after ${discountPercent}% off`
           : `${currency} ${finalPrice.toFixed(2)}`;
@@ -84,12 +80,10 @@ export const PriceInput = forwardRef<HTMLInputElement, PriceInputProps>(
             className={cn(
               "w-full rounded-xl border bg-surface-2 px-4 py-2.5 text-white outline-none transition",
               "placeholder:text-ink-dim",
-              // Reserve right padding for the preview pill so the typed
-              // value never sits underneath it.
               "pr-44",
               hasError
-                ? "border-coral focus:border-coral focus:ring-2 focus:ring-coral/25"
-                : "border-white/10 focus:border-mint focus:ring-2 focus:ring-mint/25",
+                ? "border-coral"
+                : "border-white/10",
               className,
             )}
             {...rest}
@@ -102,7 +96,7 @@ export const PriceInput = forwardRef<HTMLInputElement, PriceInputProps>(
               "rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap",
               hasDiscount
                 ? "bg-coral/15 text-coral border border-coral/30"
-                : "bg-mint/15 text-mint border border-mint/30",
+                : "bg-mint/15 text-metu-yellow border border-metu-yellow/30",
             )}
           >
             {previewText}

@@ -5,15 +5,6 @@ import { cn, isDataUrl } from "@/lib/utils";
 import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
 
-/**
- * Live preview of how the marketplace will render the thing being
- * edited. Variants:
- *   - product → renders the real <ProductCard /> so the preview can't
- *     drift from production
- *   - store   → cover + profile + name
- *   - coupon  → coral pill summarising code, discount, min spend, expiry
- * Sticky-friendly: callers can wrap the pane to keep it in view.
- */
 export type ProductPreviewState = {
   name: string;
   description?: string;
@@ -22,7 +13,10 @@ export type ProductPreviewState = {
   image: string;
   storeName?: string;
   discountPercent?: number;
+  originalMinPrice?: number;
+  originalMaxPrice?: number;
   tags?: string[];
+  details?: { detailName?: string; detailValue?: string }[];
 };
 
 export type StorePreviewState = {
@@ -61,11 +55,6 @@ export function PreviewPane(props: PreviewPaneProps) {
   );
 }
 
-
-/** Renders the real ProductCard so the preview never diverges from the
- *  shipped grid card. We synthesise the productId because ProductCard's
- *  href requires one — anchored to 0, the preview link goes nowhere
- *  meaningful, but ProductCard renders identically. */
 function ProductPreview({ state }: { state: ProductPreviewState }) {
   const product: ProductCardProduct = {
     productId: 0,
@@ -73,14 +62,32 @@ function ProductPreview({ state }: { state: ProductPreviewState }) {
     description: state.description,
     minPrice: state.minPrice,
     maxPrice: state.maxPrice,
+    originalMinPrice: state.originalMinPrice,
+    originalMaxPrice: state.originalMaxPrice,
     image: state.image || "",
     storeName: state.storeName,
     discountPercent: state.discountPercent,
-    tags: state.tags,
   };
+
+  const visibleDetails = state.details?.filter(d => d.detailName || d.detailValue) ?? [];
+
   return (
-    <div className="pointer-events-none">
+    <div className="pointer-events-none space-y-3">
       <ProductCard product={product} variant="default" />
+
+      {visibleDetails.length > 0 && (
+        <div className="surface-flat rounded-xl px-4 py-3 space-y-2">
+          <p className="text-[10px] uppercase tracking-widest text-ink-dim font-mono">
+            Details
+          </p>
+          {visibleDetails.map((d, i) => (
+            <div key={i} className="flex items-baseline justify-between gap-4">
+              <span className="text-xs text-ink-secondary shrink-0">{d.detailName}</span>
+              <span className="text-xs text-white font-medium text-right">{d.detailValue}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -168,6 +175,7 @@ function CouponPreview({ state }: { state: CouponPreviewState }) {
           </div>
         </div>
       </div>
+      
     </div>
   );
 }

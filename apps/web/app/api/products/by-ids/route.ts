@@ -6,12 +6,6 @@ export const dynamic = "force-dynamic";
 
 const MAX_IDS = 24;
 
-/**
- * GET /api/products/by-ids?ids=1,2,3 — returns ProductCard-shaped rows
- * for the requested ids, preserving the order the client sent. Used by
- * the "Recently viewed" strip on /browse, which keeps a small history
- * in localStorage and asks us to hydrate it.
- */
 export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get("ids") ?? "";
   const ids = Array.from(
@@ -26,8 +20,6 @@ export async function GET(req: NextRequest) {
   if (ids.length === 0) return NextResponse.json({ items: [] });
 
   const products = await prisma.product.findMany({
-    // Hide products the seller paused — a user's recently-viewed history
-    // shouldn't surface ghosts. Hard-deleted products are gone naturally.
     where: {
       productId: { in: ids },
       isActive: true,

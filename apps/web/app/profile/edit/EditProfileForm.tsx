@@ -594,7 +594,7 @@ export function EditProfileForm({
           label="Profile picture"
           value={form.profileImage}
           onChange={(v) => setForm({ ...form, profileImage: v })}
-          recommended={{ w: 400, h: 400, note: "square avatar" }}
+          recommended={{ w: 400, h: 400 }}
           aspect="square"
         />
 

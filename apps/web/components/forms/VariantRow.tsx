@@ -1,17 +1,14 @@
 "use client";
-import { Trash2 } from "lucide-react";
+import { Trash2, ChevronDown, ChevronUp, Infinity, Hash } from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { coinsOrFree, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 import { SelectInput } from "./SelectInput";
 import { NumberInput } from "./NumberInput";
 import { TextInput } from "./TextInput";
+import { TextareaInput } from "./TextareaInput";
+import { FileImageInput } from "@/components/FileImageInput";
 
-/**
- * Variant editor row: delivery method on top, qty + price + discount
- * below. The "Buyer sees" pill on the right summarises post-discount
- * pricing for the whole row. `onChange` returns a partial patch so
- * callers can spread it directly into their state.
- */
 export type DeliveryMethod = "download" | "email" | "license_key" | "streaming";
 
 const DELIVERY_OPTIONS: { value: DeliveryMethod; label: string }[] = [
@@ -22,12 +19,14 @@ const DELIVERY_OPTIONS: { value: DeliveryMethod; label: string }[] = [
 ];
 
 export type VariantRowValue = {
+  name: string;
+  description?: string;
+  image?: string;
   deliveryMethod: DeliveryMethod;
-  quantity: number;
+  quantity?: number;
   price: number;
   discountPercent: number;
   discountAmount: number;
-  sampleUrl?: string | null;
   deliveryUrl?: string | null;
   licenseKeyTemplate?: string | null;
 };
@@ -37,14 +36,7 @@ export interface VariantRowProps {
   value: VariantRowValue;
   onChange: (next: Partial<VariantRowValue>) => void;
   onRemove?: () => void;
-  /**
-   * True when this variant is locked because the API can't drop it
-   * (sales history exists). The trash button stays in place so the row
-   * layout doesn't shift, but is dimmed and shows a tooltip explaining
-   * why it can't be used. Mirrors the EditProductForm pattern.
-   */
   isProtected?: boolean;
-  /** Whether the remove control should appear at all. */
   removable: boolean;
   className?: string;
 }
@@ -58,170 +50,200 @@ export function VariantRow({
   removable,
   className,
 }: VariantRowProps) {
+  const [expanded, setExpanded] = useState(true);
   const finalPrice = value.price * (1 - value.discountPercent / 100);
   const hasDiscount = value.discountPercent > 0;
 
   return (
-    <div
-      className={cn(
-        "surface-flat rounded-xl p-4 space-y-3 border transition",
-        // Hover gets a mint border accent — signals the row is the
-        // current edit target without flashing the whole page yellow.
-        "hover:border-mint/40",
-        className,
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-semibold text-ink-dim">
-              Variant {index + 1}
-            </span>
-            {isProtected && (
-              <span className="text-[10px] uppercase tracking-wider text-mint">
-                Live
-              </span>
-            )}
-          </div>
-          <SelectInput
-            label="Delivery method"
-            value={value.deliveryMethod}
-            onChange={(e) =>
-              onChange({ deliveryMethod: e.target.value as DeliveryMethod })
-            }
-            options={DELIVERY_OPTIONS}
-          />
+    <div className={cn(
+      "surface-flat rounded-xl border transition",
+      className,
+    )}>
+
+      {/* ── Header row (always visible) ── */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        {/* Variant image thumbnail */}
+        <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-white/5 shrink-0">
+          {value.image ? (
+            <img src={value.image} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-ink-dim text-[10px] font-mono">
+              {index + 1}
+            </div>
+          )}
         </div>
-        {removable && (
+
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-white truncate">
+            {value.name || `Variant ${index + 1}`}
+          </p>
+          <p className="text-[11px] text-ink-dim truncate">
+            {value.deliveryMethod} · ฿{finalPrice.toLocaleString()}
+            {hasDiscount && (
+              <span className="ml-1 text-coral">−{value.discountPercent}%</span>
+            )}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {removable && (
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={isProtected}
+              title={isProtected ? "Cannot delete — has sales history" : "Remove variant"}
+              className={cn(
+                "p-1.5 rounded-lg transition",
+                isProtected
+                  ? "text-ink-dim opacity-40 cursor-not-allowed"
+                  : "text-ink-dim hover:text-coral hover:bg-coral/10",
+              )}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             type="button"
-            onClick={onRemove}
-            disabled={isProtected}
-            aria-disabled={isProtected}
-            title={
-              isProtected
-                ? "Cannot delete — has sales history"
-                : "Remove variant"
-            }
-            aria-label={
-              isProtected
-                ? "Cannot delete — has sales history"
-                : "Remove variant"
-            }
-            className={cn(
-              "p-2 rounded-lg transition shrink-0",
-              isProtected
-                ? "text-ink-dim opacity-40 cursor-not-allowed"
-                : "text-ink-dim hover:text-coral hover:bg-coral/10",
-            )}
+            onClick={() => setExpanded((v) => !v)}
+            className="p-1.5 rounded-lg text-ink-dim hover:text-white hover:bg-white/5 transition"
+            aria-label={expanded ? "Collapse" : "Expand"}
           >
-            <Trash2 className="h-4 w-4" />
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Horizontal flex row of qty + price + discount inputs. Wraps on
-          narrow viewports so each input stays comfortably wide rather
-          than collapsing to a 4-up grid where labels truncate. */}
-      <div className="flex flex-wrap gap-3">
-        <div className="flex-1 min-w-[120px]">
-          <NumberInput
-            label="Stock"
-            value={value.quantity}
-            min={0}
-            step={1}
-            onChange={(e) =>
-              onChange({ quantity: Math.max(0, Number(e.target.value)) })
-            }
-          />
-        </div>
-        <div className="flex-1 min-w-[140px]">
-          <NumberInput
-            label="Price (฿)"
-            value={value.price}
-            min={0}
-            step={1}
-            onChange={(e) => {
-              const next = Math.max(0, Number(e.target.value));
-              onChange({
-                price: next,
-                discountAmount: (next * value.discountPercent) / 100,
-              });
-            }}
-          />
-        </div>
-        <div className="flex-1 min-w-[120px]">
-          <NumberInput
-            label="Discount %"
-            value={value.discountPercent}
-            min={0}
-            max={100}
-            step={1}
-            onChange={(e) => {
-              const next = Math.min(100, Math.max(0, Number(e.target.value)));
-              onChange({
-                discountPercent: next,
-                discountAmount: (value.price * next) / 100,
-              });
-            }}
-          />
-        </div>
-        {/* Buyer sees pill — full-height align so it doesn't sink under
-            the inputs. Mirrors PriceInput's mint/coral pill colours. */}
-        <div className="flex items-end pb-1">
-          <span
-            className={cn(
-              "rounded-full px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap",
-              hasDiscount
-                ? "bg-coral/15 text-coral border border-coral/30"
-                : "bg-mint/15 text-mint border border-mint/30",
-            )}
-            aria-live="polite"
-          >
-            Buyer sees: {coinsOrFree(thbToCoins(finalPrice))}
+      {/* ── Expanded body ── */}
+      {expanded && (
+        <div className="px-4 pb-4 space-y-4 border-t border-white/6 pt-4">
+
+          {/* Image + Name + Description */}
+          <div className="grid grid-cols-[auto_1fr] gap-4 items-start">
+            <FileImageInput
+              label="Variant image"
+              helperText="800 × 800 recommended"
+              value={value.image ?? ""}
+              onChange={(v) => onChange({ image: v })}
+              aspect="square"
+            />
+            <div className="space-y-3">
+              <TextInput
+                label="Variant name"
+                value={value.name}
+                onChange={(e) => onChange({ name: e.target.value })}
+                placeholder="e.g. Standard License, HD Pack, Full Bundle"
+              />
+              <TextareaInput
+                label="Description"
+                value={value.description ?? ""}
+                onChange={(e) => onChange({ description: e.target.value.slice(0, 140) })}
+                rows={2}
+                placeholder="What's included in this variant?"
+                helperText={`${(value.description ?? "").length} / 140`}
+              />
+            </div>
+          </div>
+
+          {/* Delivery + Pricing row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+            <SelectInput
+              label="Delivery"
+              value={value.deliveryMethod}
+              onChange={(e) => onChange({ deliveryMethod: e.target.value as DeliveryMethod })}
+              options={DELIVERY_OPTIONS}
+            />
+            <div className="flex-1 min-w-[120px]">
+            <NumberInput
+              label="Stock"
+              value={value.quantity ?? ""}
+              min={0}
+              step={1}
+              disabled={value.quantity == null}
+              placeholder="∞"
+              onChange={(e) => onChange({ quantity: Math.max(0, Number(e.target.value)) })}
+              rightSlot={
+                <button
+                  type="button"
+                  title={value.quantity == null ? "Unlimited stock | Click to set a limit" : "Limited stock | Click for unlimited"}
+                  onClick={() => onChange({ quantity: value.quantity == null ? 1 : undefined })}
+                  className={cn(
+                    "h-full px-2.5 border-l transition-colors",
+                    value.quantity == null
+                      ? "border-white/10 text-metu-yellow hover:text-white hover:bg-white/5"
+                      : "border-white/10 text-ink-dim hover:text-coral hover:bg-coral/5",
+                  )}
+                >
+                  {value.quantity == null ? (
+                    <Infinity className="h-3.5 w-3.5" />
+                  ) : (
+                    <Hash className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              }
+            />
+          </div>
+            <NumberInput
+              label="Price (฿)"
+              value={value.price}
+              min={0}
+              step={1}
+              onChange={(e) => {
+                const next = Math.max(0, Number(e.target.value));
+                onChange({ price: next, discountAmount: (next * value.discountPercent) / 100 });
+              }}
+            />
+            <NumberInput
+              label="Discount %"
+              value={value.discountPercent}
+              min={0}
+              max={100}
+              step={1}
+              onChange={(e) => {
+                const next = Math.min(100, Math.max(0, Number(e.target.value)));
+                onChange({ discountPercent: next, discountAmount: (value.price * next) / 100 });
+              }}
+            />
+          </div>
+
+          {/* Buyer price badge */}
+          <span className={cn(
+            "inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold",
+            hasDiscount
+              ? "text-coral border border-coral/30"
+              : "text-mint",
+          )}>
+            Buyer sees: {coins(thbToCoins(finalPrice))}
             {hasDiscount && (
               <span className="ml-1.5 line-through text-coral/60 font-normal">
-                {coinsOrFree(thbToCoins(value.price))}
+                {coins(thbToCoins(value.price))}
               </span>
             )}
           </span>
+
+          {/* Delivery URL */}
+          {(value.deliveryMethod === "download" || value.deliveryMethod === "streaming") && (
+            <TextInput
+              label="Delivery URL"
+              helperText="Private — sent to buyer after payment only."
+              type="url"
+              value={value.deliveryUrl ?? ""}
+              onChange={(e) => onChange({ deliveryUrl: e.target.value || null })}
+              placeholder="https://…"
+            />
+          )}
+
+          {/* License key template */}
+          {(value.deliveryMethod === "license_key" || value.deliveryMethod === "email") && (
+            <TextInput
+              label="License key template"
+              helperText="Use XXXX for random chars. e.g. METU-XXXX-XXXX-XXXX. Leave blank for a random UUID."
+              type="text"
+              value={value.licenseKeyTemplate ?? ""}
+              onChange={(e) => onChange({ licenseKeyTemplate: e.target.value || null })}
+              placeholder="METU-XXXX-XXXX-XXXX"
+            />
+          )}
         </div>
-      </div>
-
-      <TextInput
-        label="Free sample URL"
-        helperText="Optional — link to a low-res preview / sample. Anyone can click it before buying."
-        type="url"
-        value={value.sampleUrl ?? ""}
-        onChange={(e) => onChange({ sampleUrl: e.target.value || null })}
-        placeholder="https://…"
-      />
-
-      {/* Delivery URL is the private link buyers receive after payment.
-          Only relevant for download / streaming methods. */}
-      {(value.deliveryMethod === "download" || value.deliveryMethod === "streaming") && (
-        <TextInput
-          label="Delivery URL (private — sent to buyer after payment)"
-          helperText="The link emailed to the buyer once Stripe confirms payment. Only verified buyers will see this."
-          type="url"
-          value={value.deliveryUrl ?? ""}
-          onChange={(e) => onChange({ deliveryUrl: e.target.value || null })}
-          placeholder="https://…"
-        />
-      )}
-
-      {/* License-key template applies to license_key + email methods.
-          The XXXX runs get replaced with random alphanumerics; leave
-          blank to fall back to a UUID v4. */}
-      {(value.deliveryMethod === "license_key" || value.deliveryMethod === "email") && (
-        <TextInput
-          label="License key template (optional)"
-          helperText="Use XXXX where you want random characters. Example: METU-XXXX-XXXX-XXXX. Leave blank to send a random UUID."
-          type="text"
-          value={value.licenseKeyTemplate ?? ""}
-          onChange={(e) => onChange({ licenseKeyTemplate: e.target.value || null })}
-          placeholder="METU-XXXX-XXXX-XXXX"
-        />
       )}
     </div>
   );

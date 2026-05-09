@@ -1,10 +1,6 @@
 import { forwardRef, type InputHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
 
-/**
- * Text input primitive. Mint focus ring (yellow stays reserved for
- * primary CTAs); coral error state. Forwards ref for programmatic focus.
- */
 export interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   helperText?: string;
@@ -42,7 +38,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
             "placeholder:text-ink-dim",
             hasError
               ? "border-coral focus:border-coral focus:ring-2 focus:ring-coral/25"
-              : "border-white/10 focus:border-mint focus:ring-2 focus:ring-mint/25",
+              : "border-white/10",
             className,
           )}
           {...rest}

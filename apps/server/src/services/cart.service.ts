@@ -61,7 +61,7 @@ export async function getCart(userId: number): Promise<CartResponse> {
       storeName: ci.productItem.product.store.name,
       image: ci.productItem.product.images[0]?.productImage ?? null,
       deliveryMethod: ci.productItem.deliveryMethod,
-      stock: ci.productItem.quantity,
+      stock: ci.productItem.quantity ?? 0,
       unitPrice: unit,
       basePrice: price,
       discountPercent: ci.productItem.discountPercent,

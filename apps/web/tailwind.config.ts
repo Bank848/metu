@@ -16,6 +16,7 @@ const config: Config = {
           gold:      "#B26800",
           goldDeep:  "#3D2B00",
           red:       "#FF2C2C",
+          secondary:  "#383732"
         },
         surface: {
           1: "#0E0E0E", // base
@@ -112,11 +113,6 @@ const config: Config = {
         display: ["var(--font-display)", "Plus Jakarta Sans", "system-ui", "sans-serif"],
         body:    ["var(--font-body)", "Manrope", "system-ui", "sans-serif"],
         mono:    ["var(--font-mono)", "ui-monospace", "monospace"],
-        // Thai-specific stack. The `--font-thai` var is reserved here so
-        // Wave-2 can wire `next/font/google`'s Prompt loader in layout.tsx
-        // without another tailwind change. Until then this falls back to
-        // Prompt-from-system / Manrope, which still renders Thai correctly
-        // (just without the font-loading optimisation).
         thai:    ["var(--font-thai)", "Prompt", "var(--font-body)", "Manrope", "system-ui", "sans-serif"],
       },
       boxShadow: {

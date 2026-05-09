@@ -1,16 +1,38 @@
 "use client";
 import Link from "next/link";
-import { ShoppingBag } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ShoppingCart } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
-import { useCartCount } from "@/lib/useCartCount";
 
-/**
- * TopNav cart pill with a live count badge. Subscribes to the shared
- * `useCartCount` hook so MobileBottomNav can share one polling loop.
- */
 export function CartNavIcon() {
   const { t } = useI18n();
-  const count = useCartCount();
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/cart", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const lines: Array<{ quantity: number }> = Array.isArray(data?.items) ? data.items : [];
+      const next = lines.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
+      setCount(next);
+    } catch {
+      /* swallow — keep the previous count visible */
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const id = window.setInterval(refresh, 60_000);
+    const onUpdate = () => refresh();
+    window.addEventListener("cart:update", onUpdate);
+    window.addEventListener("focus", onUpdate);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("cart:update", onUpdate);
+      window.removeEventListener("focus", onUpdate);
+    };
+  }, [refresh]);
 
   const label = t("nav.cart");
   return (
@@ -18,9 +40,9 @@ export function CartNavIcon() {
       href="/cart"
       aria-label={label}
       title={label}
-      className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white hover:border-metu-yellow/50 hover:bg-metu-yellow/10 hover:text-metu-yellow transition"
+      className="relative flex h-9 w-9 items-center justify-center rounded-full text-metu-yellow hover:border-metu-yellow/50 hover:bg-metu-yellow/10 hover:text-metu-yellow transition"
     >
-      <ShoppingBag className="h-[18px] w-[18px]" />
+      <ShoppingCart className="h-[18px] w-[18px]" />
       {count > 0 && (
         <span
           aria-label={`${count} item${count === 1 ? "" : "s"} in cart`}

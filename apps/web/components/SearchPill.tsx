@@ -2,25 +2,34 @@
 import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useI18n } from "@/lib/i18n/client";
-import { cn } from "@/lib/utils";
 
-/**
- * Search input for the TopNav. `rounded-xl` (not pill) so it contrasts
- * with the surrounding avatar/CTA shapes; mint focus ring keeps the
- * gold CTA from competing visually.
- */
+const SEARCH_PLACEHOLDERS = [
+  "10,000 Robux Giftcard | Roblox",
+  "Neo-Tokyo Environment Kit",
+  "Ultima UI System v2.0",
+  "Mech-Suit Master Concept",
+  "Cyberpunk Audio Pack Vol.3",
+  "Neon City Shader Bundle",
+  "Pro UI Templates 2024",
+  "Holographic Display Assets",
+];
+
+const PLACEHOLDER_INTERVAL = 5000;
+
 export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
   const router = useRouter();
-  const { t } = useI18n();
   const [q, setQ] = useState(defaultValue);
-  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Animated placeholder state
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [placeholderVisible, setPlaceholderVisible] = useState(true);
 
   useEffect(() => {
     setQ(defaultValue);
   }, [defaultValue]);
 
+  // "/" shortcut
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "/") return;
@@ -31,6 +40,18 @@ export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Cycle placeholder
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderVisible(false);
+      setTimeout(() => {
+        setPlaceholderIndex((prev) => (prev + 1) % SEARCH_PLACEHOLDERS.length);
+        setPlaceholderVisible(true);
+      }, 300);
+    }, PLACEHOLDER_INTERVAL);
+    return () => clearInterval(interval);
   }, []);
 
   function clear() {
@@ -47,46 +68,54 @@ export function SearchPill({ defaultValue = "" }: { defaultValue?: string }) {
   return (
     <form
       onSubmit={onSubmit}
-      className="flex-1 min-w-0 max-w-[640px] relative"
+      className="w-[640px] shrink-0"
       role="search"
     >
-      <label
-        className={cn(
-          "relative flex items-center rounded-xl bg-surface-3/80 backdrop-blur transition border",
-          focused
-            ? "border-mint/60 ring-2 ring-mint/25"
-            : "border-white/8 hover:border-white/15",
-        )}
-      >
-        <span className={cn("pl-4", focused ? "text-mint" : "text-ink-dim")}>
-          <Search className="h-4 w-4" aria-hidden />
-        </span>
-        <input
-          ref={inputRef}
-          type="search"
-          name="q"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder={t("nav.search.placeholder")}
-          className="flex-1 bg-transparent px-3 py-2.5 text-sm text-white placeholder:text-ink-dim focus:outline-none"
-          autoComplete="off"
+      <div className="flex items-center h-[42px] bg-metu-secondary rounded-[105px] px-[28px] gap-[20px] overflow-hidden">
+        {/* Search icon */}
+        <Search
+          className="text-metu-yellow shrink-0 h-5 w-5"
+          aria-hidden
         />
+
+        {/* Input + animated placeholder */}
+        <div className="relative flex-1 h-full flex items-center overflow-hidden">
+          {/* Animated placeholder — hidden when user has typed */}
+          {!q && (
+            <span
+              className="absolute inset-0 flex items-center text-white/50 font-gotham text-[16px] pointer-events-none select-none transition-all duration-300 whitespace-nowrap"
+              style={{
+                opacity: placeholderVisible ? 1 : 0,
+                transform: placeholderVisible ? "translateY(0)" : "translateY(-8px)",
+              }}
+            >
+              {SEARCH_PLACEHOLDERS[placeholderIndex]}
+            </span>
+          )}
+          <input
+            ref={inputRef}
+            type="search"
+            name="q"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="relative flex-1 bg-transparent border-none focus:outline-none text-white font-gotham text-[16px] w-full z-10"
+            autoComplete="off"
+            aria-label={"Search placeholder"}
+          />
+        </div>
+
+        {/* Clear button */}
         {q && (
           <button
             type="button"
             onClick={clear}
             aria-label="Clear search"
-            className="mr-1 p-1.5 rounded-md text-ink-dim hover:text-white hover:bg-white/10"
+            className="shrink-0 p-1 rounded-full text-white/50 hover:text-white transition-colors"
           >
-            <X className="h-3.5 w-3.5" />
+            
           </button>
         )}
-        <kbd className="mr-3 hidden md:inline-flex items-center rounded-md border border-white/10 bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono uppercase text-ink-dim">
-          /
-        </kbd>
-      </label>
+      </div>
     </form>
   );
 }

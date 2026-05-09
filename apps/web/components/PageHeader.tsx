@@ -1,11 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/**
- * Page title row used at the top of most app pages. Optional `eyebrow`
- * adds a mono-uppercase editorial label above the title; a short coral
- * underline sits beneath it.
- */
 export function PageHeader({
   title,
   subtitle,
@@ -13,15 +8,10 @@ export function PageHeader({
   eyebrow,
   className,
 }: {
-  // Accept ReactNode so callers can compose icons + badges + text inline
-  // (the coupon-report header is one such caller).
+
   title: ReactNode;
   subtitle?: string;
   action?: ReactNode;
-  /**
-   * Small editorial label rendered above the title — e.g. "Section
-   * 02", "Cart", "Reports". Omit for plain pages.
-   */
   eyebrow?: ReactNode;
   className?: string;
 }) {
@@ -40,14 +30,9 @@ export function PageHeader({
             {eyebrow}
           </div>
         )}
-        <h1 className="font-display text-3xl md:text-4xl font-extrabold tracking-tight text-white">
+        <h1 className="font-black tracking-tight scale-y-[0.95] text-3xl md:text-4xl text-white">
           {title}
         </h1>
-        {/* Coral underline */}
-        <div
-          aria-hidden
-          className="mt-3 h-[3px] w-14 rounded-full bg-coral"
-        />
         {subtitle && (
           <p className="mt-3 text-ink-secondary text-base max-w-2xl">{subtitle}</p>
         )}

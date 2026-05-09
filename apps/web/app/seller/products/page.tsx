@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/EmptyState";
 import { ProductRowActions } from "@/components/seller/ProductRowActions";
 import { apiAuth } from "@/lib/session";
-import { coinsOrFree, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 import { isDataUrl, cardImage } from "@/lib/utils";
 
 type Product = {
@@ -68,9 +68,6 @@ export default async function SellerProducts() {
                   <tr key={p.productId} className="hover:bg-white/5">
                     <td className="px-5 py-3">
                       <Link href={`/product/${p.productId}`} className="flex items-center gap-3">
-                        {/* Use cardImage() so the 48px crop decodes from a
-                            600x400 source; first row is `priority` so it
-                            doesn't depend on lazy-loading. */}
                         <div className="relative h-12 w-12 rounded-lg bg-space-900 overflow-hidden shrink-0 border border-line">
                           {p.images[0] && (
                             <Image
@@ -102,7 +99,7 @@ export default async function SellerProducts() {
                     </td>
                     <td className="px-5 py-3 text-sm text-white">{p.items.length}</td>
                     <td className="px-5 py-3 text-sm font-semibold text-brand-yellow">
-                      {coinsOrFree(thbToCoins(min))}{min !== max && ` – ${coinsOrFree(thbToCoins(max))}`}
+                      {coins(thbToCoins(min))}{min !== max && ` – ${coins(thbToCoins(max))}`}
                     </td>
                     <td className="px-5 py-3 text-sm text-ink-secondary">{p._count.reviews}</td>
                     <td className="px-5 py-3">

@@ -49,7 +49,7 @@ export default async function BulkEditPage() {
           productName: it.product.name,
           isActive: it.product.isActive,
           deliveryMethod: it.deliveryMethod,
-          quantity: it.quantity,
+          quantity: it.quantity ?? 0,
           discountPercent: it.discountPercent,
           price: Number(it.price),
         }))}

@@ -111,7 +111,6 @@ export function NewCouponForm() {
         <FormSection
           title="Schedule + limits"
           description="When the code is valid and how many redemptions it allows."
-          accent="mint"
           variant="accent"
         >
           <div className="grid grid-cols-2 gap-3">

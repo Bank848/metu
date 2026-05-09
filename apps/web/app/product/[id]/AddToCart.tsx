@@ -1,21 +1,31 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Mail, Key, Play, ShoppingBag, Zap, CheckCircle2, FileDown, BadgeCheck, ArrowRight } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
-import { coins, coinsOrFree, thbToCoins } from "@/lib/format";
+import { coins, thbToCoins } from "@/lib/format";
 import { play } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 type Item = {
   productItemId: number;
+  name?: string | null;
+  description?: string | null;
+  image?: string | null;
   deliveryMethod: string;
   price: number;
   finalPrice: number;
   discountPercent: number;
   stock: number;
   sampleUrl?: string | null;
+};
+
+const DELIVERY_LABEL: Record<string, string> = {
+  download:    "Instant Download",
+  email:       "Delivered by Email",
+  license_key: "License Key",
+  streaming:   "Streaming Access",
 };
 
 const deliveryIcon: Record<string, React.ElementType> = {
@@ -32,12 +42,6 @@ export function AddToCart({
   ownedOrderId,
 }: {
   items: Item[];
-  /**
-   * when set, the buyer already owns this product (paid /
-   * fulfilled / pending order). Page passes `null` for stackable
-   * products (license_key, seller-overridden) so this banner only
-   * appears for true single-copy assets.
-   */
   ownedOrderId?: number | null;
 }) {
   const router = useRouter();
@@ -45,28 +49,17 @@ export function AddToCart({
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  // Used to trigger a one-shot pulse animation on the Add-to-cart button
-  // when the add succeeds — visual confirmation beyond the toast text.
   const [justAdded, setJustAdded] = useState(false);
-  // Synchronous busy gate. `setBusy(true)` flips state on the next
-  // render but a fast double-click (Add then Buy-now within ~16ms)
-  // can fire both handlers before React re-renders the disabled
-  // attributes — both POST /api/cart/items requests would queue.
-  // The ref check rejects the second click immediately.
-  const busyRef = useRef(false);
 
   const active = items.find((i) => i.productItemId === selected)!;
   const isDigital = active && DIGITAL.has(active.deliveryMethod);
   const maxQty = isDigital ? 1 : Math.max(1, active?.stock ?? 1);
 
-  // Snap quantity back into the valid range whenever the variant changes.
   useEffect(() => {
     setQuantity((q) => Math.min(Math.max(1, q), maxQty));
   }, [maxQty]);
 
   async function addToCart(buyNow = false) {
-    if (busyRef.current) return;
-    busyRef.current = true;
     setBusy(true);
     setMessage(null);
     try {
@@ -85,10 +78,6 @@ export function AddToCart({
         const data = await res.json().catch(() => ({} as { message?: string; error?: string; orderId?: number }));
         setMessage(data?.message ?? "Failed to add to cart");
         play("error");
-        // AlreadyOwned: refresh so the parent re-fetches
-        // `getOwnedOrderId` and swaps the buy box for the
-        // "✓ Already in your library" banner pointing at the
-        // existing order.
         if (data?.error === "AlreadyOwned") {
           router.refresh();
         }
@@ -98,14 +87,9 @@ export function AddToCart({
       setJustAdded(true);
       play("cart");
       setTimeout(() => setJustAdded(false), 900);
-      // Tell <CartNavIcon> to refetch immediately rather than waiting
-      // for its 60s background poll.
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("cart:update"));
       }
-      // Keep the router refresh — it still picks up server-rendered
-      // affordances elsewhere on the page (e.g. order totals after a
-      // checkout-style "Buy now").
       router.refresh();
       if (buyNow) {
         router.push("/cart");
@@ -114,15 +98,9 @@ export function AddToCart({
       setMessage("Network error");
     } finally {
       setBusy(false);
-      busyRef.current = false;
     }
   }
 
-  // when the buyer already owns this single-copy product,
-  // swap the buy box for a mint banner pointing back at the existing
-  // order. We still render the variant + sample link so the buyer can
-  // click into the variant they bought (handy for multi-variant pages
-  // where the link is the only way back to the file).
   if (ownedOrderId) {
     return (
       <div className="rounded-2xl surface-accent p-6 shadow-flat space-y-4">
@@ -162,7 +140,7 @@ export function AddToCart({
   }
 
   return (
-    <div className="rounded-2xl surface-accent p-6 shadow-flat">
+    <div className="rounded-2xl bg-metu-yellow/10 p-6 shadow-flat">
       <div className="text-xs font-semibold uppercase tracking-wider text-ink-dim mb-3">
         Choose a variant
       </div>
@@ -170,41 +148,88 @@ export function AddToCart({
         {items.map((it) => {
           const Icon = deliveryIcon[it.deliveryMethod] ?? Download;
           const isActive = it.productItemId === selected;
+          const hasDiscount = it.discountPercent > 0;
+
           return (
             <button
               key={it.productItemId}
               type="button"
               onClick={() => setSelected(it.productItemId)}
               className={cn(
-                "w-full flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition relative overflow-hidden",
+                "w-full flex items-start gap-3 rounded-xl px-4 py-3 text-left transition relative overflow-hidden",
                 isActive
                   ? "bg-gradient-to-r from-metu-yellow/15 to-metu-yellow/5 border border-metu-yellow/50"
                   : "bg-white/[0.02] border border-white/8 hover:border-metu-yellow/30",
               )}
             >
+              {/* Active left bar */}
               {isActive && (
                 <span className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-metu-yellow to-metu-gold" />
               )}
-              <div className="flex items-center gap-3">
-                <Icon className={cn("h-5 w-5", isActive ? "text-metu-yellow" : "text-ink-secondary")} strokeWidth={2} />
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold capitalize text-white">{it.deliveryMethod.replace("_", " ")}</div>
-                  <div className="text-[10px] text-ink-dim mt-0.5">
-                    {DIGITAL.has(it.deliveryMethod)
-                      ? "Digital · single-use"
-                      : it.stock <= 0
+
+              {/* Variant image */}
+              {it.image && (
+                <div className="relative h-14 w-14 shrink-0 rounded-lg overflow-hidden border border-white/10">
+                  <img src={it.image} alt={it.name ?? ""} className="w-full h-full object-cover" />
+                </div>
+              )}
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                {/* Name */}
+                <p className={cn(
+                  "text-sm font-semibold leading-tight mb-0.5",
+                  isActive ? "text-white" : "text-zinc-300",
+                )}>
+                  {it.name || DELIVERY_LABEL[it.deliveryMethod] || it.deliveryMethod.replace("_", " ")}
+                </p>
+
+                {/* Description */}
+                {it.description && (
+                  <p className="text-[11px] text-ink-secondary leading-relaxed mb-1.5 line-clamp-2">
+                    {it.description}
+                  </p>
+                )}
+
+                {/* Delivery + stock badges */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                    isActive
+                      ? "border-mint/40 bg-mint/10 text-mint"
+                      : "border-white/10 bg-white/5 text-ink-dim",
+                  )}>
+                    <Icon className="h-2.5 w-2.5" />
+                    {DELIVERY_LABEL[it.deliveryMethod] ?? it.deliveryMethod}
+                  </span>
+
+                  {!DIGITAL.has(it.deliveryMethod) && (
+                    <span className="text-[10px] text-ink-dim">
+                      {it.stock <= 0
                         ? "Out of stock"
                         : it.stock <= 5
                           ? `Only ${it.stock} left`
                           : `${it.stock} in stock`}
-                  </div>
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="flex items-baseline gap-2">
-                {it.discountPercent > 0 && (
-                  <span className="text-xs line-through text-ink-dim">{coinsOrFree(thbToCoins(it.price))}</span>
+
+              {/* Price */}
+              <div className="shrink-0 text-right ml-2">
+                <div className="font-display font-bold text-gold-gradient text-base italic leading-none">
+                  {coins(thbToCoins(it.finalPrice))}
+                </div>
+                {hasDiscount && (
+                  <>
+                    <div className="text-[11px] text-zinc-500 line-through mt-0.5">
+                      {coins(thbToCoins(it.price))}
+                    </div>
+                    <div className="text-[10px] font-black text-red-400">
+                      −{it.discountPercent}%
+                    </div>
+                  </>
                 )}
-                <span className="font-display font-bold text-gold-gradient">{coinsOrFree(thbToCoins(it.finalPrice))}</span>
               </div>
             </button>
           );
@@ -268,12 +293,11 @@ export function AddToCart({
         <div className="ml-auto text-right">
           <div className="text-[10px] uppercase tracking-wider text-ink-dim">Total</div>
           <div className="font-display text-2xl font-extrabold text-gold-gradient">
-            {coinsOrFree(thbToCoins(active.finalPrice * quantity))}
+            {coins(thbToCoins(active.finalPrice * quantity))}
           </div>
         </div>
       </div>
 
-      {/* Out-of-stock variants show a static notice. */}
       {!isDigital && active?.stock === 0 && (
         <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3">
           <span className="text-sm text-amber-200">This variant is out of stock.</span>
@@ -281,8 +305,6 @@ export function AddToCart({
       )}
 
       <div className="relative grid grid-cols-2 gap-3">
-        {/* Floating +QTY indicator — rises above the Add button when an
-            add succeeds, paired with the atc-pulse shadow ring. */}
         {justAdded && (
           <span
             aria-hidden
@@ -295,13 +317,13 @@ export function AddToCart({
           tone="glass"
           size="lg"
           onClick={() => addToCart(false)}
-          disabled={busy || (active?.stock === 0 && !isDigital)}
+          disabled={busy || active?.stock === 0 && !isDigital}
           className={cn(justAdded && "animate-[atc-pulse_0.9s_ease-out]")}
         >
           {justAdded ? <CheckCircle2 className="h-4 w-4 text-green-400" /> : <ShoppingBag className="h-4 w-4" />}
           {justAdded ? "Added" : "Add to cart"}
         </GlassButton>
-        <GlassButton tone="gold" size="lg" onClick={() => addToCart(true)} disabled={busy || (active?.stock === 0 && !isDigital)}>
+        <GlassButton tone="gold" size="lg" onClick={() => addToCart(true)} disabled={busy || active?.stock === 0 && !isDigital}>
           <Zap className="h-4 w-4" />
           Buy now
         </GlassButton>

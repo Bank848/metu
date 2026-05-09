@@ -1,22 +1,17 @@
 import { Prisma } from "@prisma/client";
-import type { z } from "zod";
-import type { Request } from "express";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
-import { bangkokStartOfDay, bangkokEndOfDay } from "../utils/time.js";
 import { refundOrder as stripeRefund } from "./stripe.service.js";
-
-// Narrow type so services don't have to drag in the full Express.Request.
-type AuditReq = Pick<Request, "ip" | "headers"> | null | undefined;
+import { type z } from "zod";
 import {
   type SellerStatsResponse,
   type PatchVariantInput,
   type UpdateOrderStatusInput,
   type becomeSellerSchema,
   type updateStoreSchema,
-  type productInputSchema,
   type couponInputSchema,
+  type productInputSchema
 } from "../models/seller.model.js";
 
 type BecomeSellerInput = z.infer<typeof becomeSellerSchema>;
@@ -24,10 +19,6 @@ type UpdateStoreInput  = z.infer<typeof updateStoreSchema>;
 type ProductInput      = z.infer<typeof productInputSchema>;
 type CouponInput       = z.infer<typeof couponInputSchema>;
 
-// Seller service. Functions take a storeId rather than reaching for
-// the request, keeping them testable in isolation.
-
-/** Current seller's store with businessType. */
 export async function getStore(storeId: number) {
   return prisma.store.findUnique({
     where: { storeId },
@@ -35,10 +26,6 @@ export async function getStore(storeId: number) {
   });
 }
 
-/**
- * List the seller's products. Hard-delete removes them from this list
- * automatically — there is no soft-delete column anymore.
- */
 export async function listProducts(storeId: number) {
   return prisma.product.findMany({
     where: { storeId },
@@ -52,10 +39,6 @@ export async function listProducts(storeId: number) {
   });
 }
 
-/**
- * Single product scoped to the seller's store. 404 when missing,
- * 403 when it belongs to another store.
- */
 export async function getProduct(productId: number, storeId: number) {
   const product = await prisma.product.findUnique({
     where: { productId },
@@ -72,10 +55,6 @@ export async function getProduct(productId: number, storeId: number) {
   return product;
 }
 
-/**
- * Analytics dashboard payload. Mixed parallel + serial queries to
- * stay friendly to Neon's free-tier connection budget.
- */
 export async function getStats(storeId: number): Promise<SellerStatsResponse> {
   const [store, productCount, recentReviews, totals] = await Promise.all([
     prisma.store.findUnique({
@@ -123,26 +102,21 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
     JOIN product p ON p.product_id = pi.product_id
     WHERE p.store_id = ${storeId}
       AND o.created_at >= NOW() - INTERVAL '30 days'
-      AND o.status IN ('paid','fulfilled')
     GROUP BY day
     ORDER BY day
   `;
 
-  // Mirror the KPI status filter so revenue/units match the headline
-  // numbers. FILTER (WHERE o.order_id IS NOT NULL) drops non-settled lines.
   const topProducts = await prisma.$queryRaw<
     Array<{ product_id: number; name: string; revenue: string; units: bigint }>
   >`
     SELECT p.product_id, p.name,
-           COALESCE(SUM(oi.price_per_unit * oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0)::text AS revenue,
-           COALESCE(SUM(oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0)::bigint AS units
+           COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
+           COALESCE(SUM(oi.quantity), 0)::bigint AS units
     FROM product p
     LEFT JOIN product_item pi ON pi.product_id = p.product_id
     LEFT JOIN order_item oi ON oi.product_item_id = pi.product_item_id
-    LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
     WHERE p.store_id = ${storeId}
     GROUP BY p.product_id, p.name
-    HAVING COALESCE(SUM(oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0) > 0
     ORDER BY revenue DESC
     LIMIT 5
   `;
@@ -170,11 +144,6 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
   };
 }
 
-/**
- * Orders containing at least one line from this store. Sub-includes
- * are scoped to the seller's lines so multi-store orders don't leak
- * competitors' details.
- */
 export async function listOrders(storeId: number, status?: string) {
   return prisma.order.findMany({
     where: {
@@ -214,11 +183,6 @@ export async function listOrders(storeId: number, status?: string) {
   });
 }
 
-/**
- * CSV export — same dataset as listOrders but flattened into one
- * row per (order, line item). Returns the CSV body as a string;
- * the controller adds the Content-Type / Content-Disposition headers.
- */
 export async function exportOrdersCsv(storeId: number): Promise<string> {
   const orders = await prisma.order.findMany({
     where: {
@@ -262,7 +226,6 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
 
   for (const o of orders) {
     for (const li of o.items) {
-      // Skip non-our and orphaned lines.
       if (!li.productItem) continue;
       if (li.productItem.product.storeId !== storeId) continue;
       const subtotal = Number(li.pricePerUnit) * li.quantity;
@@ -287,9 +250,6 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
   return rows.join("\n");
 }
 
-// mask buyer email so sellers can't harvest addresses.
-// "john.doe@gmail.com" → "j***@gmail.com"
-// Domain stays visible (avoids guessing) — only local part is masked.
 function maskEmail(email: string): string {
   if (!email || !email.includes("@")) return "***@***";
   const [local, domain] = email.split("@");
@@ -300,8 +260,6 @@ function maskEmail(email: string): string {
 
 function escapeCsv(value: unknown): string {
   let s = value === null || value === undefined ? "" : String(value);
-  // Neutralise spreadsheet formula injection by prefixing risky
-  // leading chars with a single quote.
   if (/^[=+\-@\t\r]/.test(s)) {
     s = "'" + s;
   }
@@ -311,10 +269,6 @@ function escapeCsv(value: unknown): string {
   return s;
 }
 
-/**
- * Admin-driven becomeSeller. Picks default name/description/business
- * type, idempotent on re-promote. Caller writes the audit row.
- */
 export async function adminCreateStore(userId: number, username: string) {
   const existing = await prisma.store.findUnique({
     where: { ownerId: userId },
@@ -325,7 +279,6 @@ export async function adminCreateStore(userId: number, username: string) {
     return { storeId: existing.storeId, action: "noop" as const };
   }
 
-  // Brand new store — pick defaults.
   const firstBusinessType = await prisma.businessType.findFirst({
     orderBy: { typeId: "asc" },
     select: { typeId: true },
@@ -358,10 +311,6 @@ export async function adminCreateStore(userId: number, username: string) {
   return { storeId: store.storeId, action: "created" as const };
 }
 
-/**
- * Create the user's first store + promote buyer to seller in one tx.
- * Admin owners stay admin. 409 StoreExists if they already own one.
- */
 export async function becomeSeller(userId: number, input: BecomeSellerInput) {
   const existing = await prisma.store.findUnique({ where: { ownerId: userId } });
   if (existing) {
@@ -390,10 +339,6 @@ export async function becomeSeller(userId: number, input: BecomeSellerInput) {
   });
 }
 
-/**
- * PATCH /seller/store — partial update; only the keys present in
- * `input` are touched.
- */
 export async function updateStore(storeId: number, input: UpdateStoreInput) {
   const data: Record<string, unknown> = {};
   if (input.name !== undefined) data.name = input.name;
@@ -414,10 +359,7 @@ export async function updateStore(storeId: number, input: UpdateStoreInput) {
 
 /** POST /seller/products — create a product (with variants, images, tags). */
 export async function createProduct(storeId: number, input: ProductInput) {
-  // Mirror the first variant's deliveryMethod onto Product (seller
-  // form keeps every variant on the same method).
   const productDeliveryMethod = input.items[0]!.deliveryMethod;
-  // isStackable defaults: license_key → true, others → false.
   const isStackable = input.isStackable ?? (productDeliveryMethod === "license_key");
   return prisma.product.create({
     data: {
@@ -429,19 +371,18 @@ export async function createProduct(storeId: number, input: ProductInput) {
       isStackable,
       items: {
         create: input.items.map((it, idx) => ({
-          // ProductItem.name is required; default to "<product> — Variant N".
-          name:
-            input.items.length > 1
+          name: it.name?.trim()
+            ? it.name.trim().slice(0, 100)
+            : input.items.length > 1
               ? `${input.name} — Variant ${idx + 1}`.slice(0, 100)
               : input.name.slice(0, 100),
+          description: it.description ?? null,
+          image: it.image ?? null,
           deliveryMethod: it.deliveryMethod,
-          quantity: it.quantity,
+          quantity: it.quantity ?? null,
           price: new Prisma.Decimal(it.price),
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
-          sampleUrl: it.sampleUrl,
-          // Persist deliveryUrl / licenseKeyTemplate only when the
-          // method uses them.
           deliveryUrl:
             it.deliveryMethod === "download" || it.deliveryMethod === "streaming"
               ? it.deliveryUrl ?? null
@@ -461,7 +402,6 @@ export async function createProduct(storeId: number, input: ProductInput) {
       productNTags: {
         create: input.tagIds.map((tagId) => ({ tagId })),
       },
-      // Additional info rows (per Product details).
       details: {
         create: (input.details ?? []).map((d) => ({
           detailName: d.detailName,
@@ -472,17 +412,11 @@ export async function createProduct(storeId: number, input: ProductInput) {
   });
 }
 
-/**
- * PATCH /seller/products/:id — fast-path pause toggle, otherwise
- * full edit. Variants are upserted by index (existing UPDATE, extras
- * CREATE); removal isn't supported because OrderItem/CartItem FK in.
- */
 export async function updateProduct(
   productId: number,
   storeId: number,
   body: { isActive?: boolean } | ProductInput,
 ) {
-  // Pause-toggle fast path: { isActive: boolean } and ONE key only.
   if (
     typeof (body as any).isActive === "boolean" &&
     Object.keys(body).length === 1
@@ -497,7 +431,10 @@ export async function updateProduct(
   const input = body as ProductInput;
   await prisma.$transaction(async (tx) => {
     const productDeliveryMethod = input.items[0]!.deliveryMethod;
-    // Same isStackable default rule as createProduct.
+
+    console.log("435435435")
+    console.log(body)
+
     const isStackable =
       input.isStackable ?? (productDeliveryMethod === "license_key");
     await tx.product.update({
@@ -524,7 +461,6 @@ export async function updateProduct(
         data: input.tagIds.map((tagId) => ({ productId, tagId })),
       });
     }
-    // Replace-all is safe for ProductDetail (not an FK target).
     await tx.productDetail.deleteMany({ where: { productId } });
     if ((input.details ?? []).length > 0) {
       await tx.productDetail.createMany({
@@ -539,6 +475,7 @@ export async function updateProduct(
       where: { productId },
       orderBy: { productItemId: "asc" },
     });
+
     for (let i = 0; i < input.items.length; i++) {
       const it = input.items[i];
       const target = existing[i];
@@ -550,12 +487,14 @@ export async function updateProduct(
         await tx.productItem.update({
           where: { productItemId: target.productItemId },
           data: {
+            name: it.name,
+            description: it.description,
+            image: it.image,
             deliveryMethod: it.deliveryMethod,
             quantity: it.quantity,
             price: new Prisma.Decimal(it.price),
             discountPercent: it.discountPercent,
             discountAmount: new Prisma.Decimal(it.discountAmount),
-            sampleUrl: it.sampleUrl,
             deliveryUrl: usesDeliveryUrl ? it.deliveryUrl ?? null : null,
             licenseKeyTemplate: usesLicenseTemplate
               ? it.licenseKeyTemplate ?? null
@@ -566,21 +505,17 @@ export async function updateProduct(
         await tx.productItem.create({
           data: {
             productId,
-            // Required ProductItem.name; mirror createProduct convention.
-            name:
-              input.items.length > 1
-                ? `${input.name} — Variant ${i + 1}`.slice(0, 100)
-                : input.name.slice(0, 100),
+            name: it.name || (input.items.length > 1 
+              ? `${input.name} — Variant ${i + 1}`.slice(0, 100) 
+              : input.name.slice(0, 100)),
+            image: it.image,
             deliveryMethod: it.deliveryMethod,
             quantity: it.quantity,
             price: new Prisma.Decimal(it.price),
             discountPercent: it.discountPercent,
             discountAmount: new Prisma.Decimal(it.discountAmount),
-            sampleUrl: it.sampleUrl,
             deliveryUrl: usesDeliveryUrl ? it.deliveryUrl ?? null : null,
-            licenseKeyTemplate: usesLicenseTemplate
-              ? it.licenseKeyTemplate ?? null
-              : null,
+            licenseKeyTemplate: usesLicenseTemplate ? it.licenseKeyTemplate ?? null : null,
           },
         });
       }
@@ -589,10 +524,6 @@ export async function updateProduct(
   return { ok: true as const };
 }
 
-/**
- * DELETE /seller/products/:id — hard-delete; OrderItem snapshot
- * fields keep historical receipts valid. Writes a `product.delete` audit row.
- */
 export async function deleteProduct(
   productId: number,
   storeId: number,
@@ -611,10 +542,6 @@ export async function deleteProduct(
   });
 }
 
-/**
- * POST /seller/products/:id/duplicate — clone variants/images/tags
- * (no reviews/history). Clone starts paused.
- */
 export async function duplicateProduct(sourceId: number, storeId: number) {
   const source = await prisma.product.findFirst({
     where: { productId: sourceId },
@@ -640,8 +567,9 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
       isStackable: source.isStackable,
       items: {
         create: source.items.map((it) => ({
-          // Carry the source variant's name forward.
           name: it.name,
+          image: it.image,
+          description: it.description,
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
@@ -662,11 +590,6 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
   });
 }
 
-/**
- * PATCH /seller/product-items/:id — targeted variant patch. Used
- * by the bulk-edit page to nudge price / discount / stock without
- * resending the whole product payload.
- */
 export async function patchVariant(
   productItemId: number,
   storeId: number,
@@ -710,8 +633,8 @@ export async function createCoupon(storeId: number, input: CouponInput) {
       code: input.code,
       discountType: input.discountType,
       discountValue: input.discountValue,
-      startDate: bangkokStartOfDay(input.startDate),
-      endDate: bangkokEndOfDay(input.endDate),
+      startDate: new Date(input.startDate),
+      endDate: new Date(input.endDate),
       usageLimit: input.usageLimit,
       isActive: input.isActive,
     },
@@ -719,16 +642,17 @@ export async function createCoupon(storeId: number, input: CouponInput) {
 }
 
 /**
- * PATCH /seller/orders/:id — flip to fulfilled or cancelled.
- * Order must own at least one line from the seller's store; refunded
- * orders can't be re-flipped; fulfilled requires status='paid'.
+ * PATCH /seller/orders/:id — flip an order to fulfilled OR cancelled.
+ * Guardrails (mirror the legacy BFF route):
+ *   • Order must contain at least one line from the seller's store
+ *   • Refunded orders can never be re-flipped (409 AlreadyRefunded)
+ *   • fulfilled requires status='paid' (409 InvalidTransition otherwise)
  */
 export async function updateOrderStatus(
   orderId: number,
   storeId: number,
   actorId: number,
   input: UpdateOrderStatusInput,
-  req?: AuditReq,
 ) {
   const order = await prisma.order.findUnique({
     where: { orderId },
@@ -745,37 +669,7 @@ export async function updateOrderStatus(
   const hasOwnedItem = order.items.some(
     (it) => it.productItem?.product.storeId === storeId,
   );
-  if (!hasOwnedItem) {
-    await audit({
-      actorId,
-      action: "seller.order.write.denied",
-      targetType: "order",
-      targetId: orderId,
-      meta: { reason: "Forbidden", storeId, requested: input.status },
-      req,
-    });
-    throw new AppError(403, "Forbidden");
-  }
-  // Multi-store IDOR guard: order.status is shared across all lines,
-  // so cross-store mutation would flip another seller's items too.
-  const otherStoreLines = order.items.filter(
-    (it) => it.productItem?.product.storeId !== storeId,
-  );
-  if (otherStoreLines.length > 0) {
-    await audit({
-      actorId,
-      action: "seller.order.status.denied_cross_store",
-      targetType: "order",
-      targetId: orderId,
-      meta: { storeId, requested: input.status },
-      req,
-    });
-    throw new AppError(
-      409,
-      "MultiStoreOrder",
-      "This order spans multiple stores. Ask an admin to update the status.",
-    );
-  }
+  if (!hasOwnedItem) throw new AppError(403, "Forbidden");
 
   if (order.status === "refunded") {
     throw new AppError(409, "AlreadyRefunded");
@@ -785,23 +679,6 @@ export async function updateOrderStatus(
       409,
       "InvalidTransition",
       "Only paid orders can be fulfilled.",
-    );
-  }
-  // Block paid→cancelled; force sellers through the refund path so
-  // the money trail is consistent. pending→cancelled stays allowed.
-  if (input.status === "cancelled" && order.status === "paid") {
-    await audit({
-      actorId,
-      action: "seller.order.update.denied",
-      targetType: "order",
-      targetId: orderId,
-      meta: { storeId, reason: "paid_must_refund_first" },
-      req,
-    });
-    throw new AppError(
-      409,
-      "RefundFirst",
-      "This order is already paid. Refund it instead of cancelling so the buyer gets their money back.",
     );
   }
 
@@ -815,7 +692,6 @@ export async function updateOrderStatus(
     targetType: "order",
     targetId: orderId,
     meta: { from: order.status, to: input.status, storeId },
-    req,
   });
 }
 
@@ -846,36 +722,7 @@ export async function refundOrder(
   const hasOwnedItem = order.items.some(
     (it) => it.productItem?.product.storeId === storeId,
   );
-  if (!hasOwnedItem) {
-    await audit({
-      actorId,
-      action: "seller.order.refund.denied",
-      targetType: "order",
-      targetId: orderId,
-      meta: { reason: "Forbidden", storeId },
-    });
-    throw new AppError(403, "Forbidden");
-  }
-
-  // Multi-store guard: order.status is shared, so a partial refund
-  // across stores can't be represented. Refuse instead of corrupting.
-  const otherStoreLines = order.items.filter(
-    (it) => it.productItem?.product.storeId !== storeId,
-  );
-  if (otherStoreLines.length > 0) {
-    await audit({
-      actorId,
-      action: "seller.order.refund.denied_cross_store",
-      targetType: "order",
-      targetId: orderId,
-      meta: { storeId },
-    });
-    throw new AppError(
-      409,
-      "MultiStoreOrder",
-      "This order spans multiple stores. Ask an admin to refund the buyer.",
-    );
-  }
+  if (!hasOwnedItem) throw new AppError(403, "Forbidden");
 
   if (!["paid", "fulfilled"].includes(order.status)) {
     throw new AppError(
@@ -885,7 +732,9 @@ export async function refundOrder(
     );
   }
 
-  // Issue the Stripe refund so the buyer's card is actually credited.
+  // actually call Stripe so the buyer's card is refunded.
+  // Without this the seller-facing UI says "refunded" but the money
+  // never leaves the seller's connected account → silent fraud.
   let stripeRefundId: string | null = null;
   if (order.stripePaymentIntentId) {
     const store = await prisma.store.findUnique({
@@ -911,37 +760,22 @@ export async function refundOrder(
     }
   }
 
-  // Restore non-digital stock on refund (kept in sync with the same
-  // DIGITAL_METHODS set used by webhook + sweepExpiredOrders).
-  const DIGITAL_METHODS = new Set(["download", "email", "license_key", "streaming"]);
-  await prisma.$transaction(async (tx) => {
-    for (const item of order.items) {
-      if (item.productItemId == null) continue;
-      const pIt = await tx.productItem.findUnique({
-        where: { productItemId: item.productItemId },
-        select: { deliveryMethod: true },
-      });
-      if (!pIt || DIGITAL_METHODS.has(pIt.deliveryMethod)) continue;
-      await tx.productItem.update({
-        where: { productItemId: item.productItemId },
-        data: { quantity: { increment: item.quantity } },
-      });
-    }
-    await tx.order.update({
+  await prisma.$transaction([
+    prisma.order.update({
       where: { orderId },
       data: {
         status: "refunded",
         ...(stripeRefundId ? { stripeRefundId } : {}),
       },
-    });
-    await tx.transaction.create({
+    }),
+    prisma.transaction.create({
       data: {
         userId: order.userId,
         transactionType: "payout",
         totalAmount: new Prisma.Decimal(order.totalPrice).neg(),
       },
-    });
-  });
+    }),
+  ]);
   await audit({
     actorId,
     action: "order.refund",
@@ -957,7 +791,11 @@ export async function refundOrder(
   });
 }
 
-/** Confirm a product belongs to the seller's store; 404 vs 403 distinct. */
+/**
+ * Helper for product-related write controllers — confirm the product
+ * exists and belongs to the seller's store. 404 vs 403 distinct so
+ * dashboard UI can tell stale links from bug attempts.
+ */
 export async function assertProductOwnership(
   productId: number,
   storeId: number,
