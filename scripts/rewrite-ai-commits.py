@@ -35,7 +35,7 @@ REWRITES = {
     "c2a6ae4": "feat(admin): platform earnings kpi on overview",
     "f8a6d0a": "fix(web): add undici as direct dep",
 }
-EARLIEST = "29f3fcd"
+EARLIEST = "c592891"
 
 
 def sh(*args):
