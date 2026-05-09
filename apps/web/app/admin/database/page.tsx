@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Database, KeyRound, GitMerge, FileText, Sparkles, Terminal } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
-import { apiFetch } from "@/lib/server/api";
+import { apiFetch, ApiError } from "@/lib/server/api";
 import { fmtDateTime } from "@/lib/format";
 import { SqlConsole } from "./SqlConsole";
+import { DatabaseStepUpPrompt } from "./DatabaseStepUpPrompt";
 
 export const metadata: Metadata = { title: "Database · Admin · METU" };
 export const dynamic = "force-dynamic";
@@ -23,26 +24,53 @@ interface Snapshot {
   jsonbUsage: Array<{ table: string; column: string; sampleQuery: string }>;
 }
 
-async function fetchSnapshot(): Promise<Snapshot | null> {
+type SnapResult =
+  | { kind: "ok"; data: Snapshot }
+  | { kind: "needs-step-up" }
+  | { kind: "error"; message: string };
+
+async function fetchSnapshot(): Promise<SnapResult> {
   try {
-    return await apiFetch<Snapshot>("/admin/db/snapshot");
-  } catch {
-    return null;
+    const data = await apiFetch<Snapshot>("/admin/db/snapshot");
+    return { kind: "ok", data };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      const code = (err.body as { error?: string })?.error;
+      if (err.status === 403 && code === "TotpStepUpRequired") {
+        return { kind: "needs-step-up" };
+      }
+      const msg = (err.body as { message?: string })?.message ?? `API ${err.status}`;
+      return { kind: "error", message: msg };
+    }
+    return { kind: "error", message: "API unreachable." };
   }
 }
 
 export default async function AdminDatabasePage() {
-  const snap = await fetchSnapshot();
-  if (!snap) {
+  const result = await fetchSnapshot();
+  if (result.kind === "needs-step-up") {
+    return (
+      <main className="px-8 py-8">
+        <PageHeader
+          title="Database"
+          subtitle="This page reveals live Postgres state, so it's behind a fresh 2FA challenge."
+        />
+        <DatabaseStepUpPrompt />
+      </main>
+    );
+  }
+  if (result.kind === "error") {
     return (
       <main className="px-8 py-8">
         <PageHeader title="Database" subtitle="Couldn't read the live Postgres state right now." />
-        <p className="text-sm text-ink-dim">
+        <p className="text-sm text-ink-dim">{result.message}</p>
+        <p className="text-xs text-ink-dim mt-2">
           Make sure the API is up and the admin session is valid, then refresh.
         </p>
       </main>
     );
   }
+  const snap = result.data;
 
   // Group indexes by table for the per-table cards.
   const indexesByTable = new Map<string, Snapshot["indexes"]>();

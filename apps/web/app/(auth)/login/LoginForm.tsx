@@ -59,6 +59,8 @@ export function LoginForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [totpCode, setTotpCode] = useState("");
+  const [backupCode, setBackupCode] = useState("");
+  const [useBackup, setUseBackup] = useState(false);
   const [step, setStep] = useState<Step>("credentials");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -96,9 +98,16 @@ export function LoginForm({
       setError("Please fill in both fields");
       return;
     }
-    if (step === "totp" && !/^\d{6}$/.test(totpCode)) {
-      setError("Enter the 6-digit code from your authenticator app");
-      return;
+    if (step === "totp") {
+      if (useBackup) {
+        if (backupCode.replace(/[\s-]/g, "").length < 10) {
+          setError("Enter a backup code (10 letters/digits, dashes optional)");
+          return;
+        }
+      } else if (!/^\d{6}$/.test(totpCode)) {
+        setError("Enter the 6-digit code from your authenticator app");
+        return;
+      }
     }
     if (step === "admin-otp") {
       if (!/^\d{6}$/.test(adminOtp)) {
@@ -117,6 +126,7 @@ export function LoginForm({
         email: string;
         password: string;
         totpCode?: string;
+        backupCode?: string;
         adminOtp?: string;
         confirmOwner?: boolean;
         trustDevice?: boolean;
@@ -128,7 +138,10 @@ export function LoginForm({
       if (step === "credentials" && captchaToken) {
         body.captchaToken = captchaToken;
       }
-      if (step === "totp") body.totpCode = totpCode;
+      if (step === "totp") {
+        if (useBackup) body.backupCode = backupCode.replace(/\s/g, "").toUpperCase();
+        else body.totpCode = totpCode;
+      }
       if (step === "admin-otp") {
         body.adminOtp = adminOtp;
         body.confirmOwner = confirmOwner;
@@ -170,6 +183,11 @@ export function LoginForm({
         }
         if (data?.error === "InvalidTotp") {
           setError("Code didn't match. Try a fresh one from your app.");
+          setBusy(false);
+          return;
+        }
+        if (data?.error === "InvalidBackupCode") {
+          setError("That backup code didn't match — each one only works once.");
           setBusy(false);
           return;
         }
@@ -386,36 +404,68 @@ export function LoginForm({
         <div className="mt-4 mb-2 rounded-xl border border-metu-yellow/30 bg-metu-yellow/5 p-4">
           <div className="flex items-center gap-2 mb-2">
             <KeyRound className="h-4 w-4 text-metu-yellow" />
-            <label className="block text-sm font-semibold text-white" htmlFor="login-totp">
-              Authenticator code
+            <label className="block text-sm font-semibold text-white" htmlFor={useBackup ? "login-backup" : "login-totp"}>
+              {useBackup ? "Backup code" : "Authenticator code"}
             </label>
           </div>
-          <input
-            id="login-totp"
-            ref={totpInputRef}
-            name="totpCode"
-            type="text"
-            inputMode="numeric"
-            pattern="\d{6}"
-            maxLength={6}
-            value={totpCode}
-            onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="123456"
-            className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-white text-center tracking-[0.4em] font-mono text-xl focus:border-metu-yellow outline-none"
-            autoComplete="one-time-code"
-            required
-          />
-          <button
-            type="button"
-            onClick={() => {
-              setStep("credentials");
-              setTotpCode("");
-              setError(null);
-            }}
-            className="mt-2 text-xs text-ink-dim hover:text-metu-yellow"
-          >
-            ← Use a different account
-          </button>
+          {!useBackup && (
+            <input
+              id="login-totp"
+              ref={totpInputRef}
+              name="totpCode"
+              type="text"
+              inputMode="numeric"
+              pattern="\d{6}"
+              maxLength={6}
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-white text-center tracking-[0.4em] font-mono text-xl focus:border-metu-yellow outline-none"
+              autoComplete="one-time-code"
+              required
+            />
+          )}
+          {useBackup && (
+            <input
+              id="login-backup"
+              name="backupCode"
+              type="text"
+              maxLength={20}
+              value={backupCode}
+              onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
+              placeholder="ABCD-EFGH-IJ"
+              className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-white text-center font-mono text-lg focus:border-metu-yellow outline-none"
+              autoComplete="off"
+              required
+            />
+          )}
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setStep("credentials");
+                setTotpCode("");
+                setBackupCode("");
+                setUseBackup(false);
+                setError(null);
+              }}
+              className="text-xs text-ink-dim hover:text-metu-yellow"
+            >
+              ← Use a different account
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUseBackup((p) => !p);
+                setTotpCode("");
+                setBackupCode("");
+                setError(null);
+              }}
+              className="text-xs text-ink-dim hover:text-metu-yellow underline"
+            >
+              {useBackup ? "Use authenticator code instead" : "Use a backup code instead"}
+            </button>
+          </div>
         </div>
       )}
 

@@ -19,6 +19,8 @@ const DEFAULT_MESSAGES: Record<string, string> = {
   NoPendingOtp: "No code is waiting to be verified — send a new one first.",
   InvalidTotp: "That two-factor code didn't match. Try again.",
   NeedsTotp: "Two-factor code required.",
+  TotpRequired: "Enter the 6-digit code from your authenticator (or a backup code).",
+  InvalidBackupCode: "That backup code didn't match — each code only works once.",
   CaptchaFailed: "Please complete the CAPTCHA and try again.",
   TooManyRequests: "Too many attempts — wait a moment and try again.",
   EmptyCart: "Your cart is empty.",

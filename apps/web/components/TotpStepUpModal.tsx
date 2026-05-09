@@ -38,6 +38,8 @@ export function TotpStepUpModal({
   onSuccess: () => void;
 }) {
   const [code, setCode] = useState("");
+  const [backupCode, setBackupCode] = useState("");
+  const [useBackup, setUseBackup] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +48,8 @@ export function TotpStepUpModal({
   useEffect(() => {
     if (open) {
       setCode("");
+      setBackupCode("");
+      setUseBackup(false);
       setError(null);
       // Defer to next tick so the input is mounted by the time
       // we call .focus() — Safari otherwise no-ops the focus.
@@ -66,22 +70,30 @@ export function TotpStepUpModal({
 
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!/^[0-9]{6}$/.test(code)) {
+    if (useBackup) {
+      if (backupCode.replace(/[\s-]/g, "").length < 10) {
+        setError("Enter your 10-character backup code (dashes optional).");
+        return;
+      }
+    } else if (!/^[0-9]{6}$/.test(code)) {
       setError("Enter the 6-digit code from your authenticator.");
       return;
     }
     setBusy(true);
     setError(null);
     try {
+      const body: { code?: string; backupCode?: string } = useBackup
+        ? { backupCode: backupCode.replace(/\s/g, "").toUpperCase() }
+        : { code };
       const res = await fetch("/api/auth/totp/step-up", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ code }),
+        body: JSON.stringify(body),
       });
-      const body = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.message || body.error || "Step-up failed");
+        setError(data.message || data.error || "Step-up failed");
         return;
       }
       onSuccess();
@@ -136,22 +148,49 @@ export function TotpStepUpModal({
         )}
 
         <form onSubmit={submit}>
-          <input
-            ref={inputRef}
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
-            placeholder="000000"
-            className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-white focus:border-metu-yellow outline-none"
-          />
+          {!useBackup && (
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
+              placeholder="000000"
+              className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-center text-2xl font-mono tracking-[0.5em] text-white focus:border-metu-yellow outline-none"
+            />
+          )}
+          {useBackup && (
+            <input
+              ref={inputRef}
+              type="text"
+              maxLength={20}
+              value={backupCode}
+              onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
+              placeholder="ABCD-EFGH-IJ"
+              autoComplete="off"
+              className="w-full rounded-xl border border-white/10 bg-surface-3 px-4 py-3 text-center text-lg font-mono text-white focus:border-metu-yellow outline-none"
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setUseBackup((p) => !p);
+              setCode("");
+              setBackupCode("");
+              setError(null);
+            }}
+            disabled={busy}
+            className="mt-2 text-xs text-ink-dim hover:text-white underline disabled:opacity-50"
+          >
+            {useBackup ? "Use authenticator code instead" : "Use a backup code instead"}
+          </button>
           <div className="mt-4 flex items-center gap-2">
             <button
               type="submit"
-              disabled={busy || code.length !== 6}
+              disabled={busy || (useBackup ? backupCode.replace(/[\s-]/g, "").length < 10 : code.length !== 6)}
               className="flex-1 inline-flex items-center justify-center gap-2 rounded-full button-gradient text-surface-1 px-5 py-2.5 text-sm font-semibold transition disabled:opacity-50 hover:brightness-110"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}

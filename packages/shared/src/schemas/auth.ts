@@ -7,6 +7,9 @@ export const loginSchema = z.object({
   // when the user has totpEnabled=true; UI sends it after the
   // first 401 NeedsTotp response.
   totpCode: z.string().regex(/^\d{6}$/).optional(),
+  // Single-use backup code in lieu of TOTP — same recovery path as
+  // change-password. Server consumes the matching hash on success.
+  backupCode: z.string().min(10).max(20).optional(),
   // Phase 49 — optional admin-OTP code + ownership confirmation.
   // Sent on the SECOND login round-trip after the server replies
   // with `NeedsAdminOtp` on the first call. The server requires
@@ -165,10 +168,12 @@ export const totpEnrollStartSchema = z.object({});
 export const totpEnrollVerifySchema = z.object({
   code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
 });
-// disable: requires the user's password (defence-in-depth — even a
-//          stolen session can't disable 2FA without knowing the pw).
+// disable: requires password + a fresh TOTP code OR single-use backup
+// code. Stolen-session-with-known-password alone can't strip 2FA.
 export const totpDisableSchema = z.object({
   password: z.string().min(6).max(100),
+  totpCode: z.string().regex(/^\d{6}$/).optional(),
+  backupCode: z.string().min(10).max(20).optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

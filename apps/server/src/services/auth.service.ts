@@ -107,13 +107,17 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
   if (!ok) throw new AppError(401, "InvalidCredentials");
 
   // TOTP gate runs AFTER password check so we don't leak whether 2FA is on.
+  // Accept TOTP code OR single-use backup code (same recovery path as
+  // change-password). NeedsTotp signals the UI to render the 2FA step.
   if (user.totpEnabled && user.totpSecret) {
-    if (!input.totpCode) {
+    if (input.backupCode) {
+      const ok = await consumeBackupCode(user.userId, input.backupCode);
+      if (!ok) throw new AppError(401, "InvalidBackupCode");
+    } else if (input.totpCode) {
+      const totpOk = await verifyTotpCode(input.totpCode, user.totpSecret);
+      if (!totpOk) throw new AppError(401, "InvalidTotp");
+    } else {
       throw new AppError(401, "NeedsTotp");
-    }
-    const totpOk = await verifyTotpCode(input.totpCode, user.totpSecret);
-    if (!totpOk) {
-      throw new AppError(401, "InvalidTotp");
     }
   }
 
@@ -1529,22 +1533,39 @@ export async function totpEnrollVerify(
 }
 
 /**
- * POST /auth/totp/disable. Requires the user's current password
- * (not a TOTP code) so a stolen session alone can't turn 2FA off.
+ * POST /auth/totp/disable. Requires password + a fresh TOTP code OR
+ * single-use backup code. Stolen session + leaked password alone can't
+ * strip 2FA — possession of the authenticator (or a backup code) is
+ * proof the disable was authorised.
  */
 export async function totpDisable(
   userId: number,
   password: string,
+  totpCode?: string,
+  backupCode?: string,
 ): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { userId },
-    select: { password: true, totpEnabled: true },
+    select: { password: true, totpEnabled: true, totpSecret: true },
   });
   if (!user) throw new AppError(404, "UserNotFound");
-  if (!user.totpEnabled) return;
+  if (!user.totpEnabled || !user.totpSecret) return;
   if (!user.password) throw new AppError(400, "NoPasswordSet");
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) throw new AppError(401, "InvalidPassword");
+
+  // 2nd factor proof — TOTP first, backup-code fallback. Backup-code
+  // path consumes the matching hash; the immediate wipe below clears
+  // the rest, so single-use is preserved either way.
+  if (backupCode) {
+    const okBackup = await consumeBackupCode(userId, backupCode);
+    if (!okBackup) throw new AppError(400, "InvalidBackupCode");
+  } else if (totpCode) {
+    const okTotp = await verifyTotpCode(totpCode, user.totpSecret);
+    if (!okTotp) throw new AppError(400, "InvalidTotp");
+  } else {
+    throw new AppError(400, "TotpRequired");
+  }
 
   await prisma.user.update({
     where: { userId },
@@ -1557,6 +1578,7 @@ export async function totpDisable(
     action: "user.totp_disabled",
     targetType: "user",
     targetId: userId,
+    meta: { via: backupCode ? "backup_code" : "totp" },
   });
 }
 

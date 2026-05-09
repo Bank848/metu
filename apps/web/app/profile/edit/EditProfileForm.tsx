@@ -69,6 +69,8 @@ export function EditProfileForm({
   const [totpEnrollment, setTotpEnrollment] = useState<{ secret: string; otpauthUri: string } | null>(null);
   const [totpVerifyCode, setTotpVerifyCode] = useState("");
   const [totpDisablePw, setTotpDisablePw] = useState("");
+  const [totpDisableCode, setTotpDisableCode] = useState("");
+  const [useBackupForDisable, setUseBackupForDisable] = useState(false);
   const [totpMsg, setTotpMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // Backup codes shown ONCE after TOTP enrol-verify or regenerate.
   const [revealedBackupCodes, setRevealedBackupCodes] = useState<string[] | null>(null);
@@ -178,23 +180,39 @@ export function EditProfileForm({
     setTotpMsg(null);
     setTotpBusy("disable");
     try {
+      const body: { password: string; totpCode?: string; backupCode?: string } = {
+        password: totpDisablePw,
+      };
+      if (useBackupForDisable) {
+        body.backupCode = totpDisableCode.replace(/\s/g, "").toUpperCase();
+      } else {
+        body.totpCode = totpDisableCode;
+      }
       const res = await fetch("/api/auth/totp/disable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ password: totpDisablePw }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const hint =
           data?.error === "InvalidPassword"
             ? "Wrong password."
+            : data?.error === "InvalidTotp"
+            ? "That authenticator code didn't match."
+            : data?.error === "InvalidBackupCode"
+            ? "That backup code didn't match — each one only works once."
+            : data?.error === "TotpRequired"
+            ? "Enter your 6-digit authenticator code (or a backup code)."
             : data?.message ?? "Failed to disable";
         setTotpMsg({ ok: false, text: hint });
         return;
       }
       setTotpMsg({ ok: true, text: "2FA disabled." });
       setTotpDisablePw("");
+      setTotpDisableCode("");
+      setUseBackupForDisable(false);
       router.refresh();
     } catch {
       setTotpMsg({ ok: false, text: "Network error" });
@@ -859,20 +877,56 @@ export function EditProfileForm({
         {initial.totpEnabled && (
           <form onSubmit={totpDisable} className="border-t border-white/10 pt-4 space-y-3">
             <p className="text-xs text-ink-dim">
-              To disable 2FA, confirm your current password (defence in depth — even
-              a stolen session can't strip 2FA without knowing the password).
+              To disable 2FA, confirm your password AND a fresh authenticator code
+              (or single-use backup code). A leaked password alone can't strip 2FA.
             </p>
-            <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="password"
+              value={totpDisablePw}
+              onChange={(e) => setTotpDisablePw(e.target.value)}
+              placeholder="Current password"
+              required
+              autoComplete="current-password"
+              className={inputCls}
+            />
+            {!useBackupForDisable && (
               <input
-                type="password"
-                value={totpDisablePw}
-                onChange={(e) => setTotpDisablePw(e.target.value)}
-                placeholder="Current password"
+                type="text"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                value={totpDisableCode}
+                onChange={(e) => setTotpDisableCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="123456 (authenticator code)"
                 required
-                autoComplete="current-password"
-                className={`flex-1 ${inputCls}`}
+                autoComplete="one-time-code"
+                className={`text-center font-mono tracking-widest ${inputCls}`}
               />
-              <GlassButton tone="glass" size="md" type="submit" disabled={totpBusy !== null || !totpDisablePw}>
+            )}
+            {useBackupForDisable && (
+              <input
+                type="text"
+                maxLength={20}
+                value={totpDisableCode}
+                onChange={(e) => setTotpDisableCode(e.target.value.toUpperCase())}
+                placeholder="ABCD-EFGH-IJ (backup code)"
+                required
+                autoComplete="off"
+                className={`text-center font-mono ${inputCls}`}
+              />
+            )}
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setUseBackupForDisable((p) => !p);
+                  setTotpDisableCode("");
+                }}
+                className="text-[11px] text-ink-dim hover:text-white underline"
+              >
+                {useBackupForDisable ? "Use authenticator code instead" : "Use a backup code instead"}
+              </button>
+              <GlassButton tone="glass" size="md" type="submit" disabled={totpBusy !== null || !totpDisablePw || !totpDisableCode}>
                 {totpBusy === "disable" ? "Disabling…" : "Disable 2FA"}
               </GlassButton>
             </div>

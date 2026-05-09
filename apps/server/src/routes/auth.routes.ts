@@ -59,8 +59,10 @@ router.get("/me",                 requireAuth(), ctrl.me);
 router.patch("/me",               requireAuth(), ctrl.updateMe);
 // GDPR self-delete: body { confirmation } must match the username.
 router.delete("/me",              requireAuth(), ctrl.deleteMe);
-// Sensitive ops require a fresh TOTP step-up.
-router.post("/change-password",   requireAuth(), requireRecent2FA(15), ctrl.changePassword);
+// In-form ensureSensitiveOtp gates this with TOTP code OR backup code
+// (or SMS/email OTP for non-2FA users); session-level recent-2FA was
+// redundant and broke backup-code submissions.
+router.post("/change-password",   requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.changePassword);
 // First-time password set for OAuth-only accounts.
 router.post("/set-password",      requireAuth(), makeLimiter({ max: 5, windowMs: 60_000 }), ctrl.setPassword);
 

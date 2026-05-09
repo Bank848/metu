@@ -1108,7 +1108,7 @@ export const getOtpChannel: RequestHandler = async (req, res, next) => {
   }
 };
 
-/** POST /auth/totp/disable. Requires the user's current password. */
+/** POST /auth/totp/disable. Requires password + TOTP code OR backup code. */
 export const totpDisable: RequestHandler = async (req, res, next) => {
   try {
     const parsed = totpDisableSchema.safeParse(req.body);
@@ -1117,7 +1117,12 @@ export const totpDisable: RequestHandler = async (req, res, next) => {
     }
     const auth = currentAuth(req);
     if (!auth) throw new AppError(401, "Unauthorized");
-    await service.totpDisable(auth.uid, parsed.data.password);
+    await service.totpDisable(
+      auth.uid,
+      parsed.data.password,
+      parsed.data.totpCode,
+      parsed.data.backupCode,
+    );
     res.json({ ok: true });
   } catch (err) {
     next(err);
