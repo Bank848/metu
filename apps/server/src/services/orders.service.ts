@@ -108,6 +108,45 @@ export async function checkout(
     throw new AppError(400, "EmptyCart", "No items selected for checkout.");
   }
 
+  // Gift-form validation. Reject empty/whitespace-only recipient
+  // addresses so the buyer can't sneak past the client-side check by
+  // submitting a stripped JSON body, and reject self-addressed gifts
+  // since those defeat the whole point of the gift flow (and would
+  // otherwise let the buyer claim their own gift via /gift/[id]).
+  if (input.giftRecipientEmail !== undefined && input.giftRecipientEmail !== null) {
+    const trimmed = input.giftRecipientEmail.trim();
+    if (!trimmed) {
+      throw new AppError(
+        400,
+        "GiftEmailRequired",
+        "Add the recipient's email or untick the gift checkbox before checking out.",
+      );
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      throw new AppError(
+        400,
+        "GiftEmailInvalid",
+        "That recipient email doesn't look right.",
+      );
+    }
+    const buyer = await prisma.user.findUnique({
+      where: { userId },
+      select: { email: true },
+    });
+    if (
+      buyer?.email &&
+      trimmed.toLowerCase() === buyer.email.trim().toLowerCase()
+    ) {
+      throw new AppError(
+        400,
+        "GiftToSelf",
+        "Gifts can't go to your own email — pick a different recipient or untick the gift checkbox.",
+      );
+    }
+    // Replace the input so the rest of checkout sees the trimmed value.
+    input = { ...input, giftRecipientEmail: trimmed };
+  }
+
   // defence in depth. Cart's addItem/updateItem already
   // run this gate, but a buyer who held a cart open through a seller
   // pause / store suspension / soft-delete shouldn't be able to push
@@ -128,44 +167,67 @@ export async function checkout(
     }
   }
 
-  // second line of the already-owned guard. cart.service
-  // already blocks the add, but a buyer who pre-loaded their cart
-  // before we shipped the guard could still slip through. Reject
-  // checkout if any selected line is a non-stackable product the
-  // buyer already owns.
+  // Already-owned guard. Non-stackable products (license_key, download,
+  // streaming, email) shouldn't ship to the same account twice. Whose
+  // ownership we check depends on the order shape:
+  //   - Self-purchase: check the BUYER's existing orders.
+  //   - Gift: check the RECIPIENT's existing orders if their email
+  //     matches a registered user. Otherwise the duplicate check runs
+  //     again at /gift/[id] claim time, after the recipient signs in.
   const nonStackableProductIds = selectedItems
     .filter((ci) => !ci.productItem.product.isStackable)
     .map((ci) => ci.productItem.product.productId);
   if (nonStackableProductIds.length > 0) {
-    const ownedAlready = await prisma.order.findFirst({
-      where: {
-        userId,
-        status: { in: ["paid", "fulfilled", "pending"] },
-        items: {
-          some: {
-            productItem: { productId: { in: nonStackableProductIds } },
+    let dupeCheckUserId: number | null = null;
+    let dupeCheckLabel: "buyer" | "recipient" = "buyer";
+    if (input.giftRecipientEmail) {
+      const recipient = await prisma.user.findUnique({
+        where: { email: input.giftRecipientEmail.toLowerCase() },
+        select: { userId: true },
+      });
+      if (recipient) {
+        dupeCheckUserId = recipient.userId;
+        dupeCheckLabel = "recipient";
+      }
+    } else {
+      dupeCheckUserId = userId;
+    }
+    if (dupeCheckUserId !== null) {
+      const ownedAlready = await prisma.order.findFirst({
+        where: {
+          userId: dupeCheckUserId,
+          status: { in: ["paid", "fulfilled", "pending"] },
+          items: {
+            some: {
+              productItem: { productId: { in: nonStackableProductIds } },
+            },
           },
         },
-      },
-      select: {
-        orderId: true,
-        items: {
-          where: {
-            productItem: { productId: { in: nonStackableProductIds } },
+        select: {
+          orderId: true,
+          items: {
+            where: {
+              productItem: { productId: { in: nonStackableProductIds } },
+            },
+            select: { productItem: { select: { productId: true, product: { select: { name: true } } } } },
           },
-          select: { productItem: { select: { productId: true } } },
         },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    if (ownedAlready) {
-      const ownedProductId = ownedAlready.items[0]?.productItem?.productId;
-      throw new AppError(
-        409,
-        "AlreadyOwned",
-        `Your cart contains a product you already own — view order #${ownedAlready.orderId}.`,
-        { orderId: ownedAlready.orderId, productId: ownedProductId },
-      );
+        orderBy: { createdAt: "desc" },
+      });
+      if (ownedAlready) {
+        const ownedProductId = ownedAlready.items[0]?.productItem?.productId;
+        const ownedName = ownedAlready.items[0]?.productItem?.product?.name ?? "this product";
+        const message =
+          dupeCheckLabel === "recipient"
+            ? `Your gift recipient already owns "${ownedName}". Pick a different product or recipient.`
+            : `Your cart contains a product you already own — view order #${ownedAlready.orderId}.`;
+        throw new AppError(
+          409,
+          dupeCheckLabel === "recipient" ? "RecipientAlreadyOwns" : "AlreadyOwned",
+          message,
+          { orderId: ownedAlready.orderId, productId: ownedProductId },
+        );
+      }
     }
   }
 
@@ -965,6 +1027,11 @@ export type GiftAccessResult =
   | { status: "needs-auth"; recipientMasked: string }
   | { status: "wrong-email"; recipientMasked: string }
   | {
+      status: "already-owned";
+      recipientMasked: string;
+      duplicateProductNames: string[];
+    }
+  | {
       status: "ok";
       orderId: number;
       buyerFirstName: string;
@@ -1023,6 +1090,64 @@ export async function getGiftAccess(
     },
   });
   if (!full) return { status: "not-found" };
+
+  // Recipient duplicate guard. Non-stackable products (license keys,
+  // single-use downloads, streaming, email-delivery) shouldn't land in
+  // the same account twice — a recipient who already owns one of the
+  // gifted products gets a polite refusal so they can ask the buyer to
+  // refund or send something else. Mirrors the checkout-time check on
+  // the buyer side, but runs against the recipient's account.
+  const recipientUser = await prisma.user.findUnique({
+    where: { email: order.giftRecipientEmail.toLowerCase() },
+    select: { userId: true },
+  });
+  if (recipientUser) {
+    const nonStackableInGift = full.items
+      .filter((it) => it.productItem && !it.productItem.product.isStackable)
+      .map((it) => ({
+        productId: it.productItem!.product.productId,
+        name: it.productItem!.product.name,
+      }));
+    if (nonStackableInGift.length > 0) {
+      const dupes = await prisma.order.findMany({
+        where: {
+          userId: recipientUser.userId,
+          orderId: { not: orderId },
+          status: { in: ["paid", "fulfilled", "pending"] },
+          items: {
+            some: {
+              productItem: {
+                productId: { in: nonStackableInGift.map((p) => p.productId) },
+              },
+            },
+          },
+        },
+        select: {
+          items: {
+            where: {
+              productItem: {
+                productId: { in: nonStackableInGift.map((p) => p.productId) },
+              },
+            },
+            select: { productItem: { select: { productId: true } } },
+          },
+        },
+      });
+      const dupeProductIds = new Set(
+        dupes.flatMap((o) =>
+          o.items
+            .map((i) => i.productItem?.productId)
+            .filter((id): id is number => typeof id === "number"),
+        ),
+      );
+      const duplicateProductNames = nonStackableInGift
+        .filter((p) => dupeProductIds.has(p.productId))
+        .map((p) => p.name);
+      if (duplicateProductNames.length > 0) {
+        return { status: "already-owned", recipientMasked, duplicateProductNames };
+      }
+    }
+  }
 
   const ORPHAN = -1;
   const byStore = new Map<number, GiftStoreBucket>();

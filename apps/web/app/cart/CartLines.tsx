@@ -62,7 +62,16 @@ function maxForLine(line: Line): number {
   return cartMaxForLine(line);
 }
 
-export function CartLines({ cart: initial }: { cart: Cart }) {
+export function CartLines({
+  cart: initial,
+  buyerEmail,
+}: {
+  cart: Cart;
+  /** Buyer's signed-in email — used to block "gift to yourself" at the
+   *  client side before the round-trip to /orders. Server still has the
+   *  authoritative check. */
+  buyerEmail?: string;
+}) {
   const router = useRouter();
   const { t } = useI18n();
   const [cart, setCart] = useState(initial);
@@ -300,6 +309,34 @@ export function CartLines({ cart: initial }: { cart: Cart }) {
 
   async function checkout() {
     if (selectedItems.length === 0) return;
+    // Gift-form pre-flight before we hit the server.
+    if (giftOpen) {
+      const trimmed = giftEmail.trim();
+      if (!trimmed) {
+        setToast({ ok: false, text: "Add the recipient's email or untick \"This is a gift\"." });
+        play("error");
+        return;
+      }
+      // Loose RFC-compatible regex; the server has the authoritative
+      // validation but bouncing the obvious bad inputs here saves a
+      // round-trip and keeps the toast inline with the form.
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        setToast({ ok: false, text: "That recipient email doesn't look right." });
+        play("error");
+        return;
+      }
+      if (
+        buyerEmail &&
+        trimmed.toLowerCase() === buyerEmail.trim().toLowerCase()
+      ) {
+        setToast({
+          ok: false,
+          text: "Gifts go to someone else — pick a different email or untick \"This is a gift\".",
+        });
+        play("error");
+        return;
+      }
+    }
     setBusy(true);
     // `navigated` flag: on the success path we route away, so leaving
     // the button busy is desirable (prevents a double-click flash before

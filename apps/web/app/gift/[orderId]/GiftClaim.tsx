@@ -34,6 +34,11 @@ type GiftResult =
   | { status: "needs-auth"; recipientMasked: string }
   | { status: "wrong-email"; recipientMasked: string }
   | {
+      status: "already-owned";
+      recipientMasked: string;
+      duplicateProductNames: string[];
+    }
+  | {
       status: "ok";
       orderId: number;
       buyerFirstName: string;
@@ -134,6 +139,22 @@ export function GiftClaim({ orderId, token }: { orderId: number; token: string }
             <LogIn className="h-3.5 w-3.5" />
             Sign in as {state.recipientMasked}
           </Link>
+        }
+      />
+    );
+  }
+
+  if (state.status === "already-owned") {
+    return (
+      <ErrorPanel
+        title="You already own this"
+        body={
+          <>
+            Your account already owns{" "}
+            <strong>{state.duplicateProductNames.join(", ")}</strong>, so we
+            can&rsquo;t add a duplicate. Ask the sender to either pick a
+            different product or to request a refund through the seller.
+          </>
         }
       />
     );
