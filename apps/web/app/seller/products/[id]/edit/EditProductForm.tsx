@@ -76,6 +76,7 @@ export function EditProductForm({
   const [tagIds, setTagIds] = useState<number[]>(initial.tagIds);
   const [details, setDetails] = useState<AdditionalDetail[]>(initial.details ?? []);
   const [variants, setVariants] = useState<Variant[]>(initial.items ?? []);
+  const [isStackable, setIsStackable] = useState(initial.isStackable);
 
   const existingVariantCount = initial.items.length;
 
@@ -143,6 +144,7 @@ export function EditProductForm({
           categoryId,
           images: cleanImages,
           tagIds,
+          isStackable,
           details: details
             .filter((d) => d.detailName?.trim() || d.detailValue?.trim())
             .map((d) => ({
@@ -352,6 +354,26 @@ export function EditProductForm({
               <Plus className="h-3.5 w-3.5" /> Add variant
             </button>
           )}
+        </FormSection>
+
+        <FormSection title="Purchase rules">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isStackable}
+              onChange={(e) => setIsStackable(e.target.checked)}
+              className="mt-1 h-4 w-4 accent-metu-yellow shrink-0"
+            />
+            <span className="block">
+              <span className="block text-sm font-semibold text-white">
+                Allow multiple purchases per order
+              </span>
+              <span className="block text-xs text-ink-dim mt-0.5">
+                Buyers can add more than one of this product. Best for license
+                keys or consumables. Single-buy downloads should leave this off.
+              </span>
+            </span>
+          </label>
         </FormSection>
 
         {error && <p className="text-sm text-coral">{error}</p>}

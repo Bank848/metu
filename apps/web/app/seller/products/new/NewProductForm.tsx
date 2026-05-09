@@ -38,6 +38,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
   const [tagIds, setTagIds] = useState<number[]>([]);
   const [variants, setVariants] = useState<Variant[]>([{ ...DEFAULT_VARIANT }]);
   const [details, setDetails] = useState<AdditionalDetail[]>([]);
+  const [isStackable, setIsStackable] = useState(false);
 
   function toggleTag(id: number) {
     setTagIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
@@ -107,6 +108,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
           categoryId,
           images: cleanImages,
           tagIds,
+          isStackable,
           details: details
             .filter((d) => d.detailName?.trim() || d.detailValue?.trim())
             .map((d) => ({
@@ -292,6 +294,26 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
               <Plus className="h-3.5 w-3.5" /> Add variant
             </button>
           )}
+        </FormSection>
+
+        <FormSection title="Purchase rules">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isStackable}
+              onChange={(e) => setIsStackable(e.target.checked)}
+              className="mt-1 h-4 w-4 accent-metu-yellow shrink-0"
+            />
+            <span className="block">
+              <span className="block text-sm font-semibold text-white">
+                Allow multiple purchases per order
+              </span>
+              <span className="block text-xs text-ink-dim mt-0.5">
+                Buyers can add more than one of this product. Best for license
+                keys or consumables. Single-buy downloads should leave this off.
+              </span>
+            </span>
+          </label>
         </FormSection>
 
         {error && <p className="text-sm text-coral">{error}</p>}
