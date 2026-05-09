@@ -134,7 +134,7 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-md mx-auto rounded-2xl border border-line bg-space-900 p-6">
+    <form onSubmit={onSubmit} className="max-w-md mx-auto rounded-2xl border border-line bg-space-900 p-4 sm:p-6">
       <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-metu-yellow/15 ring-1 ring-metu-yellow/30 px-2.5 py-1 text-[10px] font-mono text-metu-yellow uppercase tracking-wider">
         <AlertCircle className="h-3 w-3" />
         Test mode · no real charge
@@ -153,7 +153,7 @@ function InnerForm({ orderId, clientSecret }: { orderId: number; clientSecret: s
           <p className="text-xs text-coral/80 mb-2">
             {loadError ?? "It usually loads within a few seconds. Refresh the page or return to your cart and try again."}
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => window.location.reload()}
