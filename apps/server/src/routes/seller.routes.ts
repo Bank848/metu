@@ -29,6 +29,8 @@ router.patch("/product-items/:id",        ctrl.patchVariant);
 // Coupons
 router.get("/coupons",                    ctrl.listCoupons);
 router.post("/coupons",                   ctrl.createCoupon);
+router.patch("/coupons/:id",              ctrl.updateCoupon);
+router.delete("/coupons/:id",             ctrl.deleteCoupon);
 
 // Stats / Orders (read)
 router.get("/stats",                      ctrl.getStats);

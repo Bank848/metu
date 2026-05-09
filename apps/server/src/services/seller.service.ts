@@ -357,10 +357,44 @@ export async function updateStore(storeId: number, input: UpdateStoreInput) {
   return { noop: false as const, store: updated };
 }
 
+/**
+ * Look up tag IDs by name (case-insensitive) and INSERT any missing
+ * names so the seller can introduce new tags during product create /
+ * update without a separate admin step. Returns IDs in the same order
+ * as the input names array, deduped.
+ */
+async function resolveTagIds(
+  tagNames: string[],
+  tx: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<number[]> {
+  if (tagNames.length === 0) return [];
+  const normalized = Array.from(new Set(
+    tagNames.map((n) => n.trim()).filter((n) => n.length > 0),
+  ));
+  if (normalized.length === 0) return [];
+  const lower = normalized.map((n) => n.toLowerCase());
+  const existing = await tx.productTag.findMany({
+    where: { tagName: { in: lower, mode: "insensitive" } },
+    select: { tagId: true, tagName: true },
+  });
+  const found = new Map(existing.map((t) => [t.tagName.toLowerCase(), t.tagId]));
+  for (const name of normalized) {
+    const key = name.toLowerCase();
+    if (found.has(key)) continue;
+    const created = await tx.productTag.create({
+      data: { tagName: key, tagDescription: `Tag: ${key}` },
+      select: { tagId: true, tagName: true },
+    });
+    found.set(created.tagName.toLowerCase(), created.tagId);
+  }
+  return normalized.map((n) => found.get(n.toLowerCase())!).filter(Boolean);
+}
+
 /** POST /seller/products — create a product (with variants, images, tags). */
 export async function createProduct(storeId: number, input: ProductInput) {
   const productDeliveryMethod = input.items[0]!.deliveryMethod;
   const isStackable = input.isStackable ?? (productDeliveryMethod === "license_key");
+  const tagIds = await resolveTagIds(input.tags);
   return prisma.product.create({
     data: {
       storeId,
@@ -400,7 +434,7 @@ export async function createProduct(storeId: number, input: ProductInput) {
         })),
       },
       productNTags: {
-        create: input.tagIds.map((tagId) => ({ tagId })),
+        create: tagIds.map((tagId) => ({ tagId })),
       },
       details: {
         create: (input.details ?? []).map((d) => ({
@@ -451,10 +485,11 @@ export async function updateProduct(
         sortOrder: i,
       })),
     });
+    const tagIds = await resolveTagIds(input.tags, tx);
     await tx.productNTag.deleteMany({ where: { productId } });
-    if (input.tagIds.length) {
+    if (tagIds.length) {
       await tx.productNTag.createMany({
-        data: input.tagIds.map((tagId) => ({ productId, tagId })),
+        data: tagIds.map((tagId) => ({ productId, tagId })),
       });
     }
     await tx.productDetail.deleteMany({ where: { productId } });
@@ -635,6 +670,47 @@ export async function createCoupon(storeId: number, input: CouponInput) {
       isActive: input.isActive,
     },
   });
+}
+
+/** PATCH /seller/coupons/:id — full-replace edit, scoped to seller. */
+export async function updateCoupon(storeId: number, couponId: number, input: CouponInput) {
+  const existing = await prisma.coupon.findUnique({
+    where: { couponId },
+    select: { storeId: true },
+  });
+  if (!existing) throw new AppError(404, "CouponNotFound");
+  if (existing.storeId !== storeId) throw new AppError(404, "CouponNotFound");
+  return prisma.coupon.update({
+    where: { couponId },
+    data: {
+      code: input.code,
+      discountType: input.discountType,
+      discountValue: input.discountValue,
+      startDate: new Date(input.startDate),
+      endDate: new Date(input.endDate),
+      usageLimit: input.usageLimit,
+      isActive: input.isActive,
+    },
+  });
+}
+
+/** DELETE /seller/coupons/:id — refuses if any redemption already
+ *  consumed it (preserves the audit trail attached via coupon_usage). */
+export async function deleteCoupon(storeId: number, couponId: number) {
+  const existing = await prisma.coupon.findUnique({
+    where: { couponId },
+    include: { _count: { select: { usages: true } } },
+  });
+  if (!existing) throw new AppError(404, "CouponNotFound");
+  if (existing.storeId !== storeId) throw new AppError(404, "CouponNotFound");
+  if (existing._count.usages > 0) {
+    throw new AppError(
+      409,
+      "CouponInUse",
+      "This coupon has already been redeemed; deactivate it instead.",
+    );
+  }
+  await prisma.coupon.delete({ where: { couponId } });
 }
 
 /**

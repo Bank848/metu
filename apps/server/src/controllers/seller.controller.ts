@@ -48,7 +48,10 @@ const productInputSchema = z.object({
   description: z.string().min(2).max(255),
   categoryId: z.number().int().positive(),
   images: z.array(z.string().url()).min(1).max(5),
-  tagIds: z.array(z.number().int().positive()).max(10).default([]),
+  // Free-form tag names. Server resolves to existing ProductTag rows
+  // case-insensitively; unknown names auto-create. Cap at 10 / 30 chars
+  // each to keep the catalog from drifting into infinite tags.
+  tags: z.array(z.string().trim().min(1).max(30)).max(10).default([]),
   items: z.array(productItemInputSchema).min(1).max(5),
   isStackable: z.boolean().optional(),
   details: z.array(productAddDetailInputSchema).max(6).default([]),
@@ -268,6 +271,34 @@ export const createCoupon: RequestHandler = async (req, res, next) => {
     if (!parsed.success) throw parsed.error;
     const created = await service.createCoupon(store.storeId, parsed.data);
     res.json(created);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** PATCH /seller/coupons/:id — full edit. */
+export const updateCoupon: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const store = currentStore(req);
+    const couponId = Number(req.params.id);
+    if (!Number.isFinite(couponId)) throw new AppError(400, "BadId");
+    const parsed = couponInputSchema.safeParse(req.body);
+    if (!parsed.success) throw parsed.error;
+    const updated = await service.updateCoupon(store.storeId, couponId, parsed.data);
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** DELETE /seller/coupons/:id — refuses if redeemed. */
+export const deleteCoupon: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const store = currentStore(req);
+    const couponId = Number(req.params.id);
+    if (!Number.isFinite(couponId)) throw new AppError(400, "BadId");
+    await service.deleteCoupon(store.storeId, couponId);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

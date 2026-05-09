@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Ticket } from "lucide-react";
+import { BarChart3, Pencil, Ticket } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { apiAuth } from "@/lib/session";
 import { coins, thbToCoins, fmtDate } from "@/lib/format";
+import { DeleteCouponButton } from "./DeleteCouponButton";
 
 type Coupon = {
   couponId: number;
@@ -50,7 +51,7 @@ export default async function SellerCoupons() {
               <th className="text-left px-5 py-3">Window</th>
               <th className="text-left px-5 py-3">Usage</th>
               <th className="text-left px-5 py-3">Status</th>
-              <th className="text-right px-5 py-3">Report</th>
+              <th className="text-right px-5 py-3">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -82,13 +83,23 @@ export default async function SellerCoupons() {
                     )}
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <Link
-                      href={`/seller/coupons/${c.couponId}/report`}
-                      className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 hover:border-metu-yellow/40 hover:text-metu-yellow px-2.5 py-1 text-[11px] font-semibold text-ink-secondary transition"
-                    >
-                      <BarChart3 className="h-3 w-3" />
-                      Report
-                    </Link>
+                    <div className="inline-flex items-center justify-end gap-2">
+                      <Link
+                        href={`/seller/coupons/${c.couponId}/report`}
+                        className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 hover:border-metu-yellow/40 hover:text-metu-yellow px-2.5 py-1 text-[11px] font-semibold text-ink-secondary transition"
+                      >
+                        <BarChart3 className="h-3 w-3" />
+                        Report
+                      </Link>
+                      <Link
+                        href={`/seller/coupons/${c.couponId}/edit`}
+                        className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 hover:border-mint/40 hover:text-mint px-2.5 py-1 text-[11px] font-semibold text-ink-secondary transition"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Edit
+                      </Link>
+                      <DeleteCouponButton couponId={c.couponId} code={c.code} />
+                    </div>
                   </td>
                 </tr>
               );
