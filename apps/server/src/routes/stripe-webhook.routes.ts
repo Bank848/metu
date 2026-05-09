@@ -10,6 +10,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { getClient, isConfigured } from "../services/stripe.service.js";
 import { finalizeOrder, clearCartAfterPayment } from "../services/orders.service.js";
+import { audit } from "../utils/audit.js";
 
 const router = Router();
 
@@ -167,6 +168,20 @@ async function onPaymentIntentSucceeded(event: Stripe.Event) {
       status: "paid",
       stripeChargeId: chargeId,
       stripeAmountReceived: pi.amount_received,
+    },
+  });
+
+  // SOC visibility: pending -> paid is the first time money has moved.
+  // Webhook has no Express req for clientIp/UA; emit with null per design.
+  await audit({
+    actorId: order.userId,
+    action: "order.paid",
+    targetType: "order",
+    targetId: orderId,
+    meta: {
+      paymentIntentId: pi.id,
+      chargeId,
+      amountReceived: pi.amount_received,
     },
   });
 
