@@ -5,24 +5,6 @@ import { cn, isDataUrl } from "@/lib/utils";
 import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
 
-/**
- * / Step 2 — live render of how the marketplace will show the
- * thing being edited.
- * Three variants today:
- *   - product → renders the real `<ProductCard variant="default">`
- *     against the form state, so a seller sees the actual card update
- *     as they type. Pulling in the real component (rather than a
- *     replica) means the preview can never drift from production.
- *   - store   → cover + profile + name preview, modelled on the inline
- *     preview at EditStoreForm.tsx:80–106 but extracted so future store
- *     forms can reuse it without copying markup.
- *   - coupon  → coral pill summarising code + discount + minimum spend
- *     + expiry. Coral because coupons are the "hot promo" signal in the
- *     palette (see globals.css §coral).
- * The pane is sticky-friendly: callers in a two-column grid can wrap
- * with `<div className="sticky top-32">` (or pass the class via
- * `className`) so the preview stays in view while the form scrolls.
- */
 export type ProductPreviewState = {
   name: string;
   description?: string;
@@ -31,7 +13,10 @@ export type ProductPreviewState = {
   image: string;
   storeName?: string;
   discountPercent?: number;
+  originalMinPrice?: number;
+  originalMaxPrice?: number;
   tags?: string[];
+  details?: { detailName?: string; detailValue?: string }[];
 };
 
 export type StorePreviewState = {
@@ -70,11 +55,6 @@ export function PreviewPane(props: PreviewPaneProps) {
   );
 }
 
-
-/** Renders the real ProductCard so the preview never diverges from the
- *  shipped grid card. We synthesise the productId because ProductCard's
- *  href requires one — anchored to 0, the preview link goes nowhere
- *  meaningful, but ProductCard renders identically. */
 function ProductPreview({ state }: { state: ProductPreviewState }) {
   const product: ProductCardProduct = {
     productId: 0,
@@ -82,14 +62,32 @@ function ProductPreview({ state }: { state: ProductPreviewState }) {
     description: state.description,
     minPrice: state.minPrice,
     maxPrice: state.maxPrice,
+    originalMinPrice: state.originalMinPrice,
+    originalMaxPrice: state.originalMaxPrice,
     image: state.image || "",
     storeName: state.storeName,
     discountPercent: state.discountPercent,
-    tags: state.tags,
   };
+
+  const visibleDetails = state.details?.filter(d => d.detailName || d.detailValue) ?? [];
+
   return (
-    <div className="pointer-events-none">
+    <div className="pointer-events-none space-y-3">
       <ProductCard product={product} variant="default" />
+
+      {visibleDetails.length > 0 && (
+        <div className="surface-flat rounded-xl px-4 py-3 space-y-2">
+          <p className="text-[10px] uppercase tracking-widest text-ink-dim font-mono">
+            Details
+          </p>
+          {visibleDetails.map((d, i) => (
+            <div key={i} className="flex items-baseline justify-between gap-4">
+              <span className="text-xs text-ink-secondary shrink-0">{d.detailName}</span>
+              <span className="text-xs text-white font-medium text-right">{d.detailValue}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -177,6 +175,7 @@ function CouponPreview({ state }: { state: CouponPreviewState }) {
           </div>
         </div>
       </div>
+      
     </div>
   );
 }

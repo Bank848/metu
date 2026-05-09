@@ -1,44 +1,49 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Star, Clock, BadgeCheck, MapPin, Calendar, Package as PackageIcon, MessageSquare, Activity } from "lucide-react";
+import {
+  Star,
+  BadgeCheck,
+  Calendar,
+  Package as PackageIcon,
+  MessageSquare,
+} from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
-import { Badge } from "@/components/ui/Badge";
 import { ProductCard } from "@/components/ProductCard";
-import { StatCard } from "@/components/StatCard";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { StarField } from "@/components/DotGrid";
+import { ShareButton } from "@/components/ShareButton";
 import { getStore, getFavoriteSet } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
 import { getServerT } from "@/lib/i18n/server";
 import { isDataUrl } from "@/lib/utils";
 import { fmtMonthYear } from "@/lib/format";
-import { ShareButton } from "@/components/ShareButton";
 
 export const dynamic = "force-dynamic";
 
 export default async function StorePage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   if (!Number.isFinite(id)) return notFound();
+
   const me = await getMe();
   const [data, favSet] = await Promise.all([
     getStore(id),
     getFavoriteSet(me?.user.userId),
   ]);
   if (!data) return notFound();
+
   const { store, products, productCount, reviewCount, avgRating } = data;
   const t = getServerT();
 
   return (
     <>
       <TopNav />
-      <main>
-        {/* Cover banner — Wave-3: surface-hero replaces hand-rolled vibrant
-            mesh fallback so the storefront banner picks up the editorial
-            radial-gradient treatment from globals.css §5. */}
-        <section className="relative h-[280px] md:h-[360px] overflow-hidden surface-hero">
+      <main className="min-h-screen bg-surface-1">
+
+        {/* ── Hero cover ─────────────────────────────────────────────────── */}
+        <section className="relative h-[240px] md:h-[320px] overflow-hidden">
           <StarField density="md" />
           {store.coverImage ? (
             <Image
@@ -50,100 +55,133 @@ export default async function StorePage({ params }: { params: { id: string } }) 
               className="object-cover"
               unoptimized={isDataUrl(store.coverImage)}
             />
-          ) : null}
-          {/* dark overlay for legibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-surface-1 via-surface-1/30 to-transparent" />
-          {/* gold hairline */}
-          <div className="absolute bottom-0 inset-x-0 h-[3px] bg-gradient-to-r from-transparent via-metu-yellow to-transparent" />
+          ) : (
+            <div className="absolute inset-0 surface-hero" />
+          )}
+          {/* bottom fade into page background */}
+          <div className="absolute inset-0 bg-gradient-to-t from-surface-1 via-surface-1/20 to-transparent" />
+          {/* gold accent line */}
+          <div className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-metu-yellow/60 to-transparent" />
         </section>
 
-        <div className="mx-auto max-w-[1280px] px-6 md:px-10 -mt-20 relative">
-          {/* Profile header */}
-          <header className="flex flex-col md:flex-row md:items-end gap-6 mb-10">
-            <div className="relative h-32 w-32 shrink-0 rounded-2xl bg-metu-yellow overflow-hidden ring-4 ring-surface-1 shadow-pop">
-              {store.profileImage && (
-                <Image src={store.profileImage} alt={store.name} fill sizes="128px" className="object-cover" unoptimized={isDataUrl(store.profileImage)} />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <Badge variant="yellow" className="mb-2 inline-flex items-center gap-1">
-                <BadgeCheck className="h-3 w-3" />
-                {store.businessType?.name ?? "Verified store"}
-              </Badge>
-              <div className="flex items-start gap-3">
-                <div className="flex-1 min-w-0">
-                  <h1 className="font-display text-3xl md:text-5xl font-extrabold tracking-tight text-white">
+        {/* ── Page body ──────────────────────────────────────────────────── */}
+        <div className="mx-auto max-w-[1280px] px-6 md:px-10">
+
+          {/* ── Store header ─────────────────────────────────────────────── */}
+          <header className="-mt-16 mb-10">
+            <div className="flex flex-col md:flex-row md:items-end gap-5">
+
+              {/* Avatar */}
+              <div className="relative h-28 w-28 shrink-0 rounded-2xl overflow-hidden
+                              ring-2 ring-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)]
+                              bg-zinc-900">
+                {store.profileImage && (
+                  <Image
+                    src={store.profileImage}
+                    alt={store.name}
+                    fill
+                    sizes="112px"
+                    className="object-cover"
+                    unoptimized={isDataUrl(store.profileImage)}
+                  />
+                )}
+              </div>
+
+              {/* Identity + actions */}
+              <div className="flex-1 min-w-0 md:pb-1">
+                {/* Type badge */}
+                {store.businessType?.name && (
+                  <div className="inline-flex items-center gap-1.5 mb-2
+                                  text-[11px] font-semibold uppercase tracking-widest
+                                  text-metu-yellow/80">
+                    <BadgeCheck className="h-3 w-3" />
+                    {store.businessType.name}
+                  </div>
+                )}
+
+                {/* Title + share */}
+                <div className="flex items-start justify-between gap-4">
+                  <h1 className="font-display text-2xl md:text-4xl font-extrabold
+                                 tracking-tight text-white leading-tight truncate">
                     {store.name}
                   </h1>
-                  {/* Wave-3: short coral underline anchors the store name
-                      with the warm secondary accent. Stays under the
-                      heading rather than running full-width — this is a
-                      mark, not a divider. */}
-                  <span aria-hidden className="mt-2 block h-[3px] w-16 rounded-full bg-coral" />
+                  <ShareButton
+                    title={store.name}
+                    text={`${store.name} on METU`}
+                    size="md"
+                  />
                 </div>
-                {/* Phase 26 — "Message store" CTA removed alongside
-                    the messaging surface. Storefront keeps Share as
-                    the only header-level secondary action. */}
-                <ShareButton title={store.name} text={`${store.name} on METU`} size="md" />
+
+                {/* Description */}
+                <p className="mt-2 text-sm md:text-base text-ink-secondary leading-relaxed
+                               max-w-2xl line-clamp-2">
+                  {store.description}
+                </p>
+
+                {/* Meta row */}
+                <div className="mt-3 flex items-center gap-1.5 text-xs text-ink-dim">
+                  <Calendar className="h-3 w-3 shrink-0" />
+                  <span>Member since {fmtMonthYear(store.createdAt)}</span>
+                </div>
               </div>
-              <p className="mt-3 text-ink-secondary max-w-2xl">{store.description}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-ink-dim">
-                <span className="inline-flex items-center gap-1">
-                  <MapPin className="h-3 w-3" /> {store.businessType?.name ?? "Marketplace"}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Calendar className="h-3 w-3" /> Member since{" "}
-                  {fmtMonthYear(store.createdAt)}
-                </span>
-              </div>
+            </div>
+
+            {/* ── Stats strip ──────────────────────────────────────────────── */}
+            <div className="mt-6 flex items-stretch gap-px rounded-xl overflow-hidden
+                            border border-white/6 bg-white/4">
+              <StatStrip
+                icon={<PackageIcon className="h-4 w-4" />}
+                label="Products"
+                value={productCount}
+              />
+              <StatStrip
+                icon={<Star className="h-4 w-4" />}
+                label="Avg rating"
+                value={avgRating ? `${avgRating.toFixed(1)}` : "—"}
+                accent={!!avgRating}
+              />
+              <StatStrip
+                icon={<MessageSquare className="h-4 w-4" />}
+                label="Reviews"
+                value={reviewCount}
+              />
             </div>
           </header>
 
-          {/* Three stat tiles: products, rating, reviews. Lead tile is
-              highlighted; the rest use the shared flat StatCard. */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-10">
-            <StatCard
-              variant="highlight"
-              icon={PackageIcon}
-              label="Products"
-              value={productCount}
-            />
-            <StatCard
-              icon={Star}
-              label="Average rating"
-              value={avgRating ? `${avgRating.toFixed(1)}★` : t("empty.avgRating")}
-              variant={avgRating ? "default" : "zero"}
-            />
-            <StatCard
-              icon={MessageSquare}
-              label="Reviews"
-              value={reviewCount}
-            />
-          </div>
-
-          {/* Products grid */}
-          <section className="mb-16">
-            <div className="flex items-end justify-between mb-6 border-b border-white/8 pb-3">
-              <h2 className="font-display text-2xl font-bold text-white">
-                Products{" "}
-                <span className="text-ink-dim text-base font-normal">({productCount})</span>
-              </h2>
-              <Link href={`/browse?q=${encodeURIComponent(store.name)}`} className="text-sm font-semibold text-metu-yellow hover:underline">
+          {/* ── Products ─────────────────────────────────────────────────── */}
+          <section className="mb-20">
+            <div className="flex items-center justify-between mb-6
+                            border-b border-white/6 pb-4">
+              <div className="flex items-baseline gap-2">
+                <h2 className="font-display text-xl font-bold text-white">
+                  Products
+                </h2>
+                <span className="text-sm text-ink-dim font-normal">
+                  {productCount}
+                </span>
+              </div>
+              <Link
+                href={`/browse?q=${encodeURIComponent(store.name)}`}
+                className="text-xs font-semibold text-metu-yellow hover:text-metu-yellow/70
+                           transition-colors"
+              >
                 Search by store →
               </Link>
             </div>
+
             {products.length === 0 ? (
               <EmptyState
                 title="No products yet"
                 description="This store hasn't listed any products."
                 icon={<PackageIcon className="h-8 w-8" />}
-                action={<GlassButton tone="gold" href="/browse">Browse marketplace →</GlassButton>}
+                action={
+                  <GlassButton tone="gold" href="/browse">
+                    Browse marketplace →
+                  </GlassButton>
+                }
               />
             ) : (
-              // Wave-3 asymmetry — first card is the `feature` variant
-              // (mint surface + bigger image). Same pattern as the
-              // related-products row on the product detail page.
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
                 {products.map((p, i) => (
                   <ProductCard
                     key={p.productId}
@@ -155,9 +193,38 @@ export default async function StorePage({ params }: { params: { id: string } }) 
               </div>
             )}
           </section>
+
         </div>
       </main>
       <Footer />
     </>
+  );
+}
+
+// ─── StatStrip — inline pill stat ────────────────────────────────────────────
+function StatStrip({
+  icon,
+  label,
+  value,
+  accent = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex-1 flex items-center gap-3 px-5 py-3.5 bg-white/[0.03]
+                    hover:bg-white/[0.06] transition-colors">
+      <span className={accent ? "text-metu-yellow" : "text-ink-dim"}>
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className={`text-base font-bold leading-none ${accent ? "text-metu-yellow" : "text-white"}`}>
+          {value}
+        </p>
+        <p className="text-[11px] text-ink-dim mt-0.5 leading-none">{label}</p>
+      </div>
+    </div>
   );
 }

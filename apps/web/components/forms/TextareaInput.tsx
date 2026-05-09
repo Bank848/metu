@@ -1,13 +1,6 @@
 import { forwardRef, type TextareaHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
 
-/**
- * / Step 2 — textarea primitive.
- * Matches TextInput's pattern: mint focus ring, coral error state, label
- * above, helper/error below. `resize-none` by default because every
- * authoring textarea in the codebase uses fixed rows — callers who want
- * resizable can override via className.
- */
 export interface TextareaInputProps
   extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -46,8 +39,8 @@ export const TextareaInput = forwardRef<HTMLTextAreaElement, TextareaInputProps>
             "w-full rounded-xl border bg-surface-2 px-4 py-2.5 text-white outline-none transition resize-none",
             "placeholder:text-ink-dim",
             hasError
-              ? "border-coral focus:border-coral focus:ring-2 focus:ring-coral/25"
-              : "border-white/10 focus:border-mint focus:ring-2 focus:ring-mint/25",
+              ? "border-coral"
+              : "border-white/10",
             className,
           )}
           {...rest}

@@ -5,7 +5,6 @@ import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
 import { StarField } from "@/components/DotGrid";
 import { StatCard } from "@/components/StatCard";
-import { ProductCard, type ProductCardProduct } from "@/components/ProductCard";
 import { Badge } from "@/components/ui/Badge";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { LightSweepText } from "@/components/visual/LightSweepText";
@@ -14,8 +13,9 @@ import { getStats, getFeaturedProducts, getFeaturedStores, getFeaturedCoupons, g
 import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { getMe } from "@/lib/session";
 import { isDataUrl, cn } from "@/lib/utils";
+import Hero from "@/components/HeroSection.";
+import TrendingProducts from "@/components/TrendingSection";
 
-type Stats = { sellers: number; products: number; orders: number; reviews: number };
 type Store = Awaited<ReturnType<typeof getFeaturedStores>>[number];
 type Coupon = Awaited<ReturnType<typeof getFeaturedCoupons>>[number];
 type Category = Awaited<ReturnType<typeof getCategories>>[number];
@@ -104,145 +104,6 @@ function FeaturedCoupons({ coupons }: { coupons: Coupon[] }) {
             </div>
           );
         })}
-      </div>
-    </section>
-  );
-}
-
-function Hero({ stats }: { stats: Stats }) {
-  return (
-    <section className="relative overflow-hidden bg-hero-radial min-h-[680px]">
-      {/* Pure-CSS Jupiter; layered radial gradients fake atmospheric bands. */}
-      <div aria-hidden className="pointer-events-none absolute -right-40 -bottom-32 md:-right-24 md:bottom-[-180px] h-[820px] w-[820px] rounded-full opacity-95 mix-blend-screen"
-        style={{
-          background: `
-            radial-gradient(circle at 32% 38%, #ffd166 0%, #e09a2f 18%, #b26800 38%, #6d4310 58%, transparent 78%),
-            radial-gradient(ellipse at 35% 45%, transparent 30%, rgba(178,104,0,0.4) 32%, transparent 36%),
-            radial-gradient(ellipse at 35% 55%, transparent 35%, rgba(110,67,16,0.5) 37%, transparent 40%),
-            radial-gradient(ellipse at 35% 35%, transparent 25%, rgba(255,209,102,0.4) 27%, transparent 30%)
-          `,
-          filter: "blur(0.4px)",
-        }}
-      />
-      {/* Outer glow */}
-      <div aria-hidden className="pointer-events-none absolute -right-40 -bottom-32 md:-right-24 md:bottom-[-180px] h-[820px] w-[820px] rounded-full opacity-50"
-        style={{ background: "radial-gradient(circle, rgba(255,204,0,0.18), transparent 60%)" }}
-      />
-
-      {/* Stars */}
-      <StarField density="high" />
-
-      <div className="relative mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10 pt-14 sm:pt-20 md:pt-28 pb-16 sm:pb-24 grid md:grid-cols-2 gap-8 md:gap-10 items-center min-h-[520px] md:min-h-[600px]">
-        {/* Stagger delays cascade hero copy on first paint. */}
-        <div>
-          <div className="animate-stagger-rise" style={{ animationDelay: "0ms" }}>
-            <Badge variant="yellow" className="mb-4 sm:mb-6 !px-3 !py-1 inline-flex items-center gap-1.5">
-              <BrandMark className="h-3 w-3 text-metu-yellow" title="" />
-              CPE241 · Group 8
-            </Badge>
-          </div>
-          <h1 className="font-display text-5xl sm:text-6xl md:text-8xl font-black tracking-tighter leading-[0.92] mb-5 sm:mb-6">
-            <span
-              className="block text-white animate-stagger-rise"
-              style={{ animationDelay: "80ms" }}
-            >
-              DIGITAL
-            </span>
-            <span
-              className="block animate-stagger-rise"
-              style={{ animationDelay: "160ms" }}
-            >
-              <LightSweepText className="block">MARKETPLACE</LightSweepText>
-            </span>
-          </h1>
-          <p
-            className="text-sm sm:text-base md:text-lg text-ink-secondary max-w-lg mb-6 sm:mb-10 leading-relaxed animate-stagger-rise"
-            style={{ animationDelay: "240ms" }}
-          >
-            The marketplace for Thai digital creators. Templates, music, courses, art —
-            sell and buy without ever shipping a thing.
-          </p>
-          <div
-            className="flex flex-wrap gap-3 animate-stagger-rise"
-            style={{ animationDelay: "320ms" }}
-          >
-            <GlassButton href="/browse" tone="gold" size="lg">
-              Explore Now
-              <ArrowRight className="h-4 w-4" />
-            </GlassButton>
-            <GlassButton href="/become-seller" tone="glass" size="lg">
-              Sell your work
-            </GlassButton>
-          </div>
-        </div>
-        <div className="hidden md:block" />
-      </div>
-
-      {/* 2x2 on mobile, 4-wide from md up. */}
-      <div className="relative mx-auto max-w-[1440px] px-6 md:px-10 pb-12">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="Sellers"  value={stats.sellers}  icon={Users} />
-          <StatCard label="Products" value={stats.products} icon={Package} />
-          <StatCard label="Orders"   value={stats.orders}   icon={ShoppingBag} />
-          <StatCard label="Reviews"  value={stats.reviews}  icon={Star} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TrendingProducts({ products, favSet }: { products: ProductCardProduct[]; favSet: Set<number> }) {
-  if (!products.length) return null;
-  // First product is the feature card (spans 2 cols on desktop).
-  const [feature, ...rest] = products;
-  return (
-    <section className="mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10 py-10 sm:py-16">
-      <div className="flex items-end justify-between mb-6 sm:mb-8 gap-3 flex-wrap">
-        <div>
-          <div className="mb-2 inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.18em] text-mint">
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-mint" />
-            This week
-          </div>
-          <h2 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">
-            Trending now
-          </h2>
-          <p className="text-sm sm:text-base text-ink-secondary mt-1">
-            The digital products creators are loving this week.
-          </p>
-        </div>
-        <Link href="/browse" className="text-sm font-semibold text-metu-yellow hover:underline">
-          See all →
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
-        {/* Feature card lights up first; rest cascade behind it. The
-            stagger uses globals.css `stagger-rise` (60ms apart, capped
-            via inline animationDelay so the cascade is bounded). */}
-        <div
-          className="col-span-2 md:col-span-2 row-span-1 animate-[stagger-rise_0.6s_cubic-bezier(0.22,1,0.36,1)_both]"
-          style={{ animationDelay: "0ms" }}
-        >
-          <ProductCard
-            product={feature}
-            isFavorited={favSet.has(feature.productId)}
-            variant="feature"
-            className="h-full"
-          />
-        </div>
-        {rest.slice(0, 7).map((p, i) => (
-          // Feature card is the LCP element; rest stay lazy to dodge
-          // Next 14's multi-priority hydration mismatch warnings.
-          <div
-            key={p.productId}
-            className="animate-[stagger-rise_0.6s_cubic-bezier(0.22,1,0.36,1)_both]"
-            style={{ animationDelay: `${80 + i * 60}ms` }}
-          >
-            <ProductCard
-              product={p}
-              isFavorited={favSet.has(p.productId)}
-            />
-          </div>
-        ))}
       </div>
     </section>
   );

@@ -15,7 +15,6 @@ export {
   couponInputSchema,
 };
 
-/** Variant patch for bulk-edit nudges (price, discount, stock). */
 export const patchVariantSchema = z.object({
   price: z.number().min(0).optional(),
   discountPercent: z.number().min(0).max(100).optional(),

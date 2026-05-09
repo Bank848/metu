@@ -43,6 +43,19 @@ ALTER TABLE "order_item"
 DROP INDEX IF EXISTS "users_deleted_at_idx";
 DROP INDEX IF EXISTS "store_deleted_at_idx";
 DROP INDEX IF EXISTS "product_deleted_at_idx";
+
 ALTER TABLE "users"   DROP COLUMN IF EXISTS "deleted_at";
-ALTER TABLE "store"   DROP COLUMN IF EXISTS "deleted_at";
-ALTER TABLE "product" DROP COLUMN IF EXISTS "deleted_at";
+ALTER TABLE "store"   DROP COLUMN IF EXISTS "deleted_at" CASCADE;
+ALTER TABLE "product" DROP COLUMN IF EXISTS "deleted_at" CASCADE;
+
+DROP VIEW IF EXISTS "product_with_avg_rating_view";
+
+CREATE VIEW "product_with_avg_rating_view" AS
+SELECT 
+    p.*, 
+    (SELECT AVG(rating) FROM "product_review" r WHERE r.product_id = p.product_id) as avg_rating
+FROM "product" p;
+
+DROP VIEW IF EXISTS "live_stores_view";
+CREATE VIEW "live_stores_view" AS
+SELECT * FROM "store";

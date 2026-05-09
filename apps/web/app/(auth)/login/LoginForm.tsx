@@ -7,12 +7,6 @@ import { Turnstile } from "@/components/Turnstile";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
-// Login form. Posts to /api/auth/login -> BFF -> Express ->
-// better-auth.signInEmail. Multi-step UI: credentials → TOTP →
-// admin email-OTP (Phase 49, only for guarded accounts like the
-// public admin demo).
-
-// Map URL ?error= codes from the Google OAuth flow.
 function errorMessage(code: string | null): string | null {
   if (!code) return null;
   switch (code) {
@@ -34,7 +28,6 @@ type Step = "credentials" | "totp" | "admin-otp";
 
 export function LoginForm({
   next,
-  /** When false, hide the Google button and the OR-divider. */
   googleEnabled = false,
 }: {
   next?: string;
@@ -51,22 +44,17 @@ export function LoginForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // admin OTP step state.
   const [adminOtp, setAdminOtp] = useState("");
   const [confirmOwner, setConfirmOwner] = useState(false);
   const [trustDevice, setTrustDevice] = useState(false);
   const [recipientMasked, setRecipientMasked] = useState<string | null>(null);
   const [devCode, setDevCode] = useState<string | null>(null);
-  // Turnstile token (only required on the credentials step).
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const formRef = useRef<HTMLFormElement>(null);
   const totpInputRef = useRef<HTMLInputElement>(null);
   const adminOtpInputRef = useRef<HTMLInputElement>(null);
 
-  // Demo chip → form prefill via a window event. The page mounts
-  // <DemoChip> buttons that dispatch `metu:prefill-login` with
-  // {email, password} in the detail; we listen and apply.
   useEffect(() => {
     function onPrefill(ev: Event) {
       const detail = (ev as CustomEvent<{ email: string; password: string }>).detail;
@@ -82,8 +70,6 @@ export function LoginForm({
     return () => window.removeEventListener("metu:prefill-login", onPrefill);
   }, []);
 
-  // When we transition into the TOTP / admin-OTP step, autofocus the
-  // matching input.
   useEffect(() => {
     if (step === "totp") totpInputRef.current?.focus();
     if (step === "admin-otp") adminOtpInputRef.current?.focus();
@@ -93,8 +79,6 @@ export function LoginForm({
     e.preventDefault();
     setError(null);
 
-    // Read directly from the form so chip-click → submit races never
-    // see stale React state.
     const fd = new FormData(e.currentTarget);
     const submittedEmail = String(fd.get("email") ?? email).trim();
     const submittedPassword = String(fd.get("password") ?? password);
@@ -150,9 +134,6 @@ export function LoginForm({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        // 401 NeedsVerify — the universal verify gate. Server has the
-        // pre-auth state under data.preAuthToken; bounce to the
-        // /login/verify page which posts back to /auth/login/verify.
         if (data?.error === "NeedsVerify" && typeof data?.preAuthToken === "string") {
           const params = new URLSearchParams({
             token: data.preAuthToken,

@@ -17,8 +17,6 @@ export default async function EditProductPage({ params }: { params: { id: string
   const productId = Number(params.id);
   if (!Number.isFinite(productId)) return notFound();
 
-  // Direct Prisma read + ownership check — same pattern as the admin routes.
-  // Soft-deleted products vanish from the seller's edit screen too.
   const product = await prisma.product.findFirst({
     where: { productId },
     include: {
@@ -54,12 +52,11 @@ export default async function EditProductPage({ params }: { params: { id: string
           categoryId: product.categoryId,
           images: product.images.map((i) => i.productImage),
           tagIds: product.productNTags.map((nt) => nt.tagId),
-          // surfaces the "Allow re-purchase" checkbox in
-          // the form. Defaults to whatever the product currently has
-          // (which seed.ts + seller.service set from the delivery
-          // method when the product was first created).
           isStackable: product.isStackable,
           items: product.items.map((it) => ({
+            name: it.name,
+            description: it.description,
+            image: it.image,
             deliveryMethod: it.deliveryMethod as "download" | "email" | "license_key" | "streaming",
             quantity: it.quantity,
             price: Number(it.price),

@@ -83,7 +83,7 @@ export function AuthMenu({
 
   // ───── Logged in ─────
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef} className="relative z-50">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

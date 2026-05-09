@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { browseProducts, getCategories, getTags, getFavoriteSet, getTopSellerProducts } from "@/lib/server/queries";
 import { getMe } from "@/lib/session";
-import { RecentStrip } from "./RecentStrip";
 import { SortSelect } from "./SortSelect";
 import { BrowseFiltersSheet } from "./BrowseFiltersSheet";
 import { Filter, Package, Sparkles } from "lucide-react";
+import { FilterPanel, Pagination } from "./FilterPanel";
+
 
 type Category = { categoryId: number; categoryName: string };
 type Tag = { tagId: number; tagName: string };
@@ -19,24 +20,10 @@ type Tag = { tagId: number; tagName: string };
 const SAFE_SORT = ["newest", "price_asc", "price_desc", "rating"] as const;
 type SortKey = (typeof SAFE_SORT)[number];
 
-/** Type guard that narrows a raw query-string value to the SortKey enum,
- *  falling back to the default. Replaces the previous `as any` cast. */
 function parseSort(v: string | undefined): SortKey {
   return (SAFE_SORT as readonly string[]).includes(v ?? "") ? (v as SortKey) : "newest";
 }
 
-/**
- * Resolve `?category=` to a categoryId.
- * / F3 — historically this used `Number(searchParams.category)`
- * which silently coerced non-numeric slugs to `NaN` and dropped the
- * filter, so /browse?category=fonts returned the unfiltered grid. We now
- * accept either the numeric categoryId or a slug-style name and look the
- * latter up against the existing categories list (already cached for an
- * hour by `getCategories()`, so the lookup is a pure in-memory match).
- * Returns `undefined` when the slug is unknown — the caller treats that
- * as "no category filter" rather than throwing, mirroring how every
- * other browse param is forgiving of bad input.
- */
 function resolveCategoryId(
   raw: string | undefined,
   categories: ReadonlyArray<Category>,
@@ -64,17 +51,18 @@ export default async function BrowsePage({
     getCategories(),
     getTags(),
     getFavoriteSet(me?.user.userId),
-    // Only show the "From top sellers" carousel on the unfiltered first
-    // page — once a buyer is searching or filtering they want focused
-    // results, not a marketing strip.
     Object.keys(searchParams).length === 0 ? getTopSellerProducts(8) : Promise.resolve([]),
   ]);
+
   const categoryId = resolveCategoryId(searchParams.category, categories);
+
   const result = await browseProducts({
     category: categoryId,
     tags: searchParams.tags,
     minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
     maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
+    originalMinPrice: searchParams.originalMinPrice ? Number(searchParams.originalMinPrice) : undefined,
+    originalMaxPrice: searchParams.originalMaxPrice ? Number(searchParams.originalMaxPrice) : undefined,
     delivery: searchParams.delivery,
     q: searchParams.q,
     sort: parseSort(searchParams.sort),
@@ -86,10 +74,6 @@ export default async function BrowsePage({
   const activeSort = searchParams.sort ?? "newest";
   const activeQ = searchParams.q ?? "";
 
-  // / F19 — count active filters (excluding `q`, which is
-  // the search bar, and `sort` / `page`, which are presentation state).
-  // The mobile sheet trigger shows this badge so users know at a
-  // glance how many filters are narrowing the result.
   const activeFilterCount =
     (searchParams.category ? 1 : 0) +
     (searchParams.tags ? searchParams.tags.split(",").filter(Boolean).length : 0) +
@@ -99,364 +83,117 @@ export default async function BrowsePage({
   return (
     <>
       <TopNav q={activeQ} />
-      <main id="main" className="mx-auto max-w-[1440px] px-4 sm:px-6 md:px-10 py-6 sm:py-10">
-        <PageHeader
-          title={activeQ ? `Results for “${activeQ}”` : "Browse the marketplace"}
-          subtitle={
-            activeQ
-              ? `${result.total.toLocaleString()} matching products`
-              : `${result.total.toLocaleString()} digital products and services from independent creators`
-          }
-        />
 
-        {/* Phase 11.1 hotfix — `1fr` is shorthand for `minmax(auto,1fr)`,
-            and `auto` lets the column grow past 1fr when its contents
-            overflow. The inner product grid uses
-            `grid-cols-[repeat(auto-fill,minmax(230px,1fr))]` which
-            packs as many 230px tracks as fit, so on wide viewports it
-            was pushing the right column past the viewport edge.
-            `minmax(0,1fr)` floors the minimum at 0 so the column
-            constrains and the inner grid wraps to the actual width. */}
-        <div className="grid md:grid-cols-[260px_minmax(0,1fr)] gap-6 md:gap-8">
-          {/* Phase 11 / F19 — sidebar is desktop-only. Mobile users
-              see the <BrowseFiltersSheet> trigger at the top of the
-              section (next to Sort) and open filters in a bottom-sheet
-              instead of scrolling past four cards to reach products. */}
-          <aside className="hidden md:block">
+      <div className="flex min-h-screen">
+
+        {/* ── LEFT: Fixed filter sidebar ── */}
+        <aside className="hidden md:flex flex-col w-[260px] shrink-0">
+          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto scrollbar-hide border-r border-white/5 bg-[#0a0a0a]">
             <FilterPanel
               categories={categories}
               tags={tags}
               params={searchParams}
               activeCategoryId={categoryId}
             />
-          </aside>
+          </div>
+        </aside>
 
-          <section>
-            {/* Phase 11 / F11 — Sort row no longer wraps a submit
-                button. F22 (run #1) wired the dropdown to auto-submit
-                via `router.push()`, which made the adjacent yellow
-                "Apply" button dead UI: clicking it after a sort change
-                fired a no-op submit because the URL had already been
-                updated. Filters in the sidebar are anchor links
-                (instant nav), so there's nothing left for the form to
-                batch — we render the bar as a flex container instead.
-                Hidden inputs that used to preserve other params are
-                gone for the same reason: SortSelect builds the next
-                URL from `window.location` directly.
+        {/* ── RIGHT: Main content ── */}
+        <main id="main" className="flex-1 min-w-0 px-4 sm:px-6 md:px-8 py-6 sm:py-10">
 
-                Phase 11 / F19 — the mobile filters trigger lives
-                inline in this row so the sort + filter controls share
-                a single mental model on small screens. */}
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <BrowseFiltersSheet activeCount={activeFilterCount}>
-                <FilterPanel
-                  categories={categories}
-                  tags={tags}
-                  params={searchParams}
-                  activeCategoryId={categoryId}
-                />
-              </BrowseFiltersSheet>
-              <span className="text-xs font-medium text-ink-dim mr-2">Sort</span>
-              <SortSelect activeSort={activeSort} />
-              {(activeQ || searchParams.category || searchParams.tags || searchParams.delivery) && (
-                <Link
-                  href="/browse"
-                  scroll={false}
-                  className="ml-auto rounded-full border border-line px-4 py-2 text-sm text-ink-secondary hover:text-white hover:border-brand-yellow/40"
-                >
-                  Clear all filters
-                </Link>
-              )}
-            </div>
+          <PageHeader
+            title={activeQ ? `Results for "${activeQ}"` : "Browse the marketplace"}
+            subtitle={
+              activeQ
+                ? `${result.total.toLocaleString()} matching products`
+                : `${result.total.toLocaleString()} digital products and services from independent creators`
+            }
+          />
 
-            {/* "From top sellers" — only on the unfiltered first page,
-                rendered ABOVE the regular grid so high-tier creators
-                surface immediately. Hidden when there's a search/filter
-                active so it doesn't dilute focused results. */}
-            {topSellerProducts.length > 0 && (
-              <section className="mb-8 rounded-2xl border border-metu-yellow/30 bg-gradient-to-br from-metu-yellow/5 to-transparent p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="h-5 w-5 text-metu-yellow" />
-                  <h2 className="font-display text-lg font-extrabold text-white">From top sellers</h2>
-                  <Badge variant="gold" className="text-[10px]">Lv.3+</Badge>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {topSellerProducts.map((p) => (
-                    <ProductCard
-                      key={p.productId}
-                      product={p as never}
-                      isFavorited={favSet.has(p.productId)}
-                    />
-                  ))}
-                </div>
-              </section>
+          {/* Sort + mobile filter row */}
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <BrowseFiltersSheet activeCount={activeFilterCount}>
+              <FilterPanel
+                categories={categories}
+                tags={tags}
+                params={searchParams}
+                activeCategoryId={categoryId}
+              />
+            </BrowseFiltersSheet>
+            <span className="text-xs font-medium text-ink-dim mr-1">Sort</span>
+            <SortSelect activeSort={activeSort} />
+            {(activeQ || searchParams.category || searchParams.tags || searchParams.delivery) && (
+              <Link
+                href="/browse"
+                scroll={false}
+                className="ml-auto rounded-full border border-white/10 px-4 py-2 text-sm text-ink-secondary hover:text-white hover:border-metu-yellow/40 transition"
+              >
+                Clear all filters
+              </Link>
             )}
+          </div>
 
-            {result.items.length === 0 ? (
-              activeQ ? (
-                // Search-with-no-results — opt into the Wave-2 `noResults`
-                // variant so the bespoke <NoResults /> illustration replaces
-                // the lucide SearchX icon. Keeps the empty state visually
-                // distinct from the "filters returned nothing" state below.
-                <EmptyState
-                  variant="noResults"
-                  title={`No products match “${activeQ}”`}
-                  description="Try different keywords or clear some filters."
-                  action={<Button href="/browse">Browse all →</Button>}
-                />
-              ) : (
-                <EmptyState
-                  title="No products match those filters"
-                  description="Try different keywords or clear some filters."
-                  icon={<Package className="h-8 w-8" />}
-                  action={<Button href="/browse">Browse all →</Button>}
-                />
-              )
-            ) : (
-              // Wave-3 / F18: drop the fixed 2/3/4/4/5 column template
-              // for `auto-fill` + `minmax`. The previous template left a
-              // 2-column gap on the final row whenever
-              // `result.items.length` wasn't a multiple of the active
-              // breakpoint's column count (e.g. pageSize=16 against 3
-              // cols → orphan card). `auto-fill` lets the browser drop
-              // the trailing slot when the row would otherwise stretch
-              // a card into giant whitespace, so the grid balances
-              // itself on every page size. The 230px min was chosen so
-              // the card count per row matches the previous breakpoints
-              // (3 at md, 4 at lg, 5 at 2xl) within ~5% — no visible
-              // layout shift for full pages. Mobile (<480px) drops to a
-              // single column at this min, matching `grid-cols-1`
-              // rather than the previous `grid-cols-2`; a 2-column
-              // layout at 320px wide produced cards too narrow to read.
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-5">
-                {result.items.map((p, i) => (
-                  // / F4 (priority={i<4}) → QA r3/F1 narrowed to
-                  // priority={i===0}. Stacking ≥2 priority+fill <Image>
-                  // reliably triggers React #418 + #422 in Next 14 App
-                  // Router (the multiple <link rel="preload"> injections
-                  // post-render don't match the SSR snapshot). Promoting
-                  // only the first card preserves the LCP win on the
-                  // hero tile — the next 3 cards drop back to lazy and
-                  // arrive a tick later, which is invisible at typical
-                  // 4G/wifi latencies. Below the fold stays lazy.
+          {/* Top sellers strip */}
+          {topSellerProducts.length > 0 && (
+            <section className="mb-8 rounded-2xl border border-metu-yellow/30 bg-gradient-to-br from-metu-yellow/5 to-transparent p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="h-5 w-5 text-metu-yellow" />
+                <h2 className="font-display text-lg font-extrabold text-white">From top sellers</h2>
+                <Badge variant="gold" className="text-[10px]">Lv.3+</Badge>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {topSellerProducts.map((p) => (
                   <ProductCard
                     key={p.productId}
-                    product={p}
+                    product={p as never}
                     isFavorited={favSet.has(p.productId)}
-                    priority={i === 0}
                   />
                 ))}
               </div>
-            )}
+            </section>
+          )}
 
-            {result.totalPages > 1 && (
-              <Pagination page={result.page} totalPages={result.totalPages} params={searchParams} />
-            )}
+          {/* Product grid / empty state */}
+          {result.items.length === 0 ? (
+            activeQ ? (
+              <EmptyState
+                variant="noResults"
+                title={`No products match "${activeQ}"`}
+                description="Try different keywords or clear some filters."
+                action={<Button href="/browse">Browse all →</Button>}
+              />
+            ) : (
+              <EmptyState
+                title="No products match those filters"
+                description="Try different keywords or clear some filters."
+                icon={<Package className="h-8 w-8" />}
+                action={<Button href="/browse">Browse all →</Button>}
+              />
+            )
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5">
+              {result.items.map((p, i) => (
+                <ProductCard
+                  key={p.productId}
+                  product={p as any}
+                  isFavorited={favSet.has(p.productId)}
+                  priority={i === 0}
+                />
+              ))}
+            </div>
+          )}
 
-            {/* Personal recently-viewed strip (hydrates from localStorage). */}
-            <RecentStrip />
-          </section>
-        </div>
-      </main>
+          {result.totalPages > 1 && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              params={searchParams}
+            />
+          )}
+        </main>
+      </div>
+
       <Footer />
     </>
-  );
-}
-
-function FilterPanel({
-  categories,
-  tags,
-  params,
-  activeCategoryId,
-}: {
-  categories: Category[];
-  tags: Tag[];
-  params: Record<string, string | undefined>;
-  // Pre-resolved on the server — accepts the slug-style `?category=fonts`
-  // path as well as the legacy numeric `?category=35` (Phase 11 / F3).
-  // Falls back to coercing `params.category` directly so any in-flight
-  // numeric URL keeps working without a hydration mismatch.
-  activeCategoryId?: number;
-}) {
-  const activeCategory =
-    activeCategoryId ?? (Number.isFinite(Number(params.category)) ? Number(params.category) : 0);
-  const activeTags = (params.tags ?? "").split(",").filter(Boolean);
-
-  const buildHref = (overrides: Record<string, string | undefined>) => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ ...params, ...overrides })) {
-      if (v !== undefined && v !== "") p.set(k, v);
-    }
-    return `/browse?${p.toString()}`;
-  };
-
-  // Wave-3 visual: filter cards now use `surface-flat` (no glassy
-  // backdrop-blur) with mixed radii — the category panel is the
-  // anchor card (`rounded-2xl`) while the chip groups land on smaller
-  // `rounded-xl` and `rounded-lg` so the sidebar reads as a layered
-  // stack rather than four identical glass squares. Active filters
-  // pick up the new mint accent so the "what's selected" signal is
-  // visually distinct from the metu-yellow primary CTA colour.
-  const activeRowClass =
-    "bg-mint/15 text-mint font-semibold border border-mint/30";
-  const idleRowClass =
-    "border border-transparent text-ink-secondary hover:bg-white/5 hover:text-white";
-
-  return (
-    // / F19 — sticky sidebar gets a max-height + scroll so a
-    // tall filter list (lots of tags) doesn't run off-screen on
-    // shorter laptops. `top-28` keeps it clear of the TopNav.
-    // The whole tree converted from <a> to <Link scroll={false}> so
-    // toggling a filter no longer jumps the user back to the top of
-    // the product grid.
-    <div className="space-y-4 md:sticky md:top-28 md:max-h-[calc(100vh-7rem)] md:overflow-y-auto md:pr-1">
-      <div className="surface-flat rounded-2xl p-5">
-        <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3 flex items-center gap-2">
-          <Filter className="h-3.5 w-3.5 text-mint" /> Category
-        </h3>
-        <ul className="space-y-0.5">
-          <li>
-            <Link
-              href={buildHref({ category: undefined })}
-              scroll={false}
-              className={`block rounded-lg px-3 py-1.5 text-sm transition ${
-                !activeCategory ? activeRowClass : idleRowClass
-              }`}
-            >
-              All categories
-            </Link>
-          </li>
-          {categories.map((c) => (
-            <li key={c.categoryId}>
-              <Link
-                href={buildHref({ category: String(c.categoryId) })}
-                scroll={false}
-                className={`block rounded-lg px-3 py-1.5 text-sm transition ${
-                  activeCategory === c.categoryId ? activeRowClass : idleRowClass
-                }`}
-              >
-                {c.categoryName}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Tag chips — smaller radius (xl) than the anchor card (2xl) so
-          the sidebar mixes radii per playbook §4. Active chips switch
-          to the new `success` (mint) Badge variant. */}
-      <div className="surface-flat rounded-xl p-5">
-        <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
-          Tags
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {tags.slice(0, 12).map((t) => {
-            const isActive = activeTags.includes(String(t.tagId));
-            const newTags = isActive
-              ? activeTags.filter((id) => id !== String(t.tagId))
-              : [...activeTags, String(t.tagId)];
-            return (
-              <Link key={t.tagId} href={buildHref({ tags: newTags.join(",") })} scroll={false}>
-                <Badge variant={isActive ? "success" : "mist"}>{t.tagName}</Badge>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="surface-flat rounded-xl p-5">
-        <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
-          Minimum rating
-        </h3>
-        <ul className="space-y-0.5 text-sm">
-          <li>
-            <Link
-              href={buildHref({ minRating: undefined })}
-              scroll={false}
-              className={`block rounded-lg px-3 py-1.5 transition ${
-                !params.minRating ? activeRowClass : idleRowClass
-              }`}
-            >
-              Any rating
-            </Link>
-          </li>
-          {[4, 3, 2, 1].map((n) => (
-            <li key={n}>
-              <Link
-                href={buildHref({ minRating: String(n) })}
-                scroll={false}
-                className={`block rounded-lg px-3 py-1.5 transition ${
-                  Number(params.minRating) === n ? activeRowClass : idleRowClass
-                }`}
-              >
-                {n}★ &amp; up
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Delivery panel uses the smallest radius (lg) — the radius
-          step-down (2xl → xl → xl → lg) gives the sidebar a deliberate
-          rhythm instead of four identical 2xl rectangles. */}
-      <div className="surface-flat rounded-lg p-5">
-        <h3 className="font-display text-xs font-bold uppercase tracking-wider text-ink-dim mb-3">
-          Delivery method
-        </h3>
-        <ul className="space-y-0.5 text-sm">
-          {["download", "email", "license_key", "streaming"].map((d) => (
-            <li key={d}>
-              <Link
-                href={buildHref({ delivery: params.delivery === d ? undefined : d })}
-                scroll={false}
-                className={`block rounded-lg px-3 py-1.5 capitalize transition ${
-                  params.delivery === d ? activeRowClass : idleRowClass
-                }`}
-              >
-                {d.replace("_", " ")}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-function Pagination({
-  page,
-  totalPages,
-  params,
-}: {
-  page: number;
-  totalPages: number;
-  params: Record<string, string | undefined>;
-}) {
-  const buildHref = (p: number) => {
-    const qs = new URLSearchParams();
-    for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v);
-    qs.set("page", String(p));
-    return `/browse?${qs.toString()}`;
-  };
-  return (
-    // Pagination intentionally KEEPS scroll-to-top behaviour (no
-    // `scroll={false}`) — moving to a new page should land the user
-    // at the top of the new grid, not in the middle. Only the
-    // sidebar filter toggles preserve scroll (Phase 11 / F19).
-    <div className="mt-10 flex items-center justify-center gap-2">
-      {page > 1 && (
-        <Link href={buildHref(page - 1)} className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50">
-          ← Prev
-        </Link>
-      )}
-      <span className="px-4 text-sm text-ink-secondary">
-        Page <span className="text-white font-semibold">{page}</span> of {totalPages}
-      </span>
-      {page < totalPages && (
-        <Link href={buildHref(page + 1)} className="rounded-full border border-line px-4 py-2 text-sm text-white hover:border-brand-yellow/50">
-          Next →
-        </Link>
-      )}
-    </div>
   );
 }

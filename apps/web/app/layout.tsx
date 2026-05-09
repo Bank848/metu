@@ -30,12 +30,6 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-// Prompt — Cadson Demak's Bangkok-designed family. Wired here per
-// docs/design-system.md §3.1 so any Thai-locale string can opt in via
-// the `font-thai` Tailwind class (e.g. `<span lang="th"
-// className="font-thai">…</span>`). Restricted to body weights — Thai
-// display sizes inherit from the same family without needing the heavy
-// 800 cut, which would balloon the font payload.
 const thai = Prompt({
   subsets: ["thai", "latin"],
   weight: ["400", "500", "600", "700"],
@@ -47,8 +41,6 @@ export const metadata: Metadata = {
   title: "METU — Digital Marketplace",
   description:
     "METU is the digital marketplace for Thai creators. Templates, music, courses, art — sell and buy without ever shipping a thing.",
-  // Set the canonical site URL so Open Graph / Twitter cards resolve absolute
-  // image paths and the sitemap helper can derive the same base.
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://metu.fly.dev"),
   applicationName: "METU",
   appleWebApp: {
@@ -69,8 +61,6 @@ export const metadata: Metadata = {
   },
 };
 
-// Browser chrome / iOS status bar tint. Kept separate from `metadata` so
-// it lives on the recommended `viewport` export per Next 14 conventions.
 export const viewport = {
   themeColor: "#0E0E0E",
   width: "device-width",
@@ -78,42 +68,13 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // Read the user's saved locale from cookies so the server-rendered
-  // markup ships with the right language and there's no flash of English
-  // before the client provider takes over.
   const locale = getServerLocale();
   return (
-    // QA round #3 / F1 — `suppressHydrationWarning` on <html>
-    // is defensive: the `themeBootstrapScript` mounted in <head> below
-    // intentionally rewrites this element's className BEFORE React
-    // hydrates (e.g. dark → light when the user has saved that pref).
-    // Without the flag, React would compare its rendered attribute
-    // against the post-bootstrap DOM and warn. The flag scopes to the
-    // html element only; child trees still hydrate strictly. Standard
-    // Next.js theme-toggle pattern (cf. next-themes). Note: the actual
-    // root-cause of the QA r3/F1 console errors turned out to be Next
-    // 14 App Router's multi-`priority` <Image> hydration bug — see the
-    // `priority={i===0}` / `loading="lazy"` narrowing in commit 907ee5b.
-    // We keep this flag because it's the right pattern for theme bootstrap.
     <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} ${thai.variable} dark`} suppressHydrationWarning>
       <head>
-        {/*
-          Bootstrap the user's saved theme BEFORE hydration so we never
-          flash the wrong palette on hard reload. Runs synchronously in
-          the document head, reads localStorage, swaps the html class.
-          Tiny inline script — no separate request.
-        */}
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className="min-h-screen bg-surface-1 text-ink-primary font-body antialiased">
-        {/*
-          Skip-to-content — first focusable element on every page so
-          keyboard + screen-reader users can bypass the TopNav. Hidden
-          off-screen until focused, then springs into the top-left
-          corner with a brand-yellow pill so it's impossible to miss.
-          Pages render their main content inside <main id="main"> so
-          this anchor always has a target.
-        */}
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-full focus:bg-brand-yellow focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-space-black focus:shadow-2xl focus:outline-none focus:ring-2 focus:ring-brand-yellow/60"
@@ -124,10 +85,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <KeyboardShortcuts />
           <CompareDrawer />
-          {/* Mobile-only thumb-reach nav. Auto-hides on auth /
-              checkout / kiosk pages. Settings.favoritesEnabled isn't
-              read here (root layout is RSC and we'd need an extra
-              fetch); the nav itself just always renders the heart. */}
           <MobileBottomNav />
         </I18nProvider>
         <PlausibleScript />

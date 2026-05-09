@@ -2,17 +2,7 @@ import { forwardRef, type InputHTMLAttributes, useId } from "react";
 import { cn } from "@/lib/utils";
 import { coins, thbToCoins } from "@/lib/format";
 
-/**
- * / Step 2 — currency-aware variant of NumberInput.
- * Renders the standard input chrome plus a "Buyer sees: ฿XXX" preview
- * pill that floats inside the right edge of the field. The pill updates
- * live as the seller types so they don't have to do mental arithmetic
- * when entering a discount.
- * The currency prop exists for forward-compat — every product on the
- * marketplace today is THB but the API model carries currency, so the
- * primitive should accept it. Today only "THB" is wired to a symbol;
- * other codes fall through to the code itself in the preview.
- */
+
 export interface PriceInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
   label?: string;
   helperText?: string;
@@ -90,12 +80,10 @@ export const PriceInput = forwardRef<HTMLInputElement, PriceInputProps>(
             className={cn(
               "w-full rounded-xl border bg-surface-2 px-4 py-2.5 text-white outline-none transition",
               "placeholder:text-ink-dim",
-              // Reserve right padding for the preview pill so the typed
-              // value never sits underneath it.
               "pr-44",
               hasError
-                ? "border-coral focus:border-coral focus:ring-2 focus:ring-coral/25"
-                : "border-white/10 focus:border-mint focus:ring-2 focus:ring-mint/25",
+                ? "border-coral"
+                : "border-white/10",
               className,
             )}
             {...rest}
@@ -108,7 +96,7 @@ export const PriceInput = forwardRef<HTMLInputElement, PriceInputProps>(
               "rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap",
               hasDiscount
                 ? "bg-coral/15 text-coral border border-coral/30"
-                : "bg-mint/15 text-mint border border-mint/30",
+                : "bg-mint/15 text-metu-yellow border border-metu-yellow/30",
             )}
           >
             {previewText}

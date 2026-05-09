@@ -1,7 +1,3 @@
-// METU Digital Marketplace - Prisma schema.
-// snake_case in DB, camelCase in JS via @map.
-// Cascading deletes apply where child rows depend on the parent.
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native"]
@@ -9,12 +5,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = "postgresql://metu:metu@localhost:5432/metu?schema=public"
 }
-
-// ============================================================================
-//  ENUMS
-// ============================================================================
 
 enum Gender {
   male
@@ -59,9 +51,6 @@ enum DiscountType {
   fixed
 }
 
-// ============================================================================
-//  CORE IDENTITY
-// ============================================================================
 
 model Country {
   countryId   Int    @id @default(autoincrement()) @map("country_id")
@@ -76,40 +65,25 @@ model Country {
 model User {
   userId               Int       @id @default(autoincrement()) @map("user_id")
   countryId            Int?      @map("country_id")
-  // Nullable: Google-only signups have no password until they Set Password.
   password             String?   @db.Text
   username             String    @unique @db.VarChar(20)
   firstName            String    @map("first_name") @db.VarChar(40)
   lastName             String    @map("last_name") @db.VarChar(40)
   email                String    @unique @db.VarChar(80)
-  // better-auth flag; password login doesn't gate on it, Google sign-in flips true.
   emailVerified        Boolean   @default(false) @map("email_verified")
   gender               Gender?
   profileImage         String?   @map("profile_image") @db.Text
   dateOfBirth          DateTime? @map("date_of_birth")
-  // Phone + verification timestamp.
   phone                String?   @db.VarChar(20)
   phoneVerifiedAt      DateTime? @map("phone_verified_at")
-  // SHA-256 of the 6-digit OTP at register, 10-min TTL. Cleared when
-  // phoneVerifiedAt is stamped.
   phoneOtpHash         String?   @map("phone_otp_hash") @db.VarChar(64)
   phoneOtpExpiresAt    DateTime? @map("phone_otp_expires_at")
-  // TOTP 2FA. NULL secret = never enrolled.
   totpSecret           String?   @map("totp_secret") @db.VarChar(64)
   totpEnabled          Boolean   @default(false) @map("totp_enabled")
-  // Single-use TOTP backup codes (SHA-256 hashes of the plaintext).
-  // 10 codes generated at enrol time; each consume removes its hash.
-  // Plaintext shown to the user once and never persisted.
   totpBackupCodes      String[]  @map("totp_backup_codes")
-  // Admin-imposed force-reset flag. While true, the BFF redirects
-  // every authed page to /profile/edit until the user changes pwd.
   requirePasswordReset Boolean   @default(false) @map("require_password_reset")
   createdDate          DateTime  @default(now()) @map("created_date")
-  // Required by better-auth's adapter on every model.
   updatedAt            DateTime  @updatedAt @map("updated_at")
-
-  // Moderation metadata. NULL for active users; populated by admin-driven
-  // bans (profanity, fraud, abuse). Hard-delete removes the row entirely.
   bannedAt     DateTime? @map("banned_at")
   bannedReason String?   @map("banned_reason") @db.VarChar(120)
 
@@ -126,14 +100,9 @@ model User {
   emailVerifyTokens   EmailVerifyToken[]
   auditLogs           AuditLog[]
 
-  // better-auth relations.
   accounts Account[]
   sessions Session[]
 
-  // Phase 48 — admin who issued IP bans (network-layer abuse blocks).
-
-  // Phase 49 — devices the user has confirmed via the email-OTP gate
-  // and chosen to "trust for 7 days" so they don't re-OTP every login.
   trustedDevices  TrustedDevice[]
 
   @@index([countryId])
@@ -178,18 +147,13 @@ model Store {
   profileImage         String?   @map("profile_image") @db.Text
   coverImage           String?   @map("cover_image") @db.Text
   createdAt            DateTime  @default(now()) @map("created_at")
-  // Suspended: hidden from buyers, still visible to the seller. Reversible.
   suspendedAt          DateTime? @map("suspended_at")
-  /// Stripe Connect Express account. NULL = not onboarded yet.
-  /// Charges + payouts gated on the capability flags below.
   stripeAccountId      String?   @unique @map("stripe_account_id") @db.VarChar(40)
   stripePayoutsEnabled Boolean   @default(false) @map("stripe_payouts_enabled")
   stripeChargesEnabled Boolean   @default(false) @map("stripe_charges_enabled")
 
-  // Optional public contact channels surfaced in the buyer's receipt.
   contactEmail         String?   @map("contact_email") @db.VarChar(120)
   phone                String?   @db.VarChar(20)
-  // avg review rating × 10 (e.g. 48 = 4.8★). Recomputed on review insert.
   rating               Int       @default(0)
 
   owner        User         @relation(fields: [ownerId], references: [userId], onDelete: Cascade)
@@ -201,10 +165,6 @@ model Store {
   @@index([createdAt])
   @@map("store")
 }
-
-// ============================================================================
-//  CATALOG
-// ============================================================================
 
 model Category {
   categoryId   Int    @id @default(autoincrement()) @map("category_id")
@@ -220,6 +180,7 @@ model ProductTag {
   tagId          Int    @id @default(autoincrement()) @map("tag_id")
   tagName        String @unique @map("tag_name") @db.VarChar(30)
   tagDescription String @map("tag_description") @db.VarChar(150)
+  tagCount      Int     @default(0)
 
   productNTags ProductNTag[]
 
@@ -232,21 +193,10 @@ model Product {
   categoryId     Int            @map("category_id")
   name           String         @db.VarChar(100)
   description    String         @db.VarChar(255)
-  // Paused products hide from public surfaces; seller dashboard still shows them.
   isActive       Boolean        @default(true) @map("is_active")
-  // Phase 45 — promoted from ProductItem to match the docx report.
-  // ProductItem still keeps its own deliveryMethod for the moment so
-  // existing services that read variant-level delivery don't break;
-  // both columns stay in sync (or the seller form picks one truth).
   deliveryMethod DeliveryMethod @map("delivery_method")
-  // Phase 45 — Business Rule: products with isStackable=false cap
-  // each line at quantity=1 (e.g. one-off pitch decks, single-seat
-  // license keys). True for assets a buyer can buy multiple copies of.
   isStackable    Boolean        @default(true) @map("is_stackable")
-
   createdAt DateTime @default(now()) @map("created_at")
-  // Owned by the product_touch_updated_at trigger; no @updatedAt
-  // so Prisma never writes it from the app side.
   updatedAt DateTime @default(now()) @map("updated_at")
 
   store        Store             @relation(fields: [storeId], references: [storeId], onDelete: Cascade)
@@ -264,10 +214,6 @@ model Product {
   @@map("product")
 }
 
-/// Phase 45 — "Product Additional Detail" per the docx report. Lets a
-/// seller list extra spec rows (file format, license duration, file
-/// size). Business Rule 4(g) caps it at 7 rows per product, enforced
-/// at the application layer.
 model ProductDetail {
   productDetailId Int    @id @default(autoincrement()) @map("product_detail_id")
   productId       Int    @map("product_id")
@@ -283,25 +229,15 @@ model ProductDetail {
 model ProductItem {
   productItemId   Int            @id @default(autoincrement()) @map("product_item_id")
   productId       Int            @map("product_id")
-  // Phase 45 — variant-level fields per the docx report. `name` is
-  // required (e.g. "Standard", "Pro", "Team"); description + image
-  // are optional and let the seller distinguish variants visually.
   name            String         @db.VarChar(100)
   description     String?        @db.VarChar(255)
   image           String?        @db.Text
-  // Variant-level delivery method stays for backwards compat with
-  // services that read it directly. The canonical value is on
-  // Product (per the report); the two should be kept in sync.
   deliveryMethod  DeliveryMethod @map("delivery_method")
-  quantity        Int            @default(0)
+  quantity        Int?           @default(0)
   price           Decimal        @db.Decimal(10, 2)
   discountPercent Int            @default(0) @map("discount_percent")
   discountAmount  Decimal        @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  // Public preview link (low-res PDF, audio clip, etc.).
-  sampleUrl       String?        @map("sample_url") @db.Text
-  // Private post-purchase link + license-key template.
-  // Template "METU-XXXX-XXXX-XXXX" replaces XXXX with random alphanumerics;
-  // null template falls back to a UUID v4.
+
   deliveryUrl         String?    @map("delivery_url") @db.Text
   licenseKeyTemplate  String?    @map("license_key_template") @db.VarChar(80)
   createdDate     DateTime       @default(now()) @map("created_date")
@@ -314,7 +250,6 @@ model ProductItem {
   @@map("product_item")
 }
 
-// Many images per product (extension of the ER diagram which had one).
 model ProductImage {
   productImageId Int    @id @default(autoincrement()) @map("product_image_id")
   productId      Int    @map("product_id")
@@ -356,7 +291,6 @@ model ProductNTag {
   @@map("product_n_tag")
 }
 
-// User wishlist. Separate from cart; favourite means "come back to this".
 model ProductFavorite {
   favoriteId Int      @id @default(autoincrement()) @map("favorite_id")
   userId     Int      @map("user_id")
@@ -371,10 +305,6 @@ model ProductFavorite {
   @@index([productId])
   @@map("product_favorite")
 }
-
-// ============================================================================
-//  CART / ORDER / TRANSACTION
-// ============================================================================
 
 model Cart {
   cartId    Int        @id @default(autoincrement()) @map("cart_id")
@@ -463,9 +393,6 @@ model Order {
 model OrderItem {
   orderItemId   Int     @id @default(autoincrement()) @map("order_item_id")
   orderId       Int     @map("order_id")
-  // Nullable + SetNull so a hard-deleted product / store / user doesn't
-  // cascade-delete buyer order history. The snapshot fields below carry
-  // enough detail to render the receipt even after the FK is null.
   productItemId Int?    @map("product_item_id")
   couponId      Int?    @map("coupon_id")
   quantity      Int
@@ -491,14 +418,9 @@ model OrderItem {
   @@map("order_item")
 }
 
-// ============================================================================
-//  COUPONS
-// ============================================================================
 
 model Coupon {
   couponId      Int          @id @default(autoincrement()) @map("coupon_id")
-  // Nullable storeId enables "Master Coupons" (platform-wide).
-  // Per-store coupons keep storeId set; usage_limit caps total redemptions.
   storeId       Int?         @map("store_id")
   code          String       @db.VarChar(50)
   startDate     DateTime     @map("start_date")
@@ -535,8 +457,6 @@ model CouponUsage {
   @@map("coupon_usage")
 }
 
-// Password reset: token stored as a SHA-256 hex hash so the raw
-// value is only ever in the user's email link. 30-min lifetime.
 model PasswordResetToken {
   tokenId    Int       @id @default(autoincrement()) @map("token_id")
   userId     Int       @map("user_id")
@@ -553,9 +473,6 @@ model PasswordResetToken {
   @@map("password_reset_token")
 }
 
-// Phase 41 - email verify token, mirrors PasswordResetToken pattern.
-// Single-use; the raw token only lives in the email link, the DB
-// only stores its SHA-256.
 model EmailVerifyToken {
   tokenId    Int       @id @default(autoincrement()) @map("token_id")
   userId     Int       @map("user_id")
@@ -593,9 +510,6 @@ model AuditLog {
   @@map("audit_log")
 }
 
-// better-auth tables. PKs are Int (via generateId: "serial") so the
-// FKs into users.user_id stay clean.
-
 model Account {
   id                    Int       @id @default(autoincrement())
   userId                Int       @map("user_id")
@@ -628,8 +542,6 @@ model Session {
   userAgent  String?   @map("user_agent") @db.VarChar(255)
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
-  /// Last successful TOTP step-up; checked by requireRecent2FA on
-  /// sensitive routes. NULL = never proven on this session.
   lastTotpAt DateTime? @map("last_totp_at")
 
   user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
@@ -651,19 +563,10 @@ model Verification {
   @@map("verification")
 }
 
-/// Devices the user has confirmed via email-OTP and ticked
-/// "Trust this device for 7 days". Subsequent logins from the same
-/// browser within `expiresAt` skip the OTP gate. We store only the
-/// SHA-256 hash of the cookie value the browser holds, so a DB dump
-/// can't be replayed to impersonate a trusted device.
 model TrustedDevice {
   id              Int      @id @default(autoincrement())
   userId          Int      @map("user_id")
-  /// SHA-256 (hex) of the random 32-byte hex cookie value. Cookie
-  /// itself never lands in the DB.
   fingerprintHash String   @unique @map("fingerprint_hash") @db.VarChar(64)
-  /// Best-effort label so /profile/edit can list trusted devices
-  /// (e.g. "Chrome on Windows"). Derived from User-Agent.
   label           String?  @db.VarChar(120)
   createdAt       DateTime @default(now()) @map("created_at")
   expiresAt       DateTime @map("expires_at")
@@ -673,14 +576,9 @@ model TrustedDevice {
   @@map("trusted_device")
 }
 
-/// Single-row runtime config. CHECK constraint pins id=1 so we
-/// can never accidentally insert a second row.
 model SystemSetting {
   id                 Int      @id @default(1)
-  /// Hides favourites UI when false; underlying rows are preserved.
   favoritesEnabled   Boolean  @default(true) @map("favorites_enabled")
-  /// % of every order the platform keeps. Default 5.00 = sellers
-  /// earn 95% of each sale. Maps to Stripe's application_fee_amount.
   platformFeePercent Decimal  @default(5.00) @map("platform_fee_percent") @db.Decimal(5, 2)
   updatedAt          DateTime @updatedAt @map("updated_at")
 

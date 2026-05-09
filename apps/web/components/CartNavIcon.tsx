@@ -1,21 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 
-/**
- * run #2 / F8 — TopNav cart pill with a live count badge.
- * The previous static `<Link>` showed only the bag icon, so a buyer
- * couldn't tell whether their `Add to cart` click registered until they
- * navigated to `/cart`. We mirror the MessagesNavIcon pattern: client
- * component that polls `/api/cart` on a slow tick (60s, same cadence
- * as MessagesNavIcon), and refreshes immediately whenever AddToCart
- * dispatches a `cart:update` window event.
- * Renders for guests too — guests get a silent zero badge so the
- * entry point stays visible. The 401 branch swallows the error and
- * leaves the count at 0.
- */
 export function CartNavIcon() {
   const { t } = useI18n();
   const [count, setCount] = useState(0);
@@ -36,10 +24,6 @@ export function CartNavIcon() {
   useEffect(() => {
     refresh();
     const id = window.setInterval(refresh, 60_000);
-    // PDP `Add to cart` dispatches this window event after a successful
-    // POST so the badge updates without waiting for the 60s poll. We
-    // also listen on `focus` so switching back from another tab picks
-    // up out-of-band changes (e.g. a checkout completed elsewhere).
     const onUpdate = () => refresh();
     window.addEventListener("cart:update", onUpdate);
     window.addEventListener("focus", onUpdate);
@@ -56,9 +40,9 @@ export function CartNavIcon() {
       href="/cart"
       aria-label={label}
       title={label}
-      className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white hover:border-metu-yellow/50 hover:bg-metu-yellow/10 hover:text-metu-yellow transition"
+      className="relative flex h-9 w-9 items-center justify-center rounded-full text-metu-yellow hover:border-metu-yellow/50 hover:bg-metu-yellow/10 hover:text-metu-yellow transition"
     >
-      <ShoppingBag className="h-[18px] w-[18px]" />
+      <ShoppingCart className="h-[18px] w-[18px]" />
       {count > 0 && (
         <span
           aria-label={`${count} item${count === 1 ? "" : "s"} in cart`}

@@ -1,6 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Star, Clock, MessageSquare, ShieldCheck, Flame } from "lucide-react";
+
+import { 
+  Star, Clock, MessageSquare, ShieldCheck, Flame, 
+  Package, Download, Mail, KeyRound, Play, Lock as Lock, Zap, RotateCcw
+} from "lucide-react";
+
 import { notFound } from "next/navigation";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
@@ -17,12 +22,12 @@ import { RecentPing } from "@/components/RecentPing";
 import { ShareButton } from "@/components/ShareButton";
 import { AddToCart } from "./AddToCart";
 import { Gallery } from "./Gallery";
+import { ImageLightbox } from "@/components/ImageLightbox";
 
 type Product = {
   productId: number;
   name: string;
   description: string;
-  /** when false, buyer can't re-purchase after first paid order. */
   isStackable: boolean;
   avgRating?: number;
   reviewCount?: number;
@@ -31,7 +36,6 @@ type Product = {
   items: Array<{ productItemId: number; deliveryMethod: string; price: string | number; discountPercent: number; quantity: number }>;
   images: Array<{ productImage: string }>;
   productNTags: Array<{ tag: { tagName: string; tagId: number } }>;
-  // CPE241 Business Rule 4g — up to 7 freeform key/value rows.
   details?: Array<{ productDetailId: number; detailName: string; detailValue: string }>;
   reviews: Array<{ reviewId: number; rating: number; comment: string; createdAt: string; user: { userId: number; firstName: string; lastName: string; profileImage?: string | null; username: string } }>;
 };
@@ -41,23 +45,18 @@ export const dynamic = "force-dynamic";
 export default async function ProductPage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   if (!Number.isFinite(id)) return notFound();
-  // Resolve the session first (cheap cookie decode) so the remaining DB
-  // reads can fan out in the same Promise.all — eliminates the serial
-  // getFavoriteSet await that was adding one extra Neon roundtrip.
-  // productQuestion + stockAlert reads dropped along with
-  // the buyer↔seller messaging surface.
+
   const me = await getMe();
   const [product, favSet, recentBuyers, related, ownedOrderId] = await Promise.all([
     getProduct(id) as Promise<Product | null>,
     getFavoriteSet(me?.user.userId),
     getRecentPurchaseCount(id, 7),
     getRelatedProducts(id, 4),
-    // fetch the user's existing paid order on this product
-    // so AddToCart can render an "✓ Already in your library" banner
-    // instead of the buy buttons (when product.isStackable === false).
     me?.user.userId ? getOwnedOrderId(me.user.userId, id) : Promise.resolve(null),
   ]);
+
   if (!product) return notFound();
+
   const t = getServerT();
   const isFavorited = favSet.has(product.productId);
 
@@ -65,175 +64,211 @@ export default async function ProductPage({ params }: { params: { id: string } }
     ...it,
     price: Number(it.price),
     finalPrice: Number(it.price) * (1 - (it.discountPercent ?? 0) / 100),
-    // Expose stock to AddToCart so it can cap the typed input correctly.
     stock: it.quantity,
-    sampleUrl: (it as { sampleUrl?: string | null }).sampleUrl ?? null,
+    sampleUrl: (it as any).sampleUrl ?? null,
+    name: (it as any).name ?? null,
+    description: (it as any).description ?? null,
+    image: (it as any).image ?? null,
   }));
+
+  const productImages = product.images.map((i) => i.productImage);
+  const variantImages = items
+    .map((it) => it.image)
+    .filter((img): img is string => Boolean(img) && !productImages.includes(img));
+  const allImages = [...productImages, ...variantImages];
+
+  const DELIVERY_LABEL: Record<string, string> = {
+    download:    "Instant Download",
+    email:       "Delivered by Email",
+    license_key: "License Key",
+    streaming:   "Streaming Access",
+  };
+
+  const DELIVERY_ICON: Record<string, React.ReactNode> = {
+    download:    <Download className="h-3 w-3" />,
+    email:       <Mail className="h-3 w-3" />,
+    license_key: <KeyRound className="h-3 w-3" />,
+    streaming:   <Play className="h-3 w-3" />,
+  };
 
   return (
     <>
       <TopNav />
-      {/* Records this product into the user's recently-viewed history. */}
       <RecentPing productId={product.productId} />
+
+      {/* Lightbox — client component */}
+      <ImageLightbox images={allImages} />
+
       <main id="main" className="mx-auto max-w-[1440px] px-4 sm:px-6 md:px-10 py-6 sm:py-10">
-        <nav className="text-xs sm:text-sm text-ink-dim mb-4 sm:mb-6 flex items-center gap-2 overflow-hidden">
-          <Link href="/browse" className="hover:text-metu-yellow shrink-0">Browse</Link>
-          <span className="text-ink-mute shrink-0">/</span>
-          <span className="shrink-0">{product.category.categoryName}</span>
-          <span className="text-ink-mute shrink-0">/</span>
+
+        {/* Breadcrumb */}
+        <nav className="text-xs sm:text-sm text-ink-dim mb-6 flex items-center gap-2">
+          <Link href="/browse" className="hover:text-metu-yellow">Browse</Link>
+          <span>/</span>
+          <span>{product.category.categoryName}</span>
+          <span>/</span>
           <span className="text-white font-medium truncate">{product.name}</span>
         </nav>
 
-        <div className="grid md:grid-cols-[1.15fr_1fr] gap-6 md:gap-10">
-          <Gallery images={product.images.map((i) => i.productImage)} alt={product.name} />
+        <div className="grid lg:grid-cols-[1fr_400px] gap-8 xl:gap-12 items-start">
 
-          <div>
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <Badge variant="yellow">{product.category.categoryName}</Badge>
-              {product.productNTags.slice(0, 3).map((nt) => (
-                <Badge key={nt.tag.tagId} variant="mist">{nt.tag.tagName}</Badge>
-              ))}
-            </div>
-            <div className="flex items-start gap-2 sm:gap-3 mb-3">
-              <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white flex-1 min-w-0">
-                {product.name}
-              </h1>
-              <FavoriteButton productId={product.productId} initial={isFavorited} size="md" />
-              <ShareButton title={product.name} text={`Check out "${product.name}" on METU`} size="md" />
-            </div>
-            <div className="flex items-center gap-4 mb-4 text-sm">
-              {product.avgRating !== undefined && (
-                <div className="flex items-center gap-1">
-                  <Star className="h-4 w-4 fill-metu-yellow stroke-metu-yellow" />
-                  <span className="font-semibold text-white">{product.avgRating.toFixed(1)}</span>
-                  <span className="text-ink-dim">({product.reviewCount} reviews)</span>
-                </div>
-              )}
-            </div>
-            {/* Social proof — only render when ≥2 buyers in the last week
-                so a single sale doesn't trigger an awkward "1 person bought
-                this" line. */}
-            {recentBuyers >= 2 && (
-              <div className="inline-flex items-center gap-1.5 mb-4 rounded-full bg-orange-400/10 border border-orange-400/30 text-orange-300 px-3 py-1 text-xs font-semibold">
-                <Flame className="h-3 w-3" />
-                {recentBuyers} {recentBuyers === 1 ? "person" : "people"} bought this in the last week
+          {/* ── LEFT COLUMN ── */}
+          <div className="space-y-6 min-w-0">
+
+            {/* Gallery */}
+            <Gallery images={allImages} alt={product.name}/>
+
+            {/* Description */}
+            <div className="rounded-2xl border border-white/8 bg-white/[0.02] px-6 py-5">
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-metu-yellow mb-4 flex items-center gap-2">
+                <span className="h-px flex-1 bg-metu-yellow/20" />
+                Description
+                <span className="h-px flex-1 bg-metu-yellow/20" />
+              </h3>
+              <div className="text-sm text-ink-secondary leading-relaxed whitespace-pre-line">
+                {product.description}
               </div>
-            )}
-            <ExpandableText text={product.description} className="mb-6" />
+            </div>
 
-            {/* CPE241 Business Rule 4g — additional info rows.
-                Renders as a definition list (label / value pairs) so
-                buyers see specs / file format / license terms cleanly.
-                Mint accent bar on the left + tinted background give it
-                visual rhythm vs. the plain description block above. */}
+            {/* Specifications */}
             {product.details && product.details.length > 0 && (
-              <div className="mb-6 rounded-2xl border border-mint/20 bg-mint/[0.04] px-5 py-4 border-l-4 border-l-mint">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-mint mb-3 flex items-center gap-1.5">
-                  <span aria-hidden className="h-1 w-1 rounded-full bg-mint" />
+              <div className="rounded-2xl border border-mint/20 bg-mint/[0.03] px-6 py-5 border-l-4 border-l-mint">
+                <h3 className="text-[10px] font-bold uppercase tracking-[0.18em] text-mint mb-4 flex items-center gap-2">
+                  <span className="h-px flex-1 bg-mint/20" />
                   Specifications
+                  <span className="h-px flex-1 bg-mint/20" />
                 </h3>
-                <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {product.details.map((d, i) => (
                     <div
                       key={d.productDetailId}
-                      className="contents animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
+                      className="flex flex-col gap-0.5 animate-[stagger-rise_0.5s_cubic-bezier(0.22,1,0.36,1)_both]"
                       style={{ animationDelay: `${i * 50}ms` }}
                     >
-                      <dt className="text-ink-secondary">{d.detailName}</dt>
-                      <dd className="text-white font-medium tabular-nums">{d.detailValue}</dd>
+                      <dt className="text-[10px] font-black uppercase tracking-widest text-ink-dim">{d.detailName}</dt>
+                      <dd className="text-sm font-semibold text-white">{d.detailValue}</dd>
                     </div>
                   ))}
                 </dl>
               </div>
             )}
 
+            {/* Reviews */}
+            <section>
+              <div className="flex items-end justify-between mb-5 border-b border-white/8 pb-3">
+                <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-metu-yellow" />
+                  Reviews
+                  <span className="text-ink-dim text-base font-normal">
+                    ({product.reviewCount ?? product.reviews.length})
+                  </span>
+                </h2>
+              </div>
+              <Reviews
+                productId={product.productId}
+                initialReviews={product.reviews}
+                avgRating={product.avgRating}
+                reviewCount={product.reviewCount ?? product.reviews.length}
+                canWrite={Boolean(me)}
+                isAdmin={me?.role === "admin"}
+                currentUserId={me?.user.userId}
+              />
+            </section>
+          </div>
+
+          {/* ── RIGHT COLUMN — sticky purchase panel ── */}
+          <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
+
+            {/* Title + meta */}
+            <div>
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <Badge variant="yellow">{product.category.categoryName}</Badge>
+                {product.productNTags.slice(0, 3).map((nt) => (
+                  <Badge key={nt.tag.tagId} variant="mist">{nt.tag.tagName}</Badge>
+                ))}
+              </div>
+              <div className="flex items-start gap-2 mb-3">
+                <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex-1 min-w-0">
+                  {product.name}
+                </h1>
+                <FavoriteButton productId={product.productId} initial={isFavorited} size="md" />
+                <ShareButton title={product.name} text={`Check out "${product.name}" on METU`} size="md" />
+              </div>
+              <div className="flex items-center gap-4 text-sm">
+                {product.avgRating !== undefined && (
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 fill-metu-yellow stroke-metu-yellow" />
+                    <span className="font-semibold text-white">{product.avgRating.toFixed(1)}</span>
+                    <span className="text-ink-dim">({product.reviewCount} reviews)</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Hot badge */}
+            {recentBuyers >= 2 && (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-orange-400/10 border border-orange-400/30 text-orange-300 px-3 py-1 text-xs font-semibold">
+                <Flame className="h-3 w-3" />
+                {recentBuyers} people bought this in the last week
+              </div>
+            )}
+
+            {/* Variants + Add to cart */}
+            {me && me.user.userId === product.store.ownerId ? (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  This is your own store. Sign in as a buyer to test checkout.
+                </div>
+              </div>
+            ) : (
+              <AddToCart items={items} ownedOrderId={!product.isStackable ? ownedOrderId : null} />
+            )}
+
+            {/* Store card */}
             <Link
               href={`/store/${product.store.storeId}`}
               className="flex items-center gap-3 rounded-2xl surface-flat p-4 hover:border-metu-yellow/40 transition lift-on-hover"
             >
-              <div className="relative h-12 w-12 shrink-0 rounded-full bg-metu-yellow overflow-hidden">
+              <div className="relative h-11 w-11 shrink-0 rounded-full bg-metu-yellow overflow-hidden">
                 {product.store.profileImage && (
-                  <Image src={product.store.profileImage} alt={product.store.name} fill sizes="48px" className="object-cover" unoptimized={isDataUrl(product.store.profileImage)} />
+                  <Image src={product.store.profileImage} alt={product.store.name} fill sizes="44px" className="object-cover" unoptimized={isDataUrl(product.store.profileImage)} />
                 )}
               </div>
-              <div className="min-w-0">
-                <div className="text-xs font-medium text-ink-dim flex items-center gap-1">
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-medium text-ink-dim flex items-center gap-1">
                   <ShieldCheck className="h-3 w-3 text-metu-yellow" />
                   Verified · {product.store.businessType?.name}
                 </div>
-                <div className="font-display font-bold text-white">{product.store.name}</div>
+                <div className="font-display font-bold text-white text-sm">{product.store.name}</div>
               </div>
-              <div className="ml-auto text-xs text-metu-yellow">Visit store →</div>
+              <span className="text-xs text-metu-yellow shrink-0">Visit →</span>
             </Link>
 
-            <div className="mb-6" />
-
-            {me && me.user.userId === product.store.ownerId ? (
-              <div className="space-y-3">
-                <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                  This is your own store. Sign in as a buyer if you want to test the checkout flow.
+            {/* Trust badges */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { icon: <Lock className="h-4 w-4" />, label: "Secure Checkout" },
+                { icon: <Zap className="h-4 w-4" />,  label: "Instant Delivery" },
+                { icon: <RotateCcw className="h-4 w-4" />, label: "Refund Policy" },
+              ].map((b) => (
+                <div key={b.label} className="flex flex-col items-center gap-1.5 py-3 rounded-xl border border-white/6 bg-white/[0.02]">
+                  <span className="text-metu-yellow/60">{b.icon}</span>
+                  <span className="text-[9px] font-bold text-ink-dim uppercase tracking-wider text-center leading-tight">{b.label}</span>
                 </div>
-                {items.some((it) => it.sampleUrl) && (
-                  <a
-                    href={items.find((it) => it.sampleUrl)!.sampleUrl!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-line bg-space-900 px-4 py-2 text-sm font-semibold text-white hover:border-brand-yellow/50 hover:text-brand-yellow transition"
-                  >
-                    Preview your free sample →
-                  </a>
-                )}
-              </div>
-            ) : (
-              <AddToCart
-                items={items}
-                ownedOrderId={!product.isStackable ? ownedOrderId : null}
-              />
-            )}
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Reviews tab */}
-        <section className="mt-16">
-          <div className="flex items-end justify-between mb-6 border-b border-white/8 pb-3">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-metu-yellow" />
-              Reviews
-              <span className="text-ink-dim text-base font-normal">
-                ({product.reviewCount ?? product.reviews.length})
-              </span>
-            </h2>
-          </div>
-          <Reviews
-            productId={product.productId}
-            initialReviews={product.reviews}
-            avgRating={product.avgRating}
-            reviewCount={product.reviewCount ?? product.reviews.length}
-            canWrite={Boolean(me)}
-            isAdmin={me?.role === "admin"}
-            currentUserId={me?.user.userId}
-          />
-        </section>
-
+        {/* Related */}
         {related.length > 0 && (
           <section className="mt-16">
             <div className="flex items-end justify-between mb-6 border-b border-white/8 pb-3">
-              <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-                More like this
-              </h2>
+              <h2 className="font-display text-2xl font-bold text-white">More like this</h2>
             </div>
-            {/* Wave-3 asymmetry — first card uses the `feature` variant
-                (mint surface + bigger image + gold hairline) so the grid
-                stops reading as four identical tiles. */}
-            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              {related.map((p, i) => (
-                <ProductCard
-                  key={p.productId}
-                  product={p}
-                  isFavorited={favSet.has(p.productId)}
-                  variant={i === 0 ? "feature" : "default"}
-                  className={i === 0 ? "lg:col-span-1" : undefined}
-                />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+              {related.map((p) => (
+                <ProductCard key={p.productId} product={p} isFavorited={favSet.has(p.productId)} />
               ))}
             </div>
           </section>

@@ -1,17 +1,17 @@
 import { Prisma } from "@prisma/client";
-import type { z } from "zod";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
 import { audit } from "../utils/audit.js";
 import { refundOrder as stripeRefund } from "./stripe.service.js";
+import { type z } from "zod";
 import {
   type SellerStatsResponse,
   type PatchVariantInput,
   type UpdateOrderStatusInput,
   type becomeSellerSchema,
   type updateStoreSchema,
-  type productInputSchema,
   type couponInputSchema,
+  type productInputSchema
 } from "../models/seller.model.js";
 
 type BecomeSellerInput = z.infer<typeof becomeSellerSchema>;
@@ -19,10 +19,6 @@ type UpdateStoreInput  = z.infer<typeof updateStoreSchema>;
 type ProductInput      = z.infer<typeof productInputSchema>;
 type CouponInput       = z.infer<typeof couponInputSchema>;
 
-// Seller service. Functions take a storeId rather than reaching for
-// the request, keeping them testable in isolation.
-
-/** Current seller's store with businessType. */
 export async function getStore(storeId: number) {
   return prisma.store.findUnique({
     where: { storeId },
@@ -30,10 +26,6 @@ export async function getStore(storeId: number) {
   });
 }
 
-/**
- * List the seller's products. Hard-delete removes them from this list
- * automatically — there is no soft-delete column anymore.
- */
 export async function listProducts(storeId: number) {
   return prisma.product.findMany({
     where: { storeId },
@@ -47,12 +39,6 @@ export async function listProducts(storeId: number) {
   });
 }
 
-/**
- * Single product, scoped to the seller's store. Throws 404 if the
- * product doesn't exist, 403 if it belongs to a different store.
- * The two errors are deliberately distinct so the dashboard UI can
- * tell them apart (404 = stale link; 403 = bug or attempt).
- */
 export async function getProduct(productId: number, storeId: number) {
   const product = await prisma.product.findUnique({
     where: { productId },
@@ -69,12 +55,6 @@ export async function getProduct(productId: number, storeId: number) {
   return product;
 }
 
-/**
- * Analytics dashboard payload. Five queries fan out in parallel
- * because they touch different tables; the two raw aggregates +
- * top-products query stay serial because they hit overlapping
- * indexes and bursts hurt Neon's free tier.
- */
 export async function getStats(storeId: number): Promise<SellerStatsResponse> {
   const [store, productCount, recentReviews, totals] = await Promise.all([
     prisma.store.findUnique({
@@ -164,14 +144,6 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
   };
 }
 
-/**
- * Orders the seller should care about — every order containing at
- * least one line from their store. Optional ?status filter passes
- * through to Prisma's enum check.
- * Scoped sub-includes: nested `items` only resolve to lines for THIS
- * store so we don't leak details about competitors' products if the
- * order is multi-store.
- */
 export async function listOrders(storeId: number, status?: string) {
   return prisma.order.findMany({
     where: {
@@ -211,11 +183,6 @@ export async function listOrders(storeId: number, status?: string) {
   });
 }
 
-/**
- * CSV export — same dataset as listOrders but flattened into one
- * row per (order, line item). Returns the CSV body as a string;
- * the controller adds the Content-Type / Content-Disposition headers.
- */
 export async function exportOrdersCsv(storeId: number): Promise<string> {
   const orders = await prisma.order.findMany({
     where: {
@@ -259,9 +226,6 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
 
   for (const o of orders) {
     for (const li of o.items) {
-      // Skip lines belonging to OTHER stores — order may be multi-store.
-      // When productItem is null (product hard-deleted), the line is
-      // not ours to export; skip too.
       if (!li.productItem) continue;
       if (li.productItem.product.storeId !== storeId) continue;
       const subtotal = Number(li.pricePerUnit) * li.quantity;
@@ -286,9 +250,6 @@ export async function exportOrdersCsv(storeId: number): Promise<string> {
   return rows.join("\n");
 }
 
-// mask buyer email so sellers can't harvest addresses.
-// "john.doe@gmail.com" → "j***@gmail.com"
-// Domain stays visible (avoids guessing) — only local part is masked.
 function maskEmail(email: string): string {
   if (!email || !email.includes("@")) return "***@***";
   const [local, domain] = email.split("@");
@@ -299,10 +260,6 @@ function maskEmail(email: string): string {
 
 function escapeCsv(value: unknown): string {
   let s = value === null || value === undefined ? "" : String(value);
-  // neutralise spreadsheet formula injection. A buyer with
-  // a username like `=cmd|'/c calc'!A0` would execute when the seller
-  // opens this CSV in Excel/Sheets. Prefix with single quote so the
-  // cell renders as text instead of evaluating.
   if (/^[=+\-@\t\r]/.test(s)) {
     s = "'" + s;
   }
@@ -312,19 +269,6 @@ function escapeCsv(value: unknown): string {
   return s;
 }
 
-/**
- * admin-driven version of becomeSeller. Used when an
- * operator promotes a buyer to seller from /admin/users.
- * Behaviour differs from the user-facing `becomeSeller`:
- *   - Picks defaults for `name`, `description`, `businessTypeId` so
- *     the admin doesn't have to fill the form upfront.
- *   - **Restores** a soft-deleted store instead of refusing — the
- *     "Make seller" action is idempotent so re-promoting after a
- *     "Make buyer" demotion doesn't create an orphan store row.
- *   - Doesn't audit on its own; the caller (admin.service.updateUserRole)
- *     writes its own `store.create` / `store.restore` audit row so
- *     the meta carries the originating admin's id.
- */
 export async function adminCreateStore(userId: number, username: string) {
   const existing = await prisma.store.findUnique({
     where: { ownerId: userId },
@@ -335,7 +279,6 @@ export async function adminCreateStore(userId: number, username: string) {
     return { storeId: existing.storeId, action: "noop" as const };
   }
 
-  // Brand new store — pick defaults.
   const firstBusinessType = await prisma.businessType.findFirst({
     orderBy: { typeId: "asc" },
     select: { typeId: true },
@@ -368,10 +311,6 @@ export async function adminCreateStore(userId: number, username: string) {
   return { storeId: store.storeId, action: "created" as const };
 }
 
-/**
- * Create the user's first store + promote buyer to seller in one tx.
- * Admin owners stay admin. 409 StoreExists if they already own one.
- */
 export async function becomeSeller(userId: number, input: BecomeSellerInput) {
   const existing = await prisma.store.findUnique({ where: { ownerId: userId } });
   if (existing) {
@@ -400,12 +339,6 @@ export async function becomeSeller(userId: number, input: BecomeSellerInput) {
   });
 }
 
-/**
- * PATCH /seller/store — partial update of the seller's own store.
- * Body keys not present are not touched (Prisma treats `undefined`
- * as no-op). The controller passes only the keys the user sent so
- * blanking an image (sending null) actually clears it.
- */
 export async function updateStore(storeId: number, input: UpdateStoreInput) {
   const data: Record<string, unknown> = {};
   if (input.name !== undefined) data.name = input.name;
@@ -426,16 +359,7 @@ export async function updateStore(storeId: number, input: UpdateStoreInput) {
 
 /** POST /seller/products — create a product (with variants, images, tags). */
 export async function createProduct(storeId: number, input: ProductInput) {
-  // Product now carries its own deliveryMethod (per the
-  // docx report). We mirror the first variant's method onto Product;
-  // the seller form lists all variants with the same method today, so
-  // the two stay in sync. The variant-level column is kept for now
-  // until every consumer migrates to read from Product.
   const productDeliveryMethod = input.items[0]!.deliveryMethod;
-  // isStackable defaults from delivery method when the
-  // seller doesn't pass an explicit override:
-  //   license_key → true (resellable, can buy multiple keys)
-  //   everything else (download/streaming/email) → false (single copy)
   const isStackable = input.isStackable ?? (productDeliveryMethod === "license_key");
   return prisma.product.create({
     data: {
@@ -447,24 +371,18 @@ export async function createProduct(storeId: number, input: ProductInput) {
       isStackable,
       items: {
         create: input.items.map((it, idx) => ({
-          // ProductItem.name is required (the report models
-          // each variant as a sellable line with its own name). Until
-          // the seller form exposes per-variant naming, default to
-          // "<product> — Variant N" so the column always has a value.
-          name:
-            input.items.length > 1
+          name: it.name?.trim()
+            ? it.name.trim().slice(0, 100)
+            : input.items.length > 1
               ? `${input.name} — Variant ${idx + 1}`.slice(0, 100)
               : input.name.slice(0, 100),
+          description: it.description ?? null,
+          image: it.image ?? null,
           deliveryMethod: it.deliveryMethod,
-          quantity: it.quantity,
+          quantity: it.quantity ?? null,
           price: new Prisma.Decimal(it.price),
           discountPercent: it.discountPercent,
           discountAmount: new Prisma.Decimal(it.discountAmount),
-          sampleUrl: it.sampleUrl,
-          // Only persist deliveryUrl/licenseKeyTemplate when the
-          // delivery method actually uses them — the controller still
-          // accepts the fields but we strip them to avoid leaking a
-          // download link that nobody will ever consume.
           deliveryUrl:
             it.deliveryMethod === "download" || it.deliveryMethod === "streaming"
               ? it.deliveryUrl ?? null
@@ -484,7 +402,6 @@ export async function createProduct(storeId: number, input: ProductInput) {
       productNTags: {
         create: input.tagIds.map((tagId) => ({ tagId })),
       },
-      // CPE241 Business Rule 4g — additional info rows.
       details: {
         create: (input.details ?? []).map((d) => ({
           detailName: d.detailName,
@@ -495,21 +412,11 @@ export async function createProduct(storeId: number, input: ProductInput) {
   });
 }
 
-/**
- * PATCH /seller/products/:id — fast-path for the pause toggle
- * ({ isActive: boolean } only) AND the full edit replacing
- * name/description/category + images + variants + tags.
- * Variants are tricky — OrderItem + CartItem FK into ProductItem,
- * so we don't blindly delete. Existing variants get UPDATEd in
- * order; extra incoming variants get CREATEd. Removing variants
- * is intentionally not supported (matches the legacy BFF route).
- */
 export async function updateProduct(
   productId: number,
   storeId: number,
   body: { isActive?: boolean } | ProductInput,
 ) {
-  // Pause-toggle fast path: { isActive: boolean } and ONE key only.
   if (
     typeof (body as any).isActive === "boolean" &&
     Object.keys(body).length === 1
@@ -524,8 +431,10 @@ export async function updateProduct(
   const input = body as ProductInput;
   await prisma.$transaction(async (tx) => {
     const productDeliveryMethod = input.items[0]!.deliveryMethod;
-    // same default rule as createProduct so an edit form
-    // that doesn't expose the checkbox still picks the right value.
+
+    console.log("435435435")
+    console.log(body)
+
     const isStackable =
       input.isStackable ?? (productDeliveryMethod === "license_key");
     await tx.product.update({
@@ -534,8 +443,6 @@ export async function updateProduct(
         name: input.name,
         description: input.description,
         categoryId: input.categoryId,
-        // keep Product.deliveryMethod in sync with the
-        // first variant's method (see createProduct rationale).
         deliveryMethod: productDeliveryMethod,
         isStackable,
       },
@@ -554,8 +461,6 @@ export async function updateProduct(
         data: input.tagIds.map((tagId) => ({ productId, tagId })),
       });
     }
-    // Replace ProductDetail rows (Business Rule 4g). Replace-all is
-    // safe — these aren't FK targets, no cart/order references them.
     await tx.productDetail.deleteMany({ where: { productId } });
     if ((input.details ?? []).length > 0) {
       await tx.productDetail.createMany({
@@ -570,6 +475,7 @@ export async function updateProduct(
       where: { productId },
       orderBy: { productItemId: "asc" },
     });
+
     for (let i = 0; i < input.items.length; i++) {
       const it = input.items[i];
       const target = existing[i];
@@ -581,6 +487,9 @@ export async function updateProduct(
         await tx.productItem.update({
           where: { productItemId: target.productItemId },
           data: {
+            name: it.name,
+            description: it.description,
+            image: it.image,
             deliveryMethod: it.deliveryMethod,
             quantity: it.quantity,
             price: new Prisma.Decimal(it.price),
@@ -597,12 +506,10 @@ export async function updateProduct(
         await tx.productItem.create({
           data: {
             productId,
-            // ProductItem.name is required. Mirror the
-            // create flow's naming convention.
-            name:
-              input.items.length > 1
-                ? `${input.name} — Variant ${i + 1}`.slice(0, 100)
-                : input.name.slice(0, 100),
+            name: it.name || (input.items.length > 1 
+              ? `${input.name} — Variant ${i + 1}`.slice(0, 100) 
+              : input.name.slice(0, 100)),
+            image: it.image,
             deliveryMethod: it.deliveryMethod,
             quantity: it.quantity,
             price: new Prisma.Decimal(it.price),
@@ -610,9 +517,7 @@ export async function updateProduct(
             discountAmount: new Prisma.Decimal(it.discountAmount),
             sampleUrl: it.sampleUrl,
             deliveryUrl: usesDeliveryUrl ? it.deliveryUrl ?? null : null,
-            licenseKeyTemplate: usesLicenseTemplate
-              ? it.licenseKeyTemplate ?? null
-              : null,
+            licenseKeyTemplate: usesLicenseTemplate ? it.licenseKeyTemplate ?? null : null,
           },
         });
       }
@@ -621,13 +526,6 @@ export async function updateProduct(
   return { ok: true as const };
 }
 
-/**
- * DELETE /seller/products/:id — hard-delete the product. OrderItem
- * rows survive via SetNull on productItemId + the snapshot fields
- * (productNameSnapshot/productImageSnapshot) so receipts stay valid.
- * Writes a `product.delete` AuditLog row with the pre-delete name
- * snapshot so the audit feed reads cleanly.
- */
 export async function deleteProduct(
   productId: number,
   storeId: number,
@@ -646,12 +544,6 @@ export async function deleteProduct(
   });
 }
 
-/**
- * POST /seller/products/:id/duplicate — clone a product (variants +
- * images + tags) but skip reviews + sales history. The clone is
- * created PAUSED (isActive=false) so the seller can polish before
- * exposing.
- */
 export async function duplicateProduct(sourceId: number, storeId: number) {
   const source = await prisma.product.findFirst({
     where: { productId: sourceId },
@@ -673,16 +565,13 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
       name: newName,
       description: source.description,
       isActive: false,
-      // copy the source product's deliveryMethod onto the
-      // clone (Product now owns this field; see createProduct).
       deliveryMethod: source.deliveryMethod,
       isStackable: source.isStackable,
       items: {
         create: source.items.map((it) => ({
-          // ProductItem.name is required; carry the source
-          // variant's name forward (it might be the per-variant label
-          // we set on create, or the bare product name).
           name: it.name,
+          image: it.image,
+          description: it.description,
           deliveryMethod: it.deliveryMethod,
           quantity: it.quantity,
           price: new Prisma.Decimal(it.price),
@@ -703,11 +592,6 @@ export async function duplicateProduct(sourceId: number, storeId: number) {
   });
 }
 
-/**
- * PATCH /seller/product-items/:id — targeted variant patch. Used
- * by the bulk-edit page to nudge price / discount / stock without
- * resending the whole product payload.
- */
 export async function patchVariant(
   productItemId: number,
   storeId: number,

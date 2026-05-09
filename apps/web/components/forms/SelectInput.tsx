@@ -3,16 +3,6 @@ import { cn } from "@/lib/utils";
 
 export type SelectOption = { value: string; label: string };
 
-/**
- * / Step 2 — select primitive.
- * Same focus-ring + error styling as the other input primitives so a
- * row of mixed inputs aligns visually. Options come in via a flat array
- * rather than `<option>` children — keeps callers from fighting React
- * key warnings and makes the API one-line per option.
- * We ship a default `text-white` colour on the select but rely on the
- * native menu for the dropdown itself (reskinning a real `<select>`'s
- * popup requires a full custom listbox; out of scope for primitives).
- */
 export interface SelectInputProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> {
   label?: string;
   helperText?: string;
@@ -55,8 +45,8 @@ export const SelectInput = forwardRef<HTMLSelectElement, SelectInputProps>(
           className={cn(
             "w-full rounded-xl border bg-surface-2 px-4 py-2.5 text-white outline-none transition",
             hasError
-              ? "border-coral focus:border-coral focus:ring-2 focus:ring-coral/25"
-              : "border-white/10 focus:border-mint focus:ring-2 focus:ring-mint/25",
+              ? "border-coral"
+              : "border-white/10",
             className,
           )}
           {...rest}
