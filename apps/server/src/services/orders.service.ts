@@ -699,92 +699,163 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
   }
   const stores = [...byStore.values()];
 
-  const subject =
-    stores.length === 1
-      ? `Your METU order #${orderId} — items from ${stores[0]!.store.name}`
-      : `Your METU order #${orderId} — items from ${stores.length} stores`;
-
-  // Plain-text body
-  const textLines: string[] = [
-    `Hi ${buyer.firstName},`,
-    "",
-    "Thanks for your purchase. Your payment has cleared and the items below are ready.",
-    "",
-  ];
-  for (const { store, lines } of stores) {
-    textLines.push(`── ${store.name} ──`);
-    for (const it of lines) {
-      const name = it.productItem?.product.name ?? it.productNameSnapshot;
-      textLines.push(`  ${it.quantity}× ${name}`);
-      if (it.deliveredKey) textLines.push(`     License key: ${it.deliveredKey}`);
-      if (it.deliveredUrl) textLines.push(`     Download: ${it.deliveredUrl}`);
-    }
-    const contact: string[] = [];
-    if (store.contactEmail) contact.push(`email ${store.contactEmail}`);
-    if (store.phone) contact.push(`phone ${store.phone}`);
-    if (contact.length) textLines.push(`  Contact ${store.name}: ${contact.join(" · ")}`);
-    textLines.push("");
-  }
-  textLines.push(
-    `View on the site: ${SITE_URL}/orders/${orderId}`,
-    "",
-    "— METU Marketplace",
-  );
-
-  // Compose the per-store body cards using the shared branded layout.
   const escape = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const storeCards: string[] = [];
-  for (const { store, lines } of stores) {
-    storeCards.push(
-      `<div style="margin: 20px 0 0; border: 1px solid #f1e5b8; border-radius: 14px; padding: 18px 20px; background: #fffdf5;">`,
-      `<div style="display: inline-block; background: #FFCC00; color: #1a1919; font-weight: 800; font-size: 11px; padding: 5px 11px; border-radius: 999px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
-    );
-    for (const it of lines) {
-      const name = escape(it.productItem?.product.name ?? it.productNameSnapshot);
-      storeCards.push(
-        `<div style="margin: 10px 0; padding: 14px 16px; background: #ffffff; border: 1px solid #efe7c4; border-radius: 12px;">`,
-        `<div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">${it.quantity}&times; ${name}</div>`,
-      );
-      if (it.deliveredKey) {
-        storeCards.push(
-          `<div style="margin-top: 10px;">`,
-          `<div style="font-size: 10px; font-weight: 700; color: #b26800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">License key</div>`,
-          `<div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; background: #0f172a; color: #FFCC00; padding: 10px 12px; border-radius: 8px; word-break: break-all; font-size: 13px; letter-spacing: 0.02em;">${escape(it.deliveredKey)}</div>`,
-          `</div>`,
-        );
+  const isGift = Boolean(order.giftRecipientEmail);
+
+  if (!isGift) {
+    // Self-purchase: full receipt with license keys + download links.
+    const subject =
+      stores.length === 1
+        ? `Your METU order #${orderId} — items from ${stores[0]!.store.name}`
+        : `Your METU order #${orderId} — items from ${stores.length} stores`;
+
+    const textLines: string[] = [
+      `Hi ${buyer.firstName},`,
+      "",
+      "Thanks for your purchase. Your payment has cleared and the items below are ready.",
+      "",
+    ];
+    for (const { store, lines } of stores) {
+      textLines.push(`── ${store.name} ──`);
+      for (const it of lines) {
+        const name = it.productItem?.product.name ?? it.productNameSnapshot;
+        textLines.push(`  ${it.quantity}× ${name}`);
+        if (it.deliveredKey) textLines.push(`     License key: ${it.deliveredKey}`);
+        if (it.deliveredUrl) textLines.push(`     Download: ${it.deliveredUrl}`);
       }
-      if (it.deliveredUrl) {
+      const contact: string[] = [];
+      if (store.contactEmail) contact.push(`email ${store.contactEmail}`);
+      if (store.phone) contact.push(`phone ${store.phone}`);
+      if (contact.length) textLines.push(`  Contact ${store.name}: ${contact.join(" · ")}`);
+      textLines.push("");
+    }
+    textLines.push(
+      `View on the site: ${SITE_URL}/orders/${orderId}`,
+      "",
+      "— METU Marketplace",
+    );
+
+    const storeCards: string[] = [];
+    for (const { store, lines } of stores) {
+      storeCards.push(
+        `<div style="margin: 20px 0 0; border: 1px solid #f1e5b8; border-radius: 14px; padding: 18px 20px; background: #fffdf5;">`,
+        `<div style="display: inline-block; background: #FFCC00; color: #1a1919; font-weight: 800; font-size: 11px; padding: 5px 11px; border-radius: 999px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
+      );
+      for (const it of lines) {
+        const name = escape(it.productItem?.product.name ?? it.productNameSnapshot);
         storeCards.push(
-          `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 12px;"><tr><td style="border-radius: 999px; background: linear-gradient(180deg, #FFCC00 0%, #B26800 100%); box-shadow: 0 3px 10px -4px rgba(178,104,0,0.5);"><a href="${escape(it.deliveredUrl)}" style="display: inline-block; padding: 10px 22px; font-size: 13px; font-weight: 700; color: #1a1919; text-decoration: none; letter-spacing: 0.01em;">Download &rarr;</a></td></tr></table>`,
+          `<div style="margin: 10px 0; padding: 14px 16px; background: #ffffff; border: 1px solid #efe7c4; border-radius: 12px;">`,
+          `<div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">${it.quantity}&times; ${name}</div>`,
+        );
+        if (it.deliveredKey) {
+          storeCards.push(
+            `<div style="margin-top: 10px;">`,
+            `<div style="font-size: 10px; font-weight: 700; color: #b26800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">License key</div>`,
+            `<div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; background: #0f172a; color: #FFCC00; padding: 10px 12px; border-radius: 8px; word-break: break-all; font-size: 13px; letter-spacing: 0.02em;">${escape(it.deliveredKey)}</div>`,
+            `</div>`,
+          );
+        }
+        if (it.deliveredUrl) {
+          storeCards.push(
+            `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 12px;"><tr><td style="border-radius: 999px; background: linear-gradient(180deg, #FFCC00 0%, #B26800 100%); box-shadow: 0 3px 10px -4px rgba(178,104,0,0.5);"><a href="${escape(it.deliveredUrl)}" style="display: inline-block; padding: 10px 22px; font-size: 13px; font-weight: 700; color: #1a1919; text-decoration: none; letter-spacing: 0.01em;">Download &rarr;</a></td></tr></table>`,
+          );
+        }
+        storeCards.push(`</div>`);
+      }
+      const contact: string[] = [];
+      if (store.contactEmail) contact.push(`<a href="mailto:${escape(store.contactEmail)}" style="color: #b26800; text-decoration: none; font-weight: 600;">${escape(store.contactEmail)}</a>`);
+      if (store.phone) contact.push(escape(store.phone));
+      if (contact.length) {
+        storeCards.push(
+          `<div style="font-size: 12px; color: #64748b; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #efe7c4;">Contact ${escape(store.name)}: ${contact.join(" &middot; ")}</div>`,
         );
       }
       storeCards.push(`</div>`);
     }
-    const contact: string[] = [];
-    if (store.contactEmail) contact.push(`<a href="mailto:${escape(store.contactEmail)}" style="color: #b26800; text-decoration: none; font-weight: 600;">${escape(store.contactEmail)}</a>`);
-    if (store.phone) contact.push(escape(store.phone));
-    if (contact.length) {
-      storeCards.push(
-        `<div style="font-size: 12px; color: #64748b; margin-top: 14px; padding-top: 12px; border-top: 1px dashed #efe7c4;">Contact ${escape(store.name)}: ${contact.join(" &middot; ")}</div>`,
-      );
+
+    const html = renderEmailLayout({
+      heading: `Order #${orderId} confirmed — your downloads are ready`,
+      intro: `Hi <strong>${escape(buyer.firstName)}</strong>, payment cleared. License keys and download links are below, and everything stays available on your METU account whenever you need it again.`,
+      cta: { label: "View order", url: `${SITE_URL}/orders/${orderId}` },
+      bodyHtml: storeCards.join(""),
+    });
+
+    await sendEmail({
+      to: buyer.email,
+      subject,
+      html,
+      text: textLines.join("\n"),
+    });
+  } else {
+    // Gift order: buyer NEVER sees the goods, only the recipient does.
+    // Send a "Gift sent" confirmation with item names + masked recipient
+    // + claim URL the buyer can forward manually if the original email
+    // bounced. License keys + download URLs are deliberately omitted so
+    // a refund-then-claim play by the buyer can't happen.
+    const recipientMasked = maskEmailForDisplay(order.giftRecipientEmail!);
+    const claimToken = signGiftToken(orderId, order.giftRecipientEmail!);
+    const claimUrl = `${SITE_URL}/gift/${orderId}?t=${claimToken}`;
+    const subject = `Your gift is on its way 🎁 — order #${orderId}`;
+
+    const textLines: string[] = [
+      `Hi ${buyer.firstName},`,
+      "",
+      `Your gift order #${orderId} is confirmed. We've emailed ${recipientMasked} a private link to claim it.`,
+      "",
+      "Items:",
+    ];
+    for (const { store, lines } of stores) {
+      for (const it of lines) {
+        const name = it.productItem?.product.name ?? it.productNameSnapshot;
+        textLines.push(`  ${it.quantity}× ${name} — ${store.name}`);
+      }
     }
-    storeCards.push(`</div>`);
+    textLines.push(
+      "",
+      `If your recipient doesn't see the email, forward this private link to them:`,
+      claimUrl,
+      "",
+      "License keys and download links never appear in your account on gift orders — only your recipient can unlock them. This is by design so the gift stays theirs.",
+      "",
+      "— METU Marketplace",
+    );
+
+    const giftItemCards: string[] = [];
+    for (const { store, lines } of stores) {
+      giftItemCards.push(
+        `<div style="margin: 20px 0 0; border: 1px solid #f1e5b8; border-radius: 14px; padding: 18px 20px; background: #fffdf5;">`,
+        `<div style="display: inline-block; background: #FFCC00; color: #1a1919; font-weight: 800; font-size: 11px; padding: 5px 11px; border-radius: 999px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">${escape(store.name)}</div>`,
+      );
+      for (const it of lines) {
+        const name = escape(it.productItem?.product.name ?? it.productNameSnapshot);
+        giftItemCards.push(
+          `<div style="margin: 10px 0; padding: 14px 16px; background: #ffffff; border: 1px solid #efe7c4; border-radius: 12px; font-size: 14px; font-weight: 700; color: #0f172a;">${it.quantity}&times; ${name}</div>`,
+        );
+      }
+      giftItemCards.push(`</div>`);
+    }
+    giftItemCards.push(
+      `<div style="margin: 24px 0 0; padding: 14px 16px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px;">`,
+      `<div style="font-size: 11px; font-weight: 700; color: #b26800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Heads up</div>`,
+      `<div style="font-size: 13px; color: #713f12; line-height: 1.55;">License keys and download links never show up on your account for gift orders &mdash; only the recipient can unlock them. If the recipient&rsquo;s inbox didn&rsquo;t catch the claim email, copy the private link from your order page on METU and forward it yourself.</div>`,
+      `</div>`,
+    );
+
+    const html = renderEmailLayout({
+      heading: `🎁 Your gift to ${escape(recipientMasked)} is on its way`,
+      intro: `Hi <strong>${escape(buyer.firstName)}</strong>, payment cleared and we just emailed your recipient a private claim link. They&rsquo;ll need to sign in (or create a free account) with this same email address to unlock the gift.`,
+      cta: { label: "View gift status", url: `${SITE_URL}/orders/${orderId}` },
+      bodyHtml: giftItemCards.join(""),
+    });
+
+    await sendEmail({
+      to: buyer.email,
+      subject,
+      html,
+      text: textLines.join("\n"),
+    });
   }
-
-  const html = renderEmailLayout({
-    heading: `Order #${orderId} confirmed — your downloads are ready`,
-    intro: `Hi <strong>${escape(buyer.firstName)}</strong>, payment cleared. License keys and download links are below, and everything stays available on your METU account whenever you need it again.`,
-    cta: { label: "View order", url: `${SITE_URL}/orders/${orderId}` },
-    bodyHtml: storeCards.join(""),
-  });
-
-  await sendEmail({
-    to: buyer.email,
-    subject,
-    html,
-    text: textLines.join("\n"),
-  });
 
   // Gift flow — when the buyer ticked "this is a gift" at checkout,
   // also notify the recipient that something's waiting for them. The
@@ -1100,12 +1171,16 @@ export async function listForUser(userId: number): Promise<OrderListItem[]> {
   });
 }
 
-// Single order; ownership gated via order.userId.
+// Single order; ownership gated via order.userId. When the order was
+// placed as a gift, the buyer never gets to see the license keys or
+// download URLs — those belong to the recipient. The buyer instead
+// gets a giftStatus object so the /orders/:id page can render the
+// "sent as a gift" treatment with a copy-link affordance.
 export async function findByIdForUser(
   userId: number,
   orderId: number,
 ): Promise<OrderDetail | null> {
-  return prisma.order.findFirst({
+  const order = await prisma.order.findFirst({
     where: { orderId, userId },
     include: {
       items: {
@@ -1129,6 +1204,39 @@ export async function findByIdForUser(
       transaction: true,
     },
   });
+  if (!order) return null;
+
+  const isGift = Boolean(order.giftRecipientEmail);
+  if (!isGift) {
+    // Plain self-purchase — no redaction, no gift block.
+    return {
+      ...order,
+      giftStatus: { isGift: false, recipientMasked: null, claimUrl: null },
+    } as OrderDetail;
+  }
+
+  // Buyer is the only caller (userId match in the where clause). Strip
+  // delivered payloads so the buyer can't sidestep the recipient and
+  // claim the gift themselves; the goods stay reachable for the
+  // recipient via /gift/:id?t=<token>. Also redact the raw recipient
+  // email — only the masked tail surfaces on the buyer's order page.
+  const recipientEmail = order.giftRecipientEmail!;
+  const claimToken = signGiftToken(order.orderId, recipientEmail);
+  const redactedItems = order.items.map((it) => ({
+    ...it,
+    deliveredKey: null,
+    deliveredUrl: null,
+  }));
+  return {
+    ...order,
+    items: redactedItems,
+    giftRecipientEmail: null,
+    giftStatus: {
+      isGift: true,
+      recipientMasked: maskEmailForDisplay(recipientEmail),
+      claimUrl: `${SITE_URL}/gift/${order.orderId}?t=${claimToken}`,
+    },
+  } as OrderDetail;
 }
 
 /**
