@@ -65,6 +65,7 @@ export default async function BrowsePage({
     originalMaxPrice: searchParams.originalMaxPrice ? Number(searchParams.originalMaxPrice) : undefined,
     delivery: searchParams.delivery,
     q: searchParams.q,
+    shop: searchParams.shop,
     sort: parseSort(searchParams.sort),
     page: searchParams.page ? Math.max(1, Number(searchParams.page)) : 1,
     pageSize: 16,

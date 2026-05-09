@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutGrid, Folder, Tag, Star, StarOff, Download,
   Mail, KeyRound, Play, RotateCcw, ChevronLeft, ChevronRight,
-  SlidersHorizontal, Truck,
+  SlidersHorizontal, Truck, Store as StoreIcon, Wallet,
   // New Icons for Categories
-  Box, BookOpen, Type, Gamepad2, PenTool, 
+  Box, BookOpen, Type, Gamepad2, PenTool,
   GraduationCap, Camera, Puzzle, Music, Layers
 } from "lucide-react";
 
@@ -49,9 +51,23 @@ export function FilterPanel({
   params: Record<string, string | undefined>;
   activeCategoryId?: number;
 }) {
+  const router = useRouter();
   const activeCategory =
     activeCategoryId ?? (Number.isFinite(Number(params.category)) ? Number(params.category) : 0);
   const activeTags = (params.tags ?? "").split(",").filter(Boolean);
+
+  // Local state for the manual inputs so users can type without each
+  // keystroke triggering a navigation. Synced from URL on mount.
+  const [shopInput, setShopInput] = useState(params.shop ?? "");
+  const [tagTextInput, setTagTextInput] = useState("");
+  const [minPriceInput, setMinPriceInput] = useState(params.minPrice ?? "");
+  const [maxPriceInput, setMaxPriceInput] = useState(params.maxPrice ?? "");
+
+  useEffect(() => {
+    setShopInput(params.shop ?? "");
+    setMinPriceInput(params.minPrice ?? "");
+    setMaxPriceInput(params.maxPrice ?? "");
+  }, [params.shop, params.minPrice, params.maxPrice]);
 
   const buildHref = (overrides: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
@@ -60,6 +76,40 @@ export function FilterPanel({
     }
     return `/browse?${p.toString()}`;
   };
+
+  function applyShop() {
+    router.push(buildHref({ shop: shopInput.trim() || undefined }), { scroll: false });
+  }
+
+  function applyBudget() {
+    router.push(
+      buildHref({
+        minPrice: minPriceInput && Number(minPriceInput) > 0 ? minPriceInput : undefined,
+        maxPrice: maxPriceInput && Number(maxPriceInput) > 0 ? maxPriceInput : undefined,
+      }),
+      { scroll: false },
+    );
+  }
+
+  // Resolve typed comma-separated tag NAMES to IDs against the loaded
+  // catalog and merge them into the existing tags filter.
+  function applyTagText() {
+    const wanted = tagTextInput
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    if (wanted.length === 0) return;
+    const newIds = tags
+      .filter((t) => wanted.includes(t.tagName.toLowerCase()))
+      .map((t) => String(t.tagId));
+    if (newIds.length === 0) {
+      setTagTextInput("");
+      return;
+    }
+    const merged = Array.from(new Set([...activeTags, ...newIds]));
+    setTagTextInput("");
+    router.push(buildHref({ tags: merged.join(",") }), { scroll: false });
+  }
 
   return (
     <div className="md:sticky md:top-28 md:overflow-y-auto md:pr-1 scrollbar-hide bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden">
@@ -118,6 +168,88 @@ export function FilterPanel({
             );
           })}
         </div>
+        {/* Custom tags — type names separated by commas; matches against
+            the loaded tag catalog and adds the resolved IDs to ?tags=. */}
+        <div className="mt-3">
+          <input
+            type="text"
+            value={tagTextInput}
+            onChange={(e) => setTagTextInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyTagText();
+              }
+            }}
+            onBlur={applyTagText}
+            placeholder="Custom tags, comma-separated"
+            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/50"
+          />
+        </div>
+      </div>
+
+      <Divider />
+
+      {/* Shop name */}
+      <div className="px-6 py-4">
+        <SectionLabel label="Shop name" icon={StoreIcon} className="px-0" />
+        <input
+          type="text"
+          value={shopInput}
+          onChange={(e) => setShopInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              applyShop();
+            }
+          }}
+          onBlur={applyShop}
+          placeholder="Search by store name…"
+          className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/50"
+        />
+      </div>
+
+      <Divider />
+
+      {/* Budget range */}
+      <div className="px-6 py-4">
+        <SectionLabel label="Budget (฿)" icon={Wallet} className="px-0" />
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <input
+            type="number"
+            min={0}
+            value={minPriceInput}
+            onChange={(e) => setMinPriceInput(e.target.value)}
+            onBlur={applyBudget}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyBudget(); } }}
+            placeholder="Min"
+            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/50"
+          />
+          <input
+            type="number"
+            min={0}
+            value={maxPriceInput}
+            onChange={(e) => setMaxPriceInput(e.target.value)}
+            onBlur={applyBudget}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyBudget(); } }}
+            placeholder="Max"
+            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-amber-400/50"
+          />
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={5000}
+          step={50}
+          value={Number(maxPriceInput) || 5000}
+          onChange={(e) => setMaxPriceInput(e.target.value)}
+          onMouseUp={applyBudget}
+          onTouchEnd={applyBudget}
+          className="w-full accent-metu-yellow"
+        />
+        <p className="text-[10px] text-zinc-600 mt-1 tabular-nums">
+          Max ฿{Number(maxPriceInput || 5000).toLocaleString()}
+        </p>
       </div>
 
       <Divider />

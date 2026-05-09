@@ -429,6 +429,7 @@ export async function browseProducts(params: {
   originalMaxPrice?: number;
   delivery?: string;
   q?: string;
+  shop?: string;
   sort?: "newest" | "price_asc" | "price_desc" | "rating";
   page?: number;
   pageSize?: number;
@@ -446,6 +447,11 @@ export async function browseProducts(params: {
 
   if (params.category !== undefined)
     conditions.push(Prisma.sql`p.category_id = ${params.category}`);
+
+  if (params.shop) {
+    const shopLike = `%${params.shop.trim()}%`;
+    conditions.push(Prisma.sql`s.name ILIKE ${shopLike}`);
+  }
 
   if (params.q) {
     const like = `%${params.q}%`;
