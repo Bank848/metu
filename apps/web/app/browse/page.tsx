@@ -171,7 +171,7 @@ export default async function BrowsePage({
               />
             )
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 sm:gap-5">
               {result.items.map((p, i) => (
                 <ProductCard
                   key={p.productId}
