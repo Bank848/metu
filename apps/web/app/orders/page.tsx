@@ -102,7 +102,7 @@ export default async function OrdersPage({
         ) : (
           <>
             {/* Tab bar */}
-            <nav className="mb-6 flex flex-wrap gap-2" aria-label="Order filter">
+            <nav className="mb-6 -mx-4 sm:mx-0 px-4 sm:px-0 flex gap-2 overflow-x-auto no-scrollbar sm:flex-wrap" aria-label="Order filter">
               <TabLink label="All" icon={Receipt} tab="all" active={active} count={counts.all} />
               <TabLink label="In progress" icon={Clock} tab="active" active={active} count={counts.active} />
               <TabLink label="Completed" icon={CheckCircle2} tab="completed" active={active} count={counts.completed} />
@@ -204,7 +204,7 @@ function TabLink({
     <Link
       href={tabHref(tab)}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition",
+        "shrink-0 inline-flex items-center gap-2 rounded-full border px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium transition",
         isActive
           ? "bg-metu-yellow/15 border-metu-yellow/50 text-metu-yellow"
           : "bg-white/[0.03] border-white/8 text-ink-secondary hover:border-metu-yellow/30 hover:text-white",
