@@ -44,7 +44,7 @@ export default function Hero({ stats }: { stats: Stats }) {
       onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsInside(true)}
       onMouseLeave={() => setIsInside(false)}
-      className="select-none cursor-none relative overflow-hidden bg-[#050505] min-h-[85vh] flex flex-col justify-center border-b border-white/5"
+      className="select-none lg:cursor-none relative overflow-hidden bg-[#050505] min-h-[70vh] lg:min-h-[85vh] flex flex-col justify-center border-b border-white/5"
     >
 
       <div aria-hidden className="pointer-events-none absolute z-10 size-[700px] rounded-full -translate-x-1/2 -translate-y-1/2 transition-opacity duration-500" style={mouseLightStyle(mousePos.x, mousePos.y, isInside)} />
@@ -56,17 +56,17 @@ export default function Hero({ stats }: { stats: Stats }) {
 
       <div aria-hidden className="absolute bottom-[-20%] right-[0%] w-[900px] h-[900px] bg-yellow-500/10 blur-[120px] rounded-full pointer-events-none" />
 
-      <div className="relative mx-auto max-w-7xl px-6 lg:px-8 py-20 w-full z-20">
-        <div className="grid lg:grid-cols-12 gap-12 items-start">
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 w-full z-20">
+        <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-start">
 
           {/* LEFT */}
           <div className="lg:col-span-7">
-            <h1 className="font-serif text-6xl md:text-8xl text-white leading-[0.9] tracking-tight my-8">
+            <h1 className="font-serif text-5xl sm:text-6xl md:text-8xl text-white leading-[0.95] tracking-tight my-6 sm:my-8">
                 Digital <br />
                 <LightSweepText>Marketplace</LightSweepText>
             </h1>
-            
-            <p className="text-lg text-neutral-400 max-w-lg mb-6 leading-relaxed">
+
+            <p className="text-base sm:text-lg text-neutral-400 max-w-lg mb-6 leading-relaxed">
                 A premium marketplace for high-end templates, soundscapes, and digital art.
                 Built by Thai visionaries, delivered instantly to your workflow.
             </p>
@@ -90,12 +90,12 @@ export default function Hero({ stats }: { stats: Stats }) {
                 ))}
             </div>
 
-            <div className="flex flex-wrap gap-4">
-                <button className="px-8 py-4 bg-yellow-500 text-black font-bold rounded-sm hover:bg-yellow-400 transition-all uppercase text-sm tracking-wider">
+            <div className="flex flex-wrap gap-3 sm:gap-4">
+                <button className="px-5 py-3 sm:px-8 sm:py-4 bg-yellow-500 text-black font-bold rounded-sm hover:bg-yellow-400 transition-all uppercase text-sm tracking-wider">
                     Browse Collection
                 </button>
-                <button 
-                    className="inline-flex items-center justify-center gap-3 px-8 py-4 border border-white/20 text-white font-medium rounded-sm hover:bg-white/5 transition-all text-sm tracking-wider group"
+                <button
+                    className="inline-flex items-center justify-center gap-3 px-5 py-3 sm:px-8 sm:py-4 border border-white/20 text-white font-medium rounded-sm hover:bg-white/5 transition-all text-sm tracking-wider group"
                 >
                     <Store className="h-5 w-5 sm:h-6 sm:w-6 text-white transition-transform group-hover:scale-110" />
                     <span>Start Selling</span>
@@ -108,8 +108,9 @@ export default function Hero({ stats }: { stats: Stats }) {
             </p>
         </div>
 
-          {/* RIGHT */}
-        <div className="lg:col-span-5 relative group">
+          {/* RIGHT — hidden on mobile, the absolute-positioned 620px images
+              overflow the viewport. Brought back at lg with full theatrics. */}
+        <div className="hidden lg:block lg:col-span-5 relative group">
             <div className="relative w-full max-w-[450px] mx-auto perspective-1000">
 
                 {/* LAYER 1: The Glass Frame */}
