@@ -37,6 +37,31 @@ export async function getFavoriteSet(userId: number | null | undefined): Promise
 
 /** Full product cards for the /favorites page. Reuses the ProductCard
  *  shape so the existing <ProductCard> component renders it unchanged. */
+// Card-shape derivation: each variant's post-discount price is
+// price * (100 - discountPercent) / 100. min/maxPrice are over those;
+// originalMin/Max use raw prices and only surface when there's a real
+// discount so ProductCard can render the strikethrough.
+type CardShape = {
+  minPrice: number;
+  maxPrice: number;
+  originalMinPrice?: number;
+  originalMaxPrice?: number;
+  discountPercent?: number;
+};
+export function shapeCardPrices(items: Array<{ price: unknown; discountPercent: number | null }>): CardShape {
+  if (items.length === 0) return { minPrice: 0, maxPrice: 0 };
+  const raw = items.map((i) => Number(i.price));
+  const post = items.map((i) => Number(i.price) * (100 - (i.discountPercent ?? 0)) / 100);
+  const maxDiscount = items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
+  return {
+    minPrice: Math.round(Math.min(...post)),
+    maxPrice: Math.round(Math.max(...post)),
+    originalMinPrice: maxDiscount > 0 ? Math.round(Math.min(...raw)) : undefined,
+    originalMaxPrice: maxDiscount > 0 ? Math.round(Math.max(...raw)) : undefined,
+    discountPercent: maxDiscount || undefined,
+  };
+}
+
 export async function getFavoriteProducts(userId: number) {
   const faves = await prisma.productFavorite.findMany({
     where: { userId },
@@ -54,21 +79,17 @@ export async function getFavoriteProducts(userId: number) {
     },
   });
   return faves.map(({ product: p }) => {
-    const prices = p.items.map((i) => Number(i.price));
     const ratings = p.reviews.map((r) => r.rating);
-    const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
     return {
       productId: p.productId,
       name: p.name,
       description: p.description,
       image: p.images[0]?.productImage ?? `https://picsum.photos/seed/p${p.productId}/800/600`,
-      minPrice: prices.length ? Math.min(...prices) : 0,
-      maxPrice: prices.length ? Math.max(...prices) : 0,
+      ...shapeCardPrices(p.items),
       storeName: p.store.name,
       storeId: p.store.storeId,
       avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
       reviewCount: ratings.length,
-      discountPercent: maxDiscount || undefined,
       tags: p.productNTags.map((nt) => nt.tag.tagName),
     };
   });
@@ -762,21 +783,17 @@ export async function getRelatedProducts(productId: number, take = 4) {
   const byId = new Map(products.map((p) => [p.productId, p]));
   const ordered = ids.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => p != null);
   return ordered.map((p) => {
-    const prices = p.items.map((i) => Number(i.price));
     const ratings = p.reviews.map((r) => r.rating);
-    const maxDiscount = p.items.reduce((m, it) => Math.max(m, it.discountPercent ?? 0), 0);
     return {
       productId: p.productId,
       name: p.name,
       description: p.description,
       image: p.images[0]?.productImage ?? `https://picsum.photos/seed/p${p.productId}/800/600`,
-      minPrice: prices.length ? Math.min(...prices) : 0,
-      maxPrice: prices.length ? Math.max(...prices) : 0,
+      ...shapeCardPrices(p.items),
       storeName: p.store.name,
       storeId: p.store.storeId,
       avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
       reviewCount: ratings.length,
-      discountPercent: maxDiscount || undefined,
       tags: p.productNTags.map((nt) => nt.tag.tagName),
     };
   });
