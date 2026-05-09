@@ -431,10 +431,6 @@ export async function updateProduct(
   const input = body as ProductInput;
   await prisma.$transaction(async (tx) => {
     const productDeliveryMethod = input.items[0]!.deliveryMethod;
-
-    console.log("435435435")
-    console.log(body)
-
     const isStackable =
       input.isStackable ?? (productDeliveryMethod === "license_key");
     await tx.product.update({

@@ -191,8 +191,6 @@ export const updateProduct: RequestHandler<{ id: string }> = async (req, res, ne
     const productId = Number(req.params.id);
     if (!Number.isFinite(productId)) throw new AppError(400, "BadId");
     await service.assertProductOwnership(productId, store.storeId);
-    console.log("1522222:")
-    console.log(req.body)
     const body = req.body ?? {};
     if (typeof body?.isActive === "boolean" && Object.keys(body).length === 1) {
       const r = await service.updateProduct(productId, store.storeId, body);
@@ -200,7 +198,6 @@ export const updateProduct: RequestHandler<{ id: string }> = async (req, res, ne
       return;
     }
     const parsed = productInputSchema.safeParse(body);
-    console.log(parsed.data)
     if (!parsed.success) throw parsed.error;
     await service.updateProduct(productId, store.storeId, parsed.data);
     res.json({ ok: true });
