@@ -5,19 +5,13 @@ import { Button } from "@/components/ui/Button";
 import { Turnstile } from "@/components/Turnstile";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { PhoneInput, joinPhone, PHONE_COUNTRIES } from "@/components/forms/PhoneInput";
+import { DateOfBirthPicker } from "@/components/forms/DateOfBirthPicker";
 
 type Country = { countryId: number; name: string };
 
 // Cloudflare Turnstile is opt-in via env. When the key isn't set we
 // don't render the widget at all and the server-side verify is a no-op.
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-
-const TODAY = new Date();
-// Don't allow signups with a future or impossibly-recent birthday — gate the
-// max date to "must be at least 13 years old" so the picker enforces it.
-const MAX_DOB = new Date(TODAY.getFullYear() - 13, TODAY.getMonth(), TODAY.getDate())
-  .toISOString()
-  .slice(0, 10);
 
 // Open-redirect guard mirrors the login version.
 function safeNextPath(next: string | null | undefined): string | null {
@@ -243,13 +237,9 @@ export function RegisterForm({
           <div className="grid grid-cols-2 gap-4">
             <label className="block">
               <span className="block text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">Date of birth</span>
-              <input
-                type="date"
-                className={inputCls}
+              <DateOfBirthPicker
                 value={form.dateOfBirth}
-                onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
-                max={MAX_DOB}
-                autoComplete="bday"
+                onChange={(v) => setForm({ ...form, dateOfBirth: v })}
               />
             </label>
             <label className="block">
