@@ -15,6 +15,7 @@ import { Confetti } from "./Confetti";
 import { ReviewItemButton } from "./ReviewItemButton";
 import { RetryPaymentLink } from "./RetryPaymentLink";
 import { PendingOrderRefresher } from "./PendingOrderRefresher";
+import { CopyGiftLinkButton } from "./CopyGiftLinkButton";
 
 type Order = {
   orderId: number;
@@ -23,13 +24,19 @@ type Order = {
   createdAt: string;
   giftRecipientEmail?: string | null;
   giftMessage?: string | null;
+  giftStatus?: {
+    isGift: boolean;
+    recipientMasked: string | null;
+    claimUrl: string | null;
+  };
   transaction?: { transactionId: number; totalAmount: string | number; date: string; transactionType: string } | null;
   items: Array<{
     orderItemId: number;
     quantity: number;
     pricePerUnit: string | number;
     coupon?: { code: string; discountType: string; discountValue: number } | null;
-    /** delivery snapshot. null until finalizeOrder() runs. */
+    // Server redacts these to null when the buyer is viewing a gift
+    // order — the keys belong to the recipient via /gift/[id]?t=…
     deliveredKey?: string | null;
     deliveredUrl?: string | null;
     deliveredAt?: string | null;
@@ -82,7 +89,11 @@ export default async function OrderDetail({
         })
       : [];
   const reviewedSet = new Set(existing.map((r) => r.productId));
-  const canReview = order.status === "paid" || order.status === "fulfilled";
+  // Buyers can't review gift orders — they never received the goods,
+  // so any rating they'd leave would be hearsay. The recipient (or any
+  // other buyer) reviews from their own account instead.
+  const canReview =
+    !order.giftStatus?.isGift && (order.status === "paid" || order.status === "fulfilled");
 
   // `?new=1` is set when Stripe redirects after a payment confirm. Don't trust
   // the URL alone — Stripe will redirect even when the buyer cancels a redirect-
@@ -130,17 +141,36 @@ export default async function OrderDetail({
 
               {isPaidHero ? (
                 <div className="flex flex-col items-center text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500/15 text-green-400 mb-3">
-                    <CheckCircle2 className="h-8 w-8" strokeWidth={2} />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-metu-yellow/15 text-metu-yellow mb-3">
+                    {order.giftStatus?.isGift ? (
+                      <span className="text-3xl" aria-hidden>🎁</span>
+                    ) : (
+                      <CheckCircle2 className="h-8 w-8" strokeWidth={2} />
+                    )}
                   </div>
-                  <Badge variant="gold" className="mb-3 !px-3 !py-1">Order confirmed</Badge>
+                  <Badge variant="gold" className="mb-3 !px-3 !py-1">
+                    {order.giftStatus?.isGift ? "Gift sent" : "Order confirmed"}
+                  </Badge>
                   <h1 className="font-display text-3xl md:text-4xl font-extrabold text-white">
-                    Thanks — your order is on the way!
+                    {order.giftStatus?.isGift
+                      ? `Your gift is on its way to ${order.giftStatus.recipientMasked}!`
+                      : "Thanks — your order is on the way!"}
                   </h1>
                   <p className="text-ink-secondary mt-2 max-w-md">
-                    We've recorded your payment. Digital downloads are available immediately
-                    from your{" "}
-                    <Link href="/orders" className="text-metu-yellow hover:underline">orders dashboard</Link>.
+                    {order.giftStatus?.isGift ? (
+                      <>
+                        We&rsquo;ve emailed your recipient a private claim link.
+                        License keys never appear on your account for gift
+                        orders &mdash; that&rsquo;s by design so the gift stays
+                        theirs.
+                      </>
+                    ) : (
+                      <>
+                        We&apos;ve recorded your payment. Digital downloads are available immediately
+                        from your{" "}
+                        <Link href="/orders" className="text-metu-yellow hover:underline">orders dashboard</Link>.
+                      </>
+                    )}
                   </p>
                 </div>
               ) : isPendingHero ? (
@@ -212,17 +242,35 @@ export default async function OrderDetail({
               </div>
             )}
 
-            {order.giftRecipientEmail && (
+            {order.giftStatus?.isGift && order.giftStatus.claimUrl && (
               <section className="px-7 pt-6">
-                <div className="rounded-xl border border-pink-400/30 bg-pink-400/10 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-pink-300 inline-flex items-center gap-1">
-                    🎁 Gift for {order.giftRecipientEmail}
+                <div className="rounded-2xl border border-metu-yellow/30 bg-gradient-to-br from-metu-yellow/12 via-metu-yellow/4 to-transparent p-5">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-metu-yellow inline-flex items-center gap-1.5">
+                        🎁 Sent as a gift
+                      </div>
+                      <p className="mt-1 text-sm text-white">
+                        Recipient: <span className="font-mono text-metu-yellow">{order.giftStatus.recipientMasked}</span>
+                      </p>
+                      <p className="mt-1 text-xs text-ink-secondary max-w-md">
+                        They&rsquo;ll receive an email with a private claim link.
+                        If it didn&rsquo;t land in their inbox, copy the link
+                        below and forward it yourself.
+                      </p>
+                      {order.giftMessage && (
+                        <div className="mt-3 rounded-lg bg-metu-yellow/10 border-l-4 border-metu-yellow px-3 py-2 max-w-md">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-metu-yellow mb-0.5">
+                            Your note
+                          </div>
+                          <p className="text-sm text-white italic whitespace-pre-line">
+                            &ldquo;{order.giftMessage}&rdquo;
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <CopyGiftLinkButton url={order.giftStatus.claimUrl} />
                   </div>
-                  {order.giftMessage && (
-                    <p className="mt-2 text-sm text-white whitespace-pre-line">
-                      “{order.giftMessage}”
-                    </p>
-                  )}
                 </div>
               </section>
             )}
