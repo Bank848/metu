@@ -112,7 +112,7 @@ export default async function CartPage() {
               )}
             </>
           ) : (
-            <CartLines cart={cart} />
+            <CartLines cart={cart} buyerEmail={me.user.email} />
           )}
         </div>
       </main>

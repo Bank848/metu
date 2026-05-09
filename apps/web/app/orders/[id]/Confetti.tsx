@@ -9,14 +9,15 @@ import { play } from "@/lib/sound";
 // `metu-sound-muted` localStorage flag if the user has muted sounds.
 export function Confetti() {
   useEffect(() => {
-    // Defer audio one tick so a parent that unmounts on the same
-    // render frame (e.g. router replace mid-effect) skips the cue
-    // entirely. Without this guard a buyer who navigates away within
-    // ~10ms of /orders/[id]?success still hears the celebratory tone
-    // from the abandoned page. Web Audio scheduling can't be cancelled
-    // from outside the play() call without refactoring lib/sound.ts,
-    // so the cleanest mitigation is a "still mounted" check before
-    // the call fires at all.
+    // Tell every cart-badge subscriber to refetch — the order is paid,
+    // so the active cart was cleared server-side via clearCartAfterPayment
+    // / finalizeOrder, but useCartCount otherwise has to wait up to 60s
+    // for its polling backstop to notice.
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("cart:update"));
+    }
+    // Defer audio one tick so a parent that unmounts on the same render
+    // frame (e.g. router replace mid-effect) skips the cue entirely.
     let cancelled = false;
     const audioTimer = window.setTimeout(() => {
       if (!cancelled) play("purchase");
