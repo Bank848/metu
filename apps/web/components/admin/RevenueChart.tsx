@@ -5,9 +5,9 @@ import { coins, thbToCoins } from "@/lib/format";
 type Point = { day: string; revenue: number; orderCount: number };
 
 /**
- * Pure-SVG bar chart for daily paid revenue. Buckets into 7-day windows
- * past 30 days so bars stay hoverable, sparse x-axis labels by density,
- * weekend/weekday/max colour coding, and a React-state hover tooltip.
+ * Pure-SVG line chart with area fill for daily paid revenue. Buckets into
+ * 7-day windows past 30 days. Peak point highlighted in gold; weekend
+ * points dimmed; hover surfaces a per-bucket tooltip in the header.
  */
 export function RevenueChart({ data }: { data: Point[] }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -34,10 +34,24 @@ export function RevenueChart({ data }: { data: Point[] }) {
   const innerW = W - PAD_X * 2;
   const innerH = H - PAD_Y - PAD_BOTTOM;
   const slot = innerW / Math.max(1, buckets.length);
-  // Cap bar width so sparse charts (7-day view) don't render giant
-  // slabs. Lower bound (4px) keeps weekly buckets clickable.
-  const barW = Math.max(4, Math.min(40, slot * 0.7));
+  const baseY = H - PAD_BOTTOM;
   const gridlines = [0.25, 0.5, 0.75, 1];
+
+  // Compute (x, y) for each bucket. Center the dot inside its slot.
+  const points = buckets.map((b, i) => {
+    const x = PAD_X + i * slot + slot / 2;
+    const y = baseY - (b.revenue / max) * innerH;
+    return { x, y, b, i };
+  });
+
+  // Line path: M x0,y0 L x1,y1 ...
+  const linePath = points.length > 0
+    ? "M " + points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" L ")
+    : "";
+  // Area path: same as line but closed back to baseline so we can fill.
+  const areaPath = points.length > 0
+    ? `${linePath} L ${points[points.length - 1]!.x.toFixed(2)},${baseY} L ${points[0]!.x.toFixed(2)},${baseY} Z`
+    : "";
 
   // Show every Nth x-axis label so they never overlap. ~10 labels max
   // across the chart regardless of bucket count.
@@ -85,34 +99,10 @@ export function RevenueChart({ data }: { data: Point[] }) {
         onMouseLeave={() => setHoverIdx(null)}
       >
         <defs>
-          {/* Weekday gradient — bright mint, full saturation. */}
-          <linearGradient id="bar-weekday" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6EE7B7" stopOpacity="0.95" />
-            <stop offset="100%" stopColor="#047857" stopOpacity="0.55" />
-          </linearGradient>
-          {/* Weekend gradient — same hue, lower saturation so weekends
-              read as a quieter rhythm without being invisible. */}
-          <linearGradient id="bar-weekend" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6EE7B7" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="#047857" stopOpacity="0.30" />
-          </linearGradient>
-          {/* Spike gradient — brand gold for the day/week with the
-              highest revenue. Pulls the eye instantly to the outlier. */}
-          <linearGradient id="bar-spike" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#FFD166" stopOpacity="0.98" />
-            <stop offset="100%" stopColor="#B26800" stopOpacity="0.65" />
-          </linearGradient>
-          {/* Hover gradient — slightly brighter mint so the active bar
-              "lifts" without changing colour family. */}
-          <linearGradient id="bar-hover" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#A7F3D0" stopOpacity="1" />
-            <stop offset="100%" stopColor="#10B981" stopOpacity="0.85" />
-          </linearGradient>
-          {/* Peak-on-hover gradient — brightened gold so the peak lifts
-              without losing its identity. */}
-          <linearGradient id="bar-spike-hover" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#FFE08A" stopOpacity="1" />
-            <stop offset="100%" stopColor="#D48F20" stopOpacity="0.85" />
+          {/* Area-under-line fill — mint, fades down to transparent. */}
+          <linearGradient id="line-area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6EE7B7" stopOpacity="0.40" />
+            <stop offset="100%" stopColor="#047857" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -143,43 +133,43 @@ export function RevenueChart({ data }: { data: Point[] }) {
           strokeWidth="1"
         />
 
-        {buckets.map((b, i) => {
-          const h = (b.revenue / max) * innerH;
-          const x = PAD_X + i * slot + (slot - barW) / 2;
-          const y = H - PAD_BOTTOM - h;
-          // Pick fill. Priority: hover-on-peak > peak > hover > weekend
-          // > weekday. The peak bar keeps its gold hue when hovered
-          // (just brightens) so the user never wonders "which one is
-          // the peak again?" mid-hover.
+        {/* Area fill under the line. */}
+        {areaPath && (
+          <path d={areaPath} fill="url(#line-area)" />
+        )}
+        {/* The line itself — mint stroke, slightly thicker so it reads
+            on dim backgrounds. */}
+        {linePath && (
+          <path
+            d={linePath}
+            fill="none"
+            stroke="#34D399"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+
+        {/* Per-point dots + invisible hit area + sparse axis label. */}
+        {points.map(({ x, y, b, i }) => {
           const isPeak = i === maxIdx && b.revenue > 0;
           const isHover = hoverIdx === i;
-          const fill = isHover && isPeak
-            ? "url(#bar-spike-hover)"
-            : isPeak
-              ? "url(#bar-spike)"
-              : isHover
-                ? "url(#bar-hover)"
-                : b.isWeekend
-                  ? "url(#bar-weekend)"
-                  : "url(#bar-weekday)";
-          // Stagger left → right but cap so 90d doesn't roll in for 3s.
-          const delayMs = Math.min(700, i * 25);
-          // Render a wider invisible hit area over each bar so even
-          // sliver bars are hoverable. Slot-wide so neighbouring bars'
-          // hit zones meet flush — feels like the chart is one
-          // continuous interactive surface.
+          const dotFill = isPeak ? "#FFD166" : "#34D399";
+          const dotR = isHover ? 5 : isPeak ? 4 : 3;
+          const dotOpacity = b.isWeekend && !isPeak && !isHover ? 0.55 : 1;
           return (
             <g key={b.key}>
-              <rect
-                x={x}
-                y={y}
-                width={barW}
-                height={Math.max(2, h)}
-                rx="2"
-                fill={fill}
-                className="animate-bar-grow"
-                style={{ animationDelay: `${delayMs}ms` }}
+              <circle
+                cx={x}
+                cy={y}
+                r={dotR}
+                fill={dotFill}
+                opacity={dotOpacity}
+                stroke={isHover ? "rgba(255,255,255,0.4)" : "transparent"}
+                strokeWidth="2"
               />
+              {/* Slot-wide invisible hit zone so the chart feels like
+                  one continuous interactive surface. */}
               <rect
                 x={PAD_X + i * slot}
                 y={PAD_Y}
@@ -189,16 +179,13 @@ export function RevenueChart({ data }: { data: Point[] }) {
                 style={{ cursor: "pointer" }}
                 onMouseEnter={() => setHoverIdx(i)}
               />
-              {/* X-axis label: day-of-month for daily, week-start for
-                  weekly. Rendered every Nth bucket so labels don't
-                  overlap. */}
               {i % labelStep === 0 && (
                 <text
-                  x={x + barW / 2}
+                  x={x}
                   y={H - 6}
                   textAnchor="middle"
                   fontSize="9"
-                  fill={i === maxIdx && b.revenue > 0 ? "#FFD166" : "rgba(255,255,255,0.45)"}
+                  fill={isPeak ? "#FFD166" : "rgba(255,255,255,0.45)"}
                   fontFamily="JetBrains Mono, monospace"
                 >
                   {b.shortLabel}
@@ -209,25 +196,24 @@ export function RevenueChart({ data }: { data: Point[] }) {
         })}
       </svg>
 
-      {/* Legend strip — keeps the chart self-explanatory without a
-          dedicated legend panel. */}
+      {/* Legend strip — dot swatches match the line markers. */}
       <div className="mt-3 flex items-center gap-3 text-[10px] text-ink-dim font-mono uppercase tracking-wider flex-wrap">
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-mint" />
+          <span className="h-2.5 w-2.5 rounded-full bg-mint" />
           {isWeekly ? "weekly" : "weekday"}
         </span>
         {!isWeekly && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-mint/40" />
+            <span className="h-2.5 w-2.5 rounded-full bg-mint/55" />
             weekend
           </span>
         )}
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-metu-yellow" />
+          <span className="h-2.5 w-2.5 rounded-full bg-metu-yellow" />
           peak
         </span>
         <span className="ml-auto text-ink-dim/70">
-          {hovered ? "release to see totals" : "hover a bar to see daily detail"}
+          {hovered ? "release to see totals" : "hover the chart for daily detail"}
         </span>
       </div>
     </div>
