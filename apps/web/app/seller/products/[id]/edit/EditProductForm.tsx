@@ -1,10 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Plus, Trash2, Info, Tag as TagIcon } from "lucide-react";
+import { Plus, Trash2, Info } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
-import { cn } from "@/lib/utils";
 import { FormSection } from "@/components/forms/FormSection";
 import { TextInput } from "@/components/forms/TextInput";
 import { TextareaInput } from "@/components/forms/TextareaInput";
@@ -12,9 +11,10 @@ import { SelectInput } from "@/components/forms/SelectInput";
 import { VariantRow, type VariantRowValue } from "@/components/forms/VariantRow";
 import { AdditionalDetailRow, type AdditionalDetailRowValue } from "@/components/forms/AdditionalDetailRow";
 import { PreviewPane } from "@/components/forms/PreviewPane";
+import TagInput from "@/components/TagInput";
 
 type Category = { categoryId: number; categoryName: string };
-type Tag = { tagId: number; tagName: string };
+type Tag = { tagId: number; tagName: string; productCount: number };
 
 type Variant = VariantRowValue;
 type AdditionalDetail = AdditionalDetailRowValue;
@@ -79,10 +79,6 @@ export function EditProductForm({
   const [isStackable, setIsStackable] = useState(initial.isStackable);
 
   const existingVariantCount = initial.items.length;
-
-  function toggleTag(id: number) {
-    setTagIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
-  }
 
   function updateImage(i: number, v: string) {
     setImages((prev) => prev.map((u, idx) => (idx === i ? v : u)));
@@ -263,31 +259,14 @@ export function EditProductForm({
 
         {/* Tags */}
         <FormSection
-          title={`Tags (${tagIds.length}/10)`}
-          description="Help buyers discover your product through filter chips."
+          title="Tags"
+          description="Type to autocomplete. Suggestions are sorted by popularity."
         >
-          <div className="flex flex-wrap gap-2">
-            {tags.map((t) => {
-              const active = tagIds.includes(t.tagId);
-              return (
-                <button
-                  key={t.tagId}
-                  type="button"
-                  onClick={() => toggleTag(t.tagId)}
-                  disabled={!active && tagIds.length >= 10}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-xs font-semibold border transition",
-                    active
-                      ? "bg-metu-yellow/20 text-metu-yellow border-metu-yellow/40"
-                      : "bg-white/5 text-ink-secondary border-white/10 hover:border-mint/40 disabled:opacity-40",
-                  )}
-                >
-                  <TagIcon className="inline h-3 w-3 mr-1 -mt-0.5" />
-                  {t.tagName}
-                </button>
-              );
-            })}
-          </div>
+          <TagInput
+            selectedIds={tagIds}
+            onChange={setTagIds}
+            options={tags}
+          />
         </FormSection>
 
         {/* Additional Details — now uses AdditionalDetailRow component */}

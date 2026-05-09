@@ -395,7 +395,7 @@ export const getCategories = unstable_cache(
 
 export const getTags = unstable_cache(
   async () =>
-    apiFetch<Array<{ tagId: number; tagName: string; tagDescription: string }>>(
+    apiFetch<Array<{ tagId: number; tagName: string; tagDescription: string; productCount: number }>>(
       "/tags",
       { skipAuth: true },
     ),

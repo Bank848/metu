@@ -1,3 +1,8 @@
-import type { ProductTag } from "@prisma/client";
+export interface TagWithCount {
+  tagId: number;
+  tagName: string;
+  tagDescription: string;
+  productCount: number;
+}
 
-export type TagListResponse = ProductTag[];
+export type TagListResponse = TagWithCount[];
