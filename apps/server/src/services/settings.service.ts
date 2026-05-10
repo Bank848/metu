@@ -30,6 +30,7 @@ export async function getSettings(): Promise<PublicSettings> {
   const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID);
   const value: PublicSettings = {
     favoritesEnabled: row.favoritesEnabled,
+    giftingEnabled: row.giftingEnabled,
     platformFeePercent: Number(row.platformFeePercent),
     updatedAt: row.updatedAt,
     googleEnabled,
@@ -49,6 +50,7 @@ export async function updateSettings(
   const before = await getSettings();
   const data: Record<string, unknown> = {};
   if (patch.favoritesEnabled !== undefined) data.favoritesEnabled = patch.favoritesEnabled;
+  if (patch.giftingEnabled !== undefined) data.giftingEnabled = patch.giftingEnabled;
   if (patch.platformFeePercent !== undefined) data.platformFeePercent = patch.platformFeePercent;
 
   const row = await prisma.systemSetting.update({ where: { id: 1 }, data });
@@ -74,6 +76,7 @@ export async function updateSettings(
 
   return {
     favoritesEnabled: row.favoritesEnabled,
+    giftingEnabled: row.giftingEnabled,
     platformFeePercent: Number(row.platformFeePercent),
     updatedAt: row.updatedAt,
     googleEnabled: Boolean(process.env.GOOGLE_CLIENT_ID),

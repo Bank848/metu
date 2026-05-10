@@ -3,6 +3,10 @@ import { z } from "zod";
 
 export interface PublicSettings {
   favoritesEnabled: boolean;
+  /** Gates the "🎁 This is a gift" checkout path. When false the
+   *  cart UI hides the toggle and the API rejects gift fields on
+   *  checkout. Existing already-placed gift orders are unaffected. */
+  giftingEnabled: boolean;
   /** Platform's cut (%); maps to Stripe's application_fee_amount. */
   platformFeePercent: number;
   updatedAt: Date;
@@ -12,6 +16,7 @@ export interface PublicSettings {
 
 export const settingsPatchSchema = z.object({
   favoritesEnabled: z.boolean().optional(),
+  giftingEnabled: z.boolean().optional(),
   // Fractional percents allowed (e.g. 5.5%).
   platformFeePercent: z.number().min(0).max(100).optional(),
 });

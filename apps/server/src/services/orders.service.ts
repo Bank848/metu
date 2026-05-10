@@ -10,6 +10,7 @@ import { renderEmailLayout } from "../utils/email-template.js";
 import { capQuantity, loadPurchasableProductItem } from "../utils/purchasable.js";
 import { SITE_URL } from "../config.js";
 import { audit } from "../utils/audit.js";
+import { getSettings as getSystemSettings } from "./settings.service.js";
 import type {
   CheckoutInput,
   CheckoutResponse,
@@ -101,8 +102,18 @@ export async function checkout(
   }
 
   // Gift-form validation: reject empty/whitespace, malformed, and
-  // self-addressed recipient emails.
+  // self-addressed recipient emails. Also gated on the live system
+  // settings flag so an admin can disable the entire gift flow from
+  // /admin/settings without redeploying.
   if (input.giftRecipientEmail !== undefined && input.giftRecipientEmail !== null) {
+    const sys = await getSystemSettings();
+    if (!sys.giftingEnabled) {
+      throw new AppError(
+        400,
+        "GiftingDisabled",
+        "Gift checkout is currently disabled by the admin. Untick \"This is a gift\" to continue.",
+      );
+    }
     const trimmed = input.giftRecipientEmail.trim();
     if (!trimmed) {
       throw new AppError(
