@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { TrendingUp, ShoppingBag, Users, Package as PackageIcon } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
@@ -12,6 +13,135 @@ import { prisma } from "@/lib/server/prisma";
 import { coins, thbToCoins, coinsCompact } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+// 5 raw queries scoped to one storeId. Cache 5 min — analytics data
+// shifts on order paid events but sellers don't refresh constantly.
+const getSellerAnalytics = unstable_cache(
+  async (storeId: number) => {
+    const [daily, statusBreakdown, perProduct, topBuyers, totals] = await Promise.all([
+      prisma.$queryRaw<Array<{ day: string; revenue: string; order_count: bigint }>>`
+        SELECT
+          TO_CHAR(d::date, 'YYYY-MM-DD') AS day,
+          COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
+          COUNT(DISTINCT o.order_id) AS order_count
+        FROM generate_series(
+               (NOW() AT TIME ZONE 'Asia/Bangkok')::date - INTERVAL '29 days',
+               (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+               INTERVAL '1 day'
+             ) d
+        LEFT JOIN orders     o  ON (o.created_at AT TIME ZONE 'Asia/Bangkok')::date = d::date
+                                AND o.status IN ('paid','fulfilled')
+        LEFT JOIN order_item oi ON oi.order_id = o.order_id
+        LEFT JOIN product_item pi ON pi.product_item_id = oi.product_item_id
+        LEFT JOIN product p ON p.product_id = pi.product_id
+        WHERE oi.order_item_id IS NULL OR p.store_id = ${storeId}
+        GROUP BY d
+        ORDER BY d ASC
+      `,
+      prisma.$queryRaw<Array<{ status: string; count: bigint }>>`
+        SELECT o.status::text AS status, COUNT(DISTINCT o.order_id) AS count
+        FROM orders o
+        JOIN order_item oi ON oi.order_id = o.order_id
+        JOIN product_item pi ON pi.product_item_id = oi.product_item_id
+        JOIN product p ON p.product_id = pi.product_id
+        WHERE p.store_id = ${storeId}
+        GROUP BY o.status
+        ORDER BY count DESC
+      `,
+      prisma.$queryRaw<Array<{
+        product_id: number;
+        name: string;
+        units: bigint;
+        revenue: string;
+      }>>`
+        SELECT
+          p.product_id,
+          p.name,
+          COALESCE(SUM(oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0) AS units,
+          COALESCE(SUM(oi.price_per_unit * oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0)::text AS revenue
+        FROM product p
+        LEFT JOIN product_item pi ON pi.product_id = p.product_id
+        LEFT JOIN order_item oi ON oi.product_item_id = pi.product_item_id
+        LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
+        WHERE p.store_id = ${storeId}
+        GROUP BY p.product_id, p.name
+        ORDER BY units DESC, revenue DESC
+        LIMIT 10
+      `,
+      prisma.$queryRaw<Array<{
+        user_id: number;
+        username: string;
+        first_name: string;
+        last_name: string;
+        orders: bigint;
+        spent: string;
+      }>>`
+        SELECT
+          u.user_id, u.username, u.first_name, u.last_name,
+          COUNT(DISTINCT o.order_id) AS orders,
+          COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS spent
+        FROM users u
+        JOIN orders o ON o.user_id = u.user_id AND o.status IN ('paid','fulfilled')
+        JOIN order_item oi ON oi.order_id = o.order_id
+        JOIN product_item pi ON pi.product_item_id = oi.product_item_id
+        JOIN product p ON p.product_id = pi.product_id
+        WHERE p.store_id = ${storeId}
+        GROUP BY u.user_id, u.username, u.first_name, u.last_name
+        ORDER BY spent DESC
+        LIMIT 5
+      `,
+      prisma.$queryRaw<Array<{ orders: bigint; units: bigint; revenue: string; buyers: bigint }>>`
+        SELECT
+          COUNT(DISTINCT o.order_id) AS orders,
+          COALESCE(SUM(oi.quantity), 0) AS units,
+          COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
+          COUNT(DISTINCT o.user_id) AS buyers
+        FROM orders o
+        JOIN order_item oi ON oi.order_id = o.order_id
+        JOIN product_item pi ON pi.product_item_id = oi.product_item_id
+        JOIN product p ON p.product_id = pi.product_id
+        WHERE p.store_id = ${storeId} AND o.status IN ('paid','fulfilled')
+      `,
+    ]);
+    // Pre-shape what's serializable to JSON-safe types so the cache
+    // entry doesn't store bigints (JSON.stringify chokes on them).
+    return {
+      daily: daily.map((d) => ({
+        day: d.day,
+        revenue: Number(d.revenue),
+        orderCount: Number(d.order_count),
+      })),
+      statusBreakdown: statusBreakdown.map((s) => ({
+        status: s.status,
+        count: Number(s.count),
+      })),
+      perProduct: perProduct.map((p) => ({
+        product_id: p.product_id,
+        name: p.name,
+        units: Number(p.units),
+        revenue: Number(p.revenue),
+      })),
+      topBuyers: topBuyers.map((b) => ({
+        user_id: b.user_id,
+        username: b.username,
+        first_name: b.first_name,
+        last_name: b.last_name,
+        orders: Number(b.orders),
+        spent: Number(b.spent),
+      })),
+      totals: totals[0]
+        ? {
+            orders: Number(totals[0].orders),
+            units: Number(totals[0].units),
+            revenue: Number(totals[0].revenue),
+            buyers: Number(totals[0].buyers),
+          }
+        : { orders: 0, units: 0, revenue: 0, buyers: 0 },
+    };
+  },
+  ["seller-analytics"],
+  { revalidate: 300, tags: ["seller-analytics"] },
+);
 
 const STATUS_VARIANT: Record<
   "pending" | "paid" | "fulfilled" | "cancelled" | "refunded",
@@ -38,126 +168,13 @@ export default async function SellerAnalyticsPage() {
   if (!me.user?.store) redirect("/become-seller");
   const storeId = me.user.store.storeId;
 
-  // Pull everything needed for the analytics view in parallel. Each query
-  // is scoped to the seller's store so admins viewing another store don't
-  // accidentally leak across.
-  const [
-    daily,
-    statusBreakdown,
-    perProduct,
-    topBuyers,
-    totals,
-  ] = await Promise.all([
-    // Daily revenue over the last 30 days, scoped to this store.
-    // Bangkok-local dates so it lines up with the admin chart and the
-    // seller's local mental model.
-    prisma.$queryRaw<Array<{ day: string; revenue: string; order_count: bigint }>>`
-      SELECT
-        TO_CHAR(d::date, 'YYYY-MM-DD') AS day,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
-        COUNT(DISTINCT o.order_id) AS order_count
-      FROM generate_series(
-             (NOW() AT TIME ZONE 'Asia/Bangkok')::date - INTERVAL '29 days',
-             (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
-             INTERVAL '1 day'
-           ) d
-      LEFT JOIN orders     o  ON (o.created_at AT TIME ZONE 'Asia/Bangkok')::date = d::date
-                              AND o.status IN ('paid','fulfilled')
-      LEFT JOIN order_item oi ON oi.order_id = o.order_id
-      LEFT JOIN product_item pi ON pi.product_item_id = oi.product_item_id
-      LEFT JOIN product p ON p.product_id = pi.product_id
-      WHERE oi.order_item_id IS NULL OR p.store_id = ${storeId}
-      GROUP BY d
-      ORDER BY d ASC
-    `,
-    // Order status mix for orders containing this store's products.
-    prisma.$queryRaw<Array<{ status: string; count: bigint }>>`
-      SELECT o.status::text AS status, COUNT(DISTINCT o.order_id) AS count
-      FROM orders o
-      JOIN order_item oi ON oi.order_id = o.order_id
-      JOIN product_item pi ON pi.product_item_id = oi.product_item_id
-      JOIN product p ON p.product_id = pi.product_id
-      WHERE p.store_id = ${storeId}
-      GROUP BY o.status
-      ORDER BY count DESC
-    `,
-    // Per-product revenue + units sold (paid+fulfilled only).
-    // FILTER (WHERE o.order_id IS NOT NULL) is the gate — without it,
-    // the LEFT JOIN keeps order_item rows even when their order's
-    // status was filtered out by the orders join condition, which
-    // double-counts unpaid units.
-    prisma.$queryRaw<Array<{
-      product_id: number;
-      name: string;
-      units: bigint;
-      revenue: string;
-    }>>`
-      SELECT
-        p.product_id,
-        p.name,
-        COALESCE(SUM(oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0) AS units,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity) FILTER (WHERE o.order_id IS NOT NULL), 0)::text AS revenue
-      FROM product p
-      LEFT JOIN product_item pi ON pi.product_id = p.product_id
-      LEFT JOIN order_item oi ON oi.product_item_id = pi.product_item_id
-      LEFT JOIN orders o ON o.order_id = oi.order_id AND o.status IN ('paid','fulfilled')
-      WHERE p.store_id = ${storeId}
-      GROUP BY p.product_id, p.name
-      ORDER BY units DESC, revenue DESC
-      LIMIT 10
-    `,
-    // Top 5 buyers by spend on this store. Order is anchored to userId
-    // directly (see schema.prisma:432 — "Order is owned by the user");
-    // do NOT join via cart, the schema has no Order.cart_id column.
-    prisma.$queryRaw<Array<{
-      user_id: number;
-      username: string;
-      first_name: string;
-      last_name: string;
-      orders: bigint;
-      spent: string;
-    }>>`
-      SELECT
-        u.user_id, u.username, u.first_name, u.last_name,
-        COUNT(DISTINCT o.order_id) AS orders,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS spent
-      FROM users u
-      JOIN orders o ON o.user_id = u.user_id AND o.status IN ('paid','fulfilled')
-      JOIN order_item oi ON oi.order_id = o.order_id
-      JOIN product_item pi ON pi.product_item_id = oi.product_item_id
-      JOIN product p ON p.product_id = pi.product_id
-      WHERE p.store_id = ${storeId}
-      GROUP BY u.user_id, u.username, u.first_name, u.last_name
-      ORDER BY spent DESC
-      LIMIT 5
-    `,
-    // Lifetime totals. Same correction: count distinct buyers via
-    // Order.user_id, not via a non-existent Order.cart_id join.
-    prisma.$queryRaw<Array<{ orders: bigint; units: bigint; revenue: string; buyers: bigint }>>`
-      SELECT
-        COUNT(DISTINCT o.order_id) AS orders,
-        COALESCE(SUM(oi.quantity), 0) AS units,
-        COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
-        COUNT(DISTINCT o.user_id) AS buyers
-      FROM orders o
-      JOIN order_item oi ON oi.order_id = o.order_id
-      JOIN product_item pi ON pi.product_item_id = oi.product_item_id
-      JOIN product p ON p.product_id = pi.product_id
-      WHERE p.store_id = ${storeId} AND o.status IN ('paid','fulfilled')
-    `,
-  ]);
+  const { daily: dailyShaped, statusBreakdown, perProduct, topBuyers, totals } =
+    await getSellerAnalytics(storeId);
 
-  const dailyShaped = daily.map((d) => ({
-    day: d.day,
-    revenue: Number(d.revenue),
-    orderCount: Number(d.order_count),
-  }));
-
-  const t = totals[0] ?? { orders: 0n, units: 0n, revenue: "0", buyers: 0n };
-  const totalRevenue = Number(t.revenue);
-  const totalOrders = Number(t.orders);
-  const totalUnits = Number(t.units);
-  const totalBuyers = Number(t.buyers);
+  const totalRevenue = totals.revenue;
+  const totalOrders = totals.orders;
+  const totalUnits = totals.units;
+  const totalBuyers = totals.buyers;
 
   const noData = totalOrders === 0;
 

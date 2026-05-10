@@ -321,16 +321,25 @@ async function _getFeaturedCouponsImpl(take = 6) {
   }));
 }
 
-// Public store page envelope.
-export async function getStore(storeId: number) {
+// Public store page envelope. Cached 5 min — store profile + product list
+// changes on seller mutations (rare during a demo window).
+export const getStore = unstable_cache(
+  _getStoreImpl,
+  ["store"],
+  { revalidate: 300, tags: ["store"] },
+);
+
+async function _getStoreImpl(storeId: number) {
   try {
+    // skipAuth keeps headers() out of the unstable_cache scope. The
+    // /stores/:id endpoint is public-read so dropping cookies is safe.
     return await apiFetch<{
       store: any;
       products: any[];
       productCount: number;
       reviewCount: number;
       avgRating?: number;
-    } | null>(`/stores/${storeId}`);
+    } | null>(`/stores/${storeId}`, { skipAuth: true });
   } catch (err: any) {
     if (err?.status === 404) return null;
     throw err;
@@ -457,7 +466,7 @@ export const getCountries = unstable_cache(
   { revalidate: 3600, tags: ["countries"] },
 );
 
-export async function browseProducts(params: {
+type BrowseParams = {
   category?: number;
   tags?: string;
   minPrice?: number;
@@ -471,7 +480,18 @@ export async function browseProducts(params: {
   page?: number;
   pageSize?: number;
   minRating?: number;
-}) {
+};
+
+// Heavy raw SQL with 5+ subqueries per row. unstable_cache auto-keys by
+// args, so each unique filter combo gets its own entry. 120s TTL keeps
+// cache cardinality bounded if filter combos explode.
+export const browseProducts = unstable_cache(
+  _browseProductsImpl,
+  ["browse-products"],
+  { revalidate: 120, tags: ["browse-products"] },
+);
+
+async function _browseProductsImpl(params: BrowseParams) {
   const sort = params.sort ?? "newest";
   const page = params.page ?? 1;
   const pageSize = params.pageSize ?? 16;
@@ -665,7 +685,16 @@ export async function browseProducts(params: {
   };
 }
 
-export async function getProduct(id: number) {
+// Product detail — 10+ logical operations per call. Cache 5 min.
+// Tag is static; revalidateTag('product') invalidates ALL product caches
+// on any product mutation (acceptable: writes are infrequent vs reads).
+export const getProduct = unstable_cache(
+  _getProductImpl,
+  ["product"],
+  { revalidate: 300, tags: ["product"] },
+);
+
+async function _getProductImpl(id: number) {
   const product = await prisma.product.findFirst({
     where: {
       productId: id,
@@ -773,7 +802,15 @@ export async function getOwnedOrderId(
 //   - product(category_id) for the category match
 //   - product_n_tag(product_id, tag_id) composite for shared-tag count
 //   - product_review(product_id) for the review-count tie-breaker
-export async function getRelatedProducts(productId: number, take = 4) {
+// "More like this" sidebar on /product/[id]. Cached 10 min — ranking
+// shifts only on new products / reviews in the same category.
+export const getRelatedProducts = unstable_cache(
+  _getRelatedProductsImpl,
+  ["related-products"],
+  { revalidate: 600, tags: ["product"] },
+);
+
+async function _getRelatedProductsImpl(productId: number, take = 4) {
   const ranked = await prisma.$queryRaw<Array<{ product_id: number }>>`
     WITH source AS (
       SELECT p.category_id,
@@ -850,7 +887,13 @@ export async function getRelatedProducts(productId: number, take = 4) {
  * Distinct buyers in the last `days`. Used by the social-proof line.
  * Returns 0 when no rows so the UI can hide the line.
  */
-export async function getRecentPurchaseCount(productId: number, days = 7): Promise<number> {
+export const getRecentPurchaseCount = unstable_cache(
+  _getRecentPurchaseCountImpl,
+  ["recent-purchase-count"],
+  { revalidate: 300, tags: ["recent-purchase-count"] },
+);
+
+async function _getRecentPurchaseCountImpl(productId: number, days = 7): Promise<number> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   // Distinct by userId so repeated orders count once.
   const rows = await prisma.orderItem.findMany({
