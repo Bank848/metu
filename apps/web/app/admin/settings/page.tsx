@@ -16,7 +16,7 @@ export default async function AdminSettingsPage() {
     <main id="main" className="px-8 py-8 max-w-4xl">
       <PageHeader
         title="System settings"
-        subtitle="Runtime feature flags + platform fee configuration. Changes take effect within 30 seconds across both Fly machines."
+        subtitle="Runtime feature flags + platform fee configuration. Changes take effect on the next page render."
       />
 
       <div className="mt-6 grid gap-6">

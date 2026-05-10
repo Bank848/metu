@@ -47,7 +47,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
         setMessage({ kind: "err", text: data?.message || data?.error || "Save failed" });
         return;
       }
-      setMessage({ kind: "ok", text: "Saved. Changes propagate to the other Fly machine within 30 s." });
+      setMessage({ kind: "ok", text: "Saved. Changes take effect on the next page render." });
       router.refresh();
     } catch {
       setMessage({ kind: "err", text: "Network error" });
