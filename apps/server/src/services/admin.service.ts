@@ -743,7 +743,7 @@ async function _getStatsImpl(days = 14): Promise<AdminStatsResponse> {
 // with parallelism the slowest gates the response (~4s cold).
 async function _getDashboardMetricsImpl() {
   const queryStats: QueryStat[] = [];
-  const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows, topBuyersRows, ordersByCountryRows, aovTrendRows, infoIntegrityRows, productMatrixRows] = await Promise.all([
+  const [growth, growthSeries, topStores, topProducts, ageGroups, categories, tags, couponImpact, couponImpactSeries, couponImpactTop, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows, topBuyersRows, ordersByCountryRows, aovTrendRows, infoIntegrityRows, productMatrixRows] = await Promise.all([
     timed("growth", queryStats, () => prisma.$queryRaw<Array<{
       total_users: bigint; buyers: bigint; sellers: bigint; admins: bigint;
       active_7d: bigint;
@@ -754,6 +754,33 @@ async function _getDashboardMetricsImpl() {
         (SELECT COUNT(*) FROM "user_stats" WHERE role = 'seller')                                 AS sellers,
         (SELECT COUNT(*) FROM "user_stats" WHERE role = 'admin')                                  AS admins,
         (SELECT COUNT(DISTINCT user_id) FROM "orders" WHERE created_at >= NOW() - INTERVAL '7 days') AS active_7d
+    `),
+    // 90-day daily new-user series, split into buyer vs seller (role
+    // resolved at signup, snapshot from user_stats). Keeps a row per
+    // calendar day even when zero so the chart x-axis stays linear.
+    timed("userGrowthSeries", queryStats, () => prisma.$queryRaw<Array<{
+      day: string; buyers: bigint; sellers: bigint;
+    }>>`
+      SELECT
+        TO_CHAR(d::date, 'YYYY-MM-DD')                                                AS day,
+        COALESCE((
+          SELECT COUNT(*) FROM "users" u
+          JOIN "user_stats" us ON us.user_id = u.user_id
+          WHERE (u.created_date AT TIME ZONE 'Asia/Bangkok')::date = d::date
+            AND us.role <> 'seller'
+        ), 0)::bigint                                                                  AS buyers,
+        COALESCE((
+          SELECT COUNT(*) FROM "users" u
+          JOIN "user_stats" us ON us.user_id = u.user_id
+          WHERE (u.created_date AT TIME ZONE 'Asia/Bangkok')::date = d::date
+            AND us.role = 'seller'
+        ), 0)::bigint                                                                  AS sellers
+      FROM generate_series(
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date - INTERVAL '89 days',
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+             INTERVAL '1 day'
+           ) d
+      ORDER BY d
     `),
     // Top stores from the `top_stores_30d` matview, joined to `store`
     // for the OLTP-maintained rating column.
@@ -772,7 +799,7 @@ async function _getDashboardMetricsImpl() {
         FROM "top_stores_30d" t
         JOIN "store"          s ON s.store_id = t.store_id
        ORDER BY t.revenue DESC
-       LIMIT 5
+       LIMIT 25
     `),
     timed("topProducts", queryStats, () => prisma.$queryRaw<Array<{
       product_id: number; name: string; revenue: string; units: bigint;
@@ -804,22 +831,35 @@ async function _getDashboardMetricsImpl() {
         GROUP BY p.product_id, p.name
       ) ranked
       ORDER BY revenue DESC
-      LIMIT 5
+      LIMIT 25
     `),
     timed("ageGroups", queryStats, () => prisma.$queryRaw<Array<{ bucket: string; buyers: bigint }>>`
-      SELECT
-        CASE
-          WHEN date_part('year', AGE(date_of_birth)) < 18  THEN '<18'
-          WHEN date_part('year', AGE(date_of_birth)) < 25  THEN '18-24'
-          WHEN date_part('year', AGE(date_of_birth)) < 35  THEN '25-34'
-          WHEN date_part('year', AGE(date_of_birth)) < 50  THEN '35-49'
-          ELSE '50+'
-        END                  AS bucket,
-        COUNT(*)::bigint     AS buyers
-      FROM "users"
-      WHERE date_of_birth IS NOT NULL
+      -- Includes a "Not provided" bucket so the chart surfaces how
+      -- many users skipped DOB at signup (helps the integrity tile).
+      SELECT bucket, COUNT(*)::bigint AS buyers
+      FROM (
+        SELECT
+          CASE
+            WHEN date_of_birth IS NULL THEN 'Not provided'
+            WHEN date_part('year', AGE(date_of_birth)) < 18  THEN '<18'
+            WHEN date_part('year', AGE(date_of_birth)) < 25  THEN '18-24'
+            WHEN date_part('year', AGE(date_of_birth)) < 35  THEN '25-34'
+            WHEN date_part('year', AGE(date_of_birth)) < 50  THEN '35-49'
+            ELSE '50+'
+          END AS bucket
+        FROM "users"
+      ) g
       GROUP BY bucket
-      ORDER BY bucket
+      ORDER BY
+        -- Force a stable order: age-buckets ascending, "Not provided" last.
+        CASE bucket
+          WHEN '<18'         THEN 1
+          WHEN '18-24'       THEN 2
+          WHEN '25-34'       THEN 3
+          WHEN '35-49'       THEN 4
+          WHEN '50+'         THEN 5
+          WHEN 'Not provided' THEN 6
+        END
     `),
     timed("categories", queryStats, () => prisma.$queryRaw<Array<{
       category_id: number; name: string; product_count: bigint; revenue: string;
@@ -909,15 +949,123 @@ async function _getDashboardMetricsImpl() {
           WHERE is_active = true
             AND end_date BETWEEN NOW() AND NOW() + INTERVAL '7 days')                          AS near_expiry
     `),
-    timed("reviewMonitor", queryStats, () => prisma.$queryRaw<Array<{
-      avg_rating: number | null; total_reviews: bigint; reviews_7d: bigint; low_rated: bigint;
+    // 30-day daily coupon-redemption series + true baht discounted.
+    // The discount per order is computed from the difference between
+    // the line-item subtotal and the stored total_price; that's the
+    // amount the coupon actually shaved off, capping at zero so a
+    // free-coupon-on-empty-cart never reads negative.
+    timed("couponImpactSeries", queryStats, () => prisma.$queryRaw<Array<{
+      day: string; redemptions: bigint; discount_baht: string;
+    }>>`
+      WITH discounts AS (
+        SELECT
+          (o.created_at AT TIME ZONE 'Asia/Bangkok')::date AS day,
+          GREATEST(
+            COALESCE(
+              (SELECT SUM(oi.price_per_unit * oi.quantity)
+                 FROM "order_item" oi
+                WHERE oi.order_id = o.order_id),
+              0
+            ) - o.total_price,
+            0
+          ) AS discount_baht
+        FROM "orders" o
+        WHERE o.coupon_id IS NOT NULL
+          AND o.status IN ('paid', 'fulfilled')
+          AND o.created_at >= NOW() - INTERVAL '30 days'
+      )
+      SELECT
+        TO_CHAR(g.day, 'YYYY-MM-DD')                                     AS day,
+        COALESCE(COUNT(d.discount_baht), 0)::bigint                      AS redemptions,
+        COALESCE(SUM(d.discount_baht), 0)::text                          AS discount_baht
+      FROM generate_series(
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date - INTERVAL '29 days',
+             (NOW() AT TIME ZONE 'Asia/Bangkok')::date,
+             INTERVAL '1 day'
+           ) g(day)
+      LEFT JOIN discounts d ON d.day = g.day::date
+      GROUP BY g.day
+      ORDER BY g.day
+    `),
+    // Top coupons by redemption + actual baht impact. net_revenue is
+    // what the platform/seller still booked after the discount; ratio
+    // of (discount / (discount + net_revenue)) tells the operator
+    // how aggressive a coupon was relative to its own pull.
+    timed("couponImpactTop", queryStats, () => prisma.$queryRaw<Array<{
+      coupon_id: number; code: string; discount_type: string; discount_value: number;
+      store_id: number | null; store_name: string;
+      redemptions: bigint; total_discount: string; net_revenue: string;
     }>>`
       SELECT
-        ROUND(AVG(rating)::numeric, 2)::float                                          AS avg_rating,
-        COUNT(*)::bigint                                                               AS total_reviews,
-        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::bigint        AS reviews_7d,
-        COUNT(*) FILTER (WHERE rating <= 2)::bigint                                    AS low_rated
-      FROM "product_review"
+        c.coupon_id, c.code, c.discount_type::text AS discount_type, c.discount_value,
+        c.store_id,
+        COALESCE(s.name, 'Master') AS store_name,
+        COUNT(DISTINCT o.order_id)::bigint AS redemptions,
+        COALESCE(SUM(
+          GREATEST(
+            COALESCE(
+              (SELECT SUM(oi.price_per_unit * oi.quantity)
+                 FROM "order_item" oi
+                WHERE oi.order_id = o.order_id),
+              0
+            ) - o.total_price,
+            0
+          )
+        ), 0)::text AS total_discount,
+        COALESCE(SUM(o.total_price), 0)::text AS net_revenue
+      FROM "coupon" c
+      LEFT JOIN "store"  s ON s.store_id = c.store_id
+      LEFT JOIN "orders" o ON o.coupon_id = c.coupon_id
+                          AND o.status IN ('paid', 'fulfilled')
+      GROUP BY c.coupon_id, c.code, c.discount_type, c.discount_value, c.store_id, s.name
+      HAVING COUNT(DISTINCT o.order_id) > 0
+      ORDER BY redemptions DESC
+      LIMIT 10
+    `),
+    timed("reviewMonitor", queryStats, () => prisma.$queryRaw<Array<{
+      avg_rating: number | null;
+      total_reviews: bigint;
+      reviews_7d: bigint;
+      low_rated: bigint;
+      buyers_who_reviewed: bigint;
+      buyers_who_bought: bigint;
+      eligible_pairs: bigint;
+      reviewed_pairs: bigint;
+    }>>`
+      -- The four "scalar" subqueries are computed independently so the
+      -- conversion ratio (reviewed_pairs / eligible_pairs) reflects
+      -- buyer-product opportunities, not raw user counts. A user who
+      -- bought 5 products but reviewed only 1 should pull the
+      -- conversion DOWN, not look like a fully-converted reviewer.
+      SELECT
+        pr.avg_rating, pr.total_reviews, pr.reviews_7d, pr.low_rated,
+        br.buyers_who_reviewed, bb.buyers_who_bought,
+        ep.eligible_pairs, rp.reviewed_pairs
+      FROM
+        (SELECT
+           ROUND(AVG(rating)::numeric, 2)::float                                AS avg_rating,
+           COUNT(*)::bigint                                                     AS total_reviews,
+           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::bigint AS reviews_7d,
+           COUNT(*) FILTER (WHERE rating <= 2)::bigint                          AS low_rated
+         FROM "product_review") pr
+      CROSS JOIN
+        (SELECT COUNT(DISTINCT user_id)::bigint AS buyers_who_reviewed
+         FROM "product_review") br
+      CROSS JOIN
+        (SELECT COUNT(DISTINCT user_id)::bigint AS buyers_who_bought
+         FROM "orders" WHERE status IN ('paid','fulfilled')) bb
+      CROSS JOIN
+        -- Distinct (buyer, product) pairs from settled orders — the
+        -- universe of "things a buyer could have reviewed".
+        (SELECT COUNT(DISTINCT (o.user_id, pi.product_id))::bigint AS eligible_pairs
+         FROM "orders" o
+         JOIN "order_item" oi ON oi.order_id = o.order_id
+         JOIN "product_item" pi ON pi.product_item_id = oi.product_item_id
+         WHERE o.status IN ('paid','fulfilled')) ep
+      CROSS JOIN
+        -- Of those pairs, how many actually got a review.
+        (SELECT COUNT(DISTINCT (user_id, product_id))::bigint AS reviewed_pairs
+         FROM "product_review") rp
     `),
     // 7-day daily counts for KPI sparklines, in one round-trip.
     timed("kpiSparklines", queryStats, () => prisma.$queryRaw<Array<{
@@ -987,7 +1135,7 @@ async function _getDashboardMetricsImpl() {
       WHERE o.status IN ('paid', 'fulfilled')
       GROUP BY u.user_id, u.first_name, u.last_name, u.username, u.profile_image
       ORDER BY SUM(o.total_price) DESC
-      LIMIT 5
+      LIMIT 25
     `),
     // Orders by buyer country — top 8 (Unknown bucket for missing).
     timed("ordersByCountry", queryStats, () => prisma.$queryRaw<Array<{
@@ -1103,6 +1251,11 @@ async function _getDashboardMetricsImpl() {
           active7d: Number(growth[0].active_7d),
         }
       : null,
+    growthSeries: growthSeries.map((d) => ({
+      day: d.day,
+      buyers: Number(d.buyers),
+      sellers: Number(d.sellers),
+    })),
     topStores: topStores.map((s) => ({
       storeId: s.store_id, name: s.name,
       revenue: Number(s.revenue_text), orders: Number(s.orders),
@@ -1134,12 +1287,32 @@ async function _getDashboardMetricsImpl() {
           nearExpiry: Number(couponImpact[0].near_expiry),
         }
       : null,
+    couponImpactSeries: couponImpactSeries.map((d) => ({
+      day: d.day,
+      redemptions: Number(d.redemptions),
+      discountBaht: Number(d.discount_baht),
+    })),
+    couponImpactTop: couponImpactTop.map((c) => ({
+      couponId: c.coupon_id,
+      code: c.code,
+      discountType: c.discount_type as "percent" | "fixed",
+      discountValue: c.discount_value,
+      storeId: c.store_id,
+      storeName: c.store_name,
+      redemptions: Number(c.redemptions),
+      totalDiscount: Number(c.total_discount),
+      netRevenue: Number(c.net_revenue),
+    })),
     reviewMonitor: reviewMonitor[0]
       ? {
           avgRating: reviewMonitor[0].avg_rating ?? 0,
           totalReviews: Number(reviewMonitor[0].total_reviews),
           reviews7d: Number(reviewMonitor[0].reviews_7d),
           lowRated: Number(reviewMonitor[0].low_rated),
+          buyersWhoReviewed: Number(reviewMonitor[0].buyers_who_reviewed),
+          buyersWhoBought: Number(reviewMonitor[0].buyers_who_bought),
+          eligiblePairs: Number(reviewMonitor[0].eligible_pairs),
+          reviewedPairs: Number(reviewMonitor[0].reviewed_pairs),
         }
       : null,
     // 7-day sparklines per KPI, oldest → newest.
