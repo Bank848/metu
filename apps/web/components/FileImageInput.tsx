@@ -8,10 +8,12 @@ import { cn, isDataUrl } from "@/lib/utils";
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB upload limit
 const MAX_OUTPUT_PX = 1200;         // max dimension after crop
-// Lower bound on the zoom slider. react-easy-crop's default is 1 (image
-// "covers" the crop frame); 0.4 lets the user shrink a large upload so
-// the whole image is visible and they can pick which slice to keep.
-const MIN_ZOOM = 0.4;
+// Hard lower bound on the slider — combined with `objectFit="contain"`
+// on the Cropper, zoom=1 already shows the whole uploaded image inside
+// the frame, so 0.3 is just breathing room beyond that. We also clamp
+// dynamically based on the loaded image's size (see onMediaLoaded) so
+// extreme aspect mismatches don't strand the user.
+const MIN_ZOOM_FLOOR = 0.3;
 const MAX_ZOOM = 3;
 
 type AspectPreset = "square" | "wide" | "cover" | "portrait";
@@ -82,11 +84,30 @@ export function FileImageInput({
   const [tempSrc, setTempSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  // Effective lower bound — recomputed when the image loads so the
+  // user can always zoom OUT until the entire uploaded image is fully
+  // visible inside the crop frame, even when the photo is much larger
+  // / more lopsided than the chosen aspect.
+  const [minZoom, setMinZoom] = useState(MIN_ZOOM_FLOOR);
   const [croppedPixels, setCroppedPixels] = useState<any>(null);
   const [cropping, setCropping] = useState(false);
 
   const onCropComplete = useCallback((_: any, pixels: any) => {
     setCroppedPixels(pixels);
+  }, []);
+
+  // Fires once per image load. mediaSize.width/height are the rendered
+  // pixel dimensions of the image inside the cropper container at
+  // zoom=1 (under objectFit="contain" the longer side equals the
+  // container's longer side). For 'contain', zoom=1 is already "fit
+  // whole image" — so we simply allow further zoom-out down to a
+  // small floor for headroom. The MIN_ZOOM_FLOOR plus restrictPosition
+  // off lets users pan the entire image into the crop frame at any
+  // zoom they like.
+  const onMediaLoaded = useCallback(() => {
+    setMinZoom(MIN_ZOOM_FLOOR);
+    setZoom(1);
+    setCrop({ x: 0, y: 0 });
   }, []);
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -200,12 +221,21 @@ export function FileImageInput({
               image={tempSrc}
               crop={crop}
               zoom={zoom}
-              minZoom={MIN_ZOOM}
+              minZoom={minZoom}
               maxZoom={MAX_ZOOM}
               aspect={aspectRatio}
+              // contain = zoom=1 fits the whole image inside the
+              // cropper container regardless of how big the upload is.
+              // Without this, react-easy-crop defaults to a cover-style
+              // fit that crops everything outside the frame at zoom=1
+              // and you couldn't see the full picture without zooming
+              // out, which the previous fixed minZoom didn't allow far
+              // enough for very large uploads.
+              objectFit="contain"
               onCropChange={setCrop}
               onCropComplete={onCropComplete}
               onZoomChange={setZoom}
+              onMediaLoaded={onMediaLoaded}
               showGrid
               // Let the user drag the image past the crop frame so a
               // large photo can be panned around when zoomed out.
@@ -219,7 +249,7 @@ export function FileImageInput({
             <ZoomOut className="h-4 w-4 text-zinc-500 shrink-0" />
             <input
               type="range"
-              min={MIN_ZOOM}
+              min={minZoom}
               max={MAX_ZOOM}
               step={0.05}
               value={zoom}
