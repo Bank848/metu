@@ -102,6 +102,12 @@ const nextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "X-DNS-Prefetch-Control", value: "off" },
+          // Tell every reverse proxy in the chain (Fly's edge, Cloudflare)
+          // not to buffer the chunked SSR response — without this, CF holds
+          // the streaming body until the origin closes it, which defeats
+          // the Suspense-bound skeleton-first rendering on /, /browse,
+          // /product/[id]. Browser ignores it; only proxies act on it.
+          { key: "X-Accel-Buffering", value: "no" },
         ],
       },
     ];

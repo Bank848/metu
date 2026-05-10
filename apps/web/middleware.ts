@@ -47,6 +47,37 @@ function clientIp(req: NextRequest): string {
 const CANONICAL_HOST = "metu.online";
 const FLY_HOST = "metu.fly.dev";
 
+// Public catalog paths whose HTML is safe to cache for anonymous
+// viewers at the Cloudflare edge (10 s window). Cookie-aware paths
+// like /cart, /checkout, /admin, /seller stay off this list so a
+// per-user render never lands in a shared CF slot.
+const ANON_CACHEABLE = ["/", "/browse", "/product", "/store"];
+const AUTH_COOKIE_RE = /(?:^|;\s*)(?:__Secure-)?better-auth\./;
+
+function isAnonCacheable(pathname: string): boolean {
+  if (pathname === "/") return true;
+  return ANON_CACHEABLE.some(
+    (p) => p !== "/" && (pathname === p || pathname.startsWith(p + "/")),
+  );
+}
+
+function applyEdgeCacheHint(req: NextRequest, res: NextResponse): NextResponse {
+  if (!isAnonCacheable(req.nextUrl.pathname)) return res;
+  const cookieHeader = req.headers.get("cookie") ?? "";
+  if (AUTH_COOKIE_RE.test(cookieHeader)) return res;
+  // Anonymous + cacheable path: hint Cloudflare to cache the rendered
+  // HTML for 10 s and serve stale up to 60 s while it revalidates in
+  // the background. `Vary: Cookie` keeps any future cookie-bearing
+  // visitor isolated on a different cache slot — defense in depth
+  // above the auth-cookie check above.
+  res.headers.set(
+    "Cache-Control",
+    "public, s-maxage=10, stale-while-revalidate=60",
+  );
+  res.headers.append("Vary", "Cookie");
+  return res;
+}
+
 export function middleware(req: NextRequest) {
   const host = req.headers.get("host") ?? "";
   if (host === FLY_HOST || host === `www.${FLY_HOST}`) {
@@ -58,7 +89,7 @@ export function middleware(req: NextRequest) {
   }
 
   const limit = LIMITS[req.nextUrl.pathname];
-  if (!limit) return NextResponse.next();
+  if (!limit) return applyEdgeCacheHint(req, NextResponse.next());
 
   const now = Date.now();
   sweep(now);
@@ -86,7 +117,7 @@ export function middleware(req: NextRequest) {
 
   hits.push(now);
   buckets.set(key, hits);
-  return NextResponse.next();
+  return applyEdgeCacheHint(req, NextResponse.next());
 }
 
 // Run on every page + API request so the canonical-host redirect kicks
