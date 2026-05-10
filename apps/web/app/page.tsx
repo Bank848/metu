@@ -1,14 +1,10 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Package, ShoppingBag, Star, Sparkles, ShieldCheck, Zap, ArrowRight, Ticket, Clock } from "lucide-react";
+import { Sparkles, ShieldCheck, Zap, Ticket, Clock } from "lucide-react";
 import { TopNav } from "@/components/TopNav";
 import { Footer } from "@/components/Footer";
-import { StarField } from "@/components/DotGrid";
-import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
-import { GlassButton } from "@/components/visual/GlassButton";
-import { LightSweepText } from "@/components/visual/LightSweepText";
-import { BrandMark } from "@/components/illustrations/BrandMark";
 import { getStats, getFeaturedProducts, getFeaturedStores, getFeaturedCoupons, getCategories, getFavoriteSet } from "@/lib/server/queries";
 import { coins, thbToCoins, fmtDate } from "@/lib/format";
 import { getMe } from "@/lib/session";
@@ -22,32 +18,165 @@ type Category = Awaited<ReturnType<typeof getCategories>>[number];
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const me = await getMe();
-  const [stats, products, stores, coupons, categories, favSet] = await Promise.all([
-    getStats(),
-    getFeaturedProducts(8),
-    getFeaturedStores(4),
-    getFeaturedCoupons(6),
-    getCategories(),
-    getFavoriteSet(me?.user.userId),
-  ]);
-
+// The home page is intentionally synchronous at the top level so the
+// HTML shell + skeletons flush to the browser immediately. Each
+// section below is an async server component wrapped in Suspense —
+// Next streams them in as their data resolves, in roughly the order
+// listed: hero (cached counters) first, trending grid next, then the
+// heavier coupon/store/category blocks. The user sees real content
+// arrive in chunks instead of staring at a blank page until the
+// slowest fetch resolves.
+export default function Home() {
   return (
     <>
       <TopNav />
       <main>
-        <Hero stats={stats} />
-        <TrendingProducts products={products} favSet={favSet} />
-        <FeaturedCoupons coupons={coupons} />
-        <FeaturedStores stores={stores} />
-        <CategoryTiles categories={categories} />
+        <Suspense fallback={<HeroSkeleton />}>
+          <HeroSection />
+        </Suspense>
+        <Suspense fallback={<TrendingSkeleton />}>
+          <TrendingSection />
+        </Suspense>
+        <Suspense fallback={<CouponsSkeleton />}>
+          <FeaturedCouponsSection />
+        </Suspense>
+        <Suspense fallback={<StoresSkeleton />}>
+          <FeaturedStoresSection />
+        </Suspense>
+        <Suspense fallback={<CategoriesSkeleton />}>
+          <CategoryTilesSection />
+        </Suspense>
         <WhyMetu />
       </main>
       <Footer />
     </>
   );
 }
+
+// ─── Sections ──────────────────────────────────────────────────────────────
+
+async function HeroSection() {
+  const stats = await getStats();
+  return <Hero stats={stats} />;
+}
+
+async function TrendingSection() {
+  // getMe is React-cached per-request, so calling it here doesn't add a
+  // second auth round-trip even if TopNav already called it.
+  const me = await getMe();
+  const [products, favSet] = await Promise.all([
+    getFeaturedProducts(8),
+    getFavoriteSet(me?.user.userId),
+  ]);
+  return <TrendingProducts products={products} favSet={favSet} />;
+}
+
+async function FeaturedCouponsSection() {
+  const coupons = await getFeaturedCoupons(6);
+  return <FeaturedCoupons coupons={coupons} />;
+}
+
+async function FeaturedStoresSection() {
+  const stores = await getFeaturedStores(4);
+  return <FeaturedStores stores={stores} />;
+}
+
+async function CategoryTilesSection() {
+  const categories = await getCategories();
+  return <CategoryTiles categories={categories} />;
+}
+
+// ─── Skeletons ─────────────────────────────────────────────────────────────
+
+function SkeletonBox({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl bg-white/5 border border-white/8 animate-pulse",
+        className,
+      )}
+    />
+  );
+}
+
+function HeroSkeleton() {
+  return (
+    <section className="px-5 sm:px-6 md:px-10 py-12 sm:py-16 max-w-[1400px] mx-auto">
+      <div className="space-y-4">
+        <SkeletonBox className="h-10 sm:h-14 w-3/4 max-w-[640px]" />
+        <SkeletonBox className="h-5 w-1/2 max-w-[420px]" />
+      </div>
+      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonBox key={i} className="h-24" />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TrendingSkeleton() {
+  return (
+    <section className="px-5 sm:px-6 md:px-10 py-10 sm:py-12 max-w-[1400px] mx-auto">
+      <SkeletonBox className="h-7 w-56 mb-6" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="space-y-3">
+            <SkeletonBox className="aspect-[4/3]" />
+            <SkeletonBox className="h-4 w-5/6" />
+            <SkeletonBox className="h-3 w-2/3" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CouponsSkeleton() {
+  return (
+    <section className="px-5 sm:px-6 md:px-10 py-10 sm:py-12 max-w-[1400px] mx-auto">
+      <SkeletonBox className="h-7 w-48 mb-6" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonBox key={i} className="h-44" />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StoresSkeleton() {
+  return (
+    <section className="bg-surface-2/60 py-10 sm:py-16 border-y border-white/6">
+      <div className="mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10">
+        <SkeletonBox className="h-8 w-64 mb-6" />
+        <div className="grid gap-5 lg:grid-cols-3">
+          <SkeletonBox className="lg:row-span-2 aspect-[16/10] lg:aspect-auto lg:h-[420px]" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:col-span-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonBox key={i} className="h-28 sm:h-32" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CategoriesSkeleton() {
+  return (
+    <section className="mx-auto max-w-[1440px] px-5 sm:px-6 md:px-10 py-10 sm:py-16">
+      <SkeletonBox className="h-8 w-56 mb-6" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <SkeletonBox key={i} className="h-24" />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Section components (presentational) ───────────────────────────────────
 
 function FeaturedCoupons({ coupons }: { coupons: Coupon[] }) {
   if (coupons.length === 0) return null;
@@ -60,7 +189,7 @@ function FeaturedCoupons({ coupons }: { coupons: Coupon[] }) {
             Featured coupons
           </h2>
           <p className="text-sm text-ink-secondary mt-1">
-            Almost-out-of-stock or expiring soon — grab them before they're gone.
+            Almost-out-of-stock or expiring soon — grab them before they&apos;re gone.
           </p>
         </div>
       </div>
