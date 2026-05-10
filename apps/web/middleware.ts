@@ -65,19 +65,12 @@ function applyEdgeCacheHint(req: NextRequest, res: NextResponse): NextResponse {
   if (!isAnonCacheable(req.nextUrl.pathname)) return res;
   const cookieHeader = req.headers.get("cookie") ?? "";
   if (AUTH_COOKIE_RE.test(cookieHeader)) return res;
-  // Anonymous + cacheable path: hint Cloudflare to cache the rendered
-  // HTML for 10 s and serve stale up to 60 s while it revalidates in
-  // the background. `Vary: Cookie` keeps any future cookie-bearing
-  // visitor isolated on a different cache slot — defense in depth
-  // above the auth-cookie check above.
-  // max-age=0 forces the browser to revalidate every nav so it never
-  // holds a stale public-shell render (CF Free's default Browser TTL
-  // would otherwise prepend a 4 h browser cache); s-maxage=10 lets
-  // Cloudflare's edge serve the cached HTML for 10 s, which is where
-  // the actual TTFB win comes from.
+  // Anonymous + cacheable path: edge-cache the HTML for 5 min, serve
+  // stale up to 10 min during background revalidation. Vary: Cookie
+  // keeps any future cookie-bearing visitor on a different cache slot.
   res.headers.set(
     "Cache-Control",
-    "public, max-age=0, s-maxage=10, stale-while-revalidate=60",
+    "public, max-age=0, s-maxage=300, stale-while-revalidate=600",
   );
   res.headers.append("Vary", "Cookie");
   return res;
