@@ -9,6 +9,8 @@ import { apiFetch, ApiError } from "./server/api";
 // request when multiple callers hit it on the same SSR pass.
 export interface PublicSettings {
   favoritesEnabled: boolean;
+  /** Gates the "🎁 This is a gift" checkout path platform-wide. */
+  giftingEnabled: boolean;
   /** Platform's cut (%); maps to Stripe's application_fee_amount. */
   platformFeePercent: number;
   updatedAt: string;
@@ -18,6 +20,7 @@ export interface PublicSettings {
 
 const DEFAULT_SETTINGS: PublicSettings = {
   favoritesEnabled: true,
+  giftingEnabled: true,
   platformFeePercent: 5,
   updatedAt: new Date(0).toISOString(),
   googleEnabled: false,

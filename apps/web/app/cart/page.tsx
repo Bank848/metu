@@ -8,6 +8,7 @@ import { GlassButton } from "@/components/visual/GlassButton";
 import { ProductCard } from "@/components/ProductCard";
 import { apiAuth, getMe } from "@/lib/session";
 import { getFeaturedProducts, getFavoriteSet } from "@/lib/server/queries";
+import { safeGetSettings } from "@/lib/settings";
 import { getServerT } from "@/lib/i18n/server";
 import { CartLines } from "./CartLines";
 
@@ -38,7 +39,10 @@ export default async function CartPage() {
   const me = await getMe();
   if (!me) redirect("/login?next=/cart");
 
-  const cart = await apiAuth<Cart>("/cart");
+  const [cart, settings] = await Promise.all([
+    apiAuth<Cart>("/cart"),
+    safeGetSettings(),
+  ]);
   const isEmpty = !cart || cart.items.length === 0;
   const t = getServerT();
 
@@ -102,7 +106,7 @@ export default async function CartPage() {
               )}
             </>
           ) : (
-            <CartLines cart={cart} buyerEmail={me.user.email} />
+            <CartLines cart={cart} buyerEmail={me.user.email} giftingEnabled={settings.giftingEnabled} />
           )}
         </div>
       </main>

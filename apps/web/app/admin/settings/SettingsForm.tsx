@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 
 interface Settings {
   favoritesEnabled: boolean;
+  giftingEnabled: boolean;
   platformFeePercent: number;
   updatedAt: string;
 }
@@ -17,12 +18,14 @@ interface Settings {
 export function SettingsForm({ initial }: { initial: Settings }) {
   const router = useRouter();
   const [favoritesEnabled, setFavoritesEnabled] = useState(initial.favoritesEnabled);
+  const [giftingEnabled, setGiftingEnabled] = useState(initial.giftingEnabled);
   const [platformFeePercent, setPlatformFeePercent] = useState(initial.platformFeePercent);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const dirty =
     favoritesEnabled !== initial.favoritesEnabled ||
+    giftingEnabled !== initial.giftingEnabled ||
     platformFeePercent !== initial.platformFeePercent;
 
   async function onSave() {
@@ -31,6 +34,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
     try {
       const patch: Record<string, unknown> = {};
       if (favoritesEnabled !== initial.favoritesEnabled) patch.favoritesEnabled = favoritesEnabled;
+      if (giftingEnabled !== initial.giftingEnabled) patch.giftingEnabled = giftingEnabled;
       if (platformFeePercent !== initial.platformFeePercent) patch.platformFeePercent = platformFeePercent;
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
@@ -64,6 +68,13 @@ export function SettingsForm({ initial }: { initial: Settings }) {
           description="TopNav heart icon, FavoriteButton on cards, and the /favorites inbox visible."
           checked={favoritesEnabled}
           onChange={setFavoritesEnabled}
+        />
+
+        <Toggle
+          label="Gift checkout enabled"
+          description={'The "🎁 This is a gift" toggle on the cart, the recipient-email field, and the gift-claim flow. Existing gift orders are unaffected.'}
+          checked={giftingEnabled}
+          onChange={setGiftingEnabled}
         />
 
         {/* Platform fee knob — wired to Stripe `application_fee_amount`. */}

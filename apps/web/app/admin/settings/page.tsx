@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Heart, Percent } from "lucide-react";
+import { Settings as SettingsIcon, Heart, Percent, Gift } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { getSettings } from "@/lib/settings";
 import { SettingsForm } from "./SettingsForm";
@@ -32,6 +32,14 @@ export default async function AdminSettingsPage() {
                 <span className="font-semibold text-white">Favorites enabled —</span>{" "}
                 ON shows the TopNav heart icon, the FavoriteButton on every card, and the /favorites inbox.
                 OFF hides them all. Existing favourite rows are preserved — flipping back ON immediately surfaces the user&#x2019;s prior favourites.
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <Gift className="h-4 w-4 text-metu-yellow shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-white">Gift checkout enabled —</span>{" "}
+                ON shows the &#x201C;🎁 This is a gift&#x201D; toggle on the cart, accepts a recipient email, and runs the gift-claim flow.
+                OFF hides the toggle in the cart UI and rejects gift fields server-side at checkout. Already-placed gift orders keep their claim links — only new gifts are blocked.
               </div>
             </li>
             <li className="flex items-start gap-3">

@@ -65,12 +65,16 @@ function maxForLine(line: Line): number {
 export function CartLines({
   cart: initial,
   buyerEmail,
+  giftingEnabled = true,
 }: {
   cart: Cart;
   /** Buyer's signed-in email — used to block "gift to yourself" at the
    *  client side before the round-trip to /orders. Server still has the
    *  authoritative check. */
   buyerEmail?: string;
+  /** Mirrors the SystemSetting flag — when false the entire gift UI
+   *  is hidden and the server will reject any leaked gift fields. */
+  giftingEnabled?: boolean;
 }) {
   const router = useRouter();
   const { t } = useI18n();
@@ -303,8 +307,10 @@ export function CartLines({
 
   async function checkout() {
     if (selectedItems.length === 0) return;
-    // Gift-form pre-flight before we hit the server.
-    if (giftOpen) {
+    // Gift-form pre-flight before we hit the server. Only runs when
+    // the admin flag is on; the gift section is hidden in render but
+    // a stale localStorage payload could otherwise still trip this.
+    if (giftingEnabled && giftOpen) {
       const trimmed = giftEmail.trim();
       if (!trimmed) {
         setToast({ ok: false, text: "Add the recipient's email or untick \"This is a gift\"." });
@@ -346,8 +352,8 @@ export function CartLines({
           // Only send the chosen line IDs — unchecked items stay in the
           // next active cart.
           selectedCartItemIds: selectedItems.map((l) => l.cartItemId),
-          giftRecipientEmail: giftOpen && giftEmail.trim() ? giftEmail.trim() : undefined,
-          giftMessage: giftOpen && giftMessage.trim() ? giftMessage.trim() : undefined,
+          giftRecipientEmail: giftingEnabled && giftOpen && giftEmail.trim() ? giftEmail.trim() : undefined,
+          giftMessage: giftingEnabled && giftOpen && giftMessage.trim() ? giftMessage.trim() : undefined,
         }),
         credentials: "include",
       });
@@ -751,39 +757,42 @@ export function CartLines({
           )}
         </div>
 
-        {/* Gift checkout — collapsed by default. */}
-        <div className="mb-4 rounded-xl border border-white/10 bg-surface-2/40 p-3">
-          <label className="flex items-center gap-2 cursor-pointer text-sm">
-            <input
-              type="checkbox"
-              checked={giftOpen}
-              onChange={(e) => setGiftOpen(e.target.checked)}
-              className="h-4 w-4 accent-metu-yellow"
-            />
-            <span className="text-white font-semibold">🎁 This is a gift</span>
-          </label>
-          {giftOpen && (
-            <div className="mt-3 space-y-2">
+        {/* Gift checkout — collapsed by default. Hidden entirely when
+            the admin disables gifting in /admin/settings. */}
+        {giftingEnabled && (
+          <div className="mb-4 rounded-xl border border-white/10 bg-surface-2/40 p-3">
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
               <input
-                type="email"
-                value={giftEmail}
-                onChange={(e) => setGiftEmail(e.target.value)}
-                placeholder="Recipient's email"
-                className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
+                type="checkbox"
+                checked={giftOpen}
+                onChange={(e) => setGiftOpen(e.target.checked)}
+                className="h-4 w-4 accent-metu-yellow"
               />
-              <textarea
-                value={giftMessage}
-                onChange={(e) => setGiftMessage(e.target.value.slice(0, 500))}
-                placeholder="Optional gift note"
-                rows={2}
-                className="w-full resize-none rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
-              />
-              <p className="text-[10px] text-ink-dim text-right font-mono">
-                {giftMessage.length} / 500
-              </p>
-            </div>
-          )}
-        </div>
+              <span className="text-white font-semibold">🎁 This is a gift</span>
+            </label>
+            {giftOpen && (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="email"
+                  value={giftEmail}
+                  onChange={(e) => setGiftEmail(e.target.value)}
+                  placeholder="Recipient's email"
+                  className="w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
+                />
+                <textarea
+                  value={giftMessage}
+                  onChange={(e) => setGiftMessage(e.target.value.slice(0, 500))}
+                  placeholder="Optional gift note"
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm text-white placeholder:text-ink-dim focus:border-metu-yellow outline-none"
+                />
+                <p className="text-[10px] text-ink-dim text-right font-mono">
+                  {giftMessage.length} / 500
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <GlassButton
           tone="gold"
