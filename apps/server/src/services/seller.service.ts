@@ -29,15 +29,29 @@ export async function getStore(storeId: number) {
 export async function listProducts(storeId: number) {
   // Hard cap to prevent unbounded result sets / memory blow-up on
   // long-tail seller accounts. 200 is well above realistic product
-  // counts; revisit if a seller hits the ceiling.
+  // counts; revisit if a seller hits the ceiling. `select` allowlist
+  // mirrors what the seller + admin product-table consumers actually
+  // render — full Category / ProductItem / ProductImage rows shipped
+  // ~10x more bytes per row than needed.
   return prisma.product.findMany({
     where: { storeId },
     orderBy: { productId: "desc" },
     take: 200,
-    include: {
-      category: true,
-      items: { orderBy: { price: "asc" } },
-      images: { take: 1, orderBy: { sortOrder: "asc" } },
+    select: {
+      productId: true,
+      name: true,
+      description: true,
+      isActive: true,
+      category: { select: { categoryName: true } },
+      items: {
+        orderBy: { price: "asc" },
+        select: { price: true, discountPercent: true, deliveryMethod: true },
+      },
+      images: {
+        take: 1,
+        orderBy: { sortOrder: "asc" },
+        select: { productImage: true },
+      },
       _count: { select: { reviews: true } },
     },
   });
