@@ -44,7 +44,9 @@ primary_region = "sin"
   # boot. Defense is days away; consistency beats $1/mo of savings.
   auto_stop_machines = "off"
   auto_start_machines = true
-  min_machines_running = 1
+  # Pinned to 2 for the 2026-05-12 defense window: redundancy + zero cold-start
+  # during demo. Drop back to 1 after defense to halve the idle Fly bill.
+  min_machines_running = 2
 
   [[http_service.checks]]
     interval = "30s"
