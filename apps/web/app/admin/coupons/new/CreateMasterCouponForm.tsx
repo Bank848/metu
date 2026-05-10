@@ -5,6 +5,19 @@ import { Loader2, Ticket, Globe, Store as StoreIcon, X } from "lucide-react";
 
 type StoreOption = { storeId: number; name: string; ownerName?: string };
 
+// sv-SE locale conveniently formats as ISO YYYY-MM-DD; combined with
+// timeZone: Asia/Bangkok this returns the Thai-local calendar date,
+// which is what every <input type="date"> consumer expects.
+const BKK_DATE_FMT = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Asia/Bangkok",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+function bangkokDate(d: Date): string {
+  return BKK_DATE_FMT.format(d);
+}
+
 interface Props {
   stores: StoreOption[];
 }
@@ -24,11 +37,14 @@ export function CreateMasterCouponForm({ stores }: Props) {
   const [code, setCode] = useState("");
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState("10");
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Bangkok-local YYYY-MM-DD via Intl.DateTimeFormat. Plain
+  // toISOString() returns UTC, so any admin opening the form before
+  // 07:00 ICT would see yesterday's date in the start picker.
+  const [startDate, setStartDate] = useState(() => bangkokDate(new Date()));
   const [endDate, setEndDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
-    return d.toISOString().slice(0, 10);
+    return bangkokDate(d);
   });
   const [usageLimit, setUsageLimit] = useState("100");
   const [busy, setBusy] = useState(false);
