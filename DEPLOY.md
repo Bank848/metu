@@ -1,11 +1,11 @@
-# METU · Deployment Guide
+# METU · Deployment Guide (LEGACY)
 
-> **NOTE — Phase 28 (April 2026):** the production deploy now runs on
-> **Fly.io + Supabase** (see `DEPLOY_FLY.md` for the canonical setup).
-> The Vercel + Neon path described below is preserved as a fallback /
-> historical reference ; everything still works if you swap the
-> "Neon" connection-string format for the Supabase pooler URLs from
-> the new guide.
+> ⚠️ **DEPRECATED — Vercel + Neon path. Production runs on Fly.io +
+> Supabase.** See [`DEPLOY_FLY.md`](./DEPLOY_FLY.md) for the canonical
+> setup, or the "Production deploy (Fly.io)" section in
+> [`README.md`](./README.md). This guide is kept only as a historical
+> reference; some commands here (notably `vercel deploy`) no longer
+> match the live infrastructure.
 
 > Single-origin Vercel deploy — the Next.js app contains **both** the frontend pages
 > **and** the API route handlers. No separate backend to run.

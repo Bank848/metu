@@ -2,10 +2,10 @@
 
 > **CPE241 Database Systems · KMUTT · Group 8 · Live demo build**
 >
-> 🚀 **Live web:** https://metu.fly.dev
+> 🚀 **Live web:** https://metu.online
 > 🔌 **Live API:** https://metu-api.fly.dev (health: https://metu-api.fly.dev/health)
-> 📜 **Changelog:** https://metu.fly.dev/admin/changelog (admin login required)
-> 🎬 **5-min demo script:** [PRESENTATION.md](./PRESENTATION.md)
+> 📜 **Changelog:** https://metu.online/admin/changelog (admin login required)
+> 🛡️ **Pentest summary:** [.claude/PENTEST_SUMMARY.md](./.claude/PENTEST_SUMMARY.md) — 5 cycles, 0 P0/P1 open
 > 📐 **Rubric coverage matrix:** [docs/rubric-coverage.md](./docs/rubric-coverage.md) — every Lecture 9 + 10 topic mapped to file:line
 > 🎨 **Design:** Dark space-theme · Thai-leaning catalog · THB pricing
 
@@ -13,7 +13,7 @@ A dark-mode marketplace for Thai digital creators — templates, music, courses,
 Built to exercise a normalized relational schema (27 entities, crow's-foot ER)
 end-to-end on Postgres + Prisma, with a clean **client / server split**:
 
-- **`apps/web`** — Next.js 14 BFF (Server Components + Route Handlers as proxies)
+- **`apps/web`** — Next.js 15 BFF (Server Components + Route Handlers as proxies)
 - **`apps/server`** — Express + layered routes/controllers/services/models, owns Prisma + JWT cookie
 - **`packages/db`** — Prisma schema + migrations + seed (single source of truth)
 - **`packages/shared`** — zod schemas + TS enums consumed by both web and server
@@ -21,7 +21,7 @@ end-to-end on Postgres + Prisma, with a clean **client / server split**:
 Live deployment is **two Fly.io machines** in `sin` region:
 `metu` (web) talks to `metu-api` (server) over the internal network. Postgres lives on **Supabase** (Singapore, `ap-southeast-1`).
 
-![Status](https://img.shields.io/badge/status-demo--ready-FBBF24?style=flat-square) ![Stack](https://img.shields.io/badge/stack-Next.js%20%7C%20Express%20%7C%20Postgres%20%7C%20Prisma%20%7C%20Stripe%20Connect-1F2937?style=flat-square) ![Tests](https://img.shields.io/badge/tests-144%20server%20%7C%2037%20web%20%E2%9C%85-22C55E?style=flat-square)
+![Status](https://img.shields.io/badge/status-demo--ready-FBBF24?style=flat-square) ![Stack](https://img.shields.io/badge/stack-Next.js%20%7C%20Express%20%7C%20Postgres%20%7C%20Prisma%20%7C%20Stripe%20Connect-1F2937?style=flat-square) ![Tests](https://img.shields.io/badge/tests-202%20server%20%7C%2037%20web%20%E2%9C%85-22C55E?style=flat-square)
 
 ## Quick start (local dev)
 
@@ -112,7 +112,7 @@ metu/
 
 ## Tech stack
 
-- **Frontend:** Next.js 14 · TypeScript · Tailwind · lucide-react · Framer Motion · Sentry
+- **Frontend:** Next.js 15 · TypeScript · Tailwind · lucide-react · Framer Motion · Sentry
 - **Backend:** Express · TypeScript · Zod · pino
 - **Auth:** [better-auth](https://www.better-auth.com) owns the cookie (Mode A); Google OAuth, TOTP via otplib, in-house phone OTP (Firebase optional)
 - **Payments:** Stripe Connect TH, direct-charge model with `application_fee`. Webhooks for `payment_intent.succeeded`, `account.updated`, `charge.refunded`
@@ -133,7 +133,7 @@ for a future mobile or 3rd-party API consumer.
                     │ HTTPS (cookie)
                     ▼
        ┌────────────────────────────┐
-       │   metu.fly.dev             │   apps/web  (Next.js BFF)
+       │   metu.online              │   apps/web  (Next.js BFF)
        │   • Server Components      │
        │   • Client Components      │
        │   • /api/* → forwardToApi  │
@@ -153,9 +153,10 @@ for a future mobile or 3rd-party API consumer.
        └────────────────────────────┘
 ```
 
-Phase 13 ships incrementally — one resource per PR. Status: **8 of ~10 resources
-migrated** (catalog, auth, cart+coupons, orders, reviews, q&a, favorites+stock-alerts,
-messages, seller). Admin module + cleanup pass remain.
+Phase 13 split is **complete** — every resource (catalog, auth, cart+coupons,
+orders, reviews, q&a, favorites+stock-alerts, messages, seller, admin) lives
+on the Express side. The Next BFF is pure UI + per-request server-component
+queries (cached via `unstable_cache`).
 
 ## Scripts
 
@@ -174,7 +175,7 @@ messages, seller). Admin module + cleanup pass remain.
 | `npm run build -w @metu/web`         | Production build (Next)                |
 | `npm run build -w @metu/server`      | Compile TypeScript (Express)           |
 | `npm test -w @metu/web`              | Web Vitest (37 tests)                  |
-| `npm test -w @metu/server`           | Server Vitest + supertest (144 tests)  |
+| `npm test -w @metu/server`           | Server Vitest + supertest (202 tests)  |
 | `npm run db:er-schema`               | Regenerate `apps/web/lib/admin/er-schema.ts` from Prisma (run after every schema edit so /admin/er-diagram stays accurate) |
 | `tsx scripts/seed-aurora-store.mts`  | Populate store 6 (Aurora Creative Lab) with 30 demo products |
 | `tsx scripts/seed-pixelforge-store.mts` | Populate store 5 (Pixel Forge Bangkok) with 30 demo products |
@@ -220,7 +221,7 @@ Full matrix at [docs/rubric-coverage.md](./docs/rubric-coverage.md).
 
 ## Phase checklist
 
-Granular history at https://metu.fly.dev/admin/changelog — each card links to
+Granular history at https://metu.online/admin/changelog — each card links to
 the GitHub commit. Summary:
 
 | Phase | Scope |
@@ -256,6 +257,13 @@ the GitHub commit. Summary:
 | **45** | Schema aligned with the submitted docx report — Product gains `deliveryMethod` + `isStackable`, ProductItem requires `name`, Order gets a direct `userId` FK, `OrderItem.pricePerUnit` Decimal(12,2), new `ProductDetail` table, `TransactionType` drops `refund` |
 | **46** | Stripe checkout fix (pass `stripeAccount` to `loadStripe`) · Firebase Phone Auth wired but opt-in (env-gated) |
 | **47** | 25 missing `loading.tsx` skeletons added across admin/seller/public · ER diagram drag-from-anywhere + fullscreen mode · TopNav category chips point at real IDs · Stripe banner self-fetches so it disappears post-onboarding |
+| **48 — gift flow** | Gift order redemption with HMAC token, signup handoff, recipient email branding · buyer reclaim before recipient views · self-gift block · cart badge refresh after checkout |
+| **49 — login + 2FA polish** | Login redesign single-column · backup codes accepted on `/login`, `/auth/totp/disable`, `/change-password`, `TotpStepUpModal` · disable-2FA requires TOTP or backup code · `/admin/database` step-up prompt · DOB picker switched to Y/M/D dropdowns on register |
+| **50 — admin earnings** | Platform-fee KPI on `/admin` overview · revenue chart converted from bars to line + area · tag-insights table with top-3 categories per tag · `/seller/analytics` Bangkok-TZ daily aggregation |
+| **51 — browse hardening** | Custom-tag input + Shop name + Budget range slider on filter panel · sticky-sidebar overscroll fix · price/q/shop param zod-clamped + ILIKE wildcard escape · DeliveryMethod enum cast |
+| **52 — pentest cycle 5 + perf** | 4 small fixes from R1 sweep (debug `console.log` removed, `order.paid` audit emit, browse param clamp, coupon startDate +5y cap) · home/browse SSR queries cached 60s-5min (TTFB ~3s → ~0.6s) |
+| **53 — coupon + tag CRUD** | Seller can edit and delete coupons (404-scoped, refuse delete if redeemed) · `TagInput` accepts free-form names; `resolveTagIds()` server helper creates new `product_tag` rows on demand |
+| **Cycles 1-5 pentest** | 4 cycles closed pre-defense (~150 surfaces, 0 P0/P1 open) + cycle 5 R1+R2 deployed (DEMO_REVEAL_TOKENS unset on prod, browse hardening, audit emit). See [.claude/PENTEST_SUMMARY.md](./.claude/PENTEST_SUMMARY.md) |
 
 ## Production deploy (Fly.io)
 
@@ -284,7 +292,7 @@ flyctl secrets set -a metu-api \
   DATABASE_URL='postgresql://postgres.PROJECTREF:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1' \
   DATABASE_URL_UNPOOLED='postgresql://postgres.PROJECTREF:PASSWORD@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres' \
   JWT_SECRET='<32+ bytes>' \
-  CORS_ORIGIN='https://metu.fly.dev'
+  CORS_ORIGIN='https://metu.online'
 
 # metu (web BFF) — uses the same DATABASE_URL pair for SSR Prisma queries
 flyctl secrets set -a metu \
@@ -305,7 +313,7 @@ flyctl secrets set -a metu-api \
 flyctl secrets set -a metu-api \
   STRIPE_SECRET_KEY='sk_test_...' \
   STRIPE_WEBHOOK_SECRET='whsec_...' \
-  STRIPE_CONNECT_RETURN_BASE='https://metu.fly.dev'
+  STRIPE_CONNECT_RETURN_BASE='https://metu.online'
 flyctl secrets set -a metu \
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY='pk_test_...'
 
@@ -322,9 +330,12 @@ flyctl secrets set -a metu \
 flyctl secrets set -a metu-api \
   FIREBASE_SERVICE_ACCOUNT_JSON='<paste the entire JSON file content>'
 
-# Demo mode — surfaces OTPs and email-verify tokens on screen instead
-# of requiring real SMS / email delivery
-flyctl secrets set -a metu-api DEMO_REVEAL_TOKENS='true'
+# Demo mode (LOCAL DEV ONLY — never set on a real prod) — surfaces OTPs
+# and email-verify tokens on screen so reviewers without inbox access
+# can register without real SMS/email. Setting on production leaks raw
+# one-shot tokens via the register/resend response body. Cycle 5 R1
+# flagged this as P0 when it was set on `metu-api`. Keep it OFF in prod.
+# flyctl secrets set -a metu-api DEMO_REVEAL_TOKENS='true'
 ```
 
 When you set up the Stripe webhook endpoint in the dashboard, toggle
