@@ -70,9 +70,14 @@ function applyEdgeCacheHint(req: NextRequest, res: NextResponse): NextResponse {
   // the background. `Vary: Cookie` keeps any future cookie-bearing
   // visitor isolated on a different cache slot — defense in depth
   // above the auth-cookie check above.
+  // max-age=0 forces the browser to revalidate every nav so it never
+  // holds a stale public-shell render (CF Free's default Browser TTL
+  // would otherwise prepend a 4 h browser cache); s-maxage=10 lets
+  // Cloudflare's edge serve the cached HTML for 10 s, which is where
+  // the actual TTFB win comes from.
   res.headers.set(
     "Cache-Control",
-    "public, s-maxage=10, stale-while-revalidate=60",
+    "public, max-age=0, s-maxage=10, stale-while-revalidate=60",
   );
   res.headers.append("Vary", "Cookie");
   return res;
