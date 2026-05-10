@@ -125,17 +125,21 @@ export default function Hero({ stats }: { stats: Stats }) {
                 style={{ transform: `translate3d(${mousePos.x * 0.01}px, ${mousePos.y * 0.01}px, 0) rotate(2deg)` }}
                 >
                     {/* DOLLAR SIGN - Moving UP and RIGHT */}
-                    <div className="absolute h-[360px] w-[360px] bottom-10 right-[60px] transform -translate-y-18 -translate-x-20 z-5 rotate-12"> 
+                    <div className="absolute h-[360px] w-[360px] bottom-10 right-[60px] transform -translate-y-18 -translate-x-20 z-5 rotate-12">
                         <img
-                            src="/HeroSection/DollarSign.png"
-                            className="w-full h-full object-contain drop-shadow-2xl" 
+                            src="/HeroSection/DollarSign.webp"
+                            alt=""
+                            decoding="async"
+                            className="w-full h-full object-contain drop-shadow-2xl"
                         />
                     </div>
 
                     {/* WIRE HAND - Pushed much higher */}
                     <div className="absolute h-[620px] w-[620px] -top-40 -right-10 z-4">
                         <img
-                            src="/HeroSection/WireHand.png"
+                            src="/HeroSection/WireHand.webp"
+                            alt=""
+                            decoding="async"
                             className="w-full h-full object-contain opacity-80"
                         />
                     </div>

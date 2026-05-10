@@ -65,12 +65,13 @@ function applyEdgeCacheHint(req: NextRequest, res: NextResponse): NextResponse {
   if (!isAnonCacheable(req.nextUrl.pathname)) return res;
   const cookieHeader = req.headers.get("cookie") ?? "";
   if (AUTH_COOKIE_RE.test(cookieHeader)) return res;
-  // Anonymous + cacheable path: edge-cache the HTML for 5 min, serve
-  // stale up to 10 min during background revalidation. Vary: Cookie
-  // keeps any future cookie-bearing visitor on a different cache slot.
+  // Anonymous + cacheable path: edge-cache the HTML for 30 min, serve
+  // stale up to 1 h during background revalidation — long enough for a
+  // defense demo session to stay on warm cache slots end-to-end. Vary:
+  // Cookie keeps any future cookie-bearing visitor on a different slot.
   res.headers.set(
     "Cache-Control",
-    "public, max-age=0, s-maxage=300, stale-while-revalidate=600",
+    "public, max-age=0, s-maxage=1800, stale-while-revalidate=3600",
   );
   res.headers.append("Vary", "Cookie");
   return res;
