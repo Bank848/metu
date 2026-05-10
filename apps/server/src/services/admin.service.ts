@@ -1256,18 +1256,43 @@ export async function createMasterCoupon(input: {
   startDate: Date | string;
   endDate: Date | string;
   usageLimit: number;
+  // Optional — when set, the coupon is scoped to that single store
+  // (mirrors the seller-side flow). null/undefined = master coupon.
+  storeId?: number | null;
 }, actorId: number, req?: AuditReq) {
   const code = input.code.trim().toUpperCase();
   if (!code) throw new AppError(400, "BadCode", "Code is required.");
-  // Pre-check master-coupon code uniqueness for a friendly 409.
+  const storeId = input.storeId ?? null;
+  // Validate the target store exists + isn't suspended before we let
+  // the admin mint a coupon against it.
+  if (storeId !== null) {
+    const store = await prisma.store.findUnique({
+      where: { storeId },
+      select: { storeId: true, suspendedAt: true },
+    });
+    if (!store) throw new AppError(404, "StoreNotFound", "Target store doesn't exist.");
+    if (store.suspendedAt) {
+      throw new AppError(409, "StoreSuspended", "Can't issue coupons on a suspended store.");
+    }
+  }
+  // Pre-check (storeId, code) uniqueness for a friendly 409 — schema's
+  // @@unique([storeId, code]) would otherwise surface as P2002.
   const dup = await prisma.coupon.findFirst({
-    where: { code, storeId: null },
+    where: { code, storeId },
     select: { couponId: true },
   });
-  if (dup) throw new AppError(409, "CodeTaken", "A master coupon with that code already exists.");
+  if (dup) {
+    throw new AppError(
+      409,
+      "CodeTaken",
+      storeId === null
+        ? "A master coupon with that code already exists."
+        : "That store already has a coupon with this code.",
+    );
+  }
   const created = await prisma.coupon.create({
     data: {
-      storeId: null,
+      storeId,
       code,
       discountType: input.discountType,
       discountValue: input.discountValue,
@@ -1280,10 +1305,10 @@ export async function createMasterCoupon(input: {
   });
   await audit({
     actorId,
-    action: "coupon.master_create",
+    action: storeId === null ? "coupon.master_create" : "coupon.admin_store_create",
     targetType: "coupon",
     targetId: created.couponId,
-    meta: { code, discountType: input.discountType, discountValue: input.discountValue },
+    meta: { code, discountType: input.discountType, discountValue: input.discountValue, storeId },
     req,
   });
   return created;

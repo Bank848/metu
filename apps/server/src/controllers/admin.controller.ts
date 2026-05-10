@@ -151,11 +151,24 @@ export const createMasterCoupon: RequestHandler = async (req, res, next) => {
     if (!parsed.success) {
       throw parsed.error;
     }
+    // Optional store scope — body field is independent of the shared
+    // schema (which is reused by the seller form where storeId comes
+    // from the auth context, not the body).
+    const rawStoreId = (req.body as { storeId?: unknown })?.storeId;
+    let storeId: number | null = null;
+    if (rawStoreId !== undefined && rawStoreId !== null && rawStoreId !== "") {
+      const n = Number(rawStoreId);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+        return next(Object.assign(new Error("storeId must be a positive integer"), { status: 400, code: "BadStoreId" }));
+      }
+      storeId = n;
+    }
     // Force uppercase (defence-in-depth alongside the schema refine).
     const code = parsed.data.code.toUpperCase();
     const created = await service.createMasterCoupon({
       ...parsed.data,
       code,
+      storeId,
     }, auth.uid, req);
     res.json({ ok: true, couponId: created.couponId });
   } catch (err) {
