@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/StatCard";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { EmptyState } from "@/components/EmptyState";
+import { AdminProductDeleteButton } from "@/components/admin/AdminProductDeleteButton";
 import { prisma } from "@/lib/server/prisma";
 import { fmtDate, fmtDateTime, coins, coinsOrFree, thbToCoins, coinsCompact } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -254,13 +255,20 @@ export default async function AdminStoreDetailPage({
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/admin/stores/${storeId}/products/${p.productId}/edit`}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-metu-yellow hover:underline"
-                        >
-                          <Pencil className="h-3 w-3" />
-                          Edit
-                        </Link>
+                        <div className="inline-flex items-center gap-2">
+                          <Link
+                            href={`/admin/stores/${storeId}/products/${p.productId}/edit`}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-metu-yellow hover:underline"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </Link>
+                          <AdminProductDeleteButton
+                            storeId={storeId}
+                            productId={p.productId}
+                            productName={p.name}
+                          />
+                        </div>
                       </td>
                     </tr>
                   );
