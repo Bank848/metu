@@ -129,7 +129,7 @@ export default async function AdminCouponsPage({
           subtitle={`${total.toLocaleString()} coupons across the platform · ranked by total discount given`}
         />
         <GlassButton tone="gold" href="/admin/coupons/new">
-          <Plus className="h-4 w-4" /> New master coupon
+          <Plus className="h-4 w-4" /> New coupon
         </GlassButton>
       </div>
 
