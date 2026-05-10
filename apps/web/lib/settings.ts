@@ -1,11 +1,12 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { apiFetch, ApiError } from "./server/api";
 
-// BFF-side settings helper. Server-side caches for 30s.
-// safeGetSettings returns defaults on error.
-// Both getSettings and safeGetSettings are wrapped in React's cache()
-// so a single SSR request that hits multiple callers (TopNav + admin
-// guards + page-level checks) only triggers one /settings round trip.
+// BFF-side settings helper. Public read — admin tweaks are rare so a
+// 5-minute cross-request cache slot is safe + saves an API hop on
+// every page render that needs settings (TopNav, admin guards,
+// payment-fee tile). React's cache() additionally dedups within one
+// request when multiple callers hit it on the same SSR pass.
 export interface PublicSettings {
   favoritesEnabled: boolean;
   /** Platform's cut (%); maps to Stripe's application_fee_amount. */
@@ -22,10 +23,23 @@ const DEFAULT_SETTINGS: PublicSettings = {
   googleEnabled: false,
 };
 
-export const getSettings = cache(async (): Promise<PublicSettings> => {
-  const data = await apiFetch<{ settings: PublicSettings }>("/settings");
-  return data.settings;
-});
+// Cross-request cache. skipAuth keeps headers() out of the cache
+// scope (settings are public anyway). 5-min TTL is short enough that
+// admin-flipped feature flags propagate quickly without forcing
+// every page render to pay the BFF→API round trip.
+const fetchSettingsCached = unstable_cache(
+  async (): Promise<PublicSettings> => {
+    const data = await apiFetch<{ settings: PublicSettings }>(
+      "/settings",
+      { skipAuth: true },
+    );
+    return data.settings;
+  },
+  ["public-settings"],
+  { revalidate: 300, tags: ["public-settings"] },
+);
+
+export const getSettings = cache(fetchSettingsCached);
 
 /** Like getSettings but never throws; falls back to defaults. */
 export const safeGetSettings = cache(async (): Promise<PublicSettings> => {

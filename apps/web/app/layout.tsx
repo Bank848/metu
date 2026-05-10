@@ -70,6 +70,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang={locale} className={`${display.variable} ${body.variable} ${mono.variable} ${thai.variable} dark`} suppressHydrationWarning>
       <head>
+        {/* Warm the TLS handshake to the API host while the HTML is
+            still parsing so the first apiAuth/apiFetch call (TopNav,
+            cart count, etc.) doesn't pay the connect+TLS cost cold. */}
+        <link rel="preconnect" href="https://metu-api.fly.dev" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://metu-api.fly.dev" />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body className="min-h-screen bg-surface-1 text-ink-primary font-body antialiased">
