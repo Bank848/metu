@@ -34,9 +34,11 @@ const nextConfig = {
   // `experimental.instrumentationHook` removed in Next 15 — `instrumentation.ts`
   // is auto-detected, so no flag needed for Sentry's server runtime hook.
   images: {
-    // Disable the optimizer to avoid the next 14.2.x DoS chain.
-    // Re-enable after the Next 14→15 bump post-defense.
-    unoptimized: true,
+    // Re-enabled 2026-05-10: 14.2.31 patched the image-optimizer content
+    // injection chain and 14.2.35 patched CVE-2026-23864. Currently on
+    // 14.2.35 so the optimizer is safe — keeping it off was costing
+    // every product thumbnail a full-resolution download.
+    unoptimized: false,
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "i.pravatar.cc" },

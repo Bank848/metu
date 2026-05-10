@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Manrope, JetBrains_Mono, Prompt } from "next/font/google";
 import "./globals.css";
-import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
-import { CompareDrawer } from "@/components/CompareDrawer";
-import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { LayoutClientIslands } from "@/components/LayoutClientIslands";
 import { themeBootstrapScript } from "@/components/ThemeToggle";
 import { PlausibleScript } from "@/components/PlausibleScript";
 import { I18nProvider } from "@/lib/i18n/client";
@@ -83,9 +81,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <I18nProvider initialLocale={locale}>
           {children}
-          <KeyboardShortcuts />
-          <CompareDrawer />
-          <MobileBottomNav />
+          <LayoutClientIslands />
         </I18nProvider>
         <PlausibleScript />
       </body>
