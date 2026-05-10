@@ -18,6 +18,9 @@ import { UserInfoIntegrityCard } from "@/components/admin/UserInfoIntegrityCard"
 import { ProductPerformanceMatrix } from "@/components/admin/ProductPerformanceMatrix";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { StripeActivityCard } from "@/components/admin/StripeActivityCard";
+import { PaginatedList } from "@/components/admin/PaginatedList";
+import { UserGrowthChart } from "@/components/admin/UserGrowthChart";
+import { CouponImpactChart } from "@/components/admin/CouponImpactChart";
 import { apiFetch, ApiError } from "@/lib/server/api";
 import { coins, thbToCoins, coinsCompact, fmtDateTime, money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -41,6 +44,7 @@ type Stats = {
 
 type Dashboard = {
   growth: { totalUsers: number; buyers: number; sellers: number; admins: number; active7d: number } | null;
+  growthSeries: Array<{ day: string; buyers: number; sellers: number }>;
   topStores: Array<{ storeId: number; name: string; revenue: number; orders: number; rating: number }>;
   topStoresComputedAt: string | null;
   topProducts: Array<{ productId: number; name: string; revenue: number; units: number }>;
@@ -53,7 +57,28 @@ type Dashboard = {
     topCategories: Array<{ name: string; count: number }>;
   }>;
   couponImpact: { totalCoupons: number; activeCoupons: number; totalRedemptions: number; totalDiscount: number; nearExpiry: number } | null;
-  reviewMonitor: { avgRating: number; totalReviews: number; reviews7d: number; lowRated: number } | null;
+  couponImpactSeries: Array<{ day: string; redemptions: number; discountBaht: number }>;
+  couponImpactTop: Array<{
+    couponId: number;
+    code: string;
+    discountType: "percent" | "fixed";
+    discountValue: number;
+    storeId: number | null;
+    storeName: string;
+    redemptions: number;
+    totalDiscount: number;
+    netRevenue: number;
+  }>;
+  reviewMonitor: {
+    avgRating: number;
+    totalReviews: number;
+    reviews7d: number;
+    lowRated: number;
+    buyersWhoReviewed: number;
+    buyersWhoBought: number;
+    eligiblePairs: number;
+    reviewedPairs: number;
+  } | null;
   kpiSparklines: { users: number[]; orders: number[]; gmv: number[]; reviews: number[] };
   ordersByStatus: Array<{ status: string; count: number }>;
   kpiDeltas: {
@@ -321,21 +346,7 @@ export default async function AdminOverview({
       {/* User Growth + Coupon Impact + Review Monitor */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {dashboard.growth && (
-          <div className="rounded-2xl border border-line bg-space-900 p-5">
-            <h3 className="font-display font-bold text-white flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-mint" />
-              User growth
-            </h3>
-            <div className="mb-3 mt-1">
-              <SqlTechniqueBadge technique="count-filter" />
-            </div>
-            <ul className="space-y-1.5 text-sm">
-              <li className="flex justify-between"><span className="text-ink-secondary">Buyers</span><span className="font-mono text-white">{dashboard.growth.buyers.toLocaleString()}</span></li>
-              <li className="flex justify-between"><span className="text-ink-secondary">Sellers</span><span className="font-mono text-white">{dashboard.growth.sellers.toLocaleString()}</span></li>
-              <li className="flex justify-between"><span className="text-ink-secondary">Admins</span><span className="font-mono text-white">{dashboard.growth.admins.toLocaleString()}</span></li>
-              <li className="flex justify-between border-t border-line pt-1.5"><span className="text-ink-dim text-xs">Active in last 7 days</span><span className="font-mono text-mint">{dashboard.growth.active7d.toLocaleString()}</span></li>
-            </ul>
-          </div>
+          <UserGrowthChart series={dashboard.growthSeries ?? []} />
         )}
         {dashboard.couponImpact && (
           <div className="rounded-2xl border border-line bg-space-900 p-5">
@@ -372,10 +383,75 @@ export default async function AdminOverview({
               <li className="flex justify-between"><span className="text-ink-secondary">Avg rating</span><span className="font-mono text-metu-yellow">{dashboard.reviewMonitor.avgRating.toFixed(2)}★</span></li>
               <li className="flex justify-between"><span className="text-ink-secondary">Total reviews</span><span className="font-mono text-white">{dashboard.reviewMonitor.totalReviews.toLocaleString()}</span></li>
               <li className="flex justify-between"><span className="text-ink-secondary">Last 7 days</span><span className="font-mono text-mint">{dashboard.reviewMonitor.reviews7d}</span></li>
-              <li className="flex justify-between border-t border-line pt-1.5"><span className="text-ink-dim text-xs">Low-rated (≤2★)</span><span className="font-mono text-coral">{dashboard.reviewMonitor.lowRated}</span></li>
+              <li className="flex justify-between"><span className="text-ink-dim text-xs">Low-rated (≤2★)</span><span className="font-mono text-coral">{dashboard.reviewMonitor.lowRated}</span></li>
             </ul>
+            {/* Post-purchase review conversion. Eligible pairs =
+                distinct (buyer, product) from settled orders; reviewed
+                pairs = the subset that actually got a review. The
+                ratio is the actionable lever — lower means a bigger
+                pool of "please rate your purchase" prompts to send. */}
+            {(() => {
+              const m = dashboard.reviewMonitor;
+              const conversion = m.eligiblePairs > 0
+                ? (m.reviewedPairs / m.eligiblePairs) * 100
+                : 0;
+              const unreviewed = Math.max(0, m.eligiblePairs - m.reviewedPairs);
+              const tone =
+                conversion >= 50 ? "text-mint" :
+                conversion >= 25 ? "text-metu-yellow" :
+                "text-coral";
+              return (
+                <div className="mt-3 pt-3 border-t border-line">
+                  <div className="flex items-baseline justify-between mb-2">
+                    <span className="text-xs uppercase tracking-wider text-ink-dim font-semibold">
+                      Post-purchase reviews
+                    </span>
+                    <span className={`font-mono font-bold text-sm ${tone}`}>
+                      {conversion.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden mb-2">
+                    <div
+                      className={`h-full ${conversion >= 50 ? "bg-mint" : conversion >= 25 ? "bg-metu-yellow" : "bg-coral"}`}
+                      style={{ width: `${Math.min(100, conversion)}%` }}
+                    />
+                  </div>
+                  <ul className="space-y-1 text-[11px]">
+                    <li className="flex justify-between">
+                      <span className="text-ink-dim">Reviewed</span>
+                      <span className="font-mono text-mint">{m.reviewedPairs.toLocaleString()}</span>
+                    </li>
+                    <li className="flex justify-between">
+                      <span className="text-ink-dim">Bought, not reviewed</span>
+                      <span className="font-mono text-coral">{unreviewed.toLocaleString()}</span>
+                    </li>
+                    <li className="flex justify-between">
+                      <span className="text-ink-dim">Eligible (buyer, product) pairs</span>
+                      <span className="font-mono text-ink-secondary">{m.eligiblePairs.toLocaleString()}</span>
+                    </li>
+                    <li className="flex justify-between border-t border-line/40 pt-1 mt-1">
+                      <span className="text-ink-dim">Buyers who left ≥1 review</span>
+                      <span className="font-mono text-ink-secondary">
+                        {m.buyersWhoReviewed.toLocaleString()} / {m.buyersWhoBought.toLocaleString()}
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
         )}
+      </div>
+
+      {/* Coupon Impact — combo bar+line chart over 30 d + top-10 table.
+          Pulls together what the small summary card already showed
+          (active count, near-expiry) into a single decision surface
+          that answers "is this promo program working?". */}
+      <div className="mb-6">
+        <CouponImpactChart
+          series={dashboard.couponImpactSeries ?? []}
+          top={dashboard.couponImpactTop ?? []}
+        />
       </div>
 
       {/* Top stores + Top products */}
@@ -402,19 +478,22 @@ export default async function AdminOverview({
             </div>
             <RefreshMatviewButton computedAt={dashboard.topStoresComputedAt} />
           </header>
-          <ol className="space-y-2 text-sm">
-            {dashboard.topStores.length === 0 && <li className="text-ink-dim">No store revenue yet — refresh the matview after the first paid order to populate.</li>}
-            {dashboard.topStores.map((s, i) => (
-              <li key={s.storeId} className="flex items-center justify-between border-b border-line/50 pb-1.5 last:border-0">
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="text-ink-dim text-xs font-mono w-5">{i + 1}.</span>
-                  <Link href={`/admin/stores/${s.storeId}`} className="text-white hover:text-metu-yellow truncate max-w-[180px]">{s.name}</Link>
-                  {s.rating > 0 && <span className="text-xs text-metu-yellow font-mono">{(s.rating / 10).toFixed(1)}★</span>}
-                </span>
-                <span className="font-mono text-mint">{coins(thbToCoins(s.revenue))}</span>
-              </li>
-            ))}
-          </ol>
+          <div className="space-y-2 text-sm">
+            <PaginatedList
+              items={dashboard.topStores}
+              empty={<p className="text-ink-dim">No store revenue yet — refresh the matview after the first paid order to populate.</p>}
+              renderItem={(s, i) => (
+                <div key={s.storeId} className="flex items-center justify-between border-b border-line/50 pb-1.5">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="text-ink-dim text-xs font-mono w-5">{i + 1}.</span>
+                    <Link href={`/admin/stores/${s.storeId}`} className="text-white hover:text-metu-yellow truncate max-w-[180px]">{s.name}</Link>
+                    {s.rating > 0 && <span className="text-xs text-metu-yellow font-mono">{(s.rating / 10).toFixed(1)}★</span>}
+                  </span>
+                  <span className="font-mono text-mint">{coins(thbToCoins(s.revenue))}</span>
+                </div>
+              )}
+            />
+          </div>
         </div>
         <div className="rounded-2xl border border-line bg-space-900 p-5">
           <h3 className="font-display font-bold text-white flex items-center gap-2">
@@ -425,19 +504,22 @@ export default async function AdminOverview({
             <SqlTechniqueBadge technique="join-group" />
             <span className="text-[10px] text-ink-dim font-mono">order_item × product · SUM(price × qty)</span>
           </div>
-          <ol className="space-y-2 text-sm">
-            {dashboard.topProducts.length === 0 && <li className="text-ink-dim">No product sales yet.</li>}
-            {dashboard.topProducts.map((p, i) => (
-              <li key={p.productId} className="flex items-center justify-between border-b border-line/50 pb-1.5 last:border-0">
-                <span className="flex items-center gap-2">
-                  <span className="text-ink-dim text-xs font-mono w-5">{i + 1}.</span>
-                  <Link href={`/product/${p.productId}`} className="text-white hover:text-metu-yellow truncate max-w-[200px]">{p.name}</Link>
-                  <span className="text-xs text-ink-dim">×{p.units}</span>
-                </span>
-                <span className="font-mono text-mint">{coins(thbToCoins(p.revenue))}</span>
-              </li>
-            ))}
-          </ol>
+          <div className="space-y-2 text-sm">
+            <PaginatedList
+              items={dashboard.topProducts}
+              empty={<p className="text-ink-dim">No product sales yet.</p>}
+              renderItem={(p, i) => (
+                <div key={p.productId} className="flex items-center justify-between border-b border-line/50 pb-1.5">
+                  <span className="flex items-center gap-2">
+                    <span className="text-ink-dim text-xs font-mono w-5">{i + 1}.</span>
+                    <Link href={`/product/${p.productId}`} className="text-white hover:text-metu-yellow truncate max-w-[200px]">{p.name}</Link>
+                    <span className="text-xs text-ink-dim">×{p.units}</span>
+                  </span>
+                  <span className="font-mono text-mint">{coins(thbToCoins(p.revenue))}</span>
+                </div>
+              )}
+            />
+          </div>
         </div>
       </div>
 
