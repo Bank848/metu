@@ -32,26 +32,39 @@ function scheduleSelfWarmup() {
   // Keep this list small + covering — too many entries multiplies the
   // load with little extra hit-rate gain on a single-region deploy.
   const HOT_URLS = ["/", "/browse", "/product/1", "/store/1"];
-  // Stay under the shortest unstable_cache TTL (60s for /, getStats,
-  // featured-coupons) so the cached value is refreshed BEFORE it
-  // expires — real visitors keep landing on warm slots.
-  const KEEP_WARM_INTERVAL_MS = 45_000;
+  // unstable_cache values for these surfaces have a 60s TTL. A warmup
+  // that fires while the cache is still valid is a no-op (returns the
+  // cached value without re-running the fetch). Firing more often
+  // catches the moment of expiry quickly and absorbs the refresh cost
+  // ourselves so real visitors keep landing on warm slots. 20s gives
+  // ~3 hits per TTL window, ~12 self-requests/min — negligible load.
+  const KEEP_WARM_INTERVAL_MS = 20_000;
   // Wait long enough for app/server to finish booting + Postgres
   // connections to handshake before firing the first request. Too
   // early and the loopback fails / pollutes Sentry with noise.
   const BOOT_GRACE_MS = 10_000;
 
+  // Sequential not parallel — on shared-cpu-1x, four concurrent
+  // server-component renders on the same machine spike CPU enough to
+  // delay any real visitor that lands during the warmup window.
   async function warm() {
-    await Promise.all(
-      HOT_URLS.map((u) =>
-        fetch(BASE + u, {
+    const t0 = Date.now();
+    let ok = 0;
+    let fail = 0;
+    for (const u of HOT_URLS) {
+      try {
+        const res = await fetch(BASE + u, {
           cache: "no-store",
-          // Tag header so the BFF's own logs / Fly access logs make
-          // it easy to spot synthetic traffic vs real visitors.
           headers: { "x-warmup": "1", "user-agent": "metu-warmup/1.0" },
-        }).catch(() => null),
-      ),
-    );
+        });
+        if (res.ok) ok++;
+        else fail++;
+      } catch {
+        fail++;
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[warmup] ${ok}/${HOT_URLS.length} ok, ${fail} fail, ${Date.now() - t0}ms`);
   }
 
   setTimeout(() => {
