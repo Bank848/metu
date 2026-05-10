@@ -48,16 +48,12 @@ router.post("/orders/:id/sync-from-stripe", ctrl.syncOrderFromStripe);
 // Reports
 router.get("/reports/:name",          ctrl.runReport);
 
-// Database inspector — strict step-up (TOTP enrolled + fresh challenge).
-router.get(
-  "/db/snapshot",
-  requireRecent2FA(15, { requireTotpEnrolled: true }),
-  ctrl.dbSnapshot,
-);
-router.post(
-  "/db/run",
-  requireRecent2FA(15, { requireTotpEnrolled: true }),
-  ctrl.dbRunSql,
-);
+// Database inspector — read-only surfaces (snapshot returns schema /
+// migration / index metadata; dbRunSql gates input to SELECT / WITH /
+// EXPLAIN with a 200-row cap and a 30s statement timeout). Admin role
+// check at the router level (requireAuth(["admin"])) plus per-call
+// audit logging is the security boundary; no fresh 2FA needed.
+router.get("/db/snapshot", ctrl.dbSnapshot);
+router.post("/db/run",     ctrl.dbRunSql);
 
 export default router;
