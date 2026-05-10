@@ -695,60 +695,65 @@ export const getProduct = unstable_cache(
 );
 
 async function _getProductImpl(id: number) {
-  const product = await prisma.product.findFirst({
-    where: {
-      productId: id,
-      isActive: true,
-      store: { suspendedAt: null },
-    },
-    include: {
-      store: {
-        select: {
-          storeId: true,
-          ownerId: true,
-          name: true,
-          profileImage: true,
-          businessType: { select: { name: true } },
+  // Run the heavy include and the review aggregate in parallel — they
+  // don't depend on each other (both keyed by productId). Saves one
+  // Singapore→Singapore Postgres round-trip on cold cache hits.
+  const [product, aggregate] = await Promise.all([
+    prisma.product.findFirst({
+      where: {
+        productId: id,
+        isActive: true,
+        store: { suspendedAt: null },
+      },
+      include: {
+        store: {
+          select: {
+            storeId: true,
+            ownerId: true,
+            name: true,
+            profileImage: true,
+            businessType: { select: { name: true } },
+          },
+        },
+        details: true,
+        category: true,
+        // Allowlist — keep deliveryUrl + licenseKeyTemplate out of the
+        // RSC Flight payload (mirrors the public API DTO).
+        items: {
+          orderBy: { price: "asc" },
+          select: {
+            productItemId: true,
+            productId: true,
+            name: true,
+            description: true,
+            image: true,
+            deliveryMethod: true,
+            quantity: true,
+            price: true,
+            discountPercent: true,
+            discountAmount: true,
+            createdDate: true,
+          },
+        },
+        images: { orderBy: { sortOrder: "asc" } },
+        productNTags: { include: { tag: true } },
+        reviews: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          include: {
+            // userId for the edit/delete affordance on the review.
+            user: { select: { userId: true, firstName: true, lastName: true, profileImage: true, username: true } },
+          },
         },
       },
-      details: true,
-      category: true,
-      // Allowlist — keep deliveryUrl + licenseKeyTemplate out of the
-      // RSC Flight payload (mirrors the public API DTO).
-      items: {
-        orderBy: { price: "asc" },
-        select: {
-          productItemId: true,
-          productId: true,
-          name: true,
-          description: true,
-          image: true,
-          deliveryMethod: true,
-          quantity: true,
-          price: true,
-          discountPercent: true,
-          discountAmount: true,
-          createdDate: true,
-        },
-      },
-      images: { orderBy: { sortOrder: "asc" } },
-      productNTags: { include: { tag: true } },
-      reviews: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: {
-          // userId for the edit/delete affordance on the review.
-          user: { select: { userId: true, firstName: true, lastName: true, profileImage: true, username: true } },
-        },
-      },
-    },
-  });
+    }),
+    prisma.productReview.aggregate({
+      where: { productId: id },
+      _count: { _all: true },
+      _avg: { rating: true },
+    }),
+  ]);
   if (!product) return null;
-  const aggregate = await prisma.productReview.aggregate({
-    where: { productId: id },
-    _count: { _all: true },
-    _avg: { rating: true },
-  });
   const reviewCount = aggregate._count?._all ?? 0;
   const avgRating =
     aggregate._avg?.rating !== null && aggregate._avg?.rating !== undefined

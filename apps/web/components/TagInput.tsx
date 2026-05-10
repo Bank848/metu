@@ -1,6 +1,5 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
 export type TagOption = {
@@ -177,32 +176,17 @@ export default function TagInput({
       </div>
 
       <div className="flex items-center justify-between min-h-[16px]">
-        <AnimatePresence mode="wait">
-          {limitError ? (
-            <motion.p
-              key="error"
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -6 }}
-              transition={{ duration: 0.2 }}
-              className="text-xs text-red-500 font-semibold"
-            >
-              ✕ Maximum {maxTags} tags
-            </motion.p>
-          ) : (
-            <motion.p
-              key="hint"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-[10px] text-zinc-600"
-            >
-              {selected.length === 0
-                ? "Enter or comma adds the highlighted suggestion or creates a new tag"
-                : `${maxTags - selected.length} remaining · Backspace to remove last`}
-            </motion.p>
-          )}
-        </AnimatePresence>
+        {limitError ? (
+          <p className="text-xs text-red-500 font-semibold transition-opacity duration-200">
+            ✕ Maximum {maxTags} tags
+          </p>
+        ) : (
+          <p className="text-[10px] text-zinc-600 transition-opacity duration-200">
+            {selected.length === 0
+              ? "Enter or comma adds the highlighted suggestion or creates a new tag"
+              : `${maxTags - selected.length} remaining · Backspace to remove last`}
+          </p>
+        )}
 
         <span
           className={`text-xs font-black tabular-nums transition-colors ${
@@ -217,43 +201,28 @@ export default function TagInput({
         </span>
       </div>
 
-      <AnimatePresence initial={false}>
-        {selected.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="overflow-hidden"
-          >
-            <div className="flex flex-wrap gap-2 p-3 bg-zinc-900/50 rounded-xl border border-zinc-800/50 min-h-[44px]">
-              <AnimatePresence mode="popLayout">
-                {selected.map((name) => (
-                  <motion.span
-                    key={name}
-                    layout
-                    initial={{ opacity: 0, scale: 0.7, y: 6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.5, y: -4 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                    className="inline-flex items-center gap-1 pl-1 pr-2.5 py-1 bg-zinc-800 text-zinc-200 text-xs font-semibold rounded-full border border-zinc-700"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => removeName(name)}
-                      aria-label={`Remove ${name}`}
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-zinc-500 hover:text-white hover:bg-red-500/60 transition-all"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                    {name}
-                  </motion.span>
-                ))}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {selected.length > 0 && (
+        <div className="overflow-hidden">
+          <div className="flex flex-wrap gap-2 p-3 bg-zinc-900/50 rounded-xl border border-zinc-800/50 min-h-[44px]">
+            {selected.map((name) => (
+              <span
+                key={name}
+                className="inline-flex items-center gap-1 pl-1 pr-2.5 py-1 bg-zinc-800 text-zinc-200 text-xs font-semibold rounded-full border border-zinc-700 transition-transform duration-150 animate-fade-in-up"
+              >
+                <button
+                  type="button"
+                  onClick={() => removeName(name)}
+                  aria-label={`Remove ${name}`}
+                  className="w-4 h-4 rounded-full flex items-center justify-center text-zinc-500 hover:text-white hover:bg-red-500/60 transition-all"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+                {name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
