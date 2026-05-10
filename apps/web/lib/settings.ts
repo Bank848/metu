@@ -27,9 +27,11 @@ const DEFAULT_SETTINGS: PublicSettings = {
 };
 
 // Cross-request cache. skipAuth keeps headers() out of the cache
-// scope (settings are public anyway). 5-min TTL is short enough that
-// admin-flipped feature flags propagate quickly without forcing
-// every page render to pay the BFF→API round trip.
+// scope (settings are public anyway). 30-s TTL matches the API
+// layer's own in-memory cache so an admin flip of a feature flag
+// propagates within the same ~30 s window the SettingsForm toast
+// promises. Hit rate stays > 95 % under demo traffic; the few
+// extra round trips per minute are negligible.
 const fetchSettingsCached = unstable_cache(
   async (): Promise<PublicSettings> => {
     const data = await apiFetch<{ settings: PublicSettings }>(
@@ -39,7 +41,7 @@ const fetchSettingsCached = unstable_cache(
     return data.settings;
   },
   ["public-settings"],
-  { revalidate: 300, tags: ["public-settings"] },
+  { revalidate: 30, tags: ["public-settings"] },
 );
 
 export const getSettings = cache(fetchSettingsCached);
