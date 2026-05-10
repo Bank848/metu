@@ -27,9 +27,13 @@ export async function getStore(storeId: number) {
 }
 
 export async function listProducts(storeId: number) {
+  // Hard cap to prevent unbounded result sets / memory blow-up on
+  // long-tail seller accounts. 200 is well above realistic product
+  // counts; revisit if a seller hits the ceiling.
   return prisma.product.findMany({
     where: { storeId },
     orderBy: { productId: "desc" },
+    take: 200,
     include: {
       category: true,
       items: { orderBy: { price: "asc" } },
@@ -145,6 +149,8 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
 }
 
 export async function listOrders(storeId: number, status?: string) {
+  // Hard cap — same rationale as listProducts. Most stores have <200
+  // orders; CSV export still walks the full table via exportOrdersCsv.
   return prisma.order.findMany({
     where: {
       ...(status ? { status: status as any } : {}),
@@ -153,6 +159,7 @@ export async function listOrders(storeId: number, status?: string) {
       },
     },
     orderBy: { createdAt: "desc" },
+    take: 200,
     include: {
       user: {
         select: {

@@ -136,9 +136,13 @@ export async function checkout(
   }
 
   // Re-validate every selected line so a stale / paused / over-cap
-  // row can't slip through to payment.
-  for (const ci of selectedItems) {
-    const fresh = await loadPurchasableProductItem(ci.productItemId);
+  // row can't slip through to payment. Parallel fan-out — sequential
+  // awaits added one round-trip per cart item to checkout latency.
+  const freshItems = await Promise.all(
+    selectedItems.map((ci) => loadPurchasableProductItem(ci.productItemId)),
+  );
+  selectedItems.forEach((ci, i) => {
+    const fresh = freshItems[i]!;
     const cap = capQuantity(ci.quantity, fresh);
     if (cap < ci.quantity) {
       throw new AppError(
@@ -148,7 +152,7 @@ export async function checkout(
         { productItemId: ci.productItemId, cap },
       );
     }
-  }
+  });
 
   // Already-owned guard for non-stackable products. Self-purchase
   // checks buyer; gift checks recipient if their email is registered
