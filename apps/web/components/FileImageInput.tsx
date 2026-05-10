@@ -8,6 +8,11 @@ import { cn, isDataUrl } from "@/lib/utils";
 // ─── Constants ───────────────────────────────────────────────────────────────
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB upload limit
 const MAX_OUTPUT_PX = 1200;         // max dimension after crop
+// Lower bound on the zoom slider. react-easy-crop's default is 1 (image
+// "covers" the crop frame); 0.4 lets the user shrink a large upload so
+// the whole image is visible and they can pick which slice to keep.
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 3;
 
 type AspectPreset = "square" | "wide" | "cover" | "portrait";
 
@@ -195,11 +200,16 @@ export function FileImageInput({
               image={tempSrc}
               crop={crop}
               zoom={zoom}
+              minZoom={MIN_ZOOM}
+              maxZoom={MAX_ZOOM}
               aspect={aspectRatio}
               onCropChange={setCrop}
               onCropComplete={onCropComplete}
               onZoomChange={setZoom}
               showGrid
+              // Let the user drag the image past the crop frame so a
+              // large photo can be panned around when zoomed out.
+              restrictPosition={false}
               style={{ containerStyle: { borderRadius: "1rem" } }}
             />
           </div>
@@ -209,8 +219,8 @@ export function FileImageInput({
             <ZoomOut className="h-4 w-4 text-zinc-500 shrink-0" />
             <input
               type="range"
-              min={1}
-              max={3}
+              min={MIN_ZOOM}
+              max={MAX_ZOOM}
               step={0.05}
               value={zoom}
               onChange={(e) => setZoom(Number(e.target.value))}
