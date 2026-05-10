@@ -35,6 +35,41 @@ async function timed<T>(name: string, stats: QueryStat[], fn: () => Promise<T>):
   }
 }
 
+// Tiny in-process TTL memoizer for admin dashboards. Platform-wide
+// stats are identical for every admin, so caching across requests
+// (within the TTL window) is safe. In-flight de-dup via a pending
+// promise map prevents 2 concurrent admins from each running 16 raw
+// queries against Postgres on the same cold key.
+type MemoEntry<R> = { v: R; expires: number };
+const memoCache = new Map<string, MemoEntry<unknown>>();
+const memoPending = new Map<string, Promise<unknown>>();
+function memo<A extends unknown[], R>(
+  name: string,
+  ttlMs: number,
+  fn: (...args: A) => Promise<R>,
+): (...args: A) => Promise<R> {
+  return async (...args: A): Promise<R> => {
+    const key = `${name}:${JSON.stringify(args)}`;
+    const hit = memoCache.get(key) as MemoEntry<R> | undefined;
+    if (hit && hit.expires > Date.now()) return hit.v;
+    const inflight = memoPending.get(key) as Promise<R> | undefined;
+    if (inflight) return inflight;
+    const p = fn(...args).then(
+      (v) => {
+        memoCache.set(key, { v, expires: Date.now() + ttlMs });
+        memoPending.delete(key);
+        return v;
+      },
+      (err) => {
+        memoPending.delete(key);
+        throw err;
+      },
+    );
+    memoPending.set(key, p);
+    return p;
+  };
+}
+
 // Admin service. Pure functions taking ids/params; destructive
 // actions write an AuditLog row through utils/audit.ts.
 
@@ -573,7 +608,9 @@ export async function setStoreSuspended(
  * Admin dashboard KPIs: counts + GMV in one CTE query, plus the recent
  * transactions feed and a `days`-wide daily revenue series in parallel.
  */
-export async function getStats(days = 14): Promise<AdminStatsResponse> {
+// Cached 60s — getStats runs ~10 raw aggregates against Postgres.
+// Wrapped after the impl declaration via memo() below.
+async function _getStatsImpl(days = 14): Promise<AdminStatsResponse> {
   // Clamp to bound the generate_series and keep the plan predictable.
   const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
   const offset = safeDays - 1;
@@ -702,7 +739,9 @@ export async function getStats(days = 14): Promise<AdminStatsResponse> {
  *   j. Coupon & Discount Impact  → total redeemed + total discount given
  *   k. Review & Rating Monitor   → avg rating + 7-day review velocity
  */
-export async function getDashboardMetrics() {
+// Cached 60s — getDashboardMetrics runs 16 parallel raw queries; even
+// with parallelism the slowest gates the response (~4s cold).
+async function _getDashboardMetricsImpl() {
   const queryStats: QueryStat[] = [];
   const [growth, topStores, topProducts, ageGroups, categories, tags, couponImpact, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows, topBuyersRows, ordersByCountryRows, aovTrendRows, infoIntegrityRows, productMatrixRows] = await Promise.all([
     timed("growth", queryStats, () => prisma.$queryRaw<Array<{
@@ -1174,7 +1213,8 @@ export async function getDashboardMetrics() {
  * 7×24 (DOW × hour) order-count grid over the last `days`. Bucketed
  * in Asia/Bangkok so the local "evening peak" lines up with wall clock.
  */
-export async function getOrderHeatmap(days = 30) {
+// Cached 60s — heatmap aggregation over 30 days of orders.
+async function _getOrderHeatmapImpl(days = 30) {
   const safeDays = Math.max(1, Math.min(365, Math.floor(days)));
   return prisma.$queryRaw<Array<{ dow: number; hour: number; orders: bigint }>>`
     SELECT
@@ -1961,3 +2001,12 @@ export async function syncOrderFromStripe(
   });
   return { synced: true };
 }
+
+// Cached exports for the read-heavy admin dashboards. 60s TTL is
+// short enough that "live" feel survives + long enough to absorb
+// page refresh storms during a demo. memoPending de-dups concurrent
+// admin viewers so the cold key only runs the underlying queries
+// once even if 5 admins refresh at the same instant.
+export const getStats = memo("admin.getStats", 60_000, _getStatsImpl);
+export const getDashboardMetrics = memo("admin.getDashboardMetrics", 60_000, _getDashboardMetricsImpl);
+export const getOrderHeatmap = memo("admin.getOrderHeatmap", 60_000, _getOrderHeatmapImpl);
