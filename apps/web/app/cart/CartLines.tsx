@@ -155,15 +155,35 @@ export function CartLines({
       return allOn;
     }
   });
+  // Re-key state whenever cart.items changes (cart respawn after a
+  // checkout attempt brings fresh cartItemIds). We DO consult
+  // localStorage here — keyed by productItemId — so an unchecked
+  // variant stays unchecked across the respawn instead of resetting
+  // to "selected" by default. Without this consult the user reported
+  // every store getting re-ticked after navigating away from /checkout
+  // and back.
   useEffect(() => {
+    let saved: Record<string, boolean> = {};
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(SELECTION_STORAGE_KEY);
+        if (raw) saved = JSON.parse(raw) as Record<string, boolean>;
+      } catch { /* ignore */ }
+    }
     setSelected((prev) => {
-      const next = { ...prev };
-      for (const l of cart.items) if (next[l.cartItemId] === undefined) next[l.cartItemId] = true;
-      for (const id of Object.keys(next)) {
-        if (!cart.items.find((l) => String(l.cartItemId) === id)) delete next[id as unknown as number];
+      const next: Record<number, boolean> = {};
+      for (const l of cart.items) {
+        // Priority: previous in-memory state for this cartItemId →
+        // localStorage by productItemId → default "selected".
+        if (prev[l.cartItemId] !== undefined) {
+          next[l.cartItemId] = prev[l.cartItemId];
+        } else {
+          next[l.cartItemId] = saved[String(l.productItemId)] !== false;
+        }
       }
       return next;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart.items]);
   // Persist whenever it changes so a later page mount can rehydrate.
   // Write keyed by productItemId so a cart respawn (after checkout
