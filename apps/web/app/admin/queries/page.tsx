@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Code2, Database, FileText, KeyRound, ListChecks, Search, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { SHOWCASE_QUERIES, type ShowcaseQuery } from "./queries";
-import { ExplainButton } from "./ExplainButton";
+import { QueryShowcaseSql } from "./QueryShowcaseSql";
 
 export const metadata: Metadata = { title: "Query showcase · Admin · METU" };
 export const dynamic = "force-dynamic";
@@ -96,17 +96,11 @@ export default function QueryShowcasePage() {
                 </div>
               </header>
 
-              {/* SQL block */}
+              {/* SQL block — single client component handles the
+                  trigger button and an inline result panel that grows
+                  down inside this same card on click. */}
               <div className="px-6 py-5">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-ink-dim">
-                    SQL
-                  </h3>
-                  <ExplainButton sql={q.sql} />
-                </div>
-                <pre className="text-xs font-mono text-white bg-space-950 border border-line rounded-xl p-4 overflow-x-auto whitespace-pre">
-                  {q.sql}
-                </pre>
+                <QueryShowcaseSql sql={q.sql} />
               </div>
 
               {/* Rationale + indexes */}
