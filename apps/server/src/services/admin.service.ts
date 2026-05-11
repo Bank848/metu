@@ -950,29 +950,34 @@ async function _getDashboardMetricsImpl() {
             AND end_date BETWEEN NOW() AND NOW() + INTERVAL '7 days')                          AS near_expiry
     `),
     // 30-day daily coupon-redemption series + true baht discounted.
-    // The discount per order is computed from the difference between
-    // the line-item subtotal and the stored total_price; that's the
-    // amount the coupon actually shaved off, capping at zero so a
-    // free-coupon-on-empty-cart never reads negative.
+    // The coupon FK lives on order_item (per-line attribution for
+    // master coupons that span multiple stores in one order); count
+    // distinct order_ids that have at least one couponed line, and
+    // attribute the discount per order = subtotal - total_price.
     timed("couponImpactSeries", queryStats, () => prisma.$queryRaw<Array<{
       day: string; redemptions: bigint; discount_baht: string;
     }>>`
-      WITH discounts AS (
+      WITH couponed_orders AS (
+        SELECT DISTINCT o.order_id, o.created_at, o.total_price
+        FROM "orders" o
+        JOIN "order_item" oi ON oi.order_id = o.order_id
+        WHERE oi.coupon_id IS NOT NULL
+          AND o.status IN ('paid', 'fulfilled')
+          AND o.created_at >= NOW() - INTERVAL '30 days'
+      ),
+      discounts AS (
         SELECT
-          (o.created_at AT TIME ZONE 'Asia/Bangkok')::date AS day,
+          (co.created_at AT TIME ZONE 'Asia/Bangkok')::date AS day,
           GREATEST(
             COALESCE(
               (SELECT SUM(oi.price_per_unit * oi.quantity)
                  FROM "order_item" oi
-                WHERE oi.order_id = o.order_id),
+                WHERE oi.order_id = co.order_id),
               0
-            ) - o.total_price,
+            ) - co.total_price,
             0
           ) AS discount_baht
-        FROM "orders" o
-        WHERE o.coupon_id IS NOT NULL
-          AND o.status IN ('paid', 'fulfilled')
-          AND o.created_at >= NOW() - INTERVAL '30 days'
+        FROM couponed_orders co
       )
       SELECT
         TO_CHAR(g.day, 'YYYY-MM-DD')                                     AS day,
@@ -987,38 +992,47 @@ async function _getDashboardMetricsImpl() {
       GROUP BY g.day
       ORDER BY g.day
     `),
-    // Top coupons by redemption + actual baht impact. net_revenue is
-    // what the platform/seller still booked after the discount; ratio
-    // of (discount / (discount + net_revenue)) tells the operator
-    // how aggressive a coupon was relative to its own pull.
+    // Top coupons by redemption + actual baht impact. Joins through
+    // order_item.coupon_id so master coupons applied to multiple
+    // stores still attribute correctly. net_revenue is what the
+    // platform/seller still booked AFTER the discount.
     timed("couponImpactTop", queryStats, () => prisma.$queryRaw<Array<{
       coupon_id: number; code: string; discount_type: string; discount_value: number;
       store_id: number | null; store_name: string;
       redemptions: bigint; total_discount: string; net_revenue: string;
     }>>`
+      WITH coupon_orders AS (
+        SELECT DISTINCT
+          oi.coupon_id,
+          o.order_id,
+          o.total_price
+        FROM "order_item" oi
+        JOIN "orders" o ON o.order_id = oi.order_id
+        WHERE oi.coupon_id IS NOT NULL
+          AND o.status IN ('paid', 'fulfilled')
+      )
       SELECT
         c.coupon_id, c.code, c.discount_type::text AS discount_type, c.discount_value,
         c.store_id,
         COALESCE(s.name, 'Master') AS store_name,
-        COUNT(DISTINCT o.order_id)::bigint AS redemptions,
+        COUNT(co.order_id)::bigint AS redemptions,
         COALESCE(SUM(
           GREATEST(
             COALESCE(
-              (SELECT SUM(oi.price_per_unit * oi.quantity)
-                 FROM "order_item" oi
-                WHERE oi.order_id = o.order_id),
+              (SELECT SUM(oi2.price_per_unit * oi2.quantity)
+                 FROM "order_item" oi2
+                WHERE oi2.order_id = co.order_id),
               0
-            ) - o.total_price,
+            ) - co.total_price,
             0
           )
         ), 0)::text AS total_discount,
-        COALESCE(SUM(o.total_price), 0)::text AS net_revenue
+        COALESCE(SUM(co.total_price), 0)::text AS net_revenue
       FROM "coupon" c
-      LEFT JOIN "store"  s ON s.store_id = c.store_id
-      LEFT JOIN "orders" o ON o.coupon_id = c.coupon_id
-                          AND o.status IN ('paid', 'fulfilled')
+      LEFT JOIN "store" s ON s.store_id = c.store_id
+      LEFT JOIN coupon_orders co ON co.coupon_id = c.coupon_id
       GROUP BY c.coupon_id, c.code, c.discount_type, c.discount_value, c.store_id, s.name
-      HAVING COUNT(DISTINCT o.order_id) > 0
+      HAVING COUNT(co.order_id) > 0
       ORDER BY redemptions DESC
       LIMIT 10
     `),
