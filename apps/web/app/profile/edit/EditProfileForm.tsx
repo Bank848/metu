@@ -64,6 +64,29 @@ export function EditProfileForm({
   const [otpCode, setOtpCode] = useState("");
   // Don't auto-show the verify input after a refresh - user must re-request.
   const [otpRequested, setOtpRequested] = useState(false);
+  // 5-minute resend cooldown for the legacy in-house OTP fallback so a
+  // user can't burn through SMS quota / spam our outbound channel by
+  // mashing the resend button. Persisted to localStorage so a refresh
+  // (or new tab) can't reset the timer. Firebase path has its own
+  // cooldown inside FirebasePhoneVerify.
+  const OTP_COOLDOWN_MS = 5 * 60_000;
+  const OTP_COOLDOWN_KEY = "metu:profile-otp-last-sent";
+  const [otpLastSentAt, setOtpLastSentAt] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const raw = window.localStorage.getItem(OTP_COOLDOWN_KEY);
+    const n = raw ? Number(raw) : 0;
+    return Number.isFinite(n) ? n : 0;
+  });
+  const [otpCooldownLeft, setOtpCooldownLeft] = useState(0);
+  useEffect(() => {
+    const tick = () => {
+      const left = Math.max(0, OTP_COOLDOWN_MS - (Date.now() - otpLastSentAt));
+      setOtpCooldownLeft(Math.ceil(left / 1000));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [otpLastSentAt]);
 
   // TOTP enrolment: enroll-start -> scan QR -> enroll-verify.
   const [totpBusy, setTotpBusy] = useState<null | "enroll-start" | "enroll-verify" | "disable">(null);
@@ -381,6 +404,18 @@ export function EditProfileForm({
   }
 
   async function requestOtp() {
+    // Client-side cooldown gate. The server has its own rate limit
+    // (request-otp throttles per user) but blocking the click locally
+    // gives the user a visible countdown instead of an opaque 429.
+    if (Date.now() - otpLastSentAt < OTP_COOLDOWN_MS) {
+      const sLeft = Math.ceil((OTP_COOLDOWN_MS - (Date.now() - otpLastSentAt)) / 1000);
+      const mLeft = Math.ceil(sLeft / 60);
+      setPhoneMsg({
+        ok: false,
+        text: `Wait ${mLeft} more minute${mLeft === 1 ? "" : "s"} before requesting another code.`,
+      });
+      return;
+    }
     setPhoneMsg(null);
     setBusy("otp-request");
     try {
@@ -396,6 +431,11 @@ export function EditProfileForm({
         return;
       }
       setOtpRequested(true);
+      // Stamp the cooldown clock (5 min) + persist so a refresh keeps
+      // the timer alive.
+      const now = Date.now();
+      setOtpLastSentAt(now);
+      try { window.localStorage.setItem(OTP_COOLDOWN_KEY, String(now)); } catch { /* quota/private mode */ }
       // Surface where the code went so dev/demo flow is obvious.
       const where =
         data?.transport === "twilio"
@@ -700,10 +740,17 @@ export function EditProfileForm({
                 <button
                   type="button"
                   onClick={requestOtp}
-                  disabled={busy !== null}
-                  className="rounded-xl border border-white/15 bg-surface-2 px-4 py-2 text-sm font-semibold text-white hover:border-metu-yellow disabled:opacity-50"
+                  disabled={busy !== null || otpCooldownLeft > 0}
+                  className="rounded-xl border border-white/15 bg-surface-2 px-4 py-2 text-sm font-semibold text-white hover:border-metu-yellow disabled:opacity-50 disabled:cursor-not-allowed tabular-nums"
+                  title={otpCooldownLeft > 0 ? `Wait ${otpCooldownLeft}s` : undefined}
                 >
-                  {busy === "otp-request" ? "Sending…" : otpRequested ? "Resend code" : "Send code"}
+                  {busy === "otp-request"
+                    ? "Sending…"
+                    : otpCooldownLeft > 0
+                      ? `Resend in ${Math.ceil(otpCooldownLeft / 60)}m ${otpCooldownLeft % 60}s`
+                      : otpRequested
+                        ? "Resend code"
+                        : "Send code"}
                 </button>
                 {otpRequested && (
                   <form onSubmit={verifyOtp} className="flex flex-1 gap-2">

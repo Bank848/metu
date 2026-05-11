@@ -130,6 +130,12 @@ export const login: RequestHandler = async (req, res, next) => {
       const trusted = await isTrustedDevice(req, user.userId);
       const userTotpEnabled = (user as any).totpEnabled === true;
       const userPhone = (user as any).phone as string | null;
+      // Only offer SMS as a step-up channel when the phone has
+      // actually been confirmed (phoneVerifiedAt). Otherwise we'd be
+      // sending an OTP to a number we never verified the user owns,
+      // and accepting that code as proof — which lets anyone holding
+      // that SIM finish a hijack. Email is always offered as the floor.
+      const phoneIsVerified = Boolean((user as any).phoneVerifiedAt);
       if (!userTotpEnabled && !trusted) {
         const { issueLoginPreAuthToken } = await import("../utils/login-verify.js");
         const token = await issueLoginPreAuthToken({
@@ -152,7 +158,7 @@ export const login: RequestHandler = async (req, res, next) => {
           {
             preAuthToken: token,
             channels: [
-              ...(userPhone ? [{ id: "sms", hint: `••••${phoneTail}` }] : []),
+              ...(userPhone && phoneIsVerified ? [{ id: "sms", hint: `••••${phoneTail}` }] : []),
               { id: "email", hint: emailRedacted },
             ],
           },
