@@ -165,11 +165,21 @@ export async function checkout(
     }
   });
 
-  // Already-owned guard for non-stackable products. Self-purchase
-  // checks buyer; gift checks recipient if their email is registered
+  // Already-owned guard. `isStackable` only lifts the guard for the
+  // license_key variants on that product — download/streaming/email
+  // variants stay single-purchase even on a stackable product, so a
+  // buyer can collect multiple keys but can't repurchase the same
+  // download. Anything that fails BOTH conditions
+  // (product.isStackable AND variant.deliveryMethod === "license_key")
+  // falls through to the duplicate check below. Self-purchase checks
+  // the buyer; gift checks the recipient if their email is registered
   // (otherwise the gift-claim page rechecks at claim time).
   const nonStackableProductIds = selectedItems
-    .filter((ci) => !ci.productItem.product.isStackable)
+    .filter(
+      (ci) =>
+        !(ci.productItem.product.isStackable &&
+          ci.productItem.deliveryMethod === "license_key"),
+    )
     .map((ci) => ci.productItem.product.productId);
   if (nonStackableProductIds.length > 0) {
     let dupeCheckUserId: number | null = null;
@@ -1034,15 +1044,22 @@ export async function getGiftAccess(
   });
   if (!full) return { status: "not-found" };
 
-  // Recipient-side duplicate guard for non-stackable products.
-  // Mirrors the buyer-side check at checkout time.
+  // Recipient-side duplicate guard. Mirrors the buyer-side check at
+  // checkout time — `isStackable` only lifts the guard for license_key
+  // variants, so a gifted download still gets blocked if the
+  // recipient already owns it.
   const recipientUser = await prisma.user.findUnique({
     where: { email: order.giftRecipientEmail.toLowerCase() },
     select: { userId: true },
   });
   if (recipientUser) {
     const nonStackableInGift = full.items
-      .filter((it) => it.productItem && !it.productItem.product.isStackable)
+      .filter(
+        (it) =>
+          it.productItem &&
+          !(it.productItem.product.isStackable &&
+            it.productItem.deliveryMethod === "license_key"),
+      )
       .map((it) => ({
         productId: it.productItem!.product.productId,
         name: it.productItem!.product.name,

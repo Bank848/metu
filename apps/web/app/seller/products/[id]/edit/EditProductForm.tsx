@@ -360,8 +360,9 @@ export function EditProductForm({
               </span>
               <span className="block text-xs text-ink-dim mt-0.5">
                 Useful when at least one variant is a <strong>license key</strong> — buyers can collect multiple keys.
-                Non-key variants on the same product still stay single-purchase via the already-owned guard.
-                Leave unticked if you'd rather force one-per-buyer.
+                Only the <strong>license_key</strong> variants get the repurchase pass; download / streaming / email
+                variants on the same product still stay single-purchase via the already-owned guard.
+                Leave unticked if you'd rather block repurchase across every variant.
               </span>
               {!hasLicenseKey && (
                 <span className="mt-1.5 inline-block text-[11px] text-amber-300/80 font-mono">
