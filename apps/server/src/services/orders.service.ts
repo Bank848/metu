@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { Request } from "express";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../utils/errors.js";
-import { isConfigured as stripeConfigured, createPaymentIntent, getClient, refreshAccountStatus } from "./stripe.service.js";
+import { isConfigured as stripeConfigured, createPaymentIntent, createPlatformPaymentIntent, getClient, refreshAccountStatus } from "./stripe.service.js";
 import { getSettings } from "./settings.service.js";
 import { sendEmail } from "../utils/email.js";
 import { renderEmailLayout } from "../utils/email-template.js";
@@ -336,24 +336,14 @@ export async function checkout(
       );
     }
   }
-  // Multi-store checkout: previously rejected when any store had
-  // Stripe Connect wired; the user complained that one-bill multi-
-  // store was a missing feature. We now allow it, with one big
-  // demo-mode caveat: when more than one store is in the cart we
-  // skip Stripe entirely (useStripe stays false above because
-  // `singleStoreId === null`), so NO real charge happens and items
-  // get fulfilled through the demo path. Acceptable for the defense
-  // walkthrough; the right long-term fix is to split into N orders
-  // / N PaymentIntents (one per store) and confirm each via Stripe
-  // Elements in sequence. Tracking issue: see commit history for
-  // 2026-05-12 "feat(checkout): allow multi-store cart…".
-  if (!isFreeOrder && storeIds.size > 1 && stripeConfigured()) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "[orders.checkout] multi-store cart → demo path (no Stripe charge) for stores:",
-      [...storeIds],
-    );
-  }
+  // Multi-store checkout: route through a PLATFORM PaymentIntent so
+  // the buyer pays the platform once via Stripe Elements, and we
+  // settle with each seller offline later (manual reconciliation
+  // today; future work would emit stripe.transfers.create per store
+  // after the webhook fires). Avoids the Stripe Connect limitation
+  // that a single PI can only have one destination account.
+  const useStripePlatform =
+    !isFreeOrder && storeIds.size > 1 && stripeConfigured();
 
   const settings = await getSettings();
 
@@ -361,19 +351,26 @@ export async function checkout(
   // outage never leaves stock decremented behind an orphaned order.
   let stripeClientSecret: string | null = null;
   let stripePaymentIntentId: string | null = null;
-  if (useStripe && sellerStripeAccountId) {
+  if ((useStripe && sellerStripeAccountId) || useStripePlatform) {
     const buyer = await prisma.user.findUnique({
       where: { userId },
       select: { email: true },
     });
     try {
-      const intent = await createPaymentIntent({
-        orderId: 0, // placeholder — updated after order row exists
-        amountBaht: Number(total),
-        sellerStripeAccountId,
-        applicationFeePercent: Number(settings.platformFeePercent),
-        buyerEmail: buyer?.email,
-      });
+      const intent = useStripePlatform
+        ? await createPlatformPaymentIntent({
+            orderId: 0, // placeholder — updated after order row exists
+            amountBaht: Number(total),
+            buyerEmail: buyer?.email,
+            storeIds: [...storeIds],
+          })
+        : await createPaymentIntent({
+            orderId: 0, // placeholder — updated after order row exists
+            amountBaht: Number(total),
+            sellerStripeAccountId: sellerStripeAccountId!,
+            applicationFeePercent: Number(settings.platformFeePercent),
+            buyerEmail: buyer?.email,
+          });
       stripeClientSecret = intent.clientSecret;
       stripePaymentIntentId = intent.paymentIntentId;
     } catch (err) {
@@ -495,13 +492,20 @@ export async function checkout(
   });
 
   // Patch the PI metadata with the real orderId (was a 0 placeholder).
-  if (stripePaymentIntentId && useStripe) {
+  // Single-store: PI lives on the seller's Connect account, so the
+  // update needs the stripeAccount header. Multi-store: PI lives on
+  // the platform, so the update runs on the platform account
+  // (omit the header).
+  if (stripePaymentIntentId && (useStripe || useStripePlatform)) {
     try {
       const stripe = getClient();
+      const updateOpts = useStripe && sellerStripeAccountId
+        ? { stripeAccount: sellerStripeAccountId }
+        : undefined;
       await stripe.paymentIntents.update(
         stripePaymentIntentId,
         { metadata: { orderId: String(result.order.orderId) } },
-        { stripeAccount: sellerStripeAccountId! },
+        updateOpts,
       );
     } catch {
       // Non-fatal: webhook also has order lookup as a fallback.
@@ -510,20 +514,16 @@ export async function checkout(
     }
   }
 
-  // Auto-fulfill paths that don't go through Stripe:
-  //   • Free orders (total = 0) — buyer paid nothing, just hand over
-  //     the goods immediately.
-  //   • Multi-store carts when at least one store has Stripe wired —
-  //     Stripe Connect charges a single connected account, so we
-  //     can't route a multi-store payment through one PaymentIntent.
-  //     Defense-day demo mode: skip the charge entirely and fulfill
-  //     for free. Tracked as known limitation; long-term fix is to
-  //     split into N orders + N PaymentIntents (one per store).
-  //   • Demo mode (no Stripe wired at all) — same path.
+  // Auto-fulfill paths that don't go through Stripe at all:
+  //   • Free orders (total = 0) — buyer paid nothing, hand over the
+  //     goods immediately.
+  //   • Pure demo mode (no Stripe wired at any store in the cart) —
+  //     no PI was created, no webhook will fire.
   //
-  // Without this branch the order would stay PENDING forever
-  // because no webhook will ever fire.
-  const shouldAutoFulfill = !useStripe; // covers all three cases above
+  // Multi-store carts now route through a platform PaymentIntent
+  // (useStripePlatform=true) and DO get the proper Stripe Elements
+  // form on the frontend, so they fall through this branch.
+  const shouldAutoFulfill = !useStripe && !useStripePlatform;
   if (shouldAutoFulfill) {
     await prisma.order.update({
       where: { orderId: result.order.orderId },

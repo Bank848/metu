@@ -172,6 +172,42 @@ export async function createPaymentIntent(opts: {
 }
 
 /**
+ * Platform-direct PaymentIntent — used for multi-store carts where
+ * one Stripe Connect destination can't cover N sellers. The buyer
+ * pays the platform account in one go; per-store settlement happens
+ * later (manual reconciliation today; future work would automate via
+ * stripe.transfers.create per store). Same metadata.orderId trick
+ * lets the webhook find the order.
+ */
+export async function createPlatformPaymentIntent(opts: {
+  orderId: number;
+  amountBaht: number;
+  buyerEmail?: string;
+  storeIds?: number[];
+}): Promise<{ paymentIntentId: string; clientSecret: string }> {
+  const stripe = getClient();
+  const amountSatang = Math.floor(opts.amountBaht * 100);
+  const intent = await stripe.paymentIntents.create({
+    amount: amountSatang,
+    currency: "thb",
+    payment_method_types: ["card"],
+    receipt_email: opts.buyerEmail,
+    metadata: {
+      orderId: String(opts.orderId),
+      multiStore: "true",
+      stores: opts.storeIds ? opts.storeIds.join(",") : "",
+    },
+    description: opts.storeIds && opts.storeIds.length > 1
+      ? `Multi-store order #${opts.orderId} across ${opts.storeIds.length} stores`
+      : `Order #${opts.orderId}`,
+  });
+  return {
+    paymentIntentId: intent.id,
+    clientSecret: intent.client_secret ?? "",
+  };
+}
+
+/**
  * Refund a Stripe-charged order. Direct-charge model: the refund
  * runs on the seller's account; refund_application_fee returns ours.
  */

@@ -94,9 +94,22 @@ export default async function CheckoutPage({
           clientSecret={clientSecret}
           publishableKey={publishableKey}
           stripeAccount={
-            // Find the first surviving item — null productItem rows show up
-            // when a variant is hard-deleted (set-null FK).
-            order.items.find((i) => i.productItem)?.productItem?.product.store.stripeAccountId ?? null
+            // Multi-store orders route through a PLATFORM PaymentIntent
+            // (no Connect destination), so Stripe Elements must NOT be
+            // initialised with a connected-account header — pass null.
+            // Single-store orders pass the seller's Connect account so
+            // the Elements session matches where the PI was created.
+            // (productItem can be null after a variant hard-delete with
+            // FK onDelete:SetNull — find the first surviving item.)
+            (() => {
+              const storeIds = new Set(
+                order.items
+                  .map((i) => i.productItem?.product?.store?.stripeAccountId)
+                  .filter((s): s is string => typeof s === "string"),
+              );
+              if (storeIds.size > 1) return null; // multi-store → platform PI
+              return order.items.find((i) => i.productItem)?.productItem?.product.store.stripeAccountId ?? null;
+            })()
           }
         />
       </main>
