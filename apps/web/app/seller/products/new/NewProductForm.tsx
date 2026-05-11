@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, Image as ImageIcon } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
@@ -96,6 +96,18 @@ export function NewProductForm({
   const previewDiscount = variants.length
     ? Math.max(...variants.map((v) => v.discountPercent))
     : 0;
+
+  // isStackable is only meaningful for license_key variants — a buyer
+  // can hold multiple keys, but holding "two downloads" of the same
+  // file is nonsense. Gate the checkbox so admins can't ship products
+  // in a weird state. If every variant is license_key, allow. Mixed
+  // or non-key variants → force-uncheck + disable.
+  const allLicenseKey = variants.length > 0 && variants.every(
+    (v) => v.deliveryMethod === "license_key",
+  );
+  useEffect(() => {
+    if (!allLicenseKey && isStackable) setIsStackable(false);
+  }, [allLicenseKey, isStackable]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -288,21 +300,29 @@ export function NewProductForm({
         </FormSection>
 
         <FormSection title="Purchase rules">
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label className={`flex items-start gap-3 ${allLicenseKey ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
             <input
               type="checkbox"
               checked={isStackable}
               onChange={(e) => setIsStackable(e.target.checked)}
-              className="mt-1 h-4 w-4 accent-metu-yellow shrink-0"
+              disabled={!allLicenseKey}
+              className="mt-1 h-4 w-4 accent-metu-yellow shrink-0 disabled:cursor-not-allowed"
             />
             <span className="block">
               <span className="block text-sm font-semibold text-white">
                 Allow multiple purchases per order
               </span>
               <span className="block text-xs text-ink-dim mt-0.5">
-                Buyers can add more than one of this product. Best for license
-                keys or consumables. Single-buy downloads should leave this off.
+                Only meaningful for <strong>license key</strong> variants —
+                buyer collects multiple keys. For downloads / streaming /
+                email-attachment, holding two copies of the same file is
+                nonsense, so this is locked off.
               </span>
+              {!allLicenseKey && (
+                <span className="mt-1.5 inline-block text-[11px] text-amber-300/80 font-mono">
+                  ⚠ Switch every variant to <span className="font-bold">license_key</span> to enable this.
+                </span>
+              )}
             </span>
           </label>
         </FormSection>
