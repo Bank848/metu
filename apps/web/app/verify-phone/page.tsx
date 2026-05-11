@@ -119,11 +119,7 @@ export default async function VerifyPhonePage({
                 ? "Skip phone verification — go to the marketplace →"
                 : "Skip phone — verify by email instead →"}
             </Link>
-            {loggedIn ? (
-              <Link href="/profile/edit" className="block text-center text-xs text-metu-yellow hover:underline">
-                ← Back to profile (you can change your phone there)
-              </Link>
-            ) : (
+            {!loggedIn && (
               <p className="text-[11px] text-ink-dim text-center">
                 Wrong account?{" "}
                 <Link href="/register" className="text-metu-yellow hover:underline">
