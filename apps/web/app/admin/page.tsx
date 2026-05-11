@@ -18,7 +18,8 @@ import { UserInfoIntegrityCard } from "@/components/admin/UserInfoIntegrityCard"
 import { ProductPerformanceMatrix } from "@/components/admin/ProductPerformanceMatrix";
 import { TransactionActions } from "@/components/admin/TransactionActions";
 import { StripeActivityCard } from "@/components/admin/StripeActivityCard";
-import { PaginatedList } from "@/components/admin/PaginatedList";
+import { TopStoresList } from "@/components/admin/TopStoresList";
+import { TopProductsList } from "@/components/admin/TopProductsList";
 import { UserGrowthChart } from "@/components/admin/UserGrowthChart";
 import { CouponImpactChart } from "@/components/admin/CouponImpactChart";
 import { apiFetch, ApiError } from "@/lib/server/api";
@@ -478,22 +479,7 @@ export default async function AdminOverview({
             </div>
             <RefreshMatviewButton computedAt={dashboard.topStoresComputedAt} />
           </header>
-          <div className="space-y-2 text-sm">
-            <PaginatedList
-              items={dashboard.topStores}
-              empty={<p className="text-ink-dim">No store revenue yet — refresh the matview after the first paid order to populate.</p>}
-              renderItem={(s, i) => (
-                <div key={s.storeId} className="flex items-center justify-between border-b border-line/50 pb-1.5">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="text-ink-dim text-xs font-mono w-5">{i + 1}.</span>
-                    <Link href={`/admin/stores/${s.storeId}`} className="text-white hover:text-metu-yellow truncate max-w-[180px]">{s.name}</Link>
-                    {s.rating > 0 && <span className="text-xs text-metu-yellow font-mono">{(s.rating / 10).toFixed(1)}★</span>}
-                  </span>
-                  <span className="font-mono text-mint">{coins(thbToCoins(s.revenue))}</span>
-                </div>
-              )}
-            />
-          </div>
+          <TopStoresList stores={dashboard.topStores} />
         </div>
         <div className="rounded-2xl border border-line bg-space-900 p-5">
           <h3 className="font-display font-bold text-white flex items-center gap-2">
@@ -504,22 +490,7 @@ export default async function AdminOverview({
             <SqlTechniqueBadge technique="join-group" />
             <span className="text-[10px] text-ink-dim font-mono">order_item × product · SUM(price × qty)</span>
           </div>
-          <div className="space-y-2 text-sm">
-            <PaginatedList
-              items={dashboard.topProducts}
-              empty={<p className="text-ink-dim">No product sales yet.</p>}
-              renderItem={(p, i) => (
-                <div key={p.productId} className="flex items-center justify-between border-b border-line/50 pb-1.5">
-                  <span className="flex items-center gap-2">
-                    <span className="text-ink-dim text-xs font-mono w-5">{i + 1}.</span>
-                    <Link href={`/product/${p.productId}`} className="text-white hover:text-metu-yellow truncate max-w-[200px]">{p.name}</Link>
-                    <span className="text-xs text-ink-dim">×{p.units}</span>
-                  </span>
-                  <span className="font-mono text-mint">{coins(thbToCoins(p.revenue))}</span>
-                </div>
-              )}
-            />
-          </div>
+          <TopProductsList products={dashboard.topProducts} />
         </div>
       </div>
 
