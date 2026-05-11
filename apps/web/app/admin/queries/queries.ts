@@ -328,7 +328,7 @@ LIMIT 20 OFFSET 0;`,
   (SELECT COUNT(*)::int FROM product p
     WHERE p.store_id = s.store_id) AS product_count
 FROM store s
-JOIN business_type bt ON bt.business_type_id = s.business_type_id
+JOIN business_type bt ON bt.type_id = s.business_type_id
 LEFT JOIN user_stats us ON us.user_id = s.owner_id
 WHERE s.suspended_at IS NULL
 ORDER BY us.seller_level DESC NULLS LAST,
@@ -416,7 +416,7 @@ ORDER BY cu.created_at DESC;`,
     category: "reports",
     summary:
       "/admin overview dashboard — eight independent analytics queries fire in Promise.all so the page renders in ~200ms instead of 8 sequential round trips. Covers user growth, coupon impact, review monitor, top stores, top products, age groups, category analytics, top tags.",
-    sql: `-- Top stores by revenue (one of the eight; the rest follow the same shape)
+    sql: `-- Top stores by revenue, one of the eight rolled-up metrics
 SELECT
   s.store_id, s.name, s.rating,
   COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
