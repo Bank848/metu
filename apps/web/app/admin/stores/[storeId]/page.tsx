@@ -8,6 +8,7 @@ import { StatCard } from "@/components/StatCard";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { EmptyState } from "@/components/EmptyState";
 import { AdminProductDeleteButton } from "@/components/admin/AdminProductDeleteButton";
+import { AdminProductToggleActiveButton } from "@/components/admin/AdminProductToggleActiveButton";
 import { prisma } from "@/lib/server/prisma";
 import { fmtDate, fmtDateTime, coins, coinsOrFree, thbToCoins, coinsCompact } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -263,6 +264,12 @@ export default async function AdminStoreDetailPage({
                             <Pencil className="h-3 w-3" />
                             Edit
                           </Link>
+                          <AdminProductToggleActiveButton
+                            storeId={storeId}
+                            productId={p.productId}
+                            productName={p.name}
+                            isActive={p.isActive}
+                          />
                           <AdminProductDeleteButton
                             storeId={storeId}
                             productId={p.productId}
