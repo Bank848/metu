@@ -102,9 +102,20 @@ export function AddToCart({
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("cart:update"));
       }
-      router.refresh();
+      // Buy now → full-page navigation so the destination /cart route
+      // bypasses Next 14's App Router segment cache (router.refresh()
+      // only invalidates the CURRENT route, so a cached /cart payload
+      // from an earlier visit would render before the fresh fetch
+      // landed and the user wouldn't see the just-added line). For
+      // plain "Add to cart" we stay on the product page and trigger a
+      // refresh + the cart:update event so the nav icon counter
+      // updates without leaving the page.
       if (buyNow) {
-        router.push("/cart");
+        if (typeof window !== "undefined") {
+          window.location.href = "/cart";
+        }
+      } else {
+        router.refresh();
       }
     } catch {
       setMessage("Network error");

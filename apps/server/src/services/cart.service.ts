@@ -62,6 +62,8 @@ export async function getCart(userId: number): Promise<CartResponse> {
       image: ci.productItem.product.images[0]?.productImage ?? null,
       deliveryMethod: ci.productItem.deliveryMethod,
       stock: ci.productItem.quantity ?? 0,
+      stockRaw: ci.productItem.quantity,
+      isStackable: ci.productItem.product.isStackable,
       unitPrice: unit,
       basePrice: price,
       discountPercent: ci.productItem.discountPercent,
@@ -91,9 +93,12 @@ export async function addItem(
     throw new AppError(400, "CannotBuyOwnProduct", "You can't buy from your own store.");
   }
 
-  // Already-owned guard for non-stackable products. license_key
-  // variants are exempt (each purchase mints a fresh key).
-  if (!item.product.isStackable && item.deliveryMethod !== "license_key") {
+  // Already-owned guard. Only stackable license_key variants bypass
+  // (buyer can collect multiple keys); download / streaming / email
+  // and non-stackable license_key all stay single-purchase. Matches
+  // the same rule in orders.service.checkout so the cart-add path
+  // doesn't accept lines that checkout would later reject.
+  if (!(item.product.isStackable && item.deliveryMethod === "license_key")) {
     const owned = await prisma.order.findFirst({
       where: {
         userId,

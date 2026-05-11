@@ -25,19 +25,41 @@ export type CartLineForMath = {
   unitPrice: number;
   /** Stock available (only meaningful for non-digital lines). */
   stock: number;
+  /** Raw stock — null means unlimited. Stackable license_key lines
+   *  fall back to `STACKABLE_KEY_FALLBACK` when this is null so the
+   *  qty stepper has a usable ceiling. */
+  stockRaw?: number | null;
+  /** Product-level isStackable flag. license_key + isStackable lifts
+   *  the digital qty cap from 1 to the variant's stock. */
+  isStackable?: boolean;
   /** Subtotal for this line — equals `unitPrice * quantity`. */
   lineTotal: number;
 };
 
+/** Hard ceiling for stackable license_key with null/unlimited stock —
+ *  guards against an obvious "9999 keys" mistake in one cart line. */
+export const STACKABLE_KEY_FALLBACK = 99;
+
 /**
  * Maximum quantity allowed for a single line.
- *  - Digital deliveries are capped at 1 per order (the buyer is buying
- *    a license / file, not stockable inventory).
+ *  - license_key on a stackable product → stock (or `STACKABLE_KEY_FALLBACK`
+ *    when stock is null/unlimited). Buyer can collect multiple keys.
+ *  - Other digital deliveries (download / email / streaming, OR
+ *    non-stackable license_key) → capped at 1.
  *  - Physical / service lines cap at the visible stock; we floor at 1
  *    so the qty stepper never disables the line entirely just because
  *    we got a stale stock=0 read.
  */
-export function maxForLine(line: Pick<CartLineForMath, "deliveryMethod" | "stock">): number {
+export function maxForLine(
+  line: Pick<CartLineForMath, "deliveryMethod" | "stock" | "stockRaw" | "isStackable">,
+): number {
+  const isStackableKey = line.isStackable === true && line.deliveryMethod === "license_key";
+  if (isStackableKey) {
+    if (line.stockRaw === null || line.stockRaw === undefined) {
+      return STACKABLE_KEY_FALLBACK;
+    }
+    return Math.max(1, line.stockRaw);
+  }
   if (DIGITAL_DELIVERY_METHODS.has(line.deliveryMethod)) return 1;
   return Math.max(1, line.stock);
 }

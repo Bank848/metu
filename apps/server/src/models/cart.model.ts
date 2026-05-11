@@ -21,10 +21,18 @@ export interface CartLine {
   deliveryMethod: string;
   /**
    * Stock snapshot so the cart UI can cap the quantity input. Digital
-   * delivery methods are always capped at 1 client-side regardless of
-   * this value.
+   * delivery methods that aren't stackable license_key stay capped at
+   * 1 client-side regardless of this value.
    */
   stock: number;
+  /** Raw stock from DB — null means unlimited. The UI uses this with
+   *  `isStackable + license_key` to compute a usable max (fallback to
+   *  a hard 99 when null). */
+  stockRaw: number | null;
+  /** Product-level isStackable flag. When combined with
+   *  `deliveryMethod === "license_key"`, the buyer can collect more
+   *  than one in a single cart line. */
+  isStackable: boolean;
   unitPrice: number;
   basePrice: number;
   discountPercent: number;

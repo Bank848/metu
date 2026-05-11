@@ -28,6 +28,12 @@ type Line = {
   image: string | null;
   deliveryMethod: string;
   stock: number;
+  /** null = unlimited stock on the variant — stackable license_key
+   *  uses this to allow >1 per cart line. */
+  stockRaw?: number | null;
+  /** Product-level isStackable flag — when true on a license_key
+   *  variant, the qty stepper unlocks past 1. */
+  isStackable?: boolean;
   unitPrice: number;
   basePrice: number;
   discountPercent: number;
@@ -524,6 +530,12 @@ export function CartLines({
                   const isChecked = !!selected[l.cartItemId];
                   const max = maxForLine(l);
                   const isDigital = DIGITAL_DELIVERY_METHODS.has(l.deliveryMethod);
+                  // Stackable license_key lifts the qty cap past 1 even
+                  // though the variant is digital — let the stepper +/−
+                  // buttons stay live in that case so buyers can grab
+                  // multiple keys without re-adding the line.
+                  const isStackableKey = l.isStackable === true && l.deliveryMethod === "license_key";
+                  const qtyLocked = isDigital && !isStackableKey;
                   const err = lineError[l.cartItemId];
                   return (
                     <li key={l.cartItemId} className={cn("flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 transition", !isChecked && "opacity-55")}>
@@ -592,7 +604,7 @@ export function CartLines({
                             <button
                               type="button"
                               onClick={() => updateQty(l.cartItemId, Math.max(1, l.quantity - 1))}
-                              disabled={isDigital || l.quantity <= 1}
+                              disabled={qtyLocked || l.quantity <= 1}
                               className="px-3 py-1.5 text-white hover:bg-white/5 disabled:opacity-30"
                               aria-label="Decrease"
                             >
@@ -603,7 +615,7 @@ export function CartLines({
                               min={1}
                               max={max}
                               value={l.quantity}
-                              disabled={isDigital}
+                              disabled={qtyLocked}
                               onChange={(e) => {
                                 const n = Number(e.target.value);
                                 if (!Number.isFinite(n) || n < 1) return;
@@ -615,7 +627,7 @@ export function CartLines({
                             <button
                               type="button"
                               onClick={() => updateQty(l.cartItemId, Math.min(max, l.quantity + 1))}
-                              disabled={isDigital || l.quantity >= max}
+                              disabled={qtyLocked || l.quantity >= max}
                               className="px-3 py-1.5 text-white hover:bg-white/5 disabled:opacity-30"
                               aria-label="Increase"
                             >
