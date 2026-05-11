@@ -547,8 +547,10 @@ export default async function AdminOverview({
                     <span className="flex items-center gap-2 min-w-0 flex-1">
                       <span className="text-ink-secondary truncate group-hover:text-white">{c.name}</span>
                       {/* Inline bar so the eye sees rank-by-revenue —
-                          stagger-extends on mount per row. */}
-                      <span className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden">
+                          stagger-extends on mount per row. Ringed
+                          track matches the Underperformers card so
+                          the bars don't visually disappear. */}
+                      <span className="flex-1 h-1.5 rounded-full bg-space-950 overflow-hidden ring-1 ring-line/60">
                         <span
                           className="block h-full bg-mint animate-bar-extend"
                           style={{
@@ -629,7 +631,7 @@ export default async function AdminOverview({
                   >
                     <span className="flex items-center gap-2 min-w-0 flex-1">
                       <span className="text-ink-secondary group-hover:text-white">{a.bucket}</span>
-                      <span className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden">
+                      <span className="flex-1 h-1.5 rounded-full bg-space-950 overflow-hidden ring-1 ring-line/60">
                         <span
                           className="block h-full bg-purple-400 animate-bar-extend"
                           style={{

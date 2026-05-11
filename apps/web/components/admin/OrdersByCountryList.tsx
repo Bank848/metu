@@ -72,7 +72,7 @@ export function OrdersByCountryList({ rows }: { rows: CountryRow[] }) {
                     <span className="text-ink-dim text-xs font-mono w-5 shrink-0">{i + 1}.</span>
                     <span className="text-white truncate">{r.countryName}</span>
                     <span
-                      className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden"
+                      className="flex-1 h-1.5 rounded-full bg-space-950 overflow-hidden ring-1 ring-line/60"
                       title={`${r.orders} orders · ${coins(thbToCoins(r.spend))}`}
                     >
                       <span

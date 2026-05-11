@@ -67,7 +67,7 @@ export function TopBuyersList({ buyers }: { buyers: Buyer[] }) {
                     </span>
                   </div>
                   <div className="mt-1 flex items-center gap-2">
-                    <span className="flex-1 h-1 rounded-full bg-space-950 overflow-hidden">
+                    <span className="flex-1 h-1.5 rounded-full bg-space-950 overflow-hidden ring-1 ring-line/60">
                       <span
                         className="block h-full bg-metu-yellow"
                         style={{ width: `${pct}%` }}
