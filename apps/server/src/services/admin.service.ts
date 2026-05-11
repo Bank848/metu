@@ -1077,9 +1077,22 @@ async function _getDashboardMetricsImpl() {
          JOIN "product_item" pi ON pi.product_item_id = oi.product_item_id
          WHERE o.status IN ('paid','fulfilled')) ep
       CROSS JOIN
-        -- Of those pairs, how many actually got a review.
-        (SELECT COUNT(DISTINCT (user_id, product_id))::bigint AS reviewed_pairs
-         FROM "product_review") rp
+        -- Reviewed pairs INTERSECTED with eligible pairs — schema
+        -- doesn't enforce "must have bought to review" so seed data
+        -- (or future relax-the-rule changes) can produce reviews
+        -- without a matching order. We only credit a review against
+        -- the conversion ratio when it shadows a real purchase.
+        (SELECT COUNT(DISTINCT (pr.user_id, pr.product_id))::bigint AS reviewed_pairs
+         FROM "product_review" pr
+         WHERE EXISTS (
+           SELECT 1
+             FROM "orders" o
+             JOIN "order_item" oi ON oi.order_id = o.order_id
+             JOIN "product_item" pi ON pi.product_item_id = oi.product_item_id
+            WHERE o.user_id = pr.user_id
+              AND pi.product_id = pr.product_id
+              AND o.status IN ('paid','fulfilled')
+         )) rp
     `),
     // 7-day daily counts for KPI sparklines, in one round-trip.
     timed("kpiSparklines", queryStats, () => prisma.$queryRaw<Array<{
