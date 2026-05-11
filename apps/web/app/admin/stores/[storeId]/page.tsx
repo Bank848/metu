@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Edit3, Package, Star, Banknote, Users, Calendar, Pencil } from "lucide-react";
+import { ArrowLeft, Edit3, Package, Plus, Star, Banknote, Users, Calendar, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/StatCard";
@@ -179,18 +179,22 @@ export default async function AdminStoreDetailPage({
 
       {/* Products */}
       <section className="mb-10">
-        <header className="flex items-center justify-between mb-3">
+        <header className="flex items-center justify-between mb-3 gap-3">
           <h2 className="font-display text-xl font-bold text-white inline-flex items-center gap-2">
             <Package className="h-5 w-5 text-metu-yellow" />
             Products ({products.length})
           </h2>
+          <GlassButton tone="gold" size="sm" href={`/admin/stores/${storeId}/products/new`}>
+            <Plus className="h-4 w-4" />
+            Add product
+          </GlassButton>
         </header>
 
         {products.length === 0 ? (
           <EmptyState
             variant="default"
             title="No products yet"
-            description="The seller hasn't listed any products on this store."
+            description="The seller hasn't listed any products on this store. Use the 'Add product' button above to seed one as an admin override."
           />
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-line">

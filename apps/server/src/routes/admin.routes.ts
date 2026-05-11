@@ -19,6 +19,7 @@ router.post("/users/:id/require-password-reset", ctrl.setRequirePasswordReset);
 router.get("/stores",                 ctrl.listStores);
 // Sub-paths register before /:id so /:id/products/:pid matches first.
 router.get("/stores/:id/products",                 ctrl.listStoreProducts);
+router.post("/stores/:id/products",                ctrl.createStoreProduct);
 router.get("/stores/:id/products/:pid",            ctrl.getStoreProduct);
 router.patch("/stores/:id/products/:pid",          ctrl.updateStoreProduct);
 router.delete("/stores/:id/products/:pid",         ctrl.deleteStoreProduct);

@@ -548,6 +548,43 @@ export async function adminUpdateProduct(
 }
 
 /**
+ * POST /admin/stores/:id/products — admin creates a product under any
+ * store. Reuses the seller's createProduct service so the schema +
+ * cascade behaviour stays identical, plus an extra existence check so
+ * we don't create products under a deleted store. Writes an
+ * `admin.product.create` audit row so it's traceable in the trail.
+ */
+export async function adminCreateProduct(
+  storeId: number,
+  actorUserId: number,
+  body: unknown,
+  req?: AuditReq,
+) {
+  // Same Zod gate as /seller/products. Reject early on shape errors.
+  const parsed = productInputSchema.safeParse(body);
+  if (!parsed.success) throw parsed.error;
+
+  // Confirm the store exists before touching anything else — gives a
+  // clear 404 instead of a cascade FK violation from Prisma.
+  const store = await prisma.store.findUnique({
+    where: { storeId },
+    select: { storeId: true },
+  });
+  if (!store) throw new AppError(404, "StoreNotFound");
+
+  const product = await seller.createProduct(storeId, parsed.data);
+  await audit({
+    actorId: actorUserId,
+    action: "admin.product.create",
+    targetType: "product",
+    targetId: product.productId,
+    meta: { storeId, productName: product.name },
+    req,
+  });
+  return product;
+}
+
+/**
  * DELETE /admin/stores/:id/products/:pid. Writes both `product.delete`
  * (via seller.deleteProduct) and `admin.product.delete` so the audit
  * feed shows the admin override clearly.

@@ -27,7 +27,22 @@ const DEFAULT_VARIANT: Variant = {
   discountAmount: 0,
 };
 
-export function NewProductForm({ categories, tags }: { categories: Category[]; tags: Tag[] }) {
+export function NewProductForm({
+  categories,
+  tags,
+  submitUrl = "/api/seller/products",
+  redirectAfter = "/seller/products",
+  cancelHref = "/seller/products",
+}: {
+  categories: Category[];
+  tags: Tag[];
+  /** Override for the admin variant — `/api/admin/stores/{storeId}/products`. */
+  submitUrl?: string;
+  /** Where to push() on success — admin returns to the store-detail page. */
+  redirectAfter?: string;
+  /** Cancel button target. */
+  cancelHref?: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +106,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
     }
     setBusy(true);
     try {
-      const res = await fetch("/api/seller/products", {
+      const res = await fetch(submitUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -129,7 +144,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
         return;
       }
       setBusy(false);
-      router.push("/seller/products");
+      router.push(redirectAfter);
       router.refresh();
     } catch {
       setError("Network error");
@@ -295,7 +310,7 @@ export function NewProductForm({ categories, tags }: { categories: Category[]; t
         {error && <p className="text-sm text-coral">{error}</p>}
 
         <div className="flex gap-3 justify-end">
-          <GlassButton tone="glass" size="lg" href="/seller/products">Cancel</GlassButton>
+          <GlassButton tone="glass" size="lg" href={cancelHref}>Cancel</GlassButton>
           <GlassButton tone="gold" size="lg" type="submit" disabled={busy}>
             {busy ? "Creating…" : "Create product →"}
           </GlassButton>

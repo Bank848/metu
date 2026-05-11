@@ -265,6 +265,19 @@ export const getStoreProduct: RequestHandler<{ id: string; pid: string }> = asyn
   }
 };
 
+/** POST /admin/stores/:id/products — admin creates a product on any store. */
+export const createStoreProduct: RequestHandler<{ id: string }> = async (req, res, next) => {
+  try {
+    const auth = currentAuth(req)!;
+    const storeId = Number(req.params.id);
+    if (!Number.isFinite(storeId)) throw new AppError(400, "BadId");
+    const product = await service.adminCreateProduct(storeId, auth.uid, req.body ?? {}, req);
+    res.status(201).json(product);
+  } catch (err) {
+    next(err);
+  }
+};
+
 /** PATCH /admin/stores/:id/products/:pid — admin-side product edit. */
 export const updateStoreProduct: RequestHandler<{ id: string; pid: string }> = async (req, res, next) => {
   try {
