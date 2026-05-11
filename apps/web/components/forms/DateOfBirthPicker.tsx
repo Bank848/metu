@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // Three-dropdown date-of-birth picker (Year / Month / Day) instead of
 // the native <input type="date">. The native picker on desktop browsers
@@ -53,7 +53,26 @@ export function DateOfBirthPicker({
   selectClass?: string;
   required?: boolean;
 }) {
-  const { y, m, d } = parts(value);
+  // Local state is the source of truth for partial selections (e.g.
+  // year picked but month/day still empty). Emitting "" to the parent
+  // for a partial state lets the parent's required check work, but if
+  // we ALSO read y/m/d back from the parent's value the dropdowns
+  // would snap to "Year"/"Month"/"Day" the instant a year is picked
+  // — which is exactly the bug we're fixing here.
+  const [local, setLocal] = useState(() => parts(value));
+  const lastEmitRef = useRef<string>(value);
+
+  // Sync from parent when an external write happens (form reset, edit
+  // profile pre-fill). Skip when the change came from our own emit
+  // (lastEmitRef matches), otherwise we'd clobber the user's partial
+  // state on every keystroke.
+  useEffect(() => {
+    if (value === lastEmitRef.current) return;
+    setLocal(parts(value));
+    lastEmitRef.current = value;
+  }, [value]);
+
+  const { y, m, d } = local;
   const today = new Date();
   const thisYear = today.getFullYear();
 
@@ -86,11 +105,12 @@ export function DateOfBirthPicker({
       if (Number(nd) > max) nd = String(max).padStart(2, "0");
     }
 
-    if (!ny || !nm || !nd) {
-      onChange("");
-      return;
-    }
-    onChange(`${ny}-${nm}-${nd}`);
+    // Persist the partial state locally so the selects stay on what
+    // the user picked.
+    setLocal({ y: ny, m: nm, d: nd });
+    const outgoing = ny && nm && nd ? `${ny}-${nm}-${nd}` : "";
+    lastEmitRef.current = outgoing;
+    onChange(outgoing);
   }
 
   const baseSelect =
