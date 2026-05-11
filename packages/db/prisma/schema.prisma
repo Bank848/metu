@@ -406,7 +406,10 @@ model OrderItem {
   // Snapshot of what was delivered when the webhook fired. Null until
   // finalizeOrder() runs.
   deliveredUrl    String?   @map("delivered_url") @db.Text
-  deliveredKey    String?   @map("delivered_key") @db.VarChar(80)
+  // TEXT (was VarChar(80)) so a stackable license_key purchase can
+  // hold one key per unit, joined with newlines. Migration:
+  // 20260512_widen_order_item_delivered_key_to_text.
+  deliveredKey    String?   @map("delivered_key") @db.Text
   deliveredAt     DateTime? @map("delivered_at")
 
   order       Order        @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
