@@ -82,16 +82,16 @@ export default async function EditProfilePage({
           </div>
         )}
         {phoneUnverified && (
-          <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-500/10 p-4 flex flex-col sm:flex-row items-start gap-3">
+          <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/[0.06] p-4 flex flex-col sm:flex-row items-start gap-3">
             <PhoneCall className="h-5 w-5 text-amber-300 mt-0.5 shrink-0" />
             <div className="text-sm flex-1 min-w-0">
               <div className="font-semibold text-amber-100 mb-0.5">
-                Phone not verified
+                Phone not verified <span className="text-[10px] font-normal text-amber-200/60 ml-1">(optional)</span>
               </div>
               <div className="text-amber-100/80">
-                Confirm your phone with a one-time SMS code so we can reach you
-                about your purchases. Buying and selling are paused until both
-                checks are complete.
+                Add a verified phone so we can reach you about order updates
+                and unlock seller payouts later. Buying still works with just
+                your email confirmed.
               </div>
             </div>
             <Link
@@ -145,6 +145,7 @@ export default async function EditProfilePage({
             firstName: me.user.firstName,
             lastName: me.user.lastName,
             email: me.user.email,
+            emailVerified: Boolean(me.user.emailVerified),
             profileImage: me.user.profileImage ?? "",
             countryId: me.user.countryId ?? null,
             gender: (me.user.gender as "male" | "female" | "other" | null) ?? null,

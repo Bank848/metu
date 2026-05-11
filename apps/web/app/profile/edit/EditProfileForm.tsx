@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { User, Lock, Save, Phone, ShieldCheck, Monitor, Trash2, Smartphone, Copy } from "lucide-react";
+import { User, Lock, Save, Phone, ShieldCheck, ShieldAlert, Monitor, Trash2, Smartphone, Copy } from "lucide-react";
 import { GlassButton } from "@/components/visual/GlassButton";
 import { FileImageInput } from "@/components/FileImageInput";
 import { FirebasePhoneVerify } from "@/components/auth/FirebasePhoneVerify";
@@ -27,6 +27,7 @@ type Initial = {
   firstName: string;
   lastName: string;
   email: string;
+  emailVerified: boolean;
   profileImage: string;
   countryId: number | null;
   gender: "male" | "female" | "other" | null;
@@ -552,7 +553,20 @@ export function EditProfileForm({
 
         <div className="space-y-2">
           <label className="block">
-            <span className="text-sm font-semibold text-white">Email</span>
+            <span className="text-sm font-semibold text-white inline-flex items-center gap-2">
+              Email
+              {initial.emailVerified ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 px-1.5 py-0.5 rounded-full bg-emerald-400/10 border border-emerald-400/20">
+                  <ShieldCheck className="h-2.5 w-2.5" />
+                  Verified
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-300 px-1.5 py-0.5 rounded-full bg-red-400/10 border border-red-400/30">
+                  <ShieldAlert className="h-2.5 w-2.5" />
+                  Not verified
+                </span>
+              )}
+            </span>
             <input
               type="email"
               value={form.email}
@@ -639,10 +653,15 @@ export function EditProfileForm({
         <h2 className="font-display font-bold text-white flex items-center gap-2">
           <Phone className="h-4 w-4 text-metu-yellow" />
           Phone number
-          {initial.phoneVerified && (
+          {initial.phoneVerified ? (
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-400/10 border border-emerald-400/20">
               <ShieldCheck className="h-3 w-3" />
               Verified
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-300 px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/30">
+              <ShieldAlert className="h-3 w-3" />
+              Not verified
             </span>
           )}
         </h2>
