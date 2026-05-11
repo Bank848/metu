@@ -618,9 +618,19 @@ export async function finalizeOrder(orderId: number): Promise<void> {
     let url: string | null = null;
     switch (pi.deliveryMethod) {
       case "license_key":
-      case "email":
-        key = generateLicenseKey(pi.licenseKeyTemplate);
+      case "email": {
+        // Generate one key per unit so a stackable license_key purchase
+        // (qty > 1) actually delivers the keys the buyer paid for.
+        // Stored newline-joined in deliveredKey; the order detail page
+        // splits and renders them as a list.
+        const count = Math.max(1, item.quantity ?? 1);
+        const keys: string[] = [];
+        for (let i = 0; i < count; i++) {
+          keys.push(generateLicenseKey(pi.licenseKeyTemplate));
+        }
+        key = keys.join("\n");
         break;
+      }
       case "download":
       case "streaming":
         url = pi.deliveryUrl ?? null;
@@ -753,7 +763,15 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
       for (const it of lines) {
         const name = it.productItem?.product.name ?? it.productNameSnapshot;
         textLines.push(`  ${it.quantity}× ${name}`);
-        if (it.deliveredKey) textLines.push(`     License key: ${it.deliveredKey}`);
+        if (it.deliveredKey) {
+          const keys = it.deliveredKey.split("\n").map((k) => k.trim()).filter(Boolean);
+          if (keys.length === 1) {
+            textLines.push(`     License key: ${keys[0]}`);
+          } else {
+            textLines.push(`     License keys (${keys.length}):`);
+            keys.forEach((k, i) => textLines.push(`       ${i + 1}. ${k}`));
+          }
+        }
         if (it.deliveredUrl) textLines.push(`     Download: ${it.deliveredUrl}`);
       }
       const contact: string[] = [];
@@ -781,12 +799,18 @@ async function sendOrderReceiptInner(orderId: number): Promise<void> {
           `<div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 6px;">${it.quantity}&times; ${name}</div>`,
         );
         if (it.deliveredKey) {
+          const keys = it.deliveredKey.split("\n").map((k) => k.trim()).filter(Boolean);
+          const label = keys.length > 1 ? `License keys (${keys.length})` : "License key";
           storeCards.push(
             `<div style="margin-top: 10px;">`,
-            `<div style="font-size: 10px; font-weight: 700; color: #b26800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">License key</div>`,
-            `<div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; background: #0f172a; color: #FFCC00; padding: 10px 12px; border-radius: 8px; word-break: break-all; font-size: 13px; letter-spacing: 0.02em;">${escape(it.deliveredKey)}</div>`,
-            `</div>`,
+            `<div style="font-size: 10px; font-weight: 700; color: #b26800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px;">${label}</div>`,
           );
+          for (const k of keys) {
+            storeCards.push(
+              `<div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; background: #0f172a; color: #FFCC00; padding: 10px 12px; border-radius: 8px; word-break: break-all; font-size: 13px; letter-spacing: 0.02em; margin-bottom: 6px;">${escape(k)}</div>`,
+            );
+          }
+          storeCards.push(`</div>`);
         }
         if (it.deliveredUrl) {
           storeCards.push(

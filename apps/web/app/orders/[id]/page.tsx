@@ -331,17 +331,41 @@ export default async function OrderDetail({
                         </div>
                       )}
 
-                      {/* Delivered goods — present after finalizeOrder() snapshots them. */}
-                      {it.deliveredKey && (
-                        <div className="mt-3 rounded-lg border border-mint/30 bg-mint/5 p-3">
-                          <div className="text-[10px] font-semibold uppercase tracking-wider text-mint mb-1.5">
-                            License key
+                      {/* Delivered goods — present after finalizeOrder() snapshots them.
+                          Stackable license_key purchases store one key per unit
+                          joined with newlines, so we split + render as a list. */}
+                      {it.deliveredKey && (() => {
+                        const keys = it.deliveredKey.split("\n").map((k) => k.trim()).filter(Boolean);
+                        const isMulti = keys.length > 1;
+                        return (
+                          <div className="mt-3 rounded-lg border border-mint/30 bg-mint/5 p-3">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-mint mb-1.5">
+                              {isMulti ? `License keys (${keys.length})` : "License key"}
+                            </div>
+                            {isMulti ? (
+                              <ul className="space-y-1.5">
+                                {keys.map((k, i) => (
+                                  <li
+                                    key={`${k}-${i}`}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <span className="text-[10px] text-mint/70 font-mono tabular-nums w-5 shrink-0 text-right">
+                                      {i + 1}.
+                                    </span>
+                                    <code className="flex-1 font-mono text-sm text-white break-all select-all">
+                                      {k}
+                                    </code>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <code className="block font-mono text-sm text-white break-all select-all">
+                                {keys[0]}
+                              </code>
+                            )}
                           </div>
-                          <code className="block font-mono text-sm text-white break-all select-all">
-                            {it.deliveredKey}
-                          </code>
-                        </div>
-                      )}
+                        );
+                      })()}
                       {it.deliveredUrl && (
                         <a
                           href={it.deliveredUrl}
