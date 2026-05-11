@@ -208,24 +208,30 @@ export async function createPlatformPaymentIntent(opts: {
 }
 
 /**
- * Refund a Stripe-charged order. Direct-charge model: the refund
- * runs on the seller's account; refund_application_fee returns ours.
+ * Refund a Stripe-charged order.
+ *
+ * - Single-store (direct-charge): pass sellerStripeAccountId. Refund
+ *   runs on the seller's account; refund_application_fee returns ours.
+ * - Multi-store (platform PaymentIntent): pass null. PI lives on the
+ *   platform account with no Connect destination, so the refund runs
+ *   on the platform account with no app-fee clawback.
  */
 export async function refundOrder(
   paymentIntentId: string,
-  sellerStripeAccountId: string,
+  sellerStripeAccountId: string | null,
   amountSatang?: number,
 ): Promise<Stripe.Refund> {
   const stripe = getClient();
-  return stripe.refunds.create(
-    {
-      payment_intent: paymentIntentId,
-      amount: amountSatang, // omit for full refund
-      refund_application_fee: true,
-      metadata: { source: "metu_admin" },
-    },
-    { stripeAccount: sellerStripeAccountId },
-  );
+  const params: Stripe.RefundCreateParams = {
+    payment_intent: paymentIntentId,
+    amount: amountSatang, // omit for full refund
+    metadata: { source: "metu_admin" },
+  };
+  if (sellerStripeAccountId) {
+    params.refund_application_fee = true;
+    return stripe.refunds.create(params, { stripeAccount: sellerStripeAccountId });
+  }
+  return stripe.refunds.create(params);
 }
 
 // /seller/wallet proxies these so we never persist balance ourselves.

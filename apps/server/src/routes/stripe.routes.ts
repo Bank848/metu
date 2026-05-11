@@ -202,12 +202,12 @@ adminRouter.post(
       if (!Number.isFinite(orderId)) {
         throw new AppError(400, "InvalidId");
       }
-      // Resolve the seller's Stripe account via order -> item -> product -> store.
+      // Load ALL items so we can detect multi-store orders (platform PI)
+      // vs single-store (direct-charge on seller's account).
       const order = await prisma.order.findUnique({
         where: { orderId },
         include: {
           items: {
-            take: 1,
             include: { productItem: { include: { product: { include: { store: true } } } } },
           },
         },
@@ -217,9 +217,20 @@ adminRouter.post(
         throw new AppError(400, "NotStripeCharged",
           "This order was placed in demo mode (no Stripe charge). Mark it refunded manually instead.");
       }
-      const sellerStripeAccountId =
-        order.items[0]?.productItem?.product?.store?.stripeAccountId;
-      if (!sellerStripeAccountId) {
+      // Distinct seller accounts across the order's items. >1 means
+      // the order was paid via a platform PaymentIntent (no Connect
+      // destination) — refund must run on the platform account with
+      // NO stripeAccount header.
+      const sellerAccounts = Array.from(
+        new Set(
+          order.items
+            .map((i) => i.productItem?.product?.store?.stripeAccountId)
+            .filter((s): s is string => typeof s === "string"),
+        ),
+      );
+      const isMultiStore = sellerAccounts.length > 1;
+      const sellerStripeAccountId = isMultiStore ? null : sellerAccounts[0] ?? null;
+      if (!isMultiStore && !sellerStripeAccountId) {
         throw new AppError(400, "MissingStripeAccount",
           "Could not resolve the seller's Stripe Connect account for this order.");
       }

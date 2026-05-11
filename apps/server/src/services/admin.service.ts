@@ -1645,12 +1645,21 @@ export async function refundTransaction(
   for (const o of tx.orders) {
     if (o.status === "refunded") continue;
     if (!o.stripePaymentIntentId) continue;
-    const lineWithStore = await prisma.orderItem.findFirst({
+    // Multi-store orders pay via a platform PaymentIntent (no Connect
+    // destination) — those must refund with null seller acct.
+    const lines = await prisma.orderItem.findMany({
       where: { orderId: o.orderId },
       select: { productItem: { select: { product: { select: { store: { select: { stripeAccountId: true } } } } } } },
     });
-    const acct = lineWithStore?.productItem?.product.store.stripeAccountId;
-    if (!acct) continue;
+    const accts = Array.from(
+      new Set(
+        lines
+          .map((l) => l.productItem?.product.store.stripeAccountId)
+          .filter((s): s is string => typeof s === "string"),
+      ),
+    );
+    const acct = accts.length > 1 ? null : accts[0] ?? null;
+    if (!acct && accts.length === 0) continue; // demo-mode order: nothing on Stripe
     try {
       const refund = await stripeRefund(o.stripePaymentIntentId, acct);
       stripeRefundIds[o.orderId] = refund.id;
