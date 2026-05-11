@@ -94,12 +94,29 @@ const getSellerAnalytics = unstable_cache(
         SELECT
           COUNT(DISTINCT o.order_id) AS orders,
           COALESCE(SUM(oi.quantity), 0) AS units,
-          COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
+          -- Coupon-aware revenue: percent coupons multiply the line by
+          -- (1 - discount/100); fixed coupons subtract the discount amount.
+          -- Without this deduction the lifetime headline overstated what
+          -- the seller actually netted from Stripe.
+          COALESCE(SUM(
+            oi.price_per_unit * oi.quantity *
+            CASE
+              WHEN c.coupon_id IS NULL THEN 1
+              WHEN c.discount_type = 'percent' THEN (100 - c.discount_value) / 100.0
+              ELSE 1
+            END
+            - CASE
+                WHEN c.coupon_id IS NULL THEN 0
+                WHEN c.discount_type = 'fixed' THEN c.discount_value
+                ELSE 0
+              END
+          ), 0)::text AS revenue,
           COUNT(DISTINCT o.user_id) AS buyers
         FROM orders o
         JOIN order_item oi ON oi.order_id = o.order_id
         JOIN product_item pi ON pi.product_item_id = oi.product_item_id
         JOIN product p ON p.product_id = pi.product_id
+        LEFT JOIN coupon c ON c.coupon_id = oi.coupon_id
         WHERE p.store_id = ${storeId} AND o.status IN ('paid','fulfilled')
       `,
     ]);

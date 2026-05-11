@@ -93,13 +93,30 @@ export default async function AdminStoreDetailPage({
 
   // Lifetime revenue across all paid + fulfilled orders that touched a
   // product on this store. Computed inline because the matview only
-  // covers the last 30 days.
+  // covers the last 30 days. Coupon discount is deducted per line
+  // (price_per_unit × qty × (1 - couponPercent/100)) when the order
+  // item was redeemed against a coupon — without the deduction the
+  // headline overstated what the seller actually received vs. what
+  // the buyer was charged on Stripe.
   const revenueRow = await prisma.$queryRaw<Array<{ revenue: string }>>`
-    SELECT COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue
+    SELECT COALESCE(SUM(
+      oi.price_per_unit * oi.quantity *
+      CASE
+        WHEN c.coupon_id IS NULL THEN 1
+        WHEN c.discount_type = 'percent' THEN (100 - c.discount_value) / 100.0
+        ELSE 1
+      END
+      - CASE
+          WHEN c.coupon_id IS NULL THEN 0
+          WHEN c.discount_type = 'fixed' THEN c.discount_value
+          ELSE 0
+        END
+    ), 0)::text AS revenue
       FROM "order_item" oi
       JOIN "product_item" pi ON pi.product_item_id = oi.product_item_id
       JOIN "product"      p  ON p.product_id      = pi.product_id
       JOIN "orders"       o  ON o.order_id        = oi.order_id
+      LEFT JOIN "coupon"  c  ON c.coupon_id       = oi.coupon_id
      WHERE p.store_id = ${storeId}
        AND o.status IN ('paid', 'fulfilled')
   `;
