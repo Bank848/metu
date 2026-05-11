@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { getAdminOrders } from "@/lib/server/queries";
 import { prisma } from "@/lib/server/prisma";
 import { fmtDate, coins, thbToCoins } from "@/lib/format";
+import { RefundButton } from "../refunds/RefundButton";
 
 type Order = Awaited<ReturnType<typeof getAdminOrders>>["items"][number];
 
@@ -28,6 +29,7 @@ const columns: DataTableColumn<Order>[] = [
   { key: "total",   header: "Total",   align: "right" },
   { key: "status",  header: "Status" },
   { key: "created", header: "Created", align: "right" },
+  { key: "refund",  header: "Refund",  align: "right" },
 ];
 
 export default async function AdminOrders({
@@ -180,6 +182,22 @@ export default async function AdminOrders({
               return (
                 <span className="font-mono text-xs text-ink-dim">{fmtDate(o.createdAt)}</span>
               );
+            case "refund": {
+              // Only Stripe-charged orders are refundable; free + cancelled
+              // + already-fully-refunded orders show a dash / status pill.
+              const refundedSatang = o.stripeAmountRefunded ?? 0;
+              const receivedSatang = o.stripeAmountReceived ?? 0;
+              const hasCharge = !!o.stripeChargeId;
+              const fullyRefunded = refundedSatang > 0 && refundedSatang >= receivedSatang;
+              if (!hasCharge) return <span className="text-ink-dim text-xs">—</span>;
+              if (fullyRefunded) {
+                return <span className="text-purple-300 text-[10px] uppercase font-semibold">Refunded</span>;
+              }
+              if (o.status !== "paid" && o.status !== "fulfilled") {
+                return <span className="text-ink-dim text-xs">—</span>;
+              }
+              return <RefundButton orderId={o.orderId} />;
+            }
             default:
               return null;
           }
