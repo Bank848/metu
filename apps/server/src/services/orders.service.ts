@@ -289,18 +289,24 @@ export async function checkout(
   }
   const total = subtotal.sub(couponDiscount);
 
-  // Reject zero-total orders (fixed-coupon abuse guard).
-  if (total.lte(0)) {
-    throw new AppError(400, "InvalidTotal", "Order total must be greater than zero.");
+  // Free orders (total = 0) are allowed and short-circuit Stripe a
+  // few lines below. Only NEGATIVE totals are a bug (a fixed-amount
+  // coupon mis-applied beyond the subtotal slipped through earlier
+  // capping); reject those.
+  if (total.lt(0)) {
+    throw new AppError(400, "InvalidTotal", "Order total can't be negative.");
   }
+  const isFreeOrder = total.equals(0);
 
   // Single-store + Stripe-configured carts get a real PaymentIntent.
   // Multi-store checkout is blocked whenever any store has Stripe live.
+  // Free orders skip Stripe entirely — there's nothing to charge, so
+  // we don't need a payment account configured on the seller.
   const storeIds = new Set(selectedItems.map((ci) => ci.productItem.product.storeId));
   const singleStoreId = storeIds.size === 1 ? selectedItems[0]!.productItem.product.storeId : null;
   let useStripe = false;
   let sellerStripeAccountId: string | null = null;
-  if (stripeConfigured() && singleStoreId !== null) {
+  if (!isFreeOrder && stripeConfigured() && singleStoreId !== null) {
     const store = await prisma.store.findUnique({
       where: { storeId: singleStoreId },
       select: { stripeAccountId: true, stripeChargesEnabled: true },
@@ -330,8 +336,9 @@ export async function checkout(
       );
     }
   }
-  // Block multi-store checkout when Stripe is live.
-  if (storeIds.size > 1 && stripeConfigured()) {
+  // Block multi-store checkout when Stripe is live — except free
+  // orders, which never charge any of the stores anyway.
+  if (!isFreeOrder && storeIds.size > 1 && stripeConfigured()) {
     const anyStoreHasStripe = await prisma.store.count({
       where: {
         storeId: { in: [...storeIds] },
@@ -503,6 +510,24 @@ export async function checkout(
     }
   }
 
+  // Free orders skip Stripe entirely — there's no PaymentIntent and
+  // no webhook will fire. Flip the order to `paid` right here, run
+  // the same post-payment hooks (cart cleanup + finalize) the Stripe
+  // webhook would run on a real charge. Errors here surface to the
+  // caller so the buyer sees a clear failure instead of a stuck
+  // pending order.
+  if (isFreeOrder) {
+    await prisma.order.update({
+      where: { orderId: result.order.orderId },
+      data: { status: "paid" },
+    });
+    await clearCartAfterPayment(userId, result.order.orderId).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn("[orders.checkout] free-order cart cleanup failed:", err);
+    });
+    await finalizeOrder(result.order.orderId);
+  }
+
   return {
     orderId: result.order.orderId,
     transactionId: result.txn.transactionId,
@@ -511,6 +536,9 @@ export async function checkout(
     discount: Number(couponDiscount),
     couponStoreId: resolvedCoupon ? resolvedCoupon.storeId : null,
     stripeClientSecret,
+    /** When true the order is already paid + fulfilled — frontend can
+     *  skip the Stripe redirect and go straight to /orders/[id]. */
+    freeOrder: isFreeOrder,
   };
 }
 

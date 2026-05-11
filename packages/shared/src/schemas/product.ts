@@ -27,7 +27,9 @@ export const productItemInputSchema = z.object({
   image: z.string().nullable(),
   quantity: z.number().int().min(0).nullable().optional(),
   deliveryMethod: z.enum(DELIVERY_METHOD),
-  price: z.number().positive(),
+  // .nonnegative() allows ฿0 ("free") variants — checkout skips
+  // Stripe + auto-fulfils when the whole order total is 0.
+  price: z.number().nonnegative(),
   discountPercent: z.number().int().min(0).max(100).default(0),
   discountAmount: z.number().nonnegative().default(0),
   deliveryUrl: z

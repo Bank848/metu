@@ -19,6 +19,9 @@ export interface CheckoutResponse {
   /** Set when Stripe is wired and the store has completed onboarding;
    *  absence means demo mode (no further action needed). */
   stripeClientSecret?: string | null;
+  /** True when total = 0 — order is already paid + fulfilled at
+   *  checkout time, no Stripe redirect needed. */
+  freeOrder?: boolean;
 }
 
 // Loose typing - detail/list responses are raw Prisma rows.
