@@ -223,7 +223,11 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 </div>
               </div>
             ) : (
-              <AddToCart items={items} ownedOrderId={!product.isStackable ? ownedOrderId : null} />
+              <AddToCart
+                items={items}
+                ownedOrderId={!product.isStackable ? ownedOrderId : null}
+                isStackable={product.isStackable}
+              />
             )}
 
             {/* Store card */}

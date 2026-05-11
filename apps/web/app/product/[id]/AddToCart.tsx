@@ -39,9 +39,14 @@ const DIGITAL = new Set(["download", "email", "license_key", "streaming"]);
 export function AddToCart({
   items,
   ownedOrderId,
+  isStackable = false,
 }: {
   items: Item[];
   ownedOrderId?: number | null;
+  /** Product-level flag — when true, the license_key variants on this
+   *  product accept qty > 1 (buyer collects multiple keys). Other
+   *  digital methods still cap at 1 per cart line. */
+  isStackable?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<number>(items[0]?.productItemId);
@@ -52,7 +57,15 @@ export function AddToCart({
 
   const active = items.find((i) => i.productItemId === selected)!;
   const isDigital = active && DIGITAL.has(active.deliveryMethod);
-  const maxQty = isDigital ? 1 : Math.max(1, active?.stock ?? 1);
+  // Stackable license_key: ceiling = stock (or 99 if seller left stock
+  // null/unlimited). Other digital methods: hard cap 1.
+  const STACKABLE_KEY_FALLBACK = 99;
+  const isStackableKey = isStackable && active?.deliveryMethod === "license_key";
+  const maxQty = isStackableKey
+    ? Math.max(1, active?.stock ?? STACKABLE_KEY_FALLBACK)
+    : isDigital
+      ? 1
+      : Math.max(1, active?.stock ?? 1);
 
   useEffect(() => {
     setQuantity((q) => Math.min(Math.max(1, q), maxQty));
@@ -228,12 +241,12 @@ export function AddToCart({
         <label className="text-sm font-semibold text-white">Qty</label>
         <div className={cn(
           "flex items-center border rounded-full overflow-hidden bg-surface-2",
-          isDigital ? "border-white/5 opacity-70" : "border-white/10",
+          isDigital && !isStackableKey ? "border-white/5 opacity-70" : "border-white/10",
         )}>
           <button
             type="button"
             onClick={() => setQuantity(Math.max(1, quantity - 1))}
-            disabled={isDigital || quantity <= 1}
+            disabled={(isDigital && !isStackableKey) || quantity <= 1}
             className="px-3 py-1.5 text-white hover:bg-white/5 disabled:opacity-30"
             aria-label="Decrease"
           >
@@ -244,7 +257,7 @@ export function AddToCart({
             min={1}
             max={maxQty}
             value={quantity}
-            disabled={isDigital}
+            disabled={isDigital && !isStackableKey}
             onChange={(e) => {
               const n = Number(e.target.value);
               if (!Number.isFinite(n)) return;
@@ -256,14 +269,14 @@ export function AddToCart({
           <button
             type="button"
             onClick={() => setQuantity(Math.min(maxQty, quantity + 1))}
-            disabled={isDigital || quantity >= maxQty}
+            disabled={(isDigital && !isStackableKey) || quantity >= maxQty}
             className="px-3 py-1.5 text-white hover:bg-white/5 disabled:opacity-30"
             aria-label="Increase"
           >
             +
           </button>
         </div>
-        {isDigital && (
+        {isDigital && !isStackableKey && (
           <span className="text-[11px] text-ink-dim">Digital · 1 per order</span>
         )}
         <div className="ml-auto text-right">
