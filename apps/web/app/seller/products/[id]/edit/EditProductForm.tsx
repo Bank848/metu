@@ -80,16 +80,16 @@ export function EditProductForm({
 
   const existingVariantCount = initial.items.length;
 
-  // isStackable gates same as the new-product form — only meaningful
-  // when every variant is license_key (buyer can collect multiple
-  // keys). Anything else and "two copies of the same download" makes
-  // no sense, so force-uncheck and disable.
-  const allLicenseKey = variants.length > 0 && variants.every(
-    (v) => v.deliveryMethod === "license_key",
-  );
+  // isStackable gates same as the new-product form — useful when
+  // there's AT LEAST ONE license_key variant. Mixed deliveries are
+  // fine: stackable affects the per-variant cap on the cart, while
+  // non-key variants stay single-purchase via the already-owned guard.
+  // Force-uncheck only when zero variants are license_key, because
+  // then stackable wouldn't apply to any line on this product.
+  const hasLicenseKey = variants.some((v) => v.deliveryMethod === "license_key");
   useEffect(() => {
-    if (!allLicenseKey && isStackable) setIsStackable(false);
-  }, [allLicenseKey, isStackable]);
+    if (!hasLicenseKey && isStackable) setIsStackable(false);
+  }, [hasLicenseKey, isStackable]);
 
   function updateImage(i: number, v: string) {
     setImages((prev) => prev.map((u, idx) => (idx === i ? v : u)));
@@ -346,27 +346,26 @@ export function EditProductForm({
         </FormSection>
 
         <FormSection title="Purchase rules">
-          <label className={`flex items-start gap-3 ${allLicenseKey ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
+          <label className={`flex items-start gap-3 ${hasLicenseKey ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
             <input
               type="checkbox"
               checked={isStackable}
               onChange={(e) => setIsStackable(e.target.checked)}
-              disabled={!allLicenseKey}
+              disabled={!hasLicenseKey}
               className="mt-1 h-4 w-4 accent-metu-yellow shrink-0 disabled:cursor-not-allowed"
             />
             <span className="block">
               <span className="block text-sm font-semibold text-white">
-                Allow multiple purchases per order
+                Allow multiple purchases per order <span className="text-[11px] font-normal text-ink-dim">(optional)</span>
               </span>
               <span className="block text-xs text-ink-dim mt-0.5">
-                Only meaningful for <strong>license key</strong> variants —
-                buyer collects multiple keys. For downloads / streaming /
-                email-attachment, holding two copies of the same file is
-                nonsense, so this is locked off.
+                Useful when at least one variant is a <strong>license key</strong> — buyers can collect multiple keys.
+                Non-key variants on the same product still stay single-purchase via the already-owned guard.
+                Leave unticked if you'd rather force one-per-buyer.
               </span>
-              {!allLicenseKey && (
+              {!hasLicenseKey && (
                 <span className="mt-1.5 inline-block text-[11px] text-amber-300/80 font-mono">
-                  ⚠ Switch every variant to <span className="font-bold">license_key</span> to enable this.
+                  ⚠ Add at least one <span className="font-bold">license_key</span> variant to enable this.
                 </span>
               )}
             </span>
