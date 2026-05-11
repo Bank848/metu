@@ -125,20 +125,30 @@ export function CartLines({
 
   // Every item is selected by default; mirror to localStorage so checkbox
   // state survives navigations (cart refresh after add-to-cart, return from
-  // a failed Stripe checkout, etc.). Keyed by cartItemId because that's the
-  // only id that's stable across re-renders.
+  // a failed Stripe checkout, etc.). Keyed by productItemId — NOT
+  // cartItemId — because checkout() in orders.service.ts creates a brand
+  // new cart with brand new cartItemIds for the user every time they hit
+  // the checkout endpoint (even on Stripe-cancel paths). Pinning to the
+  // variant id keeps the user's checkbox state coherent across those
+  // cart respawns.
   const SELECTION_STORAGE_KEY = "metu:cart-selection";
+  // Resolve cartItemId → productItemId for the current cart so localStorage
+  // can stay variant-keyed.
+  const productItemIdOf = (cartItemId: number): number | undefined =>
+    cart.items.find((l) => l.cartItemId === cartItemId)?.productItemId;
+
   const [selected, setSelected] = useState<Record<number, boolean>>(() => {
     const allOn = Object.fromEntries(initial.items.map((l) => [l.cartItemId, true]));
     if (typeof window === "undefined") return allOn;
     try {
       const raw = window.localStorage.getItem(SELECTION_STORAGE_KEY);
       const saved: Record<string, boolean> = raw ? JSON.parse(raw) : {};
-      // Trust the saved value where the line still exists; default new lines
-      // to selected so newly-added items show up in the order summary.
+      // saved is keyed by productItemId. Look each cart line up by its
+      // variant id; defaults new lines to selected so an add-to-cart
+      // shows up in the order summary immediately.
       const merged: Record<number, boolean> = {};
       for (const l of initial.items) {
-        merged[l.cartItemId] = saved[String(l.cartItemId)] !== false;
+        merged[l.cartItemId] = saved[String(l.productItemId)] !== false;
       }
       return merged;
     } catch {
@@ -156,14 +166,21 @@ export function CartLines({
     });
   }, [cart.items]);
   // Persist whenever it changes so a later page mount can rehydrate.
+  // Write keyed by productItemId so a cart respawn (after checkout
+  // attempt) doesn't lose the user's checkbox state.
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      window.localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(selected));
+      const byVariant: Record<string, boolean> = {};
+      for (const [cartItemIdStr, isOn] of Object.entries(selected)) {
+        const pid = productItemIdOf(Number(cartItemIdStr));
+        if (pid !== undefined) byVariant[String(pid)] = isOn;
+      }
+      window.localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(byVariant));
     } catch {
       // Quota / SSR / private mode — fall back to in-memory only.
     }
-  }, [selected]);
+  }, [selected, cart.items]);
 
   // Auto-dismiss the toast after a few seconds so it doesn't linger.
   useEffect(() => {
