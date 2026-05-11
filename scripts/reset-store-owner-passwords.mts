@@ -76,20 +76,27 @@ async function main() {
       data: { password: hash, requirePasswordReset: true },
     });
     // Mirror to better-auth credential account so signInEmail accepts
-    // the new hash. Upsert because Google-linked users may not have
-    // a credential row yet.
-    await prisma.account.upsert({
-      where: {
-        providerId_accountId: { providerId: "credential", accountId: s.owner.email },
-      },
-      create: {
-        userId: s.owner.userId,
-        accountId: s.owner.email,
-        providerId: "credential",
-        password: hash,
-      },
-      update: { password: hash },
+    // the new hash. We sync EVERY credential row for this user (not
+    // just providerId+accountId=current_email) because owners whose
+    // emails were changed in the past have a stale Account row keyed
+    // by the previous email — and better-auth's signInEmail can pick
+    // either row when multiple match the user, which on the legacy
+    // row would re-reject the new password.
+    const updatedExisting = await prisma.account.updateMany({
+      where: { userId: s.owner.userId, providerId: "credential" },
+      data: { password: hash },
     });
+    if (updatedExisting.count === 0) {
+      // No credential row at all (e.g. Google-only signup) — create one.
+      await prisma.account.create({
+        data: {
+          userId: s.owner.userId,
+          accountId: s.owner.email,
+          providerId: "credential",
+          password: hash,
+        },
+      });
+    }
     console.log(
       `✓ ${s.name.padEnd(28)}  ${s.owner.email.padEnd(38)}  @${s.owner.username}`,
     );
