@@ -6,8 +6,10 @@
  * so signInEmail accepts it.
  *
  * Outputs credentials to stdout — owner email + username + the temp
- * password. Sets `require_password_reset = true` so the owner is
- * prompted to set a real password on first login.
+ * password. Clears `require_password_reset` so the owner can use the
+ * account immediately without being redirected through /profile/edit.
+ * (Old behaviour set the flag to true; reverted on 2026-05-11 because
+ * the demo flow expected immediate access after reset.)
  *
  * Run locally:
  *
@@ -63,7 +65,7 @@ async function main() {
 
   console.log("\n┌─ Temp password ─────────────────────────────────");
   console.log(`│  ${TEMP_PW}`);
-  console.log("│  (require_password_reset=true — set a real one after login)");
+  console.log("│  (no forced reset — owner can use the account right after login)");
   console.log("└──────────────────────────────────────────────────\n");
 
   for (const s of stores) {
@@ -73,7 +75,7 @@ async function main() {
     }
     await prisma.user.update({
       where: { userId: s.owner.userId },
-      data: { password: hash, requirePasswordReset: true },
+      data: { password: hash, requirePasswordReset: false },
     });
     // Mirror to better-auth credential account so signInEmail accepts
     // the new hash. We sync EVERY credential row for this user (not
@@ -101,7 +103,7 @@ async function main() {
       `✓ ${s.name.padEnd(28)}  ${s.owner.email.padEnd(38)}  @${s.owner.username}`,
     );
   }
-  console.log("\nDone. Owners must log in then set a new password from /profile/edit.");
+  console.log("\nDone. Owners can log in with the temp password right away.");
   await prisma.$disconnect();
 }
 
