@@ -6,6 +6,130 @@
 
 ---
 
+## 0. Tech Stack
+
+The codebase splits into two deployable apps + two shared packages, all in one pnpm-workspace monorepo (`metu/`).
+
+### 0.1 Database & ORM
+
+| Layer | Choice | Why |
+|---|---|---|
+| **Database** | PostgreSQL 15 on **Supabase** (managed Postgres + pgbouncer pooler in `aws-1-ap-southeast-1`) | Free tier covers the demo, matches the API's region, JSONB support for `audit_log.meta` |
+| **ORM / migrations** | **Prisma 5.22** with `@prisma/client` | Schema-first source of truth (`packages/db/prisma/schema.prisma`), auto-generated client types, transactional API (`prisma.$transaction`) |
+| **Connection pool** | pgbouncer (Supabase pooler) at port 5432 | The Fly machines connect via the pooled URL for runtime; `migrate deploy` uses the unpooled URL because pgbouncer blocks the advisory locks Migrate needs |
+| **Raw SQL** | `prisma.$queryRaw` with `Prisma.sql` template | All hot dashboard analytics use raw SQL (window functions, generate_series, CROSS JOIN scalars) where Prisma's builder can't express the query cleanly |
+
+### 0.2 API Server (`apps/server`, Fly app `metu-api`)
+
+| Concern | Library | Notes |
+|---|---|---|
+| HTTP framework | **Express 4.21** | Battle-tested REST routing |
+| Auth | **better-auth 1.6** + `@better-auth/prisma-adapter` | Session cookies in `__Secure-better-auth.session_token`, includes 2FA TOTP + backup codes, OAuth (Google), email OTP |
+| Password hashing | **bcryptjs 3** | Used inside better-auth and the legacy v1 signup path |
+| 2FA TOTP | **otplib 13** | RFC 6238 token verification + QR code provisioning URIs |
+| Phone OTP | **firebase-admin 13** | Firebase Phone Auth backend verification (frontend uses `firebase` SDK) |
+| Validation | **zod 3.23** | Shared schemas in `packages/shared` so BFF and API agree on request shapes |
+| Payments | **stripe 22** | PaymentIntent on checkout, Stripe Connect for seller payouts, webhook for `payment_intent.succeeded` |
+| Auth tokens (gift-claim) | **jsonwebtoken 9** | Short-lived gift-claim links use HS256 with `JWT_SECRET` |
+| Security headers | **helmet 8** | CSP, HSTS, X-Content-Type-Options on the API origin (BFF sets its own via `next.config.mjs`) |
+| CORS | **cors 2.8** | Allowlist for the BFF + Stripe webhook origin |
+| Cookies | **cookie-parser 1.4** | Parses incoming session cookie before better-auth checks |
+| Logging | **morgan 1.10** | Single-line per-request access logs (visible in `flyctl logs`) |
+| Profanity filter | **leo-profanity** | Optional content moderation for review/comment text |
+| Tests | **vitest 4** + **supertest 7** | 24 test files, 202 tests covering auth, products, stores, cart, checkout, security |
+
+### 0.3 Web BFF (`apps/web`, Fly app `metu`)
+
+| Concern | Library | Notes |
+|---|---|---|
+| Framework | **Next.js 14.2.35** App Router | React Server Components, streaming SSR, file-based routing, middleware |
+| UI library | **React 18.3** | Server + client components |
+| Styling | **Tailwind CSS 3.4** + `class-variance-authority` + `tailwind-merge` + `clsx` | Utility-first with reusable variant maps, design tokens in `globals.css` |
+| Icons | **lucide-react 0.462** | Tree-shaken SVG icon set |
+| Animation | **framer-motion 12** | Lightweight transitions on TagInput suggestion popovers |
+| Image cropping | **react-easy-crop 5** | Avatar / cover / product image crop with `objectFit: contain` so users can fully zoom out |
+| Stripe checkout | **@stripe/react-stripe-js 6** + **@stripe/stripe-js 9** | Embedded card form with PaymentIntent client_secret |
+| Firebase Phone Auth | **firebase 12** | Browser SDK for the SMS OTP flow at `/verify-phone` |
+| QR codes | **qrcode.react 4** | TOTP enrollment QR + Stripe payment-link QR |
+| ER diagram | **@dagrejs/dagre 3** | Auto-layout for the in-app ER diagram tool at `/feature-tour` |
+| HTTP client | **undici 6** (built-in `fetch`) | Custom `Agent` with keep-alive (32 conns, 30s timeout) keeps BFF→API connections warm |
+| Crypto | **bcryptjs 2.4** + **jsonwebtoken 9** | Same bcrypt as API (must match for legacy login compat) |
+| Profanity filter | **leo-profanity** | Client-side guard before submit (server is the authoritative gate) |
+| Error tracking | **@sentry/nextjs 10** | Wired up but disabled in prod (no DSN) — free to flip on post-defense |
+| Tests | **vitest 4** + `@playwright/test` (e2e scaffolded) | 2 test files, 37 tests (cart math + utils) |
+
+### 0.4 Shared Packages
+
+| Package | Purpose |
+|---|---|
+| `packages/db` | Single Prisma schema + migration history. Both apps import the generated client from here |
+| `packages/shared` | Zod schemas + DTO types + enum constants shared between BFF and API (so the contract can't drift) |
+
+### 0.5 Infrastructure & Deploy
+
+| Layer | Provider | Notes |
+|---|---|---|
+| Compute | **Fly.io** (region `sin`) | Two apps, two shared-cpu-1x machines each, pinned warm via `min_machines_running=2` for the defense window |
+| DB | **Supabase** (free tier) | Postgres + pooler, Asia Southeast 1 (Singapore) — same region as Fly origin |
+| Domain | **Porkbun** (`metu.online`) | Nameservers delegated to Cloudflare |
+| Edge / CDN | **Cloudflare** (free plan, proxied) | Cache Rule for HTML on `/`, `/browse`, `/product`, `/store` (10 s edge / 0 s browser, anonymous only); SSL/TLS Full Strict; Brotli enabled; Rocket Loader / Email Obfuscation / Bot Fight Mode all disabled to avoid breaking React hydration + Stripe webhook |
+| Container | **Docker** (multi-stage builds) | `output: "standalone"` keeps the runtime image lean; Web app needs `--build-arg NEXT_PUBLIC_*` because client env is inlined at build time |
+| CI/CD | **GitHub** (`Bank848/metu`) → manual `flyctl deploy` | No CI test gate today; tests run locally pre-push |
+
+### 0.6 Repo Conventions
+
+- **pnpm workspaces** for monorepo dependency hoisting (`pnpm-workspace.yaml`)
+- **TypeScript 5.6** in strict mode; one tsconfig per app + a base in `tsconfig.base.json`
+- **Conventional Commits** (`type(scope): subject`) with body ≤3 lines
+- **Knowledge graph** at `graphify-out/` — Markdown wiki + Cypher-ish edge index for "where is X / how does X relate to Y" lookups across the codebase
+- **No CI yet**; deploy is manual via `flyctl deploy --config fly.{toml,server.toml}`
+
+### 0.7 Data Flow at a Glance
+
+```
+                     ┌────────────────────────────────────────┐
+                     │           Browser (Chrome)             │
+                     └─────────┬──────────────────────────────┘
+                               │ HTTPS (TLS to CF Singapore edge)
+                               ▼
+                     ┌────────────────────────────────────────┐
+                     │     Cloudflare proxy (free plan)       │
+                     │  - HTML cache 10s for anon catalog     │
+                     │  - Static asset cache (immutable)      │
+                     │  - Brotli compression                  │
+                     └─────────┬──────────────────────────────┘
+                               │ HTTPS (Full Strict)
+                               ▼
+   ┌──────────────────────────────────────────────────────────────────┐
+   │  Fly app `metu`  (Next.js 14 BFF, 2 × shared-cpu-1x in sin)      │
+   │   - SSR pages + middleware (rate limit + edge cache hint)        │
+   │   - Boot warmup: self-fetch /, /browse, /product/1, /store/1     │
+   │   - unstable_cache layer (per-machine, 60s-1h)                   │
+   └─────────┬────────────────────────────────────────────────────────┘
+             │ HTTP (internal Fly network: metu-api.internal:8080)
+             ▼
+   ┌──────────────────────────────────────────────────────────────────┐
+   │  Fly app `metu-api`  (Express, 2 × shared-cpu-1x in sin)         │
+   │   - REST routes + better-auth + Stripe webhook                   │
+   │   - In-process TTL cache for admin dashboards (60s)              │
+   └─────────┬────────────────────────────────────────────────────────┘
+             │ TCP (pgbouncer pool)
+             ▼
+   ┌──────────────────────────────────────────────────────────────────┐
+   │  Supabase Postgres 15  (aws-1-ap-southeast-1)                    │
+   │   - 26 tables, FK cascade rules per §2                           │
+   │   - top_stores_30d materialized view                             │
+   │   - JSONB audit_log.meta                                         │
+   └──────────────────────────────────────────────────────────────────┘
+
+External integrations (called from API):
+   - Stripe API (PaymentIntent + webhook + Connect onboarding)
+   - Firebase Admin (Phone OTP backend verification)
+   - SendGrid / SMTP (transactional email — invoice, gift-claim, refund)
+```
+
+---
+
 ## 1. Requirement Summary & Mapping
 
 The canonical Functional Requirements (PDF §3 a–j) and Business Rules (§4 a–k) translate directly to the SQL surfaces in this document:
