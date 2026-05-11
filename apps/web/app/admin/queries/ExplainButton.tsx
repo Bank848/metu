@@ -102,7 +102,11 @@ export function ExplainButton({ sql }: { sql: string }) {
       {isOpen && (
         <div
           ref={overlayRef}
-          className="absolute z-30 top-full left-0 mt-2 w-[min(92vw,720px)] rounded-xl border border-metu-yellow/30 bg-space-950 shadow-2xl overflow-hidden"
+          // Anchor the overlay to the BUTTON's right edge and grow
+          // leftward so a button positioned near the card's right
+          // boundary (which is where this widget always sits in the
+          // SQL header row) doesn't push the panel off-screen.
+          className="absolute z-30 top-full right-0 mt-2 w-[min(92vw,720px)] rounded-xl border border-metu-yellow/30 bg-space-950 shadow-2xl overflow-hidden"
           role="dialog"
           aria-label="EXPLAIN ANALYZE result"
         >
