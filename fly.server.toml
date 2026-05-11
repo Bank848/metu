@@ -32,7 +32,7 @@ primary_region = "sin"
 # `_prisma_migrations` row marked as "applied=false / failed". The
 # `|| true` makes resolve a no-op on a clean DB.
 [deploy]
-  release_command = "sh -c 'set -e; export DATABASE_URL=\"$DATABASE_URL_UNPOOLED\"; node node_modules/prisma/build/index.js migrate resolve --rolled-back 20260505220000_drop_live_partial_indexes --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate resolve --applied 20260511160000_add_gifting_enabled --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate deploy --schema=packages/db/prisma/schema.prisma'"
+  release_command = "sh -c 'set -e; export DATABASE_URL=\"$DATABASE_URL_UNPOOLED\"; node node_modules/prisma/build/index.js migrate resolve --rolled-back 20260505220000_drop_live_partial_indexes --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate resolve --applied 20260511160000_add_gifting_enabled --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate resolve --applied 20260511180000_add_user_level_view --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate deploy --schema=packages/db/prisma/schema.prisma'"
 
 [http_service]
   internal_port = 8080

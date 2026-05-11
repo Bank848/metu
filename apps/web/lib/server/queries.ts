@@ -157,7 +157,12 @@ async function _getTopSellerProductsImpl(take = 8) {
       s.name     AS store_name,
       s.store_id AS store_id,
       s.profile_image AS store_image,
-      COALESCE(us.seller_level, 0) AS seller_level,
+      -- Levels are now computed from real activity in the v_user_level
+      -- view (settled orders + rating + revenue) instead of the seeded
+      -- user_stats.seller_level column. The view is regular (not
+      -- materialized) so values always reflect the latest data; the
+      -- BFF unstable_cache absorbs the aggregation cost at read time.
+      COALESCE(v.seller_level, 1) AS seller_level,
       s.rating AS rating,
       (SELECT COUNT(*) FROM "product_review" pr WHERE pr.product_id = p.product_id)::int AS review_count,
       COALESCE((
@@ -185,12 +190,12 @@ async function _getTopSellerProductsImpl(take = 8) {
       ), '') AS tags
     FROM "product" p
     JOIN "store" s ON s.store_id = p.store_id
-    LEFT JOIN "user_stats" us ON us.user_id = s.owner_id
+    LEFT JOIN v_user_level v ON v.user_id = s.owner_id
     WHERE p.is_active = true
       AND s.suspended_at IS NULL
-      AND COALESCE(us.seller_level, 0) >= 3
+      AND COALESCE(v.seller_level, 0) >= 3
     ORDER BY
-      us.seller_level DESC NULLS LAST,
+      v.seller_level DESC NULLS LAST,
       s.rating DESC,
       review_count DESC
     LIMIT ${take}
@@ -241,15 +246,17 @@ async function _getFeaturedStoresImpl(take = 4) {
     SELECT
       s.store_id, s.name, s.profile_image, s.cover_image,
       s.description, s.created_at, s.rating,
-      COALESCE(us.seller_level, 0) AS seller_level,
+      -- v_user_level computes seller_level from settled-order count +
+      -- rating + revenue; defaults to 1 for owners with no sales yet.
+      COALESCE(v.seller_level, 1) AS seller_level,
       bt.name AS business_type_name,
       (SELECT COUNT(*)::int FROM "product" p
         WHERE p.store_id = s.store_id) AS product_count
     FROM "store" s
     JOIN "business_type" bt ON bt.type_id = s.business_type_id
-    LEFT JOIN "user_stats" us ON us.user_id = s.owner_id
+    LEFT JOIN v_user_level v ON v.user_id = s.owner_id
     WHERE s.suspended_at IS NULL
-    ORDER BY us.seller_level DESC NULLS LAST,
+    ORDER BY v.seller_level DESC NULLS LAST,
              s.rating DESC,
              s.created_at DESC
     LIMIT ${take}
