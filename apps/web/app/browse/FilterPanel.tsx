@@ -239,16 +239,16 @@ export function FilterPanel({
         <input
           type="range"
           min={0}
-          max={5000}
-          step={50}
-          value={Number(maxPriceInput) || 5000}
+          max={50000}
+          step={100}
+          value={Number(maxPriceInput) || 50000}
           onChange={(e) => setMaxPriceInput(e.target.value)}
           onMouseUp={applyBudget}
           onTouchEnd={applyBudget}
           className="w-full accent-metu-yellow"
         />
         <p className="text-[10px] text-zinc-600 mt-1 tabular-nums">
-          Max ฿{Number(maxPriceInput || 5000).toLocaleString()}
+          Max ฿{Number(maxPriceInput || 50000).toLocaleString()}
         </p>
       </div>
 

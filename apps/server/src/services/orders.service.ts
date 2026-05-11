@@ -336,23 +336,23 @@ export async function checkout(
       );
     }
   }
-  // Block multi-store checkout when Stripe is live — except free
-  // orders, which never charge any of the stores anyway.
+  // Multi-store checkout: previously rejected when any store had
+  // Stripe Connect wired; the user complained that one-bill multi-
+  // store was a missing feature. We now allow it, with one big
+  // demo-mode caveat: when more than one store is in the cart we
+  // skip Stripe entirely (useStripe stays false above because
+  // `singleStoreId === null`), so NO real charge happens and items
+  // get fulfilled through the demo path. Acceptable for the defense
+  // walkthrough; the right long-term fix is to split into N orders
+  // / N PaymentIntents (one per store) and confirm each via Stripe
+  // Elements in sequence. Tracking issue: see commit history for
+  // 2026-05-12 "feat(checkout): allow multi-store cart…".
   if (!isFreeOrder && storeIds.size > 1 && stripeConfigured()) {
-    const anyStoreHasStripe = await prisma.store.count({
-      where: {
-        storeId: { in: [...storeIds] },
-        stripeAccountId: { not: null },
-        stripeChargesEnabled: true,
-      },
-    });
-    if (anyStoreHasStripe > 0) {
-      throw new AppError(
-        400,
-        "MultiStoreCheckoutUnsupported",
-        "Your cart contains items from multiple stores. Please check out one store at a time.",
-      );
-    }
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[orders.checkout] multi-store cart → demo path (no Stripe charge) for stores:",
+      [...storeIds],
+    );
   }
 
   const settings = await getSettings();

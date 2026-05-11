@@ -144,21 +144,25 @@ export function CartLines({
     cart.items.find((l) => l.cartItemId === cartItemId)?.productItemId;
 
   const [selected, setSelected] = useState<Record<number, boolean>>(() => {
-    const allOn = Object.fromEntries(initial.items.map((l) => [l.cartItemId, true]));
-    if (typeof window === "undefined") return allOn;
+    // Default OFF: the buyer explicitly opts into each store they
+    // want to pay for. Earlier UX was "everything pre-ticked" but
+    // that made multi-store carts (especially after a bounced
+    // checkout) feel like the system was forcing every line into
+    // the next payment.
+    const allOff = Object.fromEntries(initial.items.map((l) => [l.cartItemId, false]));
+    if (typeof window === "undefined") return allOff;
     try {
       const raw = window.localStorage.getItem(SELECTION_STORAGE_KEY);
       const saved: Record<string, boolean> = raw ? JSON.parse(raw) : {};
-      // saved is keyed by productItemId. Look each cart line up by its
-      // variant id; defaults new lines to selected so an add-to-cart
-      // shows up in the order summary immediately.
+      // saved is keyed by productItemId. Only remember EXPLICIT
+      // ticks: unknown lines default to unchecked.
       const merged: Record<number, boolean> = {};
       for (const l of initial.items) {
-        merged[l.cartItemId] = saved[String(l.productItemId)] !== false;
+        merged[l.cartItemId] = saved[String(l.productItemId)] === true;
       }
       return merged;
     } catch {
-      return allOn;
+      return allOff;
     }
   });
   // Re-key state whenever cart.items changes (cart respawn after a
@@ -180,11 +184,12 @@ export function CartLines({
       const next: Record<number, boolean> = {};
       for (const l of cart.items) {
         // Priority: previous in-memory state for this cartItemId →
-        // localStorage by productItemId → default "selected".
+        // localStorage by productItemId → default UNCHECKED. The
+        // default flipped on 2026-05-12 — buyers explicitly opt in.
         if (prev[l.cartItemId] !== undefined) {
           next[l.cartItemId] = prev[l.cartItemId];
         } else {
-          next[l.cartItemId] = saved[String(l.productItemId)] !== false;
+          next[l.cartItemId] = saved[String(l.productItemId)] === true;
         }
       }
       return next;
