@@ -47,33 +47,23 @@ function clientIp(req: NextRequest): string {
 const CANONICAL_HOST = "metu.online";
 const FLY_HOST = "metu.fly.dev";
 
-// Public catalog paths whose HTML is safe to cache for anonymous
-// viewers at the Cloudflare edge (10 s window). Cookie-aware paths
-// like /cart, /checkout, /admin, /seller stay off this list so a
-// per-user render never lands in a shared CF slot.
-const ANON_CACHEABLE = ["/", "/browse", "/product", "/store"];
-const AUTH_COOKIE_RE = /(?:^|;\s*)(?:__Secure-)?better-auth\./;
-
-function isAnonCacheable(pathname: string): boolean {
-  if (pathname === "/") return true;
-  return ANON_CACHEABLE.some(
-    (p) => p !== "/" && (pathname === p || pathname.startsWith(p + "/")),
-  );
-}
-
-function applyEdgeCacheHint(req: NextRequest, res: NextResponse): NextResponse {
-  if (!isAnonCacheable(req.nextUrl.pathname)) return res;
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  if (AUTH_COOKIE_RE.test(cookieHeader)) return res;
-  // Anonymous + cacheable path: edge-cache the HTML for 30 min, serve
-  // stale up to 1 h during background revalidation — long enough for a
-  // defense demo session to stay on warm cache slots end-to-end. Vary:
-  // Cookie keeps any future cookie-bearing visitor on a different slot.
-  res.headers.set(
-    "Cache-Control",
-    "public, max-age=0, s-maxage=1800, stale-while-revalidate=3600",
-  );
-  res.headers.append("Vary", "Cookie");
+// CF edge-cache hint disabled on 2026-05-11 for the defense window.
+//
+// Why: Cloudflare Free plan only honours `Vary: Accept-Encoding`, not
+// `Vary: Cookie`. That meant a freshly-logged-in user navigating back
+// to /, /browse, /product/[id], or /store/[id] would receive the
+// anonymous shell that CF had previously cached for those URLs —
+// TopNav rendered as signed-out, /cart returned 401, the works.
+//
+// The middleware used to emit `Cache-Control: public, s-maxage=1800`
+// only when no auth cookie was present, relying on Vary: Cookie to
+// keep cookie-bearing requests off the shared slot. With Free's Vary
+// limitation that was effectively cache-everyone-as-anonymous. Better
+// to take the ~100 ms origin round-trip hit than ship a broken
+// post-login UX. Restore this once we're on a CF plan with custom
+// cache keys (Pro / Business) — see commit f44c3b... for the prior
+// implementation.
+function applyEdgeCacheHint(_req: NextRequest, res: NextResponse): NextResponse {
   return res;
 }
 
