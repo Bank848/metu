@@ -510,20 +510,28 @@ export async function checkout(
     }
   }
 
-  // Free orders skip Stripe entirely — there's no PaymentIntent and
-  // no webhook will fire. Flip the order to `paid` right here, run
-  // the same post-payment hooks (cart cleanup + finalize) the Stripe
-  // webhook would run on a real charge. Errors here surface to the
-  // caller so the buyer sees a clear failure instead of a stuck
-  // pending order.
-  if (isFreeOrder) {
+  // Auto-fulfill paths that don't go through Stripe:
+  //   • Free orders (total = 0) — buyer paid nothing, just hand over
+  //     the goods immediately.
+  //   • Multi-store carts when at least one store has Stripe wired —
+  //     Stripe Connect charges a single connected account, so we
+  //     can't route a multi-store payment through one PaymentIntent.
+  //     Defense-day demo mode: skip the charge entirely and fulfill
+  //     for free. Tracked as known limitation; long-term fix is to
+  //     split into N orders + N PaymentIntents (one per store).
+  //   • Demo mode (no Stripe wired at all) — same path.
+  //
+  // Without this branch the order would stay PENDING forever
+  // because no webhook will ever fire.
+  const shouldAutoFulfill = !useStripe; // covers all three cases above
+  if (shouldAutoFulfill) {
     await prisma.order.update({
       where: { orderId: result.order.orderId },
       data: { status: "paid" },
     });
     await clearCartAfterPayment(userId, result.order.orderId).catch((err) => {
       // eslint-disable-next-line no-console
-      console.warn("[orders.checkout] free-order cart cleanup failed:", err);
+      console.warn("[orders.checkout] auto-fulfill cart cleanup failed:", err);
     });
     await finalizeOrder(result.order.orderId);
   }
