@@ -23,6 +23,7 @@ import { ShareButton } from "@/components/ShareButton";
 import { AddToCart } from "./AddToCart";
 import { Gallery } from "./Gallery";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { SellerLevelBadge } from "@/components/SellerLevelBadge";
 
 type Product = {
   productId: number;
@@ -31,7 +32,7 @@ type Product = {
   isStackable: boolean;
   avgRating?: number;
   reviewCount?: number;
-  store: { storeId: number; ownerId: number; name: string; description: string; profileImage?: string | null; businessType?: { name: string } | null; stats?: { rating: number; responseTime: number } | null };
+  store: { storeId: number; ownerId: number; name: string; description: string; profileImage?: string | null; sellerLevel?: number; businessType?: { name: string } | null; stats?: { rating: number; responseTime: number } | null };
   category: { categoryName: string };
   items: Array<{ productItemId: number; deliveryMethod: string; price: string | number; discountPercent: number; quantity: number }>;
   images: Array<{ productImage: string }>;
@@ -240,7 +241,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
                   <ShieldCheck className="h-3 w-3 text-metu-yellow" />
                   Verified · {product.store.businessType?.name}
                 </div>
-                <div className="font-display font-bold text-white text-sm">{product.store.name}</div>
+                <div className="font-display font-bold text-white text-sm flex items-center gap-2">
+                  <span className="truncate">{product.store.name}</span>
+                  {/* Live seller level from v_user_level — recomputes
+                      on every page render (no matview), so as soon as
+                      a settled order pushes the seller across a
+                      threshold the badge updates. */}
+                  <SellerLevelBadge level={product.store.sellerLevel} size="sm" />
+                </div>
               </div>
               <span className="text-xs text-metu-yellow shrink-0">Visit →</span>
             </Link>

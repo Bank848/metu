@@ -22,6 +22,7 @@ import { TopStoresList } from "@/components/admin/TopStoresList";
 import { TopProductsList } from "@/components/admin/TopProductsList";
 import { UserGrowthChart } from "@/components/admin/UserGrowthChart";
 import { CouponImpactChart } from "@/components/admin/CouponImpactChart";
+import { LevelDistributionCard } from "@/components/admin/LevelDistributionCard";
 import { apiFetch, ApiError } from "@/lib/server/api";
 import { coins, thbToCoins, coinsCompact, fmtDateTime, money } from "@/lib/format";
 import { isDataUrl } from "@/lib/utils";
@@ -106,6 +107,8 @@ type Dashboard = {
     units30d: number;
     totalUnits: number;
   }>;
+  // L1-L5 histogram of buyers + sellers from v_user_level.
+  levelDistribution: Array<{ level: number; buyers: number; sellers: number }>;
   queryStats: Array<{ name: string; ms: number }>;
 };
 
@@ -523,6 +526,49 @@ export default async function AdminOverview({
         )}
         <ProductPerformanceMatrix rows={dashboard.productMatrix ?? []} />
       </div>
+
+      {/* Leveling distribution — buyers + sellers bucketed L1-L5.
+          Source: v_user_level (regular VIEW, recomputed at read).
+          Paired with a Top Stores summary card to balance the row:
+          one is "who has reached the top tier?", the other is "how
+          much of the population sits where?". */}
+      {dashboard.levelDistribution && dashboard.levelDistribution.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <LevelDistributionCard rows={dashboard.levelDistribution} />
+          <div className="rounded-2xl border border-line bg-space-900 p-5">
+            <h3 className="font-display font-bold text-white">How levels are computed</h3>
+            <div className="flex items-center gap-1.5 mb-3 mt-1">
+              <SqlTechniqueBadge technique="view" label="VIEW v_user_level" />
+              <SqlTechniqueBadge technique="case-bucket" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-ink-dim font-bold mb-2">Seller</div>
+                <ul className="space-y-1 text-ink-secondary">
+                  <li><span className="text-metu-yellow font-mono">L5</span> ≥100 orders · ≥4.5★ · ≥฿500K</li>
+                  <li><span className="text-purple-300 font-mono">L4</span> ≥50 orders · ≥4.3★ · ≥฿100K</li>
+                  <li><span className="text-mint font-mono">L3</span> ≥20 orders · ≥4.0★</li>
+                  <li><span className="text-info font-mono">L2</span> ≥5 settled orders</li>
+                  <li><span className="text-ink-dim font-mono">L1</span> new / no sales yet</li>
+                </ul>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-ink-dim font-bold mb-2">Buyer</div>
+                <ul className="space-y-1 text-ink-secondary">
+                  <li><span className="text-metu-yellow font-mono">L5</span> ≥50 orders OR ≥฿50K spent</li>
+                  <li><span className="text-purple-300 font-mono">L4</span> ≥20 orders OR ≥฿10K spent</li>
+                  <li><span className="text-mint font-mono">L3</span> ≥5 orders AND ≥1 review</li>
+                  <li><span className="text-info font-mono">L2</span> ≥1 settled order</li>
+                  <li><span className="text-ink-dim font-mono">L1</span> never purchased</li>
+                </ul>
+              </div>
+            </div>
+            <p className="mt-3 text-[10px] text-ink-dim font-mono leading-relaxed">
+              View recomputes per request — no matview refresh. Thresholds tuned so each tier has at least one resident on the demo dataset.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Categories + Tags + Age groups. Categories + tags are now
           clickable into /browse?category=… / /admin/tags?q=… so the

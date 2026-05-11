@@ -13,6 +13,7 @@ import { Database, Layers, Sigma, GitBranch, Hash, Filter, Box, Zap } from "luci
 
 type Technique =
   | "matview"          // Materialized view-backed
+  | "view"             // Regular SQL VIEW (computed at read time)
   | "generate-series"  // Time-series gap-fill
   | "join-group"       // JOIN + GROUP BY aggregate
   | "count-filter"     // FILTER (WHERE) conditional aggregate
@@ -40,6 +41,12 @@ const TECHNIQUE_META: Record<Technique, { label: string; tone: string; icon: typ
     tone: "bg-mint/10 text-mint ring-mint/30",
     icon: Layers,
     tooltip: "Backed by a materialized view (top_stores_30d) — REFRESH MATERIALIZED VIEW CONCURRENTLY.",
+  },
+  "view": {
+    label: "VIEW",
+    tone: "bg-info/10 text-info ring-info/30",
+    icon: Layers,
+    tooltip: "Backed by a regular SQL VIEW — recomputes on every read, no staleness.",
   },
   "generate-series": {
     label: "generate_series",

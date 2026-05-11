@@ -74,7 +74,7 @@ export async function getFavoriteProducts(userId: number) {
     include: {
       product: {
         include: {
-          store: { select: { name: true, storeId: true } },
+          store: { select: { name: true, storeId: true, ownerId: true } },
           items: { select: { price: true, discountPercent: true } },
           images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
           productNTags: { include: { tag: { select: { tagName: true } } } },
@@ -83,6 +83,17 @@ export async function getFavoriteProducts(userId: number) {
       },
     },
   });
+  const ownerIds = [...new Set(faves.map((f) => f.product.store.ownerId))];
+  const levelMap = ownerIds.length === 0
+    ? new Map<number, number>()
+    : new Map(
+        (
+          await prisma.$queryRaw<Array<{ user_id: number; seller_level: number | null }>>`
+            SELECT user_id, seller_level FROM v_user_level
+             WHERE user_id IN (${Prisma.join(ownerIds)})
+          `
+        ).map((r) => [r.user_id, Number(r.seller_level ?? 1)]),
+      );
   return faves.map(({ product: p }) => {
     const ratings = p.reviews.map((r) => r.rating);
     return {
@@ -93,6 +104,7 @@ export async function getFavoriteProducts(userId: number) {
       ...shapeCardPrices(p.items),
       storeName: p.store.name,
       storeId: p.store.storeId,
+      sellerLevel: levelMap.get(p.store.ownerId) ?? 1,
       avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
       reviewCount: ratings.length,
       tags: p.productNTags.map((nt) => nt.tag.tagName),
@@ -594,6 +606,7 @@ async function _browseProductsImpl(params: BrowseParams) {
     store_name: string;
     store_id: number;
     store_image: string | null;
+    seller_level: number;
     avg_rating: number | null;
     review_count: number;
     min_price: string;
@@ -618,6 +631,11 @@ async function _browseProductsImpl(params: BrowseParams) {
       s.name     AS store_name,
       s.store_id AS store_id,
       s.profile_image AS store_image,
+      -- Seller level for the store owner — computed live from
+      -- v_user_level (settled orders + rating + revenue). Defaults to
+      -- 1 for owners who haven't shipped a sale yet so the badge still
+      -- renders rather than collapsing.
+      COALESCE(v.seller_level, 1) AS seller_level,
       (
         SELECT AVG(rating::float) FROM "product_review"
         WHERE  product_id = p.product_id
@@ -653,6 +671,7 @@ async function _browseProductsImpl(params: BrowseParams) {
       COUNT(*) OVER () AS total_count
     FROM  "product" p
     JOIN  "store"   s ON s.store_id = p.store_id
+    LEFT JOIN v_user_level v ON v.user_id = s.owner_id
     WHERE ${whereClause}
     ORDER BY ${orderByClause}
     LIMIT  ${pageSize}
@@ -677,6 +696,7 @@ async function _browseProductsImpl(params: BrowseParams) {
     storeName: r.store_name,
     storeId: r.store_id,
     storeImage: r.store_image,
+    sellerLevel: Number(r.seller_level),
     avgRating: r.avg_rating != null ? r.avg_rating : undefined,
     reviewCount: Number(r.review_count),
     discountPercent: r.max_discount > 0 ? r.max_discount : undefined,
@@ -719,6 +739,7 @@ async function _getProductImpl(id: number) {
             ownerId: true,
             name: true,
             profileImage: true,
+            rating: true,
             businessType: { select: { name: true } },
           },
         },
@@ -766,7 +787,18 @@ async function _getProductImpl(id: number) {
     aggregate._avg?.rating !== null && aggregate._avg?.rating !== undefined
       ? Number(aggregate._avg.rating)
       : undefined;
-  return { ...product, avgRating, reviewCount };
+  // Seller level pulled live from v_user_level; defaults to 1 for an
+  // owner with no settled sales yet. Single-row $queryRaw — cheap.
+  const levelRows = await prisma.$queryRaw<Array<{ seller_level: number | null }>>`
+    SELECT seller_level FROM v_user_level WHERE user_id = ${product.store.ownerId}
+  `;
+  const sellerLevel = Number(levelRows[0]?.seller_level ?? 1);
+  return {
+    ...product,
+    store: { ...product.store, sellerLevel },
+    avgRating,
+    reviewCount,
+  };
 }
 
 /**
@@ -866,13 +898,26 @@ async function _getRelatedProductsImpl(productId: number, take = 4) {
   const products = await prisma.product.findMany({
     where: { productId: { in: ids } },
     include: {
-      store: { select: { name: true, storeId: true } },
+      store: { select: { name: true, storeId: true, ownerId: true } },
       items: { select: { price: true, discountPercent: true } },
       images: { select: { productImage: true }, orderBy: { sortOrder: "asc" }, take: 1 },
       productNTags: { include: { tag: { select: { tagName: true } } } },
       reviews: { select: { rating: true } },
     },
   });
+  // Pull seller levels for all owners in one hop — cheaper than a
+  // per-product correlated subquery in the main SELECT.
+  const ownerIds = [...new Set(products.map((p) => p.store.ownerId))];
+  const levelMap = ownerIds.length === 0
+    ? new Map<number, number>()
+    : new Map(
+        (
+          await prisma.$queryRaw<Array<{ user_id: number; seller_level: number | null }>>`
+            SELECT user_id, seller_level FROM v_user_level
+             WHERE user_id IN (${Prisma.join(ownerIds)})
+          `
+        ).map((r) => [r.user_id, Number(r.seller_level ?? 1)]),
+      );
   // Preserve the SQL's ranking order — Prisma's `findMany` returns rows
   // by PK, not in `ids`'s sort order. Re-key by id and walk `ids` to
   // emit them ranked.
@@ -888,6 +933,7 @@ async function _getRelatedProductsImpl(productId: number, take = 4) {
       ...shapeCardPrices(p.items),
       storeName: p.store.name,
       storeId: p.store.storeId,
+      sellerLevel: levelMap.get(p.store.ownerId) ?? 1,
       avgRating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : undefined,
       reviewCount: ratings.length,
       tags: p.productNTags.map((nt) => nt.tag.tagName),

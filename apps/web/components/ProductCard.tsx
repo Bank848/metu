@@ -4,6 +4,7 @@ import { Star, Package, BadgeCheck, ShoppingCart } from "lucide-react";
 import { Badge } from "./ui/Badge";
 import { FavoriteButton } from "./FavoriteButton";
 import { StoreNameLink } from "./StoreNameLink";
+import { SellerLevelBadge } from "./SellerLevelBadge";
 import { cn, isDataUrl, cardImage } from "@/lib/utils";
 import { coins, thbToCoins } from "@/lib/format";
 
@@ -13,12 +14,14 @@ export type ProductCardProduct = {
   description?: string;
   minPrice: number;
   maxPrice?: number;
-  originalMinPrice?: number; 
+  originalMinPrice?: number;
   originalMaxPrice?: number;
   image: string;
   storeName?: string;
   storeId?: number;
   storeImage?: string;
+  /** Computed via v_user_level — seller level 1-5 of the store owner. */
+  sellerLevel?: number;
   avgRating?: number;
   reviewCount?: number;
   discountPercent?: number;
@@ -171,6 +174,10 @@ export function ProductCard({
                     </span>
                   )}
                   <BadgeCheck className="h-3 w-3 text-blue-400 shrink-0" />
+                  {/* Level pill — sits next to the verified tick so a glance
+                      tells a buyer how seasoned this shop is. Skipped when
+                      the column is missing or 0 (legacy fallbacks). */}
+                  <SellerLevelBadge level={product.sellerLevel} />
                 </div>
               </>
             )}

@@ -743,7 +743,7 @@ async function _getStatsImpl(days = 14): Promise<AdminStatsResponse> {
 // with parallelism the slowest gates the response (~4s cold).
 async function _getDashboardMetricsImpl() {
   const queryStats: QueryStat[] = [];
-  const [growth, growthSeries, topStores, topProducts, ageGroups, categories, tags, couponImpact, couponImpactSeries, couponImpactTop, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows, topBuyersRows, ordersByCountryRows, aovTrendRows, infoIntegrityRows, productMatrixRows] = await Promise.all([
+  const [growth, growthSeries, topStores, topProducts, ageGroups, categories, tags, couponImpact, couponImpactSeries, couponImpactTop, reviewMonitor, kpiSparklineRows, ordersByStatusRows, kpiDeltaRows, topBuyersRows, ordersByCountryRows, aovTrendRows, infoIntegrityRows, productMatrixRows, levelDistRows] = await Promise.all([
     timed("growth", queryStats, () => prisma.$queryRaw<Array<{
       total_users: bigint; buyers: bigint; sellers: bigint; admins: bigint;
       active_7d: bigint;
@@ -1265,6 +1265,25 @@ async function _getDashboardMetricsImpl() {
       ORDER BY revenue_30d ASC, total_units ASC, product_id ASC
       LIMIT 5
     `),
+    // Buyer + seller level distribution off v_user_level. The view
+    // returns one row per user with seller_level (NULL when the
+    // user has no store) + buyer_level. We pivot both into a single
+    // 5-bucket histogram so the admin can see the tier shape at a
+    // glance — same widget pattern as Age groups.
+    timed("levelDistribution", queryStats, () => prisma.$queryRaw<Array<{
+      level: number;
+      buyers: bigint;
+      sellers: bigint;
+    }>>`
+      SELECT
+        lvl::int AS level,
+        COALESCE(SUM(CASE WHEN v.buyer_level  = lvl THEN 1 ELSE 0 END), 0)::bigint AS buyers,
+        COALESCE(SUM(CASE WHEN v.seller_level = lvl THEN 1 ELSE 0 END), 0)::bigint AS sellers
+      FROM generate_series(1, 5) lvl
+      LEFT JOIN v_user_level v ON v.buyer_level = lvl OR v.seller_level = lvl
+      GROUP BY lvl
+      ORDER BY lvl
+    `),
   ]);
 
 
@@ -1403,6 +1422,12 @@ async function _getDashboardMetricsImpl() {
       revenue30d: Number(p.revenue_30d),
       units30d: Number(p.units_30d),
       totalUnits: Number(p.total_units),
+    })),
+    // Buyer + seller level histogram (L1-L5) off v_user_level.
+    levelDistribution: levelDistRows.map((r) => ({
+      level: Number(r.level),
+      buyers: Number(r.buyers),
+      sellers: Number(r.sellers),
     })),
     // Per-query timing (parallel duration); see `timed()` helper.
     queryStats,

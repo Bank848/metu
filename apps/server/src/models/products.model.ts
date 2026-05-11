@@ -9,6 +9,8 @@ export interface ProductListItem {
   maxPrice: number;
   storeName: string;
   storeId: number;
+  /** Live seller level (1-5) from v_user_level — display-only. */
+  sellerLevel?: number;
   avgRating?: number;
   reviewCount: number;
   discountPercent?: number;
