@@ -18,7 +18,6 @@ export default async function VerifyPendingPage() {
   const me = await getMe();
   let email: string | null = null;
   let emailVerified = false;
-  let phoneVerified = false;
   let demoEmailToken: string | undefined;
   // `loggedIn` lets the page show "Back to profile" instead of "Back to
   // sign-in", and it disables the start-over escape during a fresh
@@ -27,7 +26,6 @@ export default async function VerifyPendingPage() {
   if (me?.user?.email) {
     email = me.user.email as string;
     emailVerified = Boolean(me.user.emailVerified);
-    phoneVerified = Boolean(me.user.phoneVerifiedAt);
     loggedIn = true;
     // Even logged-in users may have a freshly-set metu_pv cookie when
     // they hit /resend-email-verify — surface it.
@@ -39,7 +37,10 @@ export default async function VerifyPendingPage() {
   }
   if (!email) redirect("/login");
   if (emailVerified) {
-    redirect(phoneVerified ? "/" : "/verify-phone");
+    // Phone verification is optional now (email is the floor), so
+    // bounce home as soon as the email link is clicked — no more
+    // forced detour through /verify-phone.
+    redirect("/");
   }
   const demoLink = demoEmailToken
     ? `/verify-email?token=${encodeURIComponent(demoEmailToken)}`

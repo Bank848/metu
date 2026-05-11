@@ -106,24 +106,33 @@ export default async function VerifyPhonePage({
             next={nextSafe ?? undefined}
           />
 
-          {loggedIn ? (
-            <div className="mt-6 pt-5 border-t border-white/10">
-              <Link href="/profile/edit" className="text-xs text-metu-yellow hover:underline">
+          {/* Skip-to-email escape. Phone verification is optional —
+              email is the only mandatory channel — so we always
+              offer a "use email instead" path. Email-verified users
+              get back into the app on the next sign-in. */}
+          <div className="mt-6 pt-5 border-t border-white/10 space-y-3">
+            <Link
+              href={emailVerified ? "/" : "/verify-pending"}
+              className="block w-full text-center rounded-full border border-white/15 bg-white/[0.03] px-5 py-2.5 text-xs font-semibold text-ink-secondary hover:bg-white/[0.06] transition"
+            >
+              {emailVerified
+                ? "Skip phone verification — go to the marketplace →"
+                : "Skip phone — verify by email instead →"}
+            </Link>
+            {loggedIn ? (
+              <Link href="/profile/edit" className="block text-center text-xs text-metu-yellow hover:underline">
                 ← Back to profile (you can change your phone there)
               </Link>
-            </div>
-          ) : (
-            <div className="mt-6 pt-5 border-t border-white/10 text-xs text-ink-dim">
-              <p>
-                You can&apos;t skip this step — we need a working phone before
-                sign-in unlocks. Registered the wrong account?{" "}
+            ) : (
+              <p className="text-[11px] text-ink-dim text-center">
+                Wrong account?{" "}
                 <Link href="/register" className="text-metu-yellow hover:underline">
                   Start over
                 </Link>
                 .
               </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </main>

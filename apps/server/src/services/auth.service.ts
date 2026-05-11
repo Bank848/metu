@@ -122,12 +122,13 @@ export async function login(input: LoginInput): Promise<AuthOutcome> {
   }
 
   // Verification gates run after password + TOTP so we don't leak
-  // which step failed. Codes route the frontend to the right page.
+  // which step failed. Email is the floor — phone is encouraged but
+  // skippable (the /verify-phone page has an "Email me instead" link
+  // for buyers without SMS). Sellers still need phone-verified to
+  // unlock payouts, but that's enforced on the seller onboarding
+  // path, not at login.
   if (!user.emailVerified) {
     throw new AppError(403, "EmailNotVerified", "Confirm your email to finish signing in.");
-  }
-  if (!user.phoneVerifiedAt) {
-    throw new AppError(403, "PhoneNotVerified", "Verify your phone to finish signing in.");
   }
 
   // Fire-and-forget active cart creation if missing.

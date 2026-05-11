@@ -77,6 +77,11 @@ export function RegisterForm({
         setBusy(false);
         return;
       }
+      if (!form.dateOfBirth) {
+        setError("Please pick your date of birth.");
+        setBusy(false);
+        return;
+      }
       // Strip empty optional fields so the schema's `.optional()` is honoured.
       const payload: Record<string, unknown> = {
         username: form.username,
@@ -85,8 +90,8 @@ export function RegisterForm({
         firstName: form.firstName,
         lastName: form.lastName,
         phone,
+        dateOfBirth: form.dateOfBirth,
       };
-      if (form.dateOfBirth) payload.dateOfBirth = form.dateOfBirth;
       if (form.gender) payload.gender = form.gender;
       if (form.countryId) payload.countryId = Number(form.countryId);
       if (captchaToken) payload.captchaToken = captchaToken;
@@ -227,35 +232,40 @@ export function RegisterForm({
         </span>
       </label>
 
-      {/* Optional demographic fields — kept in their own section so the
-          required block above stays compact and obvious. */}
-      <details className="rounded-xl border border-line/60 bg-space-900/40 px-4 py-3 group" open>
+      {/* Date of birth — required for age-bucket analytics. Kept
+          outside the optional details block so it can't be missed. */}
+      <label className="block">
+        <span className="block text-sm font-semibold text-white mb-1">Date of birth</span>
+        <DateOfBirthPicker
+          value={form.dateOfBirth}
+          onChange={(v) => setForm({ ...form, dateOfBirth: v })}
+        />
+        <span className="mt-1 block text-[11px] text-ink-dim">
+          We use this for age-bucket reporting only. Visible to admins,
+          never to other shoppers.
+        </span>
+      </label>
+
+      {/* Optional demographic fields — gender + country are still
+          opt-in so the form stays under the fold for fast signups. */}
+      <details className="rounded-xl border border-line/60 bg-space-900/40 px-4 py-3 group">
         <summary className="cursor-pointer text-sm font-semibold text-white list-none flex items-center justify-between">
           A bit about you <span className="text-[10px] text-ink-dim font-normal">(optional)</span>
         </summary>
         <div className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <label className="block">
-              <span className="block text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">Date of birth</span>
-              <DateOfBirthPicker
-                value={form.dateOfBirth}
-                onChange={(v) => setForm({ ...form, dateOfBirth: v })}
-              />
-            </label>
-            <label className="block">
-              <span className="block text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">Gender</span>
-              <select
-                className={inputCls}
-                value={form.gender}
-                onChange={(e) => setForm({ ...form, gender: e.target.value as typeof form.gender })}
-              >
-                <option value="">Prefer not to say</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-          </div>
+          <label className="block">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">Gender</span>
+            <select
+              className={inputCls}
+              value={form.gender}
+              onChange={(e) => setForm({ ...form, gender: e.target.value as typeof form.gender })}
+            >
+              <option value="">Prefer not to say</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
           <label className="block">
             <span className="block text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">Country</span>
             <select
