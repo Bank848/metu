@@ -501,13 +501,20 @@ type BrowseParams = {
   minRating?: number;
 };
 
-// Heavy raw SQL with 5+ subqueries per row. unstable_cache auto-keys by
-// args, so each unique filter combo gets its own entry. 120s TTL keeps
-// cache cardinality bounded if filter combos explode.
+// Heavy raw SQL with 5+ subqueries per row. unstable_cache auto-keys
+// by args, so each unique filter combo gets its own entry. Dropped
+// from 120s → 10s on 2026-05-12 because freshly-added products were
+// invisible on /browse until a buyer wiggled the price slider (which
+// changed the cache key and triggered a miss). 10 s is a reasonable
+// "see new listings in seconds" cadence without giving up the TTFB
+// benefit entirely; an explicit `revalidateTag("browse-products")`
+// call inside seller.createProduct would be the cleaner long-term
+// fix, but that needs an API → BFF hop the current architecture
+// doesn't have yet.
 export const browseProducts = unstable_cache(
   _browseProductsImpl,
   ["browse-products"],
-  { revalidate: 120, tags: ["browse-products"] },
+  { revalidate: 10, tags: ["browse-products"] },
 );
 
 async function _browseProductsImpl(params: BrowseParams) {
