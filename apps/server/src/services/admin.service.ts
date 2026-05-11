@@ -1719,28 +1719,49 @@ export async function setRequirePasswordReset(
   });
 
   // Out-of-band notification on flag-on; email failure is non-blocking.
+  // The link in the email mints a single-use password reset token (same
+  // mechanism as /forgot-password) so the recipient can set a new
+  // password WITHOUT knowing the old one — the legacy link to
+  // /profile/edit?must-reset=1 only worked for already-logged-in users
+  // and was a dead end for anyone who got here from email.
   let emailSent = false;
   if (value) {
     try {
+      const crypto = await import("node:crypto");
+      const raw = crypto.randomBytes(32).toString("base64url");
+      const tokenHash = crypto.createHash("sha256").update(raw).digest("hex");
+      // 30-minute TTL — admin-initiated, longer than the 5-min self-
+      // service forgot-password flow so the recipient has time to
+      // notice the email in spam.
+      const expiresAt = new Date(Date.now() + 30 * 60_000);
+      await prisma.passwordResetToken.create({
+        data: { userId: targetUserId, tokenHash, expiresAt },
+      });
       const { sendEmail } = await import("../utils/email.js");
       const greeting = updated.firstName ? `Hi ${updated.firstName},` : "Hi,";
       const baseUrl = PUBLIC_SITE_URL;
+      const resetLink = `${baseUrl}/reset-password?token=${raw}`;
       const html = `
         <p>${greeting}</p>
         <p>An administrator has flagged your METU account for a
-        password reset. The next time you sign in you'll be redirected
-        to <strong>Profile → Edit</strong> until a new password is set.</p>
+        password reset. Click the button below to set a new password —
+        the link is valid for <strong>30 minutes</strong>.</p>
         <p style="margin-top:24px">
-          <a href="${baseUrl}/profile/edit?must-reset=1"
+          <a href="${resetLink}"
              style="background:#FBBF24;color:#0b1220;padding:12px 24px;
                     border-radius:9999px;text-decoration:none;
                     font-weight:600;">
-            Reset your password →
+            Set a new password →
           </a>
+        </p>
+        <p style="font-size:13px;color:#475569;margin-top:24px">
+          Or copy this URL into your browser:<br>
+          <a href="${resetLink}" style="color:#0ea5e9;word-break:break-all;">${resetLink}</a>
         </p>
         <p style="font-size:12px;color:#64748b;margin-top:32px">
           If you didn't expect this, contact METU support so we can
-          investigate the request.
+          investigate the request. Your existing password keeps working
+          until you complete the reset above.
         </p>`;
       const result = await sendEmail({
         to: updated.email,
