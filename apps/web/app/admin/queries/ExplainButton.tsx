@@ -102,15 +102,16 @@ export function ExplainButton({ sql }: { sql: string }) {
       {isOpen && (
         <div
           ref={overlayRef}
-          // Anchor the overlay to the BUTTON's right edge and grow
-          // leftward so a button positioned near the card's right
-          // boundary (which is where this widget always sits in the
-          // SQL header row) doesn't push the panel off-screen.
-          className="absolute z-30 top-full right-0 mt-2 w-[min(92vw,720px)] rounded-xl border border-metu-yellow/30 bg-space-950 shadow-2xl overflow-hidden"
+          // Anchor right edge so a button near the card's right
+          // boundary doesn't push the panel off-screen. Bounded
+          // height with flex-col so the header stays fixed and only
+          // the body scrolls — keeps the popover from visually
+          // invading the cards below.
+          className="absolute z-30 top-full right-0 mt-2 w-[min(92vw,720px)] max-h-[440px] flex flex-col rounded-xl border border-metu-yellow/30 bg-space-950 shadow-2xl overflow-hidden"
           role="dialog"
           aria-label="EXPLAIN ANALYZE result"
         >
-          <header className="flex items-center justify-between gap-3 px-3 py-2 border-b border-line bg-space-900/80">
+          <header className="flex items-center justify-between gap-3 px-3 py-2 border-b border-line bg-space-900/80 shrink-0">
             <span className="text-[11px] uppercase tracking-wider text-ink-dim font-semibold">
               {err ? "Plan failed" : "EXPLAIN ANALYZE"}
             </span>
@@ -125,7 +126,7 @@ export function ExplainButton({ sql }: { sql: string }) {
             </button>
           </header>
           <pre
-            className={`text-[11px] font-mono whitespace-pre overflow-auto max-h-[60vh] p-4 ${
+            className={`text-[11px] font-mono whitespace-pre overflow-auto p-4 flex-1 min-h-0 ${
               err ? "text-coral" : "text-white"
             }`}
           >
