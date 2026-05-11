@@ -41,6 +41,8 @@ type Order = {
     deliveredKey?: string | null;
     deliveredUrl?: string | null;
     deliveredAt?: string | null;
+    // Survives a post-purchase product delete (FK onDelete: SetNull).
+    productNameSnapshot?: string;
     productItem: {
       productItemId: number;
       deliveryMethod: string;
@@ -52,7 +54,7 @@ type Order = {
         store: { name: string; storeId: number };
         productNTags?: Array<{ tag: { tagId: number; tagName: string } }>;
       };
-    };
+    } | null;
   }>;
 };
 
@@ -79,8 +81,14 @@ export default async function OrderDetail({
   if (!order) return notFound();
 
   // Which products in this order has the buyer already reviewed?
+  // Filter out orderItems whose productItem was set to NULL by a
+  // post-purchase delete (FK onDelete: SetNull) — they're gone.
   const productIds = Array.from(
-    new Set(order.items.map((i) => i.productItem.product.productId)),
+    new Set(
+      order.items
+        .map((i) => i.productItem?.product?.productId)
+        .filter((id): id is number => typeof id === "number"),
+    ),
   );
   const existing =
     productIds.length > 0
@@ -280,36 +288,55 @@ export default async function OrderDetail({
                 Items ({order.items.length})
               </h2>
               <ul className="divide-y divide-white/6">
-                {order.items.map((it) => (
+                {order.items.map((it) => {
+                  // productItem can be NULL when the seller deleted the
+                  // product after the order shipped (FK onDelete:
+                  // SetNull). Use the snapshot fields stored on the
+                  // OrderItem row so the receipt still renders.
+                  const pi = it.productItem;
+                  const product = pi?.product;
+                  const cover = product?.images?.[0]?.productImage;
+                  const displayName = product?.name ?? it.productNameSnapshot ?? "(deleted product)";
+                  const isDeleted = !pi;
+                  return (
                   <li key={it.orderItemId} className="flex items-center gap-4 py-4">
                     <div className="relative h-16 w-16 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8">
-                      {it.productItem.product.images[0]?.productImage && (
+                      {cover && (
                         <Image
-                          src={it.productItem.product.images[0].productImage}
+                          src={cover}
                           alt=""
                           fill
                           sizes="64px"
                           className="object-cover"
-                          unoptimized={isDataUrl(it.productItem.product.images[0].productImage)}
+                          unoptimized={isDataUrl(cover)}
                         />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <Link
-                        href={`/product/${it.productItem.product.productId}`}
-                        className="font-semibold text-white hover:text-metu-yellow line-clamp-1"
-                      >
-                        {it.productItem.product.name}
-                      </Link>
+                      {product ? (
+                        <Link
+                          href={`/product/${product.productId}`}
+                          className="font-semibold text-white hover:text-metu-yellow line-clamp-1"
+                        >
+                          {displayName}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-ink-secondary italic line-clamp-1">
+                          {displayName}
+                        </span>
+                      )}
                       <div className="text-xs text-ink-dim mt-0.5">
-                        <span className="capitalize">
-                          {it.productItem.deliveryMethod.replace("_", " ")}
-                        </span>{" "}
-                        · {it.productItem.product.store.name}
+                        {pi?.deliveryMethod && (
+                          <span className="capitalize">
+                            {pi.deliveryMethod.replace("_", " ")}
+                          </span>
+                        )}
+                        {product?.store?.name && <> · {product.store.name}</>}
+                        {isDeleted && <span className="text-amber-300/80">· product since removed</span>}
                       </div>
-                      {(it.productItem.product.productNTags?.length ?? 0) > 0 && (
+                      {(product?.productNTags?.length ?? 0) > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
-                          {it.productItem.product.productNTags!.slice(0, 4).map((nt) => (
+                          {product!.productNTags!.slice(0, 4).map((nt) => (
                             <span
                               key={nt.tag.tagId}
                               className="inline-flex items-center rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-ink-secondary"
@@ -322,11 +349,11 @@ export default async function OrderDetail({
                       <div className="text-xs text-ink-dim mt-1.5">
                         Qty {it.quantity} · {coinsOrFree(thbToCoins(Number(it.pricePerUnit)))} each
                       </div>
-                      {canReview && (
+                      {canReview && product && (
                         <div className="mt-2">
                           <ReviewItemButton
-                            productId={it.productItem.product.productId}
-                            alreadyReviewed={reviewedSet.has(it.productItem.product.productId)}
+                            productId={product.productId}
+                            alreadyReviewed={reviewedSet.has(product.productId)}
                           />
                         </div>
                       )}
@@ -386,7 +413,8 @@ export default async function OrderDetail({
                       {coins(thbToCoins(Number(it.pricePerUnit) * it.quantity))}
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
 

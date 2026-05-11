@@ -23,13 +23,16 @@ type Order = {
     orderItemId: number;
     quantity: number;
     pricePerUnit: string | number;
+    // Survives a seller deleting the product after the order was
+    // placed (FK onDelete: SetNull). Always present.
+    productNameSnapshot: string;
     productItem: {
       product: {
         name: string;
         images: Array<{ productImage: string }>;
         store: { name: string };
       };
-    };
+    } | null;
   }>;
 };
 
@@ -162,15 +165,20 @@ export default async function OrdersPage({
                         </div>
                       </div>
                       <div className="flex items-center gap-2 overflow-hidden">
-                        {o.items.slice(0, 4).map((it) => (
-                          <div key={it.orderItemId} className="relative h-14 w-14 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8">
-                            {it.productItem.product.images[0]?.productImage && (
-                              <Image src={it.productItem.product.images[0].productImage} alt="" fill sizes="56px" className="object-cover" unoptimized={isDataUrl(it.productItem.product.images[0].productImage)} />
-                            )}
-                          </div>
-                        ))}
+                        {o.items.slice(0, 4).map((it) => {
+                          const cover = it.productItem?.product?.images?.[0]?.productImage;
+                          return (
+                            <div key={it.orderItemId} className="relative h-14 w-14 rounded-xl bg-surface-2 overflow-hidden shrink-0 border border-white/8">
+                              {cover && (
+                                <Image src={cover} alt="" fill sizes="56px" className="object-cover" unoptimized={isDataUrl(cover)} />
+                              )}
+                            </div>
+                          );
+                        })}
                         <div className="ml-3 text-sm text-ink-secondary truncate">
-                          {o.items.map((i) => i.productItem.product.name).join(" · ")}
+                          {o.items
+                            .map((i) => i.productItem?.product?.name ?? i.productNameSnapshot ?? "(deleted product)")
+                            .join(" · ")}
                         </div>
                       </div>
                     </Link>
