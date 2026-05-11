@@ -2222,7 +2222,8 @@ export async function syncOrderFromStripe(
       totalPrice: true,
       stripePaymentIntentId: true,
       items: {
-        take: 1,
+        // Fetch ALL items (not just first) so we can detect multi-store
+        // orders by counting distinct stripe_account_ids.
         include: {
           productItem: {
             include: {
@@ -2256,20 +2257,30 @@ export async function syncOrderFromStripe(
     return { synced: true, alreadyPaid: true };
   }
 
-  // Direct-charge PIs live on the seller's connected account, so
-  // retrieve them with the stripeAccount option. Without it the
-  // platform account 404s with "no such payment_intent".
-  const sellerStripeAccountId =
-    order.items[0]?.productItem?.product?.store?.stripeAccountId;
-  if (!sellerStripeAccountId) {
+  // Single-store orders ride a direct-charge PI on the seller's Connect
+  // account → must retrieve with the stripeAccount header. Multi-store
+  // orders use a platform-direct PaymentIntent (no Connect destination)
+  // and the PI lives on the platform account → retrieve without the
+  // header. Detect by counting distinct seller Connect accounts in the
+  // order items.
+  const sellerAccounts = new Set(
+    order.items
+      .map((i) => i.productItem?.product?.store?.stripeAccountId)
+      .filter((s): s is string => typeof s === "string"),
+  );
+  const isMultiStore = sellerAccounts.size > 1;
+  const singleSellerAccountId = sellerAccounts.size === 1 ? [...sellerAccounts][0]! : null;
+  if (!isMultiStore && !singleSellerAccountId) {
     throw new AppError(400, "MissingStripeAccount",
       "Could not resolve the seller's Stripe Connect account for this order.");
   }
-  const pi = await getStripeClient().paymentIntents.retrieve(
-    order.stripePaymentIntentId,
-    {},
-    { stripeAccount: sellerStripeAccountId },
-  );
+  const pi = isMultiStore
+    ? await getStripeClient().paymentIntents.retrieve(order.stripePaymentIntentId)
+    : await getStripeClient().paymentIntents.retrieve(
+        order.stripePaymentIntentId,
+        {},
+        { stripeAccount: singleSellerAccountId! },
+      );
   if (pi.status !== "succeeded") {
     return { synced: false, reason: `Stripe PI status is ${pi.status}` };
   }
