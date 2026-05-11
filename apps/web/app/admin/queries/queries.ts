@@ -417,18 +417,24 @@ ORDER BY cu.created_at DESC;`,
     summary:
       "/admin overview dashboard — eight independent analytics queries fire in Promise.all so the page renders in ~200ms instead of 8 sequential round trips. Covers user growth, coupon impact, review monitor, top stores, top products, age groups, category analytics, top tags.",
     sql: `-- Top stores by revenue, one of the eight rolled-up metrics
-SELECT
-  s.store_id, s.name, s.rating,
-  COALESCE(SUM(oi.price_per_unit * oi.quantity), 0)::text AS revenue,
-  COUNT(DISTINCT o.order_id)::bigint                       AS orders
-FROM store s
-LEFT JOIN product      p  ON p.store_id        = s.store_id
-LEFT JOIN product_item pi ON pi.product_id     = p.product_id
-LEFT JOIN order_item   oi ON oi.product_item_id = pi.product_item_id
-LEFT JOIN orders       o  ON o.order_id        = oi.order_id
-                          AND o.status IN ('paid','fulfilled')
-GROUP BY s.store_id, s.name, s.rating
-ORDER BY revenue::numeric DESC
+-- Subquery isolates the numeric revenue alias before the outer
+-- SELECT text-casts it; otherwise the outer ORDER BY can't resolve
+-- "revenue::numeric" against a column that's already AS text.
+SELECT store_id, name, rating, revenue::text AS revenue, orders
+FROM (
+  SELECT
+    s.store_id, s.name, s.rating,
+    COALESCE(SUM(oi.price_per_unit * oi.quantity), 0) AS revenue,
+    COUNT(DISTINCT o.order_id)::bigint                AS orders
+  FROM store s
+  LEFT JOIN product      p  ON p.store_id        = s.store_id
+  LEFT JOIN product_item pi ON pi.product_id     = p.product_id
+  LEFT JOIN order_item   oi ON oi.product_item_id = pi.product_item_id
+  LEFT JOIN orders       o  ON o.order_id        = oi.order_id
+                            AND o.status IN ('paid','fulfilled')
+  GROUP BY s.store_id, s.name, s.rating
+) ranked
+ORDER BY revenue DESC
 LIMIT 5;`,
     indexes: [
       { name: "product_store_id_idx", on: "product(store_id)", why: "join chain head" },
