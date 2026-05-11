@@ -82,7 +82,16 @@ export function RegisterForm({
         setBusy(false);
         return;
       }
-      // Strip empty optional fields so the schema's `.optional()` is honoured.
+      if (!form.gender) {
+        setError("Please pick a gender.");
+        setBusy(false);
+        return;
+      }
+      if (!form.countryId) {
+        setError("Please pick your country.");
+        setBusy(false);
+        return;
+      }
       const payload: Record<string, unknown> = {
         username: form.username,
         email: form.email,
@@ -91,9 +100,9 @@ export function RegisterForm({
         lastName: form.lastName,
         phone,
         dateOfBirth: form.dateOfBirth,
+        gender: form.gender,
+        countryId: Number(form.countryId),
       };
-      if (form.gender) payload.gender = form.gender;
-      if (form.countryId) payload.countryId = Number(form.countryId);
       if (captchaToken) payload.captchaToken = captchaToken;
 
       const res = await fetch(`/api/auth/register`, {
@@ -246,41 +255,38 @@ export function RegisterForm({
         </span>
       </label>
 
-      {/* Optional demographic fields — gender + country are still
-          opt-in so the form stays under the fold for fast signups. */}
-      <details className="rounded-xl border border-line/60 bg-space-900/40 px-4 py-3 group">
-        <summary className="cursor-pointer text-sm font-semibold text-white list-none flex items-center justify-between">
-          A bit about you <span className="text-[10px] text-ink-dim font-normal">(optional)</span>
-        </summary>
-        <div className="mt-4 space-y-4">
-          <label className="block">
-            <span className="block text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">Gender</span>
-            <select
-              className={inputCls}
-              value={form.gender}
-              onChange={(e) => setForm({ ...form, gender: e.target.value as typeof form.gender })}
-            >
-              <option value="">Prefer not to say</option>
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-              <option value="other">Other</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="block text-xs font-semibold uppercase tracking-wider text-ink-dim mb-1">Country</span>
-            <select
-              className={inputCls}
-              value={form.countryId}
-              onChange={(e) => setForm({ ...form, countryId: e.target.value })}
-            >
-              <option value="">Choose a country</option>
-              {countries.map((c) => (
-                <option key={c.countryId} value={c.countryId}>{c.name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </details>
+      {/* Gender — required for buyer-demographics analytics. */}
+      <label className="block">
+        <span className="block text-sm font-semibold text-white mb-1">Gender</span>
+        <select
+          className={inputCls}
+          value={form.gender}
+          onChange={(e) => setForm({ ...form, gender: e.target.value as typeof form.gender })}
+          required
+        >
+          <option value="">Pick one</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+
+      {/* Country — required for tax / refund routing + the
+          "orders by country" admin widget. */}
+      <label className="block">
+        <span className="block text-sm font-semibold text-white mb-1">Country</span>
+        <select
+          className={inputCls}
+          value={form.countryId}
+          onChange={(e) => setForm({ ...form, countryId: e.target.value })}
+          required
+        >
+          <option value="">Choose a country</option>
+          {countries.map((c) => (
+            <option key={c.countryId} value={c.countryId}>{c.name}</option>
+          ))}
+        </select>
+      </label>
 
       {TURNSTILE_SITE_KEY && (
         <Turnstile

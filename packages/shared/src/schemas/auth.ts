@@ -38,13 +38,14 @@ export const registerSchema = z.object({
     .min(8)
     .max(20)
     .regex(/^\+?[0-9]{8,18}$/, "Phone must be 8-18 digits, optional leading +"),
-  countryId: z.number().int().positive().optional(),
-  gender: z.enum(["male", "female", "other"]).optional(),
+  countryId: z.number().int().positive(),
+  gender: z.enum(["male", "female", "other"]),
   // ISO date string from <input type="date"> -- converted to Date in
   // the API. Required at signup as of 2026-05-11 so every account has
   // an age on file for the age-bucket analytics + future age-gated
-  // products. updateProfileSchema below keeps it optional so existing
-  // PATCH /me callers don't have to re-send the date on every edit.
+  // products. updateProfileSchema below keeps DOB/gender/country
+  // optional so existing PATCH /me callers don't have to re-send the
+  // full demographic block on every profile edit.
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick your date of birth"),
 });
 
