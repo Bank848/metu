@@ -418,8 +418,8 @@ ORDER BY cu.created_at DESC;`,
       "/admin overview dashboard — eight independent analytics queries fire in Promise.all so the page renders in ~200ms instead of 8 sequential round trips. Covers user growth, coupon impact, review monitor, top stores, top products, age groups, category analytics, top tags.",
     sql: `-- Top stores by revenue, one of the eight rolled-up metrics
 -- Subquery isolates the numeric revenue alias before the outer
--- SELECT text-casts it; otherwise the outer ORDER BY can't resolve
--- "revenue::numeric" against a column that's already AS text.
+-- SELECT text-casts it, so the outer ORDER BY can resolve the alias
+-- against the inner numeric column (not the outer text re-cast).
 SELECT store_id, name, rating, revenue::text AS revenue, orders
 FROM (
   SELECT

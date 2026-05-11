@@ -2032,8 +2032,14 @@ export async function runAdminSql(
       "Only SELECT, WITH, and EXPLAIN are allowed here.",
     );
   }
-  // Block multi-statement attempts (we strip a single trailing `;` above).
-  if (sql.includes(";")) {
+  // Block multi-statement attempts (we strip a single trailing `;`
+  // above). Strip SQL comments first so a `;` inside a `-- foo; bar`
+  // line comment or `/* foo; bar */` block comment doesn't trip the
+  // check — only an actual statement terminator should reject.
+  const sqlNoComments = sql
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/--[^\n]*/g, "");
+  if (sqlNoComments.includes(";")) {
     await recordAudit("rejected", { reason: "MultipleStatements" });
     throw new AppError(
       400,
