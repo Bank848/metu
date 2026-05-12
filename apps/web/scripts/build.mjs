@@ -14,6 +14,19 @@
 // `DATABASE_URL_UNPOOLED` when present and fall back to `DATABASE_URL`.
 import { execSync } from "node:child_process";
 
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+if (
+  stripePublishableKey &&
+  (stripePublishableKey.includes("placeholder") ||
+    stripePublishableKey.includes("build-") ||
+    !stripePublishableKey.startsWith("pk_"))
+) {
+  throw new Error(
+    "[build] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not a real Stripe publishable key. " +
+      "Deploy with scripts/deploy-web.ps1 or scripts/deploy-web.sh so the key is passed as a build arg.",
+  );
+}
+
 const migrateUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 const hasDb = Boolean(migrateUrl);
 
