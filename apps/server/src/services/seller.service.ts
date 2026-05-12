@@ -95,13 +95,27 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
         total_revenue: string | null;
         fulfilled_count: bigint;
         pending_count: bigint;
+        response_time: bigint;
       }>
     >`
       SELECT
         COUNT(DISTINCT CASE WHEN o.status IN ('paid','fulfilled') THEN o.order_id END)::bigint AS paid_count,
         COALESCE(SUM(CASE WHEN o.status IN ('paid','fulfilled') THEN oi.price_per_unit * oi.quantity END), 0)::text AS total_revenue,
         COUNT(DISTINCT CASE WHEN o.status = 'fulfilled' THEN o.order_id END)::bigint AS fulfilled_count,
-        COUNT(DISTINCT CASE WHEN o.status = 'pending' THEN o.order_id END)::bigint AS pending_count
+        COUNT(DISTINCT CASE WHEN o.status = 'pending' THEN o.order_id END)::bigint AS pending_count,
+        (
+          SELECT COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (fo.updated_at - fo.created_at)) / 60)), 0)::bigint
+            FROM orders fo
+           WHERE fo.status = 'fulfilled'
+             AND EXISTS (
+               SELECT 1
+                 FROM order_item foi
+                 JOIN product_item fpi ON fpi.product_item_id = foi.product_item_id
+                 JOIN product fp ON fp.product_id = fpi.product_id
+                WHERE foi.order_id = fo.order_id
+                  AND fp.store_id = ${storeId}
+             )
+        ) AS response_time
       FROM order_item oi
       JOIN product_item pi ON pi.product_item_id = oi.product_item_id
       JOIN product p ON p.product_id = pi.product_id
@@ -140,7 +154,16 @@ export async function getStats(storeId: number): Promise<SellerStatsResponse> {
   `;
 
   return {
-    store,
+    store: store
+      ? {
+          ...store,
+          stats: {
+            rating: store.rating,
+            ctr: 0,
+            responseTime: Number(totals[0]?.response_time ?? 0),
+          },
+        }
+      : store,
     productCount,
     kpi: {
       paidCount: Number(totals[0]?.paid_count ?? 0),
