@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Banknote, ShoppingBag, Star, Timer, TrendingUp, AlertTriangle, Pencil, ExternalLink } from "lucide-react";
+import { Banknote, ShoppingBag, Star, TrendingUp, AlertTriangle, Pencil, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { StatCard } from "@/components/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -103,7 +103,7 @@ export default async function SellerOverview() {
       )}
 
       {/* Revenue uses `highlight`; the rest stay default. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         {/* Compact-format the headline so it fits the highlight slot;
             hover shows the precise figure. */}
         <StatCard
@@ -115,7 +115,6 @@ export default async function SellerOverview() {
         />
         <StatCard icon={ShoppingBag} label="Paid orders" value={stats.kpi.paidCount} />
         <StatCard icon={Star} label="Rating" value={((stats.store.stats?.rating ?? 0) / 10).toFixed(1) + "★"} />
-        <StatCard icon={Timer} label="Response time" value={`${Math.round((stats.store.stats?.responseTime ?? 0) / 60)}h`} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
