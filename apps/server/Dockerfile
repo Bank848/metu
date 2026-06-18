@@ -16,9 +16,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ───── Stage 1: deps ─────
-# Pinned base image + apk versions for reproducible builds.
+# Pinned base image for reproducible builds. apk versions stay unpinned —
+# Alpine's repo only keeps the latest patch (openssl 3.5.6 → 3.5.7 broke the
+# old exact pin), and Prisma is happy with any openssl 3.5.x.
 FROM node:20.20-alpine AS deps
-RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
+RUN apk add --no-cache gcompat openssl
 WORKDIR /app
 
 # Lockfile + every workspace package.json (workspace install needs them
@@ -45,7 +47,7 @@ RUN npm ci --include=dev --ignore-scripts
 
 # ───── Stage 2: builder ─────
 FROM node:20.20-alpine AS builder
-RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
+RUN apk add --no-cache gcompat openssl
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -88,7 +90,7 @@ RUN npm run build -w @metu/server
 
 # ───── Stage 3: runner ─────
 FROM node:20.20-alpine AS runner
-RUN apk add --no-cache gcompat=1.1.0-r4 openssl=3.5.6-r0
+RUN apk add --no-cache gcompat openssl
 WORKDIR /app
 
 ENV NODE_ENV=production
