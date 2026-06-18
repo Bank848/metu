@@ -1,85 +1,37 @@
-# fly.toml — METU on Fly.io (Singapore region)
+# fly.toml app configuration file generated for metu on 2026-06-18T06:22:04Z
 #
-# Pairs with the repo-root Dockerfile. App name + URL get assigned the
-# first time `fly launch` runs; rename via `fly apps rename` if needed.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "metu"
-primary_region = "sin"
+app = 'metu'
+primary_region = 'sin'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
-# NEXT_PUBLIC_* values are inlined into the client bundle by `next build`
-# at image-build time, so they have to be passed as Docker build args (not
-# Fly runtime secrets). They're public-by-design — they ship to the browser
-# in the JS bundle anyway — but we keep them out of the repo to satisfy
-# GitHub secret scanning. Pass them at deploy time instead:
-#
-#   flyctl deploy --remote-only -a metu \
-#     --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="AIza..." \
-#     --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="<project>.firebaseapp.com" \
-#     --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="<project-id>" \
-#     --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_..." \
-#     --build-arg NEXT_PUBLIC_SITE_URL="https://metu.online"
-#
-# The full deploy invocation lives in scripts/deploy-web.sh (gitignored
-# .env.deploy.local). The Dockerfile's builder stage declares matching
-# ARG lines and re-exports them as ENV before `next build` runs.
+[deploy]
+  release_command = "sh -c 'set -e; export DATABASE_URL=\"$DATABASE_URL_UNPOOLED\"; node node_modules/prisma/build/index.js migrate resolve --applied 20260511160000_add_gifting_enabled --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate resolve --applied 20260511180000_add_user_level_view --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate resolve --applied 20260512090000_widen_order_item_delivered_key --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate deploy --schema=packages/db/prisma/schema.prisma'"
 
 [env]
-  PORT = "8080"
-  NODE_ENV = "production"
-  # Pin the Node process clock to GMT+7 so server-rendered timestamps
-  # (audit log "When" column, /admin/changelog "shippedAt", any
-  # toLocaleString() inside a server component) match the Thai user's
-  # frame of reference. Postgres still stores UTC; Node just renders
-  # in Asia/Bangkok by default. Browser-side toLocaleString() is
-  # unaffected — those already use the viewer's timezone.
-  TZ = "Asia/Bangkok"
+  NODE_ENV = 'production'
+  PORT = '8080'
+  TZ = 'Asia/Bangkok'
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HTTP service — Fly's edge terminates HTTPS and forwards to the container.
-# Internal port matches what Fly's launch wizard set (8080) — easier than
-# overriding the live config from the dashboard.
-# ─────────────────────────────────────────────────────────────────────────────
 [http_service]
   internal_port = 8080
   force_https = true
-  # Keep the machine running 24/7 — Neon already cold-starts on its own;
-  # we don't want Fly to add another scale-to-zero pause on top.
-  auto_stop_machines = "off"
+  auto_stop_machines = 'off'
   auto_start_machines = true
-  # Pinned to 2 for the 2026-05-12 defense window: redundancy + zero cold-start
-  # during demo. Drop back to 1 after defense to halve the idle Fly bill.
   min_machines_running = 2
-  processes = ["app"]
+  processes = ['app']
 
   [[http_service.checks]]
-    interval = "30s"
-    grace_period = "10s"
-    method = "GET"
-    path = "/api/health"
-    timeout = "5s"
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/api/health'
 
-# ─────────────────────────────────────────────────────────────────────────────
-# VM size — 512 MB stays under the Fly free credit ($5/mo) at ~$3.88/mo
-# per shared-cpu-1x machine. 1 GB (~$5.70/mo) goes slightly over and
-# starts charging out of pocket, so we keep this lean. Bump back to
-# "1gb" only if you start seeing OOM kills under real load.
-# ─────────────────────────────────────────────────────────────────────────────
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Release phase — runs once per deploy in a temporary VM with the same
-# image + secrets, before the new release goes live. We use it to apply
-# pending Prisma migrations against the *direct* (unpooled) Neon URL,
-# because pgbouncer on the pooled endpoint blocks features Migrate
-# needs (advisory locks, prepared statements).
-# ─────────────────────────────────────────────────────────────────────────────
-[deploy]
-  # Invoke Prisma's CLI entry directly (`node node_modules/prisma/build/index.js`)
-  # rather than via `node_modules/.bin/prisma` — the .bin/ symlink directory
-  # isn't included in our slim runner image, only the actual prisma package.
-  release_command = "sh -c 'set -e; export DATABASE_URL=\"$DATABASE_URL_UNPOOLED\"; node node_modules/prisma/build/index.js migrate resolve --applied 20260511160000_add_gifting_enabled --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate resolve --applied 20260511180000_add_user_level_view --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate resolve --applied 20260512090000_widen_order_item_delivered_key --schema=packages/db/prisma/schema.prisma 2>/dev/null || true; node node_modules/prisma/build/index.js migrate deploy --schema=packages/db/prisma/schema.prisma'"
+  size = 'shared-cpu-1x'
+  memory = '512mb'
